@@ -12090,7 +12090,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escolha um modelo para começar seu primeiro projeto. Você também pode criar um depois pela barra lateral."
+            "value" : "Escolha um modelo de projeto para começar seu primeiro projeto. Você também pode criar um depois pela barra lateral."
           }
         },
         "ru" : {
@@ -16147,7 +16147,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Carregando modelos…"
+            "value" : "Carregando modelos de projeto…"
           }
         },
         "ru" : {
@@ -23841,7 +23841,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modelos"
+            "value" : "Modelos de projeto"
           }
         },
         "ru" : {
@@ -24256,7 +24256,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modelos indisponíveis"
+            "value" : "Modelos de projeto indisponíveis"
           }
         },
         "ru" : {
@@ -32961,7 +32961,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diga qual app você quer alterar e o que quer que ele faça. Depois podemos escolher um modelo e revisar os arquivos juntos."
+            "value" : "Diga qual app você quer alterar e o que quer que ele faça. Depois podemos escolher um modelo de projeto e revisar os arquivos juntos."
           }
         },
         "ru" : {
@@ -53683,7 +53683,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modelo"
+            "value" : "Modelo de projeto"
           }
         },
         "ru" : {
