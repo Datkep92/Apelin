@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "libarchive.xcframework",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/libarchive.xcframework.git",
+      "state" : {
+        "revision" : "82687c75e530917b7fbeb15cd5f9369524637155",
+        "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "libgit2.xcframework",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/libgit2.xcframework.git",
+      "state" : {
+        "revision" : "983a47947dae35495cf367cf0bf7811ae59699e2",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 2
+}

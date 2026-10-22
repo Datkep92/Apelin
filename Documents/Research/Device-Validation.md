@@ -1,0 +1,1434 @@
+# Device validation
+
+What the milestone 1 data layer has been proven to do on a device, where,
+and what is still to run. Every Apelin step below ran through the console
+(`Documents/Console.md`): a script dropped into
+`~/Documents/wiki.qaq.apelin/console/inbox/`, the app brought to the front,
+the result read from `console/out/<runID>.jsonl`. Since 2026-10-18 that is
+`Scripts/device.py` (`make device-test`; `Documents/Console.md` ▸ From the
+Mac), which also does each script's setup, kills and checks, and keeps the
+output in `build/Device/<vphone>/`. Those milestone-1 runs exercised the
+console while the UI was a scaffold; later UI validation is recorded in the
+dated sections below.
+
+"Product path" means the step went through Apelin's own operations end to
+end, with irisind doing every install and removal. Nothing in the current
+results was registered or installed by hand.
+
+The on-device toolchain retarget itself (Apple's package, stage timings,
+memory and disk, the six language checks) is recorded in
+`2026-10-17-Toolchain-Retarget.md`, with every other CLT release in
+Apple's catalog set up and self-tested by the probe on the iOS 26.6.2
+iPhone vphone (▸ Other Command Line Tools releases).
+
+## Devices
+
+| Name | System | Bootstrap | Beside Apelin |
+|---|---|---|---|
+| iOS 26.4 iPhone vphone | iOS 26.4 | roothide | Irisin 4.7.0, ElleKit 1.2-1, icli 0.9.0, SDK iPhoneOS 26.4 |
+| iOS 27.0.1 iPhone vphone | iOS 27.0.1 | roothide | Irisin 4.7.0, ElleKit 1.2-1, icli 0.9.0, SDK iPhoneOS 27.0 |
+| iOS 27.0.1 iPad vphone | iOS 27.0.1 | roothide | Irisin 4.7.1, ElleKit 1.2-1, SDK iPhoneOS 27.0 |
+| iOS 26.6.2 iPhone vphone | iOS 26.6.2 | roothide | Irisin 4.7.2, ElleKit 1.2-1, SDK iPhoneOS 27.0 and 18.5 |
+
+Packages under test: Apelin (`make deb-roothide`), the app, CLI and tweak
+development extensions (`make deb-extensions`) and the agent tools
+(`make deb-agent-tools`). The preference bundle extension depends on
+preferenceloader, which no vphone has. Nothing here is a result for
+rootless, real hardware, the iOS 16 floor, or the iPad's sidebar layout.
+
+## Current results
+
+The first two iPhone vphones, on main after the review rounds (the iOS 26.4
+vphone re-ran the whole list as a regression at the end; the iOS 27.0.1
+vphone ran it once just before), by hand. The iPad vphone and the iOS 26.6.2
+iPhone vphone ran `make device-test SUITE=regression` on 2026-10-18 (build
+15), the iPhone from a fresh install with no SDK or toolchain registered;
+the iPad ran `t1`, `t2` and `r2` after the toolchain registered there by
+hand on 2026-10-17 (no installation) was deleted.
+Times are typical for one step; — is not run there.
+
+| Script | What it proves | iOS 26.4 | iOS 27.0.1 | iPad 27.0.1 | iOS 26.6.2 |
+|---|---|---|---|---|---|
+| hello, `extensionList`, `sdkList`, `toolchainStatus` | apelind starts on demand and answers; the session host and workers come up | pass, 1–14 ms | pass | pass | pass |
+| `i1-smoke.json` | PTY as uid/gid 501; protected edit with backup, spent grant and dpkg status refused; install and removal of the fixture deb through irisind, wrong digest refused | pass | pass (install 0.87 s, remove 0.35 s) | pass (install 0.8 s, remove 0.3 s) | pass |
+| `terminal.json` | open, resize, attach, close, resize after close refused | pass | pass | pass | pass |
+| The terminal's environment | `GIT_CONFIG_COUNT=1`, `safe.bareRepository=explicit` | pass | — | — | — |
+| `files.json` | `fileRead` by descriptor; escape `badRequest`, dpkg status `denied`, unknown grant `notFound` | pass | pass | pass | pass |
+| `logs.json` | a 5 s live log read in two calls, crash list, open, symbolicate | pass | pass (2.08 s) | pass | pass |
+| `i5-log-continuity.json` | 60 s of live log across icli's chunk boundaries: exactly 200 lines, none lost or repeated | pass | pass | pass | pass |
+| `diagnostics.json` | screenshot, UI tree, tap, confirmLoaded of a missing build, unknown load check refused | pass (tree 0.4 s) | pass | pass, after bugs 6 and 7 below | pass |
+| `tool-host.json`, `i6-tool-attachments.json` | the disassembler extension as mobile; attachment bytes back as a descriptor with the same sha256 | pass | pass | pass | pass |
+| `i2-git.json`, `i2-git-commit.json` | clone one branch over HTTPS, status, diff, stage, unstage, commit; refusals | pass | pass (clone 0.7 s) | pass | pass |
+| SDK remove and re-import from the inbox; escape and plain HTTP refused | the SDK manager on a real 380 MB SDK | — | pass (import 4.1 s); `i2-sdk-import.json` also passed on the iPad vphone | pass (`i2-sdk-import.json`, 4.3 s) | pass (first import, 3.8 s) |
+| `environment.json` | setup started, replayed, cancelled; unknown removals refused | pass | pass | pass | pass |
+| `t1-toolchain-setup.json` | Apple's CLT downloaded, retargeted, packaged, installed through irisind, six self-tests as mobile, registered | pass (29 s) | pass (25–33 s) | pass (53 s) | pass (55 s) |
+| `t2-toolchain-remove.json` | removed through irisind, second removal `denied`; refused with `conflict` while a project binds it | pass | pass | pass | pass |
+| `t4-toolchain-swift.json` (2026-10-19, build 20) | CLT 27.0 set up with Swift beside the registered 27.0, both components passing: six C-family cases (C with `__builtin_available`) and Swift, Swift dylib, Swift async, Swift macro on arm64e against the iOS 27.0 SDK; the `uikit-swift` app created, checked, built debug and release, installed through irisind and removed | — | — | — | pass (setup 49 s) |
+| A12Z iPad, iPadOS 26.0.1, roothide (2026-10-19, build 23, by hand) | the iOS 27.0 SDK imported from the inbox; `toolchainSetup` of 27.0 with Swift: download, retarget and install passed, the six C-family self-test cases passed, the four Swift cases trapped on `eor3` (FEAT_SHA3), so the setup was rolled back (`Toolchain-Retarget.md` ▸ Older CPUs) | — | — | — | — |
+| CLT 27.0 with the Xcode 27.1 SDK (2026-10-19, build 25, by hand) | the iOS 27.1 SDK imported from the inbox; the Swift toolchain removed and set up again, self-tested against 27.1 (`selfTestSDK` 27.1, `newestSDK` 27): ten cases passed; the `uikit-swift` template bound to SDK 27.1 checked, built debug, installed through irisind and opened | — | — | — | pass (setup 47 s, build 24 s) |
+| `t3-toolchain-side-by-side.json` (2026-10-19, build 19) | an iPhoneOS 18.5 SDK imported; CLT 12.4 refused with its reason before any download; CLT 16.4 set up beside the registered 27.0 (its own ID, path and package), six self-tests against 18.5, the default left on 27.0; 16.4 removed and 27.0 still registered and the default; `project-build-install.json` then built with 27.0 | — | — | — | pass (16.4 setup 74 s) |
+| `i3-chain.json` | create → check → build → install → `confirmLoaded` with `trigger: respring`: marker confirmed, image `notRead`, the run re-attached to the load-check task after the respring took the app down | pass (build 0.8 s, install 0.3 s) | pass | pass (48 s with the respring) | pass (47 s) |
+| `project-build-install.json` | approval digests, build cancel, build, install, removal | — | pass | pass | pass |
+| `resume.json` | the app killed mid-follow re-attaches to the same terminal; the run goes on after the respring | pass | pass | pass | pass |
+| `r1-resume-build.json` | session host killed during `compile`: one `resumed`, rebuilt from `check` under the same build ID | pass (21 s) | pass | pass | pass |
+| `r1-resume-sdk-import.json` | session host killed 1 s into the import of a copy of a registered SDK: one `resumed`, the import done and the SDK answered | — | — | pass (4 s after the resume) | pass |
+| `r2-resume-toolchain.json` | session host killed 5 s into setup: one `resumed`, seq continuous, one installation, one toolchain | pass | pass | pass (58 s) | pass (60 s) |
+| Retry bound | host killed three times: `resumed` 1 and 2, then `interrupted`, attach fails `taskEnded` | pass | pass | — | — |
+| `agent.json` without a credential, agent refusals | `denied` without a credential; `notFound` for every call on an unknown session; `agentRunCode` from the app `denied` | pass | pass | — | — |
+| `Documents/Console/demo/` with an openai-compatible (DeepSeek, `deepseek-chat`) credential | credential imported and unlinked; a Relaxed session edits, builds and reports; Confirm asks for `run_code` `uname -a`, waits, runs once after `agentApprove`; abort ends `aborted`; steer lands mid-run; app and CLI templates build, a failing build reports 2 diagnostics. Captured as the replay fixtures | pass | — | — | — |
+
+The session host was killed with `kill -9 $(cat <install
+root>/var/lib/apelin/session.pid)` from a loop on the device watching the
+run's output (the harness's watcher since 2026-10-18); the proxy started a new host 1–2 s later every time. No crash
+report for apelind, its session host, a worker or the app came out of any
+run.
+
+The daemon's lifecycle: after a reboot no apelind runs (no `RunAtLoad`, no
+`KeepAlive`); the first console request starts apelind and its session host
+as root and the workers as uid 501, children of the session host. The idle
+exit after the last piece of work has not been timed on a device.
+
+## Bugs the device found
+
+Each was fixed with a test before the results above.
+
+1. The app read the wrong data folder on roothide: `NSHomeDirectory()`
+   answers the system's `/var/mobile`, the package and the workers use
+   `<jbroot>/var/mobile`. The app now finds the bootstrap from its own
+   bundle path (`RoothideRoot`).
+2. The terminal's bash crashed before its first prompt: iOS has one locale,
+   `UTF-8`, and readline dereferences the null `setlocale` answer under
+   `LANG=en_US.UTF-8`. The shell gets `LC_CTYPE=UTF-8`, and a shell that
+   dies of a signal ends its task `failed`.
+3. The iOS 27 SDK was refused: `CoreImage.metallib` is a fat file of Metal
+   libraries, and every fat slice was treated as Mach-O. Non-Mach-O slices
+   are data.
+4. A respring ended a console run mid-script. A run whose last step was a
+   successful respring now goes on at the next launch, once. `respring`
+   answers in about 66 ms, before SpringBoard takes the app down, so the
+   runner waits up to 15 s for the app to go before it starts the next step.
+5. The first UI read after the app came to the front failed "frontmost
+   application could not be verified": during a switch, RunningBoard
+   reports two focal apps (`several_focal_apps`) for about 0.25 s. Not an
+   entitlement. UI reads and targeted actions wait (up to 3 s) for the same
+   verified app on two reads in a row.
+6. A followed task that had ended `succeeded` was reported as a timeout
+   after 0.3 s (`i1-smoke`'s terminal, once, on the iOS 27 iPad vphone): the
+   console's watchdog, cancelled when the task ended, woke from its
+   `try? await Task.sleep` and cancelled the finished reader, and the runner
+   read `isCancelled` after it had. The watchdog now answers whether it
+   fired. It never reproduced on a Mac.
+7. On the iPad, bringing Apelin to the front through Settings left Settings
+   beside it with the focus (iPadOS 26 windowing): the UI tree read
+   Settings, `diagnostics.json`'s tap at (4, 4) hit Settings' window close
+   control, and Apelin was suspended with its load-check follow stalled.
+   The harness now quits an idle app and launches it, brings a stalled app
+   back to the front, and the script taps (200, 4).
+8. `r1-resume-sdk-import.json` expected the import to be still `running` 20 s
+   after the kill; on the iPad vphone the resumed import of a registered SDK
+   took 4 s. The final `succeeded` and the `resumed` event prove the resume,
+   so that expect is gone.
+9. On both real devices every toolchain record outlived its package: all
+   twelve packages had been removed from outside Apelin, and roothide's
+   package removal leaves each folder behind with the `.jbroot` link it
+   puts there. `toolchainStatus` reported the empty trees as healthy and
+   `toolchainRemove` refused them forever ("no longer installed"), since
+   the folder still existed. A tree with no regular file left now counts
+   as gone in both (`ToolchainService.exists`), so the record is dropped.
+
+## The image list is never read: three kernel panics
+
+`confirmLoaded` was designed to read the target's loaded images as a second
+piece of evidence beside the marker line. On the iOS 27.0.1 vphones it
+panicked the kernel three times on 2026-10-17, always with the same
+signature, the panicked task `apelin-diagnostics`:
+
+```
+panic(cpu 0 caller …): VM entry … lock is invalid (0) <v:0 c:-- w:-- -/0> @vm_entry_lock.c:168
+Panicked task …: pid …: apelin-diagnostics
+```
+
+1. Twice on the iPad vphone, reading SpringBoard's image list while
+   apelin-diagnostics carried `com.apple.system-task-ports.read` and read
+   dyld's image infos through the task read port
+   (`mach_vm_read_overwrite`).
+2. With that reader and the entitlement removed, once more on the iPhone
+   vphone through the region-path walk alone
+   (`proc_pidinfo(PROC_PIDREGIONPATHINFO)` over SpringBoard's regions),
+   asked for deliberately with `imageCheck: regionPaths`.
+
+The kernel backtraces were not symbolicated. Both readers are gone, the
+image evidence is always `notRead`, `imageCheck` is refused with
+`badRequest` before a task starts (`i3-image-check-refused.json`), and only
+the marker `ApelinLoaded <buildID>` heard on the live log, plus the static
+filter check, decides `loaded`. Do not add an image reader back without a
+safe mechanism proven on that kernel. The run that panicked was left in
+`console/running/` and would have been resumed at the next launch; the
+console now goes on after a restart only past a successful respring.
+
+## Known limitations seen on a device
+
+- icli's `app frontmost`, `log crashes` and `log crash` answer
+  `device_locked` while the screen is locked (icli's own lock policy;
+  `log syslog` still runs). Apelin's worker links IcliKit and does not go
+  through that gate.
+- An interrupted toolchain setup leaves its job record and
+  `Environment/staging/<taskID>/` until the next setup of the same source,
+  which clears them.
+- Only the `ApelinLoaded` marker is checked; whether the template's hook
+  ran (`ApelinHooked`) is not part of the evidence.
+
+## Still to run on the owner's devices
+
+- [ ] A rootless bootstrap: install, hello, `i1-smoke`, `t1`, `i3-chain`.
+- [ ] Real hardware (not a vphone): the same, plus a real respring and
+      confirmLoaded. Toolchain setup and removal, SDK import and builds
+      run on an iPhone 15 Pro and an A12Z iPad on 2026-10-21 (▸ Real
+      devices below); the project chain did not, as neither has the
+      development extensions installed.
+- [ ] The iOS 16.0 floor (oldest supported system).
+- [ ] On iOS 16, 17 or 18: an agent session starts (`agentList`, then
+      `agentOpen`). apelin-agent links `@rpath/libswiftCompatibilitySpan.dylib`.
+      The OS has that library only from iOS 26, so on older systems it loads
+      the copy the package installs in `usr/libexec/apelin/`, through the
+      worker's second rpath, `@executable_path`. Only the iOS 26.4 vphone, where
+      the OS copy wins, has run it so far.
+- [ ] An iPad: the sidebar split view, which no console run exercises.
+- [ ] A Swift binary with a deployment target below 17 on iOS 16
+      (no iphoneos compatibility libraries). Swift on both vphones is
+      covered by the matrix below.
+- [ ] A project packaged and installed with an older toolchain against
+      its SDK. Setup through Apelin and Irisin, plus compiler probes, is
+      covered on all four hosts by the matrix below.
+- [ ] A live agent session with a Copilot credential (the agent loop itself
+      ran with DeepSeek on the iOS 26.4 vphone): `agent.json` past
+      `agentOpen`, `i4-agent.json`.
+- [ ] `t1-toolchain-setup.json` over a slow network (the hour-long path),
+      and a cancel during the irisind install.
+- [ ] An SDK from an HTTPS archive. Repository-branch imports from the
+      enabled default source are covered by the matrix below.
+- [ ] `r1-resume-sdk-import.json` on a fresh import (only a re-import of
+      a registered SDK has run across a host kill).
+- [ ] crashSymbolicate against a real crash of a built tweak.
+- [ ] The app, CLI and preference bundle templates built, installed and
+      checked for what each does.
+- [ ] The idle exit of apelind timed after its last piece of work.
+- [ ] Settings ▸ Model Providers: `accounts.json` in its new shape (a
+      device code, a loopback, a polled page, two key forms), and a real
+      sign-in by hand of each flow — a device code (Copilot, Kimi or Grok),
+      a loopback with Safari on the device and with the pasted address
+      (Claude, Codex, Devin, OpenRouter), a polled page (Cursor, Qoder,
+      WorkBuddy, Z.ai), Kiro's own listener, a key form — each followed by
+      an `agentOpen` on that provider. None has run on a device yet.
+- [ ] The UI itself: none of the above touched it.
+- [ ] Transfer files (`.apetc`, `.apesdk`, `.apeproj`): `transfer` and
+      `transfer-project` on both vphones, `transfer-toolchain` by name on a
+      roothide one (the export undoes RootHide's runtime brand), then a
+      toolchain and an SDK exported on one device and imported on the other
+      through AirDrop or Files and Open in Apelin (the toolchain installed
+      through Irisin and self-tested there), a roothide export imported on a
+      rootless bootstrap, and a project's import followed by a build under
+      Confirm, which must ask.
+
+## SDK and toolchain matrix (2026-10-19)
+
+Build 27, roothide, using the enabled `owngoal-dev/iOS-SDKs` source. Each
+C-family entry compiles, links, generates a matching dSYM, signs and runs C,
+C++ (`iostream` and `vector`) and Objective-C (`Foundation`) for arm64 and
+arm64e on that device. The deployment target is iOS 16.0. Toolchain entries
+install through Apelin and Irisin, then use their selected compatible SDK;
+SDK entries import that branch and use one compatible, validated CLT.
+Clang modules are off, as required on the A12Z.
+
+Tests run as mobile, one environment task or compiler probe at a time per
+device. They include storage checks and stop on a first failure. No tweak
+injection, respring, reboot, bootstrap-core change or system-configuration
+edit is part of this matrix. Installed environments remain available; the
+raw events, probe results and matching Apelin dSYMs are retained locally
+under `build/Validation/`. After their first execution, all eleven C-family
+products on every device are checked again against their original manifests
+and repeat all six cases with the runtime-brand-aware verifier. Only the
+RootHide signature metadata described in the retarget research is normalized
+in memory; the whole reconstructed file must match its original SHA-256.
+
+| CLT / Apple product | vphone 26.6.2 | vphone 27.0.1 | 15 Pro 17.3.1 | A12Z 26.0.1 |
+|---|---|---|---|---|
+| 27.0/082-83364 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 16.4/082-41241 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 16.2/072-44426 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 15.3/052-59890 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 15.0/042-32697 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 14.3/032-84673 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 14.2/012-92431 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 13.4/002-83793 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 13.2/002-41708 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 12.5/071-54303 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 12.5/071-29699 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 12.4/001-89745 | refused | refused | refused | refused |
+
+CLT 12.4 is refused before compiling: its earlier arm64e C++ incompatibility
+is a known limitation. The two 12.5 products are tested separately.
+
+| SDK | vphone 26.6.2 | vphone 27.0.1 | 15 Pro 17.3.1 | A12Z 26.0.1 |
+|---|---|---|---|---|
+| 14.5 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 15.2 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 15.5 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 16.1 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 16.2 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 16.4 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 17.0 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 17.2 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 17.4 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 17.5 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 18.0 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 18.1 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 18.2 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 18.4 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 18.5 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 18.6 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 26.0 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 26.1 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 26.2 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 26.4 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 26.5 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 27.0 | 6/6 | 6/6 | 6/6 | 6/6 |
+| 27.1 | 6/6 | 6/6 | 6/6 | 6/6 |
+
+The 13.0–14.4 trees lack `usr/include/c++/v1/iostream` and were removed
+from the default source by the owner’s choice. A 13.0 trial on both vphones
+passed C and stopped at the missing C++ header, without a compiler crash;
+its imported copies were removed. SDK contents in the published branches
+are unchanged.
+
+| CLT 27.0 with Swift | vphone 26.6.2 | vphone 27.0.1 | 15 Pro 17.3.1 | A12Z 26.0.1 |
+|---|---|---|---|---|
+| Installation / self-test | 10/10 | 10/10 | refused | refused |
+| SDK 27.0 | 10/10 | 10/10 | unavailable | unavailable |
+| SDK 27.1 | 10/10 | 10/10 | unavailable | unavailable |
+
+The ten Swift-toolchain cases are the six C-family cases plus Swift, a
+Swift dylib and client, structured concurrency, and an Observation macro
+on arm64e. Both 27.0 and 27.1 SDKs are exercised independently on each
+vphone. The current Swift component requires iOS 26+ and SHA3/DotProd:
+the 17.3.1 host and A12Z therefore verify a refusal, without launching the
+unsupported compiler.
+
+Final app checks cover the 23 registered SDKs, 23 published source branches,
+and refusal of unavailable Swift before SDK resolution. SDK auto-resolution
+also has host tests for newest-compatible selection, same-major Swift
+selection, metadata revalidation, cancellation, source failures and reuse
+after a later toolchain failure.
+
+## Initial legacy Swift investigation (2026-10-19; completed below)
+
+The iOS 26 floor above describes the current CLT 27.0 port, not every
+Swift compiler. Two unregistered research trees were prepared from verified
+Apple packages, with unchanged machine instructions and Swift imports:
+CLT 14.2 / Swift 5.7.2 and CLT 15.0 / Swift 5.9. At this initial stage, production release,
+host-version and CPU gates remained unchanged. The subsequent completion
+below records the signer fix and promotion into ordinary setup.
+
+| Research tree / SDK | vphone 26.6.2 | vphone 27.0.1 | 15 Pro 17.3.1 | A12Z 26.0.1 |
+|---|---|---|---|---|
+| 14.2 / 16.2, version command | pass | pass | pass | pass |
+| 14.2 / 16.2, full probe | 12/12 | 12/12 | partial; dylib launch denied | partial; dylib launch denied |
+| 15.0 / 17.0, version command | pass | pass | pass | not run: SHA3 instructions present |
+| 15.0 / 17.0, full probe | 14/14 | 14/14 | not run after first 14.2 failure | not run |
+
+The 14.2 probe is six C-family cases plus ordinary Swift, a dylib/client and
+async on both arm64 and arm64e. Macros are excluded because Swift 5.7 does
+not support them. The 15.0 probe adds an Observation macro on each
+architecture. On both physical devices, the six C-family cases and ordinary
+Swift arm64 passed. The next case compiled, linked and signed its dylib and
+client, then the client was terminated at launch by dyld: `file system
+sandbox blocked mmap()`. Its launch report names the private test dylib as
+the missing library (DYLD / Library missing, with an instruction to ignore
+the backtrace). No compiler SIGILL occurred in these legacy probes. Each
+physical sequence stopped there: Swift async and arm64e were not tested,
+and the 15 Pro did not proceed to the 15.0 full probe. These are partial
+results, not full legacy Swift support.
+
+Before execution, the selected-feature instruction scan found only LRCPC
+among the selected features in 14.2's 14 host images; 15.0's 29 images
+contain 112 `eor3` instructions (55 clang, 55 libLTO, two swift-frontend),
+so 15.0 was not tried on A12Z. This scan is not a reachability proof.
+The native symbol probe found all 949 ordinary strong system imports of
+14.2 on A12Z and all 1,682 of 15.0 on the 17.3.1 host; dyld's
+`dyld_stub_binder` is classified separately from `dlsym`-resolvable exports.
+
+All four temporary research packages and their owned work folders were
+removed after testing. Registered SDKs, official toolchains, project
+bindings and defaults were preserved. No respring, reboot, tweak injection
+or security-policy change was used to work around the dylib refusal.
+Raw research evidence and matching probe dSYMs remain local under
+`build/LegacySwift/` and `build/Validation/dSYMs/`.
+
+### Legacy Swift completed through debug-signed self-tests
+
+The earlier dylib denial was a self-test signing defect. A bounded native
+`dlopen` probe reproduced it without crashing: storage and library-validation
+entitlements did not help, but the ordinary `get-task-allow` debug signature
+allowed the same private library to load. Temporary Swift test executables
+now carry that entitlement. Compiler binaries and dylibs retain their
+normal signatures; system security settings are unchanged.
+
+With that fix, CLT 14.2 + SDK 16.2 passed 12/12 on all four devices, including
+ordinary Swift, dylib/client and async for arm64 and arm64e. CLT 15.0 + SDK
+17.0 passed 14/14 on both vphones and the iOS 17.3.1 15 Pro, including
+Observation macros on both architectures. A12Z did not execute CLT 15.0,
+whose SHA3 instructions remain incompatible. No new compiler crash occurred.
+
+Production setup now reviews Swift for 14.2 and 15.0 as well as 27.0, with
+per-release host and CPU requirements. The legacy floor offered is iOS
+17.3.1, the oldest actual host tested; iOS 16 remains unverified for Swift.
+The public download reference is [Compatibility](../Compatibility.md).
+
+
+## Static installation compatibility audit (2026-10-19)
+
+All 11 offered Apple CLT packages now have source SHA-256 pins and static
+host-image inventories, including CPU decoder comparisons. No compiler
+was run on a device for this audit. The results, its unclassified-data
+limitations and the iOS 16.1 SDK export check are in
+[Toolchain-Retarget](2026-10-17-Toolchain-Retarget.md#installation-compatibility-catalog-2026-10-19).
+The installation catalog exposes the same reviewed data through its
+`compatibility` field; [Compatibility](../Compatibility.md) lists the
+CPU groups and recommended SDK pairings. None of these static results
+marks an unrun device checklist item as passed.
+
+## Real devices: every release and SDK (2026-10-21)
+
+Two of the owner's devices, both roothide, both with Apelin build 29,
+Irisin 4.7.2 and icli 0.9.2, neither with the development extensions:
+
+| Device | System | CPU features (`hw.optional.arm`) | `__libcpp_verbose_abort` | Injection |
+|---|---|---|---|---|
+| iPhone 15 Pro (A17 Pro) | iOS 17.3.1 | LRCPC, LRCPC2, SHA3, DotProd, BF16, I8MM | present | ElleKit 1.2-1 |
+| iPad Pro (A12Z) | iPadOS 26.0.1 | LRCPC only | present | none (ElleKit removed) |
+
+Each release was set up through the console (`toolchainSetup`, Apple's
+package, retarget, the bridge, the self-test as mobile), then built more
+than the self-test with its own tools from a shell as mobile, then
+removed with `toolchainRemove`; both devices end with no toolchain
+package and an empty registry. The extra cases: the CLI template's
+`main.m` (`cli-objc`, arm64 and arm64e, run), a C++ program with
+`<map>`/`<string>` (arm64, arm64e), `@import Foundation` with
+`-fmodules` (clang modules, which Apelin's builds do not use), and the
+tweak template's `Tweak.m`, unchanged, built into an arm64e dylib against
+the roothide substrate stub with the template's flags and `dlopen`ed by a
+loader (the `@loader_path/.jbroot` link emulated beside it), which must
+bind `MSHookMessageEx` to ElleKit and run its constructors. With Swift,
+also a Swift command-line program for both architectures.
+
+### Catalog
+
+| CLT | iPhone 15 Pro, C family | iPhone 15 Pro, Swift | A12Z, C family | A12Z, Swift |
+|---|---|---|---|---|
+| 27.0 | offered | refused: "Swift 6.4 requires iOS 26.0 or later on this device." | offered | refused: "requires CPU features this device lacks: FEAT_SHA3, FEAT_DotProd." |
+| 16.4, 16.2, 15.3 | offered | none reviewed | offered | none reviewed |
+| 15.0 | offered | offered | offered | refused: "Swift 5.9 requires CPU features this device lacks: FEAT_SHA3." |
+| 14.3 | offered | none reviewed | offered | none reviewed |
+| 14.2 | offered | offered | offered | offered |
+| 13.4, 13.2, 12.5 (both products) | offered | none reviewed | offered | none reviewed |
+| 12.4 | refused, its arm64e C++ reason | — | refused, same | — |
+
+Every refusal came before any download (1–6 s) and its reason is right.
+Build 32's catalog, which adds the C++ runtime symbol check for 16.4 and
+27.0, decides the same on both: each has the symbol.
+
+### Setup, by stage (seconds, from the task's `stage` events)
+
+Download / extract / adapt / package / install through the bridge /
+self-test; total. Every self-test case passed: 6 C-family cases per
+release, plus the Swift cases.
+
+| CLT | iPhone 15 Pro | A12Z |
+|---|---|---|
+| 27.0 | 51 / 36 / 2 / 2 / 13 / 7; 111 | 53 / 59 / 3 / 7 / 24 / 17; 164 |
+| 16.4 | 117 / 53 / 2 / 3 / 14 / 6; 195 | 105 / 99 / 3 / 7 / 20 / 17; 252 |
+| 16.2 | 57 / 44 / 2 / 2 / 15 / 6; 126 | 93 / 83 / 3 / 6 / 19 / 18; 222 |
+| 15.3 | 54 / 42 / 1 / 3 / 14 / 6; 120 | 86 / 78 / 2 / 7 / 16 / 17; 207 |
+| 15.0 | 57 / 41 / 2 / 3 / 13 / 6; 123 | 92 / 78 / 3 / 6 / 19 / 18; 217 |
+| 14.3 | 51 / 39 / 1 / 2 / 11 / 6; 110 | 80 / 73 / 2 / 6 / 17 / 17; 194 |
+| 14.2 | 146 / 38 / 1 / 2 / 10 / 5; 202 | 80 / 72 / 2 / 5 / 15 / 16; 190 |
+| 13.4 | 52 / 38 / 1 / 2 / 9 / 6; 107 | 79 / 71 / 1 / 5 / 15 / 16; 187 |
+| 13.2 | 47 / 36 / 1 / 2 / 9 / 5; 100 | 75 / 68 / 1 / 5 / 13 / 15; 177 |
+| 12.5 (071-54303) | 39 / 29 / 1 / 2 / 8 / 5; 84 | 64 / 55 / 1 / 4 / 12 / 16; 152 |
+| 12.5 (071-29699) | 43 / 29 / 1 / 1 / 6 / 5; 85 | 61 / 54 / 1 / 5 / 13 / 15; 149 |
+| 15.0 with Swift | 54 / 42 / 3 / 4 / 12 / 99; 214 | refused |
+| 14.2 with Swift | 68 / 38 / 1 / 3 / 16 / 64; 190 | 78 / 71 / 3 / 8 / 20 / 160; 340 |
+
+The self-test cases, mean seconds: C 0.6, C++ 1.2–1.4, ObjC 0.9–1.0 on
+the iPhone; C 1.8–1.9, C++ 3.5–4.0, ObjC 2.5–2.8 on the A12Z. Swift, per
+architecture (arm64, then arm64e): 15.0 on the iPhone, Swift 38.9 and
+40.8, dylib 3.7 and 2.6, async 1.2 and 1.2, macro 2.4 and 1.3; 14.2 on
+the iPhone, Swift 26.2 and 26.8, dylib 1.9, async 0.9; 14.2 on the A12Z,
+Swift 64.8 and 64.3, dylib 5.1 and 5.2, async 2.4 and 2.6. The first
+Swift case of each architecture builds the SDK's modules cold, which is
+all of the Swift time. Inside "install" (27.0 on the iPhone, 13 s): the
+deb is handed over in 1 s, irisind takes 4 s before its install root,
+3 s to verify the 345 entries and 3 s to unpack; removal takes 1.7–2.9 s
+on the iPhone and 2.3–4.1 s on the A12Z.
+
+### Beyond the self-test
+
+| Case | iPhone 15 Pro, every release | A12Z, every release |
+|---|---|---|
+| `cli-objc` arm64, arm64e | pass (0.9–2.2 s) | pass (2.8–4.0 s) |
+| C++ arm64, arm64e | pass | pass |
+| `@import Foundation` (`-fmodules`) | pass | pass for 16.2 and older; 27.0 and 16.4 die of SIGILL (`Illegal instruction: 4`) |
+| tweak dylib loaded | pass | builds; no load (no injection framework) |
+| Swift CLI arm64, arm64e | pass with 15.0 (57–59 s) and 14.2 (42–45 s) | pass with 14.2 (89–91 s) |
+
+The A12Z module result is narrower than the catalog: `clangModuleCPUFeatures`
+asks SHA3 of 14.3 to 16.4 because their images carry `eor3`, and this case
+reached it only in 16.4 and 27.0. One `@import` does not show the
+instruction unreachable elsewhere, so the table is unchanged.
+
+**A12 after a drop of every release older than 15.0.** It keeps a
+toolchain: 15.0, 15.3, 16.2, 16.4 and 27.0 all set up, pass the six
+C-family cases and build and run the CLI template, C++ and the tweak dylib
+on the A12Z. By the catalog of that day it would lose Swift: 14.2 (Swift
+5.7.2) was the only Swift offered there, 15.0's being gated on SHA3. Run
+since (▸ Kept releases and their Swift, below), 15.0's and 15.3's Swift
+pass every case on the A12Z, so that gate is gone.
+
+### SDKs on the iPhone 15 Pro
+
+All 23 branches of the default source (14.5 … 27.1) were removed and
+imported again from their branches (`sdkImport` repository), then built
+against with CLT 27.0 (the newest release, which reads every one): the
+six kit cases above, arm64 and arm64e, the tweak loaded. Every one
+passed, so no SDK is unusable there. Swift on 17.3.1 is CLT 15.0's (reads
+up to 17.0) and 14.2's; the Swift CLI built and ran against 14.5, 15.2,
+15.5, 16.1, 16.2, 16.4 and 17.0 with 15.0, both architectures. The SDKs
+from 17.2 up have no Swift on 17.3.1: CLT 27.0's Swift needs iOS 26.
+
+Import, by stage (fetch / inspect; total, seconds): 14.5 21 / 4; 25 —
+15.x 18 / 4–5; 23 — 16.x 19–24 / 5–6; 24–29 — 17.x 22–28 / 4–5; 27–33 —
+18.x 22–26 / 5–7; 28–31 — 26.x 23–31 / 6–21; 29–51 — 27.0 28 / 7; 36 —
+27.1 21 / 4; 26. The A12Z: 14.5 38 / 11; 49 — 18.0 54 / 15; 69 — 27.1
+43 / 12; 55. Of an 18.0 fetch on the iPhone (26 s, a 38 MB pack), 6 s
+pass before the first byte, 6 s are the transfer and 14 s are libgit2
+resolving deltas and checking out about 10,000 files.
+
+### Where the time went, and what changed
+
+Measured on the devices with the probe (`apelin-toolchain-probe setup`,
+download to packaging, as mobile) built from this tree before and after,
+CLT 15.0, the same manifest digest out of both:
+
+| Step | iPhone 15 Pro before | after | A12Z before | after |
+|---|---|---|---|---|
+| download (527 MB) | 49–84 s | 22–48 s (one run 154 s) | 91–92 s | 32–50 s |
+| extract | 42–52 s | 17–28 s | 77–78 s | 35–36 s |
+| adapt + package | 2–3 s | 2–3 s | 4 s | 4 s |
+| whole pipeline | 92–136 s | 41–67 s (one run 186 s) | 173–174 s | 72–89 s |
+
+- **Download.** One HTTPS connection to Apple's CDN gave 15.6 MB/s on the
+  iPhone, four 33 MB/s; the loop also read every byte through
+  `AsyncBytes`. Four 8 MB ranges are now in flight at once and each body
+  arrives in the chunks the session delivers. Every range keeps its
+  checks (206, the exact `Content-Range`, the exact size, a body longer
+  than asked refused as it arrives, If-Range with the first validator, a
+  changed validator or a 200 restarting the download), the prefix is
+  still hashed and checkpointed in order after every range, and the whole
+  package is still checked against its pinned SHA-256 before extraction.
+- **Extract.** The Payload is pbzx: independent XZ chunks decoded one at
+  a time. Up to four are now decoded at once and handed out in order; the
+  payload checksum hashes only the algorithm the xar table names.
+- **Package and install check.** Each file's digest, at packaging and in
+  the installed-tree check, on up to four cores.
+- **SDK inspection.** Every file's Mach-O check and digest on up to four
+  cores; the digest and the first refusal are the walk-order ones. The
+  same work, measured alone on an 18.0 tree (10,227 files): 4.2 s → 1.1 s
+  on the iPhone, 10.5 s → 2.9 s on the A12Z. It ships in apelin-environment,
+  which could not be installed on these devices (no root), so the import
+  itself was not timed after.
+- **The catalog** fetched each product's distribution one after another
+  (6.6 s); they are now fetched together.
+
+Not changed: the SDK fetch (already a shallow single-branch clone; the
+time is the server's pack and libgit2's delta resolution and checkout,
+which only a different source format would avoid), the local toolchain
+deb's zstd level 3 (1–2 s to write on the iPhone, about 5 on the A12Z;
+level 1 or none would trade it for a larger copy through the bridge and
+irisind's two reads), the self-test (C cases could run two at a time, and
+the arm64 and arm64e Swift cases, each a cold build of the SDK's modules,
+side by side; both are left for a measurement of memory first), and the
+retarget itself (1–3 s).
+
+## Kept releases and their Swift (2026-10-21)
+
+The owner kept 27.0, 16.4, 15.3, 15.0 and 14.2 and dropped 16.2, 14.3,
+13.4, 13.2 and 12.5 (all of which had passed above); 14.2 stays so an A12
+keeps Swift. A dropped or unreviewed product is left out of
+`toolchainCatalog` and refused by `toolchainSetup` with its reason before
+anything downloads; a kept release a device cannot run is still listed,
+with why.
+
+Which Swift each kept package ships, read from Apple's own payload
+(`swiftc --version`, packages checked against their pinned SHA-256):
+
+| CLT | Swift | swift-frontend built for | Imports macOS's zippered `_stdlib_isOSVersionAtLeastOrVariantVersion` | SHA3 / DotProd in swift-frontend |
+|---|---|---|---|---|
+| 27.0 | 6.4 (swiftlang-6.4.0.34.1) | macOS 14.0, SDK 16.0 | swift-driver, two SwiftSyntax libraries | yes / yes |
+| 16.4 | 6.1.2 (swiftlang-6.1.2.1.2) | macOS 14.0, SDK 15.4 | swift-driver, two SwiftSyntax libraries | 5 eor3 (4 in XXH3, 1 symbol graph) / 3,754 udot |
+| 15.3 | 5.10 (swiftlang-5.10.0.13) | macOS 13.0, SDK 14.4 | none | 2 eor3 (BLAKE3 hash_many, symbol graph) / none |
+| 15.0 | 5.9 (swiftlang-5.9.0.128.106) | macOS 13.0, SDK 14.0 | none | the same 2 eor3 / none |
+| 14.2 | 5.7.2 (swiftlang-5.7.2.135.5) | macOS 10.14.6, SDK 13.0 | none | none / none |
+
+Each Swift tree was then made on the device by the probe (Swift
+component), packed as a local deb and installed through Apelin's bridge
+(a tree in the data folder cannot map its own dylibs), self-tested in
+place as mobile, and removed through the bridge. The A12Z ran a research
+build with the Swift CPU gate lowered to LRCPC, to see what the CPU does.
+
+| CLT, SDK | iPhone 15 Pro, iOS 17.3.1 | A12Z, iPadOS 26.0.1 |
+|---|---|---|
+| 16.4 + Swift, 18.5 | C family 6/6; swiftc stopped by dyld: `_stdlib_isOSVersionAtLeastOrVariantVersion` not found | the same |
+| 15.3 + Swift, 17.4 | 14/14 (Swift 41.7 / 47.3 s, dylib 2.5 / 4.9 s, async 2.1 / 3.8 s, macro 1.2 / 1.2 s, arm64 / arm64e) | 14/14 (Swift 101.9 / 102.0 s, dylib 6.9 / 6.7 s, async 3.0 / 3.1 s, macro 3.3 / 3.3 s) |
+| 15.0 + Swift, 17.0 | 14/14 (the console setup above) | 14/14 (Swift 89.6 / 91.2 s, dylib 6.7 / 6.7 s, async 3.0 / 3.0 s, macro 3.3 / 3.2 s) |
+
+So 15.3 offers Swift 5.10, and 15.0's and 15.3's Swift no longer require
+SHA3: their two SHA3 sites are BLAKE3's hash_many (compile caching, which
+Apelin does not enable) and the symbol-graph edge set
+(`-emit-symbol-graph`), and the A12Z built the SDK's modules and every
+case without reaching either. 16.4's Swift is not offered and the catalog
+says why: no iOS runtime exports the zippered check, the rename 27.0 uses
+answers correctly only from iOS 26, and its swift-frontend needs DotProd
+and SHA3 (XXH3 module hashing, the code that stopped 27.0's Swift on the
+A12Z), so it could serve only A13 or later on iOS 26, where 27.0's Swift
+6.4 already runs; no such device was available to verify it.
+
+| Release | Swift | A12 (LRCPC) | A13 and later |
+|---|---|---|---|
+| 27.0 | 6.4 | no (SHA3, DotProd) | iOS 26 and later |
+| 16.4 | 6.1.2 | not offered | not offered |
+| 15.3 | 5.10 | iOS 17.3.1 and later | iOS 17.3.1 and later |
+| 15.0 | 5.9 | iOS 17.3.1 and later | iOS 17.3.1 and later |
+| 14.2 | 5.7.2 | iOS 17.3.1 and later | iOS 17.3.1 and later |
+
+The 17.3.1 floor of 14.2, 15.0 and 15.3 is the oldest host verified, not a
+measured limit; iOS 16 remains unverified for Swift.
+
+
+## Chat and provider UI installation (2026-10-21, build 50)
+
+Commit `35d67e0` was packaged as the roothide build 50 and installed over
+the existing app on the running iOS 27.0.1 and iOS 26.6.2 vphones. Both
+installers completed successfully; `apps.info` reported build 50 and
+`apps.foreground` independently verified Apelin in the foreground on each.
+The iOS 27.0.1 guest printed the known uicache registration warning; its
+registered build and verified foreground app confirmed the installation.
+
+This validates installation and launch only. The API-key form, provider
+verification request and model activation flow have not been exercised
+on these devices: the owner will enter the credential. No key was read,
+submitted or changed during this installation. The local test suite and
+HTTP verification fixture results belong to the implementation checks,
+not to live-provider validation.
+
+
+## FlowDown composer and model settings (2026-10-21, build 57)
+
+Build 57 was built for iPhoneOS Release, packaged for roothide and installed
+on both existing vphones (iOS 27.0.1 and iOS 26.6.2). Both report build 57
+and independently verify Apelin in the foreground. Installation preserved
+the configured accounts. The iOS 27.0.1 guest still prints the known uicache
+registration warning; its registered build and foreground app are verified.
+The final package SHA-256 is
+`1a84f11e6de43cfdb304d4032a8d6e2eaeafdd5e62da51dd297a603b7417b536`.
+Seven dSYMs are retained under `build/dSYMs/0.1.0-57/`; Apelin's arm64 UUID
+is `BB62FA66-4AA2-321C-93D1-033DA05D5163`. All nine packaged Mach-O files
+passed the absolute-path and secret-pattern audit. The generated licenses
+include ScrubberKit, SwiftSoup and Turndown.
+
+`make check` and the complete `make harness` passed, including 565/565
+session-host checks, the system-only dependency checks and 112 agent tests.
+The live Copilot test remains skipped. Two pre-existing session-host checks
+looked for old English words after UI copy changed; they now check the
+interrupted state and a nonempty explanation instead of a wording fragment.
+
+Device UI checks on the iOS 26.6.2 guest confirmed:
+
+- The editor uses FlowDown's original camera/microphone/plus/close/send SVGs;
+  all six editor/model SVGs were compared byte-for-byte with the reference.
+  The small model and effort blocks are 33 pt high, with the reference's
+  14 pt semibold text, 16 pt icon and 8 pt insets.
+- The inline four-button panel opens and closes without its own clipping.
+  Photo and Files open their system pickers; Web opens the address input.
+  Importing private photo/file content was not part of this check.
+- Model selection is a deferred context menu with the saved DeepSeek IDs,
+  not a form sheet. Selecting DeepSeek defaults effort to High. The effort
+  menu exposes Low, High and Maximum, with no Off entry.
+- The API model page fetches the DeepSeek list and supports custom IDs.
+  A temporary, unsaved custom ID was added, swiped left, and deleted; the
+  row disappeared. The page was closed without saving, preserving the
+  user's enabled list and leaving no saved test model.
+- Settings initially shows Permission Mode: Relaxed. Changing to Strict
+  is immediate; Strict to Relaxed presents the confirmation. Cancelling
+  retains Strict, and confirming restores Relaxed.
+
+These checks do not establish a working chat-to-agent bridge. Chat messages
+and attachments remain local in-memory previews; MarkdownView and real
+streaming are not connected. The red Stop control requires a live output
+cancellation callback and stays hidden without one. The global permission
+preference and the selected effort must be passed when that bridge opens a
+session. No OAuth login or live Copilot policy activation was exercised.
+
+## Transcript presentation and composer preferences (2026-10-21, build 61)
+
+The app from `b4ce333` was built for iPhoneOS Release, packaged for roothide,
+and updated on the existing iOS 26.6.2 iPhone and iOS 27.0.1 iPad vphones.
+Both report app build 61 and independently verify Apelin in the foreground.
+The app-only update used the guest file API after SSH/PAM authentication
+refused the normal installer: the signed package's app was staged, made
+root-owned and swapped with a rollback copy. App data and provider credentials
+were preserved; daemon and worker installations were not changed by that swap.
+The package SHA-256 is
+`95b6628dd7b994aa7076295f6ad350922a822a35bc5c8449953539d6501f748d`.
+The app dSYM is retained in `build/dSYMs/0.1.0-61/`; its arm64 UUID is
+`98989341-42FF-3326-8573-3DEB9605339F`. The package's nine Mach-O files passed
+the path, dependency and secret-pattern checks.
+
+`make check` and the complete host harness passed, including 565 session-host
+checks. The new image-layout harness covers empty albums, single images,
+2–20 images, portrait-leading groups, invalid ratios and narrow widths.
+Both devices passed all seven smoke scripts.
+
+UI checks confirmed:
+
+- The selected model survives a cold launch on both devices. On the iPhone,
+  reasoning effort also survived switching to a new chat and a cold launch;
+  it was restored to High after testing Low.
+- User bubbles, Markdown headings, lists, quotes, code and tables render in
+  the transcript. Thinking summaries and tool events are separate rows.
+  Inter-block spacing is shared by Markdown and activity rows.
+- The top scroll-edge treatment covers content behind the navigation title,
+  including an image album passing underneath it.
+- The local preview's Allow Once action resolves its request and removes its
+  controls without pulling the reader to the bottom. Stop removes the local
+  thinking example and its button. These callbacks do not call the backend.
+- Mixed image proportions form an album, and tapping a tile opens that image
+  in Quick Look. Album paging was implemented but not verified in this run.
+
+The conversation is explicitly sample content. The model/session transport,
+live approval relay and streamed provider reasoning are not connected to this
+UI yet. The separate transcript entry types and `updateMessages` are its UI
+surface; this run does not establish a live chat-to-agent round trip.
+
+## Approval section and soft scroll edge (2026-10-21, build 64)
+
+The follow-up UI build uses one shared horizontal divider above the pending
+approval section. The content sits on the left and Approve / Deny on the
+right, vertically stacked on narrow screens. Resolved requests show only
+an operation title and a green checkmark or red xmark; the decision remains
+in the label's accessibility value. Stop has a red border as well as red
+text and icon. The top scroll edge now uses the requested soft treatment.
+
+Build 64 passed `make check`, the iPhoneOS Release build and the package
+checks. Both devices passed all seven smoke scripts again on build 64. Its
+nine shipped Mach-O files and the payload paths passed the private-content
+scan. The package SHA-256 is
+`2a2cb7b44560dbe43d736cac256f173d971054aa05d8d75b43c948aa2b0bc142`.
+Its retained app dSYM is `build/dSYMs/0.1.0-64/Apelin.app.dSYM`, arm64 UUID
+`D8BF31B9-0404-3F67-B9CF-C05212A3BD0E`.
+
+Both existing vphones were updated with the signed app-only payload and
+reported build 64 in the foreground. The pending section was checked on
+both screen sizes. On build 63, before removing the duplicate divider,
+the iPhone's Approve and iPad's Deny each collapsed the section, preserved
+the reading position and inserted the appropriate result in history.
+The result title has no visible status prefix; the accessibility tree still
+reports the outcome. The red Stop outline and soft top edge were inspected
+on the same build. Build 64 changes only the redundant divider.
+
+The earlier complete regression attempts on both devices stopped at
+`i5-log-continuity` after six passing scripts. Their event logs show
+`run.interrupted` during the wait step (179 and 187 respectively); no cause
+was established. These runs are not counted as a passing full regression.
+The app's approval actions remain local preview callbacks, not a live agent
+approval relay.
+
+## Approval replaces the editor (2026-10-21, build 70)
+
+The pending approval now occupies the editor's rounded background. The text
+field, attachment strip and import controls are hidden while it is shown;
+the model and Stop row remains available. Resolving the request restores the
+editor. Both actions have tinted fills. Only Approve has a border and uses
+semibold text; its natural width includes the title and button padding so it
+stays on one line. Deny is first and Approve is last in both layouts.
+
+The combined natural button widths and their gap decide the layout: at most
+30% of the section width keeps them beside the content, aligned at the
+bottom. Otherwise they move below the content and divide the available row
+width equally. The phone's equal widths and the tablet's inline alignment
+were checked from the accessibility frames and screenshots. Pending approval
+hides the editor from accessibility and keeps Stop reachable. A completed
+approval restores the field. Captured intermediate frames show both opening
+and closing transitions, including the departing text fading with the panel.
+
+The Release build and `make check` passed. Both vphones received the signed
+app-only payload and verified build 70 in the foreground. Both devices
+passed all seven smoke scripts on this build. The package and its
+nine Mach-O files passed the private-content and dependency scans. SHA-256:
+`9887d571aec4c9487209e7f8effb1d9d70d0ee59bc0f1716cf6746fedf6e2f55`.
+The retained app dSYM is `build/dSYMs/0.1.0-70/Apelin.app.dSYM`, arm64 UUID
+`8A044FFF-96BE-3B81-97CA-E894C0045F68`.
+
+An intermediate build 66 regression attempt used a 90-second runner override
+and timed out in `i5-log-continuity` on both devices. The final rerun uses the
+repository's per-script deadlines (300 seconds for that script).
+
+On the final build, both regression runs passed 11 scripts, including
+`i5-log-continuity`, `tool-host`, `i6-tool-attachments`, `i2-git` and
+`i2-git-commit`. Both stopped at `i2-sdk-import`, step 6: the assertion expected
+`response.sources` to be empty, but the response contained the enabled
+default OwnGoal iOS SDKs source. The remaining regression scripts did not
+run. This UI change does not alter SDK source behavior, and the full suite
+is not recorded as passing.
+
+
+## Approval covers all composer controls (2026-10-21, build 71)
+
+Pending approval now also hides the model, reasoning-effort and Stop row.
+Both screen sizes always stack the content above equally wide Deny and
+Approve actions. Resolving the request restores the editor and model row
+with their existing spring and opacity animation. The model row's visibility
+is derived from the pending approval and import-panel state in one place.
+
+The iOS Release build and `make check` passed. Both existing vphones were
+updated with the signed app-only payload, reported build 71 and verified
+Apelin in the foreground. The package and its nine Mach-O files passed the
+private-content and dependency checks. SHA-256:
+`6dd2cd9215f0f06f7765b62203b7257fe3ea3038cf1b9fc331c8bc31175860ca`.
+The retained app dSYM is `build/dSYMs/0.1.0-71/Apelin.app.dSYM`, arm64 UUID
+`B387FA3B-0A6D-36BE-BBCC-C46A3ABE1713`.
+
+Screenshots and accessibility frames confirmed equal action widths and
+stacked content on the phone and tablet. Neither the editor nor the model,
+effort or Stop controls appears in the pending view's accessibility tree.
+Approving on the phone and denying on the tablet restored the field and
+model/Stop controls. An intermediate phone frame confirmed the simultaneous
+fade and resize. The phone's import panel still hides the model row and
+restores it when closed after the approval is resolved.
+
+## Live chat, templates and trace (2026-10-21)
+
+The chat UI now uses persisted agent sessions and ordered host events. On the
+phone, a projectless conversation created its own temporary workspace and
+received a real provider reply. Sending a text attachment saved it under that
+workspace, and the agent read it and returned the expected marker. Reopening
+the app restored the history and attachment. On the tablet, the UI created
+both an Empty workspace and a project copied from the C command-line template;
+the project picker and sidebar switched between them and retained their chats.
+
+A Strict-mode chat requested screen capture. Approve reached the backend and
+returned an image; a second request was denied and the decision returned to the
+UI. Stop terminated a subsequent generation and removed the working indicator.
+The image preview now derives a filename extension from the image data when a
+tool supplies a name without one, so Quick Look can identify its format.
+
+Two issues discovered during live testing were fixed after matching the build
+74 dSYM and symbolicating the crash reports: duplicate project identifiers when
+creation and refresh arrived together, and a Swift exclusive-access violation
+when the reader derived working state while mutating the record dictionary.
+
+The final presentation groups consecutive thinking steps into one summary,
+followed by response content. Tool calls and completed approvals appear only
+in the summary's Trace form sheet, in their original order. The pending
+approval still replaces the entire composer. Trace tests check stable identities,
+stream/final replacement, hidden tool rows, merged summaries and approval replay.
+The complete backend harness passed, including 53 agent tests and all 565
+session-host checks. The template archive round-tripped and repeated builds
+produced identical bytes. No release was published during this validation.
+
+The final attachment layout follows FlowDown’s UserAttachmentView and attachment
+cell geometry: it precedes the user bubble and aligns to the trailing edge;
+images are 80 pt square and text previews are 240 by 80 pt. Restored text
+attachments show the first 500 characters instead of falling back to byte
+counts. Content blocks have one 16 pt gap, including image-only responses.
+
+Conversation switches remove the old ListViewKit list and create a fresh one,
+with the current viewport and composer insets. The initial snapshot and scroll
+position are applied without animation. Template catalog rows now contain
+only single-line names under the existing group headings.
+
+The final UI revision uses 8 pt for both paragraph breaks and cell spacing.
+Summary headers have no icons in the conversation or Trace sheet. Template
+rows show only the name and the total source-file size; the build worker
+reports that optional byte count, and its size tests passed without an SDK.
+
+Build 88 passed the iOS Release build, repository checks and transcript replay
+checks, and both vphones reported that build in the foreground. The build worker
+was updated separately so template sizes came from the same implementation.
+Six switches between a short reply, an approval history and an image reply on
+the tablet showed only the selected chat's rows. The phone restored its file
+preview above the user bubble, with the real text content, one summary and the
+expected reply. The image returned by the tool opened as an image in Quick Look.
+The app dSYM is retained under `build/dSYMs/0.1.0-88/`, arm64 UUID
+`D3F5B16A-268F-3B61-AAF3-EBA5DF95C3F8`; the build worker's UUID is
+`1F9873ED-1588-3A16-89AF-5221EF768896`. Package SHA-256:
+`5e9c10877ac46a6ada2d2a5cba056baac4db8d99c432b4b110dfb19d735ed30b`.
+
+## Template group footers and spacing (2026-10-21, build 90)
+
+Each template group now has a brief localized explanation below its rows.
+Names and file sizes stay on one line. The owner doubled the shared paragraph
+and cell spacing from 8 pt to 16 pt; the empty-body spacing fix remains in place.
+The Release build and repository checks passed. Date reported build 90, and
+its UI showed the workspace, app, command-line and tweak descriptions without
+changing the row layout. Its attachment, bubble and summary spacing also
+reflected the new shared value. Banana stayed on build 88: its SSH endpoint
+refused the existing credentials, so this run did not update that device.
+The app dSYM is retained at `build/dSYMs/0.1.0-90/Apelin.app.dSYM`, UUID
+`F719A6A3-428E-3EEF-9D12-4FBB9829EDBC`. Package SHA-256:
+`8712ef7cb6643549804cffbaaf78a4eede16d66ae7c57afe936e369ef1c7a706`.
+
+## Attachment previews and header blur (2026-10-21, build 97)
+
+Sent and received image previews, PDF first pages and supported Quick Look
+thumbnails now share the same album renderer. Text files use a compact card
+with a filename and up to three preview lines, preserving pasted line breaks.
+Cards omit byte counts, use the user-bubble tint for their border, and align to
+the user's trailing edge. Their width is the smallest of natural content width,
+the actual user-bubble width and 350 pt. User image albums cannot exceed the
+maximum permitted user-bubble width. Albums and individual cards are capped at
+30% of the window height; albums scale uniformly, retaining tile proportions.
+Attachment changes cross-fade without replaying the transition on routine row
+reconfiguration. Original files remain unchanged for sending and Quick Look.
+
+The chat header uses a 1 pt `variableBlur` CAFilter with `inputMaskImage` and
+`inputNormalizeEdges`, following the approach in nikstar/VariableBlur. It owns
+its CABackdropLayer so UIKit does not replace the filter with material filters.
+The old transcript opacity mask and system top scroll-edge effect are removed.
+
+Date reported build 97 in the foreground. A local-only fixture containing two
+images, a PDF and two text files showed a 184.13 pt wide, 273.6 pt high album on
+the 420 by 912 pt window, exactly the 30% height cap. Both document cards shared
+the bubble's 400 pt trailing edge; the longer card was 215 pt wide and the short
+card 101 pt wide. The longer preview occupied three lines. Tapping the PDF
+opened its original, selectable one-page document. The fixture was removed and
+the previous chat restored; its pasted-text card also had no size label and
+aligned with its bubble. No model request was needed for these layout checks.
+
+The iOS Release build and `make check` passed. The album geometry tests also
+passed, including height caps for 1–20 attachments and proportion preservation.
+Banana was not updated in this run. The matching app dSYM is retained at
+`build/dSYMs/0.1.0-97/Apelin.app.dSYM`, UUID
+`1FFA2ADE-8760-3034-A2DD-77F717C46390`. Package SHA-256:
+`365ab1fe33538b1e92f102355aa488661b57f659d16b1970425a1d9418274f1d`.
+
+## Compact text-preview line breaks (2026-10-22, build 98)
+
+Text attachment previews now replace repeated newlines with a single newline.
+The formatter first bounds the excerpt to 220 characters, then performs at most
+eight replacement passes and stops early once no doubled newline remains. It
+only formats the preview; stored and transmitted attachment bytes are unchanged.
+The actual formatter passed direct checks for nil and blank input, preserved
+single newlines, Unicode truncation and every newline-run length from 2 to 218.
+The Release build and repository checks passed, and Date reported build 98 in
+the foreground after installation. Its current chat had no attachment card, so
+this run verifies normalization directly rather than claiming a visual check
+of that card. The matching dSYM is retained at
+`build/dSYMs/0.1.0-98/Apelin.app.dSYM`, UUID
+`F04F056C-FAB5-3BB5-8C65-023D2C5616BC`. Package SHA-256:
+`9ea97b86276f92a6695579318f1cbf8ab8983501bdaf22756767c46541a758af`.
+
+## Streaming text and follow control (2026-10-22, build 99)
+
+Assistant messages now use MarkdownStreamView's native insertion fade. Each row
+sets a stable message identity, fills restored content immediately and sends
+subsequent active-generation updates through the streaming API. Reduced Motion
+disables the fade. The sizing view remains non-streaming.
+
+Scrolling more than 75% of the window height away from the latest message
+pauses following. Shorter manual scrolls retain the current follow state; a
+paused reader stays paused until reaching the bottom or pressing the downward
+chevron. The 44 pt button floats above the composer and follows keyboard and
+approval-card layout. It has a localized accessibility label.
+
+Date rendered a real 120-line response and followed it to the end. Scrolling
+back showed earlier lines and the downward chevron; the paused position stayed
+away from the tail. The live test did not establish a reliable button-tap result
+because the device was also navigating between chats during inspection. The
+button's action is wired directly to resume following and scroll to the bottom.
+The iOS Release build and repository checks passed. The installed build 99 dSYM
+is retained at `build/dSYMs/0.1.0-99/Apelin.app.dSYM`, UUID
+`79774136-558D-3CC8-8267-1E64A6D92238`. Package SHA-256:
+`0d385cee3ebfa1624ad8f7c81b7d6b9298b34de5bbdd706aa89c746ed63d5235`.
+
+A later shared-worktree build encountered explicit-self errors in concurrent
+ProjectPickerController edits. Those edits are not part of this change; build 99
+is the validation build for the streaming and follow-control implementation.
+
+
+## Chat, project and provider UI regression (2026-10-22)
+
+This round removed the production Message Preview conversation and its simulated
+approval/Stop handlers. Temporary validation data was created by the test driver
+and removed after the checks. The iPhone was in active use by the owner during
+final acceptance, so the final automated UI checks used the existing iPadOS
+27.0.1 vphone only; no new virtual device was created.
+
+### Build 105: live chat and project acceptance
+
+The UI driver created one empty project, `UI Verification 1642`, and one chat in
+it. It used the already selected `claude-sonnet-5-5` model without reading or
+changing its credentials. The following checks passed through the real UI and
+backend:
+
+- A first message received a model response and a persisted `title` event. The
+  generated title was “Testing chat buttons ensures they respond correctly.”
+- The same session began in Relaxed mode, changed to Strict in Settings, and
+  accepted a second message with `session.json.mode = confirm`. Switching back
+  to Relaxed and sending again changed that same session to `relaxed`.
+- A long response exposed Stop in the composer and Stop/Delete in the sidebar
+  swipe. Tapping the composer's Stop ended the turn: the button disappeared on
+  the next UI query, `isWorking` was false, and the final partial `message` and
+  `finished` events were persisted. The separate sidebar context-menu Stop
+  attempt was inconclusive because that follow-up had already ended; it is not
+  counted as a second successful stop test.
+- The sidebar title was plain text, the top bar contained only New Project,
+  and the Projects folder sat immediately left of Settings at the bottom. Its
+  menu contained General Chat, project choices and All Projects.
+- All Projects opened the management sheet. The test project's Delete action
+  displayed its name in the confirmation, then removed both its actual project
+  directory and its chat JSON. No other project was deleted.
+
+The test session's own log directory was removed after its session had closed.
+The original Greeting chat, project selection and permission preference were
+restored, and Apelin was verified in the foreground. The receipt and screenshot
+are in `build/Device/Banana/ui-105/chat-verification.json` and
+`build/Device/Banana/ui-105/stop-and-sidebar.jpg`. The screenshot also shows the
+live response, custom top frost, and bottom folder/Settings placement.
+
+`Scripts/test-chat-transcript.sh` passed against the host modules; its receipt is
+`build/Device/Banana/ui-105/chat-transcript-tests.log`. It covers replay and stable
+identities, completed zero-second/zero-tool rows being omitted, tool-only and
+duration-only wording, combined wording, and saving/deleting without a delayed
+save restoring a removed chat. The full host harness passed 569 session-host
+checks. Initial positioning, the iPhone's automatic new chat after project
+restoration, and placeholder cross-fade were reviewed in code; they were not
+claimed as final iPhone UI automation results.
+
+### Build 106: selection-menu acceptance
+
+Both user and assistant text exposed Copy, Select All when applicable, Look Up,
+Translate and Share, with accessible names. Selection handles used the system's
+blue appearance and were not clipped; dragging to extend the selection had
+already passed in build 104. Look Up displayed a real definition of “Hello”.
+Translate opened Apple's first-use privacy page and returned cleanly without
+pressing Continue; an actual translation result was not tested. Share opened
+the native popover with the selected “Hello”, without sending it anywhere.
+After each dismissal, tapping chats and scrolling still worked. Translate was
+also opened and closed in portrait orientation with a roughly 404 pt detail
+column, and input still worked afterward. The original Greeting selection,
+empty draft, orientation and dismissed overlays were restored. Evidence is in
+`build/Device/Banana/ui-106/` (`menu.jpg`, `lookup.jpg`, `translate.jpg`,
+`user-menu.jpg`, `share-ready.jpg`, `portrait-translate-retry.jpg`, `restored.jpg`).
+
+### Final package and remaining regression limits
+
+Build 109 includes the build-106 selection-menu correction, avoids rebuilding
+unchanged sidebar rows on every streamed token, and includes the final project
+menu, frost and daemon-registration changes. Its iPhoneOS Release build and both
+package flavors were generated. The app dSYM is retained at
+`build/dSYMs/0.1.0-109/Apelin.app.dSYM`, UUID
+`6E3D9A7F-3D83-3A25-A5ED-CA1719391363`. Package SHA-256:
+
+- roothide: `1afcfc403762f335ebc6d27593f9589bb5e21f9fa67ad0539db45e1f3a7c402c`
+- rootless: `456156c2628654e7c216cd5767f6743bf5fd04ed940fa64a70e6d2d20619d23b`
+
+API configuration editing had already been checked on build 104: the menu read
+Edit Configuration, the secure Key field was nonempty, the endpoint was filled,
+and Fetch Models was enabled. The check opened and closed the editor without
+changing credentials; no key value was copied into these validation records.
+
+Earlier build-102 broad regression runs were not wholly green. The iPad passed
+20 cases, failed two and skipped three; the iPhone passed 17, failed five and
+skipped three. Both exposed an obsolete SDK-import assertion that expected no
+SDK sources even though the default source is now enabled. The assertion now
+compares the before/after source configuration; its targeted build-105 iPad
+rerun passed, as did all seven smoke cases. The iPhone's build-chain failures
+reported missing runnable tools in its pre-existing selected toolchain. The
+removal case assumed a lone removable toolchain, but the iPad correctly refused
+removing one still bound to another project, and the iPhone had multiple
+registered toolchains. Those existing toolchains and user projects were left
+alone. The skips required an absent toolchain or a fixture project that was not
+present. Rootless packaging is verified, but no rootless device installation or
+iOS-16-floor UI result is claimed by this round.
+
+The owner's final parameter revision raises only the page-color frost's top
+opacity from 0.5 to 1.0, fading linearly to 0. The blur radius remains 1 pt,
+the alpha mask remains linear, and the height stays top safe area plus 20 pt.
+The final sidebar menu uses fixed ordering (General Chat, separator, project
+names, separator, All Projects), with no row icons apart from selection ticks;
+the outer button shows the current project's icon, or a folder for General Chat.
+
+
+Build 107's first smoke attempt passed only the initial hello (1/7) and then
+lost the backend; that run is not counted as passing. Investigation found that
+roothide's `launchctl bootstrap system <plist>` can place the job in the
+foreground domain, while a label-form `bootout` does not remove it symmetrically.
+The packaging fix uses path-form `bootout system <plist>` so roothide can
+map the domain, then cleans the system, user/501 and gui/501 labels. It waits for
+the old job to disappear, retries registration, and verifies an actual job with
+`launchctl print`; registration failure remains a nonzero package-install
+failure. `prerm` uses the corresponding removal. The five packaging regression
+cases passed, including a missing `launchctl` being reported as a configuration
+failure rather than a false success. A manual bootstrap was diagnostic only.
+Build 108 registered through its own installation script and passed all seven
+smoke cases without manual bootstrap recovery.
+
+
+### Build 108: final sidebar menu and Stop
+
+On Banana, the Projects menu displayed General Chat, a separator, the project
+choices, a separator and All Projects, in that order. Menu rows contained no
+icons except the selected checkmark. The button beside Settings displayed the
+selected workspace's icon and exposed its project name as the accessibility
+value. The General Chat state used the folder icon. Evidence is in
+`build/Device/Banana/ui-108/project-menu.jpg`.
+
+A real response in the temporary UI Sidebar Final project was stopped through
+the sidebar row's long-press menu. Stop was present while the row was working;
+after tapping it, the same chat and session were no longer working, with two
+text events followed by the final message and finished events. The chat
+remained present. This verifies the sidebar Stop callback. A partial swipe did
+not reliably expose its action buttons during these fast streaming runs, so
+the swipe gesture and action-width acceptance remain unverified; the context
+menu result is not counted as swipe acceptance. The test receipt is
+`build/Device/Banana/ui-108/sidebar-verification.json`;
+`streaming-sidebar.jpg` records the real streaming state.
+
+The temporary project's Delete confirmation named UI Sidebar Final. Deletion
+removed its project directory and chat JSON. Its three closed session log
+directories were then removed, and the original Greeting chat, UI Empty
+Workspace project and Relaxed preference were restored. Apelin was verified
+in the foreground before handing Banana back for build 109. Earlier failed
+full-swipe attempts only removed this test's own chats; no existing user chat
+or project was deleted.
+
+
+### Build 109: initial layout
+
+The final build also groups the project list by type and lays out a restored
+conversation before fading away its placeholder. The initial scroll settles
+synchronous row measurements without animation; it is bounded by the number
+of rows and stops if neither the offset nor the content extent progresses.
+
+The actual package installed on Banana without a manual daemon bootstrap and
+passed all seven smoke cases. Cold launches of the existing Greeting were
+sampled continuously in landscape and portrait. In the captured incoming
+content frames, the composer was at the bottom and the final message was
+already visible; rotating back to landscape preserved that layout. No model
+request or conversation content was created for this check. The samples and
+timing records are in `build/Device/Banana/ui-109/startup-landscape/` and
+`startup-portrait/`. These are sequential screenshots (roughly 30–160 ms per
+sample), not a full-frame-rate recording, so sub-sample flashes and the
+iPhone's cold-empty automatic-new path are not claimed as visually verified.
+
+
+### Build 109: project list sections
+
+The All Projects sheet on Banana displayed Workspace and Command-Line Tool as
+separate section headers. Each row contained only its icon and single-line
+project name; the type was no longer repeated beneath it. The selected
+workspace kept its checkmark. Accessibility exposed each type as a header and
+each project as a named button with the selected trait where appropriate.
+Evidence: `build/Device/Banana/ui-109/project-sections.jpg`. The sheet was
+closed without changing selection or project data, restoring Greeting in the
+UI Empty Workspace project.
+
+
+After commit `5029efa` was pushed, the frozen build-109 package was installed
+on Date as well. Date passed all seven smoke cases and the corrected targeted
+SDK-import case. Both Date and Banana then launched Apelin with
+`frontmost_verified = true`; neither installation required a manual bootstrap.
+The package and dSYM remain the exact build-109 artifacts recorded above.
+
+### Project actions, display names and iGhostVT directory links
+
+The project-action integration uses Fila's `open?path=…&tab=new` URL and
+`transferExport(.project)` with the existing `.apeproj` format. Display names
+are persisted in `apelin-project.json`, while folder names and project IDs stay
+stable. ProjectMetadataTests passed 4/4: one automatic name, manual and external
+rename precedence, stable identity, invalid/symlink path refusal, and bounded
+single-line model candidates. The protocol, schema-fixture and service-table
+checks passed 20 + 10 + 3 tests. These are host tests; device acceptance of the
+new actions and live metadata observation is recorded separately when run.
+
+The required iGhostVT directory-link implementation was committed and pushed
+independently as `4ea3beb` (version 1.6.19, build 156), without a release/tag.
+`TerminalLink` accepts only a session ID, a plain new tab, or a validated
+canonical existing directory. It rejects commands, duplicate/unknown fields,
+relative/missing/file paths, NULs, credentials and fragments. All 16 parser
+cases, the existing complete harness, and the iPhoneOS Release build passed.
+Both package flavors were made from that build and their version/architecture
+were checked:
+
+- `iGhostVT/build/Packages/wiki.qaq.ighostvt_1.6.19_iphoneos-arm64e.deb`:
+  `3a2fc1af585acd3fbf27f7db97706b25b315810c05aeb2b65a43f3da7cdb5d38`
+- `iGhostVT/build/Packages/wiki.qaq.ighostvt_1.6.19_iphoneos-arm64.deb`:
+  `ff175fe5efea70fbf13f34b38779245e2a7fa24bf4013333ca539a7f245c18d2`
+
+The iGhostVT dSYMs are retained in that repository's
+`build/dSYMs/1.6.19-156/`. App UUID:
+`7BC648D9-41F6-391A-9000-1C3ED882DEB1`; daemon UUID:
+`241B51EB-19B4-3657-B847-2D155A3B1315`; io UUID:
+`E43E7545-8E62-3D71-A732-01B10D37B2FA`.
+
+A full harness caught a project-creation regression before final packaging:
+initial display metadata had re-encoded every generated manifest, changing the
+reference template bytes and preventing a fixture's deliberate text edit from
+matching. Ordinary/manual creation now leaves the template byte-for-byte
+unchanged. Automatic placeholders insert only the two metadata members while
+keeping the other template text; templates already carrying those optional
+members are updated without duplicate keys. The console's real i3 fixture now
+renames its newly created project and verifies the display name and unchanged
+project ID. The focused rerun passed all 9 extension/project tests, all 5
+metadata tests and both console-script tests (16/16), recorded in
+`/private/tmp/apelin-project-regression-tests-final.log`.
+
+
+## Project distribution and setup (2026-10-22)
+
+Build 110 added explicit release targets to the existing build operation, the
+project distribution sheet, per-project display names and the first-run setup
+flow. Its package installed on Banana with all seven smoke cases passing.
+The device already had Fila 0.8.0; iGhostVT was updated normally to 1.6.19 (156),
+whose source commit is `4ea3beb`, before installing Apelin. No dependency check
+was bypassed. The companion app and daemon dSYMs are retained in iGhostVT's
+`build/dSYMs/1.6.19-156/`.
+
+A disposable tweak project named Distribution UI Check was created with the
+existing Objective-C template. Using its actual project menu, Distribute Project
+completed both release builds and showed all four stages complete for each
+target. Export Packages opened the system share UI, whose accessibility tree
+reported two documents; no destination was chosen and nothing was shared or
+installed. The produced files were copied back and independently inspected:
+
+- roothide: `iphoneos-arm64e`, an arm64e dylib at the unprefixed
+  `Library/MobileSubstrate/DynamicLibraries/DistributionUICheck.dylib`, using the
+  `.jbroot` Substrate linkage; SHA-256
+  `690960aa5ba5e94995ab03ff5c4b63728fe2f80bbe3866b12b89a3a2cf5770ce`.
+- rootless: `iphoneos-arm64`, arm64 and arm64e slices under `var/jb/Library/`,
+  using the rootless Substrate framework linkage; SHA-256
+  `db4630826b91c6296928860f8ea42e85ab3a955b8d2ac45d1ca778afa04c4fe2`.
+
+The worker recorded separate task IDs, artifact IDs and dSYMs. Evidence and
+these test-only packages are in `build/Device/Banana/ui-110/distribution/`.
+Host tests also built actual CLI and tweak templates for both targets, checking
+archive contents, architecture slices, linkage and hashes. This verifies two
+independent builds, not copies or renamed packages.
+
+The build-110 distribution screenshot exposed a duplicate navigation heading:
+project name above Distribute Project. The next build removes the prompt and
+places the name in the normal Project information section. The setup UI is
+being replaced with the requested original Irisin components; neither change is
+claimed as visually accepted in build 110. Device input was paused when the
+owner resumed using Banana.
+
+The response-style follow-up adds one shared system-prompt section: use the
+user's language, keep routine replies brief, and reserve tools and project
+inspection for an actual task. It also separates chat titles from project-name
+suggestions. The current model returns an optional semantic project candidate;
+greetings and generic questions return none, and a plain-title fallback never
+renames a project. If a greeting comes first, a later concrete project goal can
+still name the placeholder without rewriting the existing chat title.
+`ScriptedSessionTests` passed all six tests, including greeting/no-candidate,
+concrete-goal/candidate, later-goal naming, and using the current model without
+adding the title completion to the conversation. Evidence:
+`/private/tmp/apelin-style-title-tests-3.log`. Real-model greeting behavior is a
+separate device acceptance check; these deterministic tests do not claim it.
+
+After the metadata regression fix, the complete host harness passed, including
+all package tests, worker typechecks and 573/573 session-host checks
+(`/private/tmp/apelin-feature-harness-final3.log`). The later response-style and
+semantic-title changes passed the full agent-package regression run
+(`/private/tmp/apelin-agent-final-semantic.log`), including 57 tests in the main
+agent suite. The live Copilot credential-dependent test remained skipped; this
+does not establish the real-model greeting behavior on Banana.
+
+The first build-112 project acceptance attempt stopped before any successful
+input or test-data change. The received page was Coconut / New Chat; after a
+read-only baseline, the first Projects-button tap returned `element not found`.
+The next read showed UI Empty Workspace / Greeting, and a later read showed
+UI Template Tool with Settings open, still in the same app process. No manifest,
+preferences, chat, or session was written by this attempt. The unrelated state
+changes are recorded in
+`/private/tmp/apelin-project-acceptance112-timeline.json`; they are not evidence
+that the project actions or real-model greeting checks passed or failed.
+
+### Build 113 project acceptance (2026-10-22)
+
+The final short pass used the existing disposable Distribution UI Check
+project (`11149237-fa55-4d73-9efa-b8b48f8d8310`), preserving its two release
+artifacts. Its original manifest was saved before enabling the automatic-name
+placeholder for this test.
+
+- A new chat sent only `Hello` through the selected `claude-sonnet-5-5` model.
+  It replied `Hello! What would you like to work on?`, called zero tools, and
+  generated the chat title `Hello`. The project's display name stayed unchanged
+  and `autoName` stayed true; no project-name suggestion event was emitted.
+- Rename Project changed the actual manifest to Project Metadata Check and
+  cleared `autoName`, keeping the same project ID and physical directory. An
+  external atomic manifest replacement then changed the display name to
+  External Manifest Check; the visible sidebar title refreshed without an app
+  restart (the element wait reported 108 ms).
+- Open in iGhostVT used version 1.6.19 (156). The new terminal's actual
+  `pwd -P` was `/var/mobile/Documents/wiki.qaq.apelin/Projects/Distribution UI Check`.
+  Open in Fila showed that directory, its Sources folder and project manifest.
+- Export produced a real `Distribution UI Check.apeproj` (Zstandard archive)
+  and reached the native share sheet. No destination was selected and nothing
+  was shared. The exported test file was copied to the host and removed from
+  the guest.
+- The composer accessibility tree had no microphone/Dictate action; its model
+  button occupied y=691–724 on the 744-point landscape screen.
+
+Evidence is in `build/Device/Banana/ui-113/project-actions/`: `greeting.json`,
+`manifest-renamed.json`, `terminal-cwd.txt`, the Fila/menu screenshots and the
+test `.apeproj`. Concrete-goal semantic naming was covered by the host tests,
+not repeated with a real model in this device pass. The later requested menu
+order/shortened labels are not claimed as part of this build's acceptance.
+
+The original project manifest was restored byte-for-byte. The test Hello chat
+was removed through its own Delete menu, and its test session directory was
+removed afterward. All PTYs created by this check were closed; the companion
+terminal UI was stopped to prevent its selected closed tab from reopening a
+PTY. No original terminal session existed. Fila's test destination tab was
+left open without editing files. The Distribution project and both release
+artifacts remain for the integration agent's final check, with Apelin on that
+project's empty New Chat. Earlier saved user selections were not written back.
+
+### Welcome onboarding, build 112 (Banana, 2026-10-22)
+
+The device was in landscape at 1133 × 744 pt (2×); the existing selection was
+Coconut / New Chat. Captures are under `build/Device/Banana/onboarding-112/`.
+The six pages were visually inspected. The intro retains the copied Irisin
+64 pt icon, two-line accent title, content spacing and fixed bottom action bar;
+the notification preview retains the Xrash layout. Build Tools showed actual
+resolved Command Line Tools 27.0 and iOS SDK 27.0 as installed, in two 65 pt
+rows without left icons. Provider rows were Claude Code, Codex and GitHub
+Copilot, with disclosure arrows and no subtitles or inline sign-in buttons.
+
+First Project's Not Now advanced without creating a project; notification
+Not Now advanced without requesting permission. Get Started dismissed to the
+same Coconut selection. Settings → About → Open Onboarding was below Open
+Source Licenses, dismissed Settings and reopened the intro. Completing this
+replay preserved the selection. A subsequent terminate/launch returned to
+Coconut without showing welcome; the completion preference was 1.
+
+The build-112 project-entry modal was inspected (template before fruit-name
+field) but superseded before a creation was performed: build 113 embeds the
+same actual form in the welcome page. No provider login, environment install,
+project creation/deletion, notification request, or preference restoration was
+performed in this check. Loading shimmer was too brief to capture on the
+already-resolved environment; persistent row identity is covered by source
+review, not claimed as a recorded timing test. Portrait/iPhone and enlarged
+Dynamic Type were not exercised in this pass. Pending build 113: embedded-form
+creation and resulting selected-project chat, plus the SDK accessibility-value
+deduplication.
+
+### Final integration build 113
+
+The complete final host harness passed again in
+`/private/tmp/apelin-feature-harness-final112.log`: 573/573 session-host checks,
+all package suites and worker typechecks. Build 113 incorporates the shared
+project form inside welcome, preserves that form across Back/Next navigation,
+and validates canonical project and manifest paths before listing or
+starting distribution. `make check` and the iOS Release build passed.
+
+Build 113 installed normally on Banana and launched in the foreground. Its
+welcome Project page was observed with the actual shared template and name
+fields, one welcome heading and the original bottom action bar. Entering an
+invalid `../bad` name disabled Create Project. The SDK row's accessibility value
+contained Installed once. The remaining welcome re-entry and actual creation
+checks were not completed: the page changed to Notifications without a
+successful input from this test, and then changed again during the following
+bounded checks. No test project was created and no existing preference backup
+was restored over the newly observed user selection. The shared-form return
+state and child-controller ownership were reviewed in source instead.
+
+The package pair is frozen in `build/TaskPackages/features-113/`, and all seven
+dSYMs are retained in `build/dSYMs/0.1.0-113/`. The app UUID is
+`7FAA8343-02E2-3ED6-9ECC-857AD54591F1`. Package SHA-256:
+
+- roothide: `d9b5fddf8e49ada110db2a313c3395bc80a5d05c6cb2ccee9ab715a55f08baf9`
+- rootless: `56fd1ce14bde0dbe1cb153ff01f6d59fe4096bc86c86394c4d904487fdf2b69f`
+
+Build 114 contains the final welcome-only follow-up: every Not Now action uses
+the same secondary gray style above its primary action, and Notifications has
+the normal Back navigation. It retains the shared project form when returning.
+The Release build and packaging checks passed. The frozen pair is in
+`build/TaskPackages/features-114/`; all seven dSYMs are in
+`build/dSYMs/0.1.0-114/`, app UUID
+`A1F4DB44-DEEE-3FE9-8ADB-17B9BDECD65D`.
+
+- roothide SHA-256: `68adcebfc1f8e47a16bc4c60ea85c2f043491b7f6096b2af285e7541023d0f54`
+- rootless SHA-256: `94299047afc08214de0de307998ae725a9f87d16fc63609c3f777ea9bc9687ca`
+
+On Banana, build 114's First Project and Notifications pages placed the gray
+Not Now button at the same vertical position above the primary button. The
+Notifications Back button returned to the unchanged Raspberry form. Both
+pages were captured in `build/Device/Banana/ui-114/`. This check skipped project
+creation and notification authorization.
+
+A separate, explicitly synthetic offline transcript exercised bullets, nested
+bullets, ordered items 51–53, task lists, a multi-paragraph list item, normal
+paragraphs and a code block. Its screenshots confirmed compact list spacing
+while body wrapping, list indentation and code layout remained intact. The
+composer had no microphone and retained its bottom safe area. This was a layout
+fixture, not a model response; it was deleted and the immediately preceding
+selection restored. The original Distribution UI Check project and its two
+release artifacts are retained for the dedicated follow-up distribution-target
+work; user projects were not deleted.
+
+The final build-114 Banana smoke suite passed all seven cases
+(`/private/tmp/apelin-ui-smoke114.log`), including daemon handshake, terminal,
+files, logs, diagnostics and managed installation. No new protocol or worker
+failure was observed after the welcome changes.
+
+After commit `926243f`, the exact frozen build-114 roothide package was
+installed again on both devices. Date first received iGhostVT 1.6.19 normally
+(with Fila 0.8.0 already present); no dependency force flag was used. Both
+Apelin package installations completed and launch reported verified foreground
+state: Date PID 36697 and Banana PID 23732. The logs and compact installation
+records are under each device's `ui-114/` evidence folder. Date received no
+additional interactive tests during this final installation because it was
+being used by the owner.
+
+Build 116 is a host-verified candidate for project export, single-target
+distribution, agent memory and diffable table updates. `make check`, the full
+`make harness` (including 573/573 session-host checks), and the final incremental
+iOS Release build passed. Both packages are frozen in
+`build/TaskPackages/features-116/`; all seven matching dSYMs are retained in
+`build/dSYMs/0.1.0-116/`. Each package contains nine checked Mach-O files, with
+no repository or private build path. The app UUID is
+`B6E585FE-6722-30FC-BCCB-61C4ABD9747C`.
+
+- roothide SHA-256: `8ecb2b22f91732fa4bdc694b3a543727829c96520c634fb0f2259480f26d58f6`
+- rootless SHA-256: `ffaaef9010148698a261d829b9471c14767a60b49a629b5d49b092cbd5055b61`
+
+The candidate was built from the shared working tree, including concurrent
+welcome and navigation edits retained outside this change. It has not been
+installed or validated on a device: the owner deferred device work while
+another task uses it. Memory UI, table interactions, the final distribution
+snapshot update, export cancellation and test-fixture cleanup remain pending.
+
+## 0.1.0 release smoke (2026-10-22, build 1)
+
+The squashed 0.1.0 tree, built for roothide as build 1, went onto the
+iOS 26.4 iPhone vphone over build 4 through `irisin-cli install --yes`.
+Three things matched: the installed app and Info.plist hashes matched the
+deb's, and LaunchServices' record reads build 1. `i1-smoke` passed all
+26 steps. In General Chat, with an OpenAI-compatible account, a greeting
+was answered and the conversation took a title. A message sent while a
+reply streamed appeared once, was taken by the run and was answered. No
+Apelin, apelind or worker process left a crash report.
+
+A reply that is only `4.` drew nothing. MarkdownView reads it as an empty
+numbered-list item and draws no marker for an item without a paragraph.

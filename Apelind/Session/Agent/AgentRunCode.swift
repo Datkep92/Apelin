@@ -1,0 +1,453 @@
+import ApelinCore
+import ApelinProtocol
+import Darwin
+import Foundation
+
+/// Exported by libSystem on every iOS this app supports (libSystem.B.tbd);
+/// the iOS headers mark it unavailable.
+@_silgen_name("posix_spawn_file_actions_addchdir_np")
+private func spawnAddChdir(
+    _ actions: UnsafeMutablePointer<posix_spawn_file_actions_t?>,
+    _ path: UnsafePointer<CChar>,
+) -> Int32
+
+/// `agentRunCode`: the agent's `run_code`, run by the session host as
+/// mobile (uid, gid and groups 501 set before exec), in the session's
+/// project, with stdin from /dev/null, every other descriptor closed, its
+/// own process group (killed whole when time runs out) and both output
+/// streams capped and read for at most `drainSeconds` after it exits.
+/// Never root, never outside `Projects/<name>`.
+enum AgentRunCode {
+    private static let outputCap = 256 * 1024
+    /// How long the pipes are read after the process has exited or been
+    /// killed: what a descendant still holding them writes later is cut.
+    private static let drainSeconds = 2
+    private static let maximumSourceBytes = 256 * 1024
+    private static let maximumArguments = 1024
+    private static let timeoutRange = 1 ... 1800
+    /// In the order the refusal lists them.
+    private static let interpreters: [(name: String, flag: String)] = [
+        ("sh", "-c"), ("bash", "-c"), ("zsh", "-c"), ("python3", "-c"), ("perl", "-e"),
+    ]
+    /// The process groups of the run_code calls running now, by session.
+    private static let running = RunningGroups()
+
+    /// Kills the run_code calls `session` is running: stopping or closing
+    /// the conversation ends them rather than leaving them to their timeout.
+    static func stop(session: String) {
+        running.stop(session: session)
+    }
+
+    /// How many times `session` has been stopped. A call takes it when it
+    /// arrives and is killed as soon as it spawns if a stop came since.
+    static func stopCount(session: String) -> Int {
+        running.stopCount(session: session)
+    }
+
+    /// Kills every run_code call running, for the host's shutdown: the
+    /// timeout that bounds each one ends with the host.
+    static func stopAll() {
+        running.stopAll()
+    }
+
+    /// The directories a bare executable name is looked up in, bootstrap first.
+    private static func searchPath(installRoot: String) -> [String] {
+        let prefix = Self.prefix(for: installRoot)
+        var directories = ["\(prefix)/usr/bin", "\(prefix)/bin", "\(prefix)/usr/local/bin"]
+        if !prefix.isEmpty {
+            directories += ["/usr/bin", "/bin"]
+        }
+        return directories
+    }
+
+    /// What a bootstrap path is spelled after: nothing when the root is `/`.
+    private static func prefix(for installRoot: String) -> String {
+        installRoot == "/" ? "" : installRoot
+    }
+
+    static func resolveExecutable(_ name: String, installRoot: String) throws -> String {
+        guard !name.isEmpty, !name.contains("/"), !CanonicalPath.containsNUL(name), name != ".", name != ".." else {
+            throw ApelinError(.badRequest, "run_code takes an executable name, not a path")
+        }
+        for directory in searchPath(installRoot: installRoot) {
+            guard let path = CanonicalPath.resolve(directory + "/" + name) else { continue }
+            var metadata = stat()
+            if stat(path, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFREG, metadata.st_mode & 0o111 != 0 {
+                return path
+            }
+        }
+        throw ApelinError(.notFound, "\(name) is not in the bootstrap's bin directories")
+    }
+
+    /// The argv to exec, its first element a canonical path.
+    private static func argv(for spec: RunCodeSpec, installRoot: String) throws -> [String] {
+        switch spec {
+        case let .argv(argv):
+            guard let name = argv.first else { throw ApelinError(.badRequest, "run_code needs an executable") }
+            guard argv.allSatisfy({ !CanonicalPath.containsNUL($0) }), argv.count <= maximumArguments else {
+                throw ApelinError(
+                    .badRequest,
+                    "run_code takes at most \(maximumArguments) arguments, and none may contain a NUL byte",
+                )
+            }
+            return try [resolveExecutable(name, installRoot: installRoot)] + argv.dropFirst()
+        case let .script(interpreter, source):
+            guard let flag = interpreters.first(where: { $0.name == interpreter })?.flag else {
+                let names = interpreters.map(\.name).joined(separator: ", ")
+                throw ApelinError(.badRequest, "\(interpreter) is not one of \(names)")
+            }
+            guard !CanonicalPath.containsNUL(source), source.utf8.count <= maximumSourceBytes else {
+                throw ApelinError(
+                    .badRequest,
+                    "the script must not contain a NUL byte or be larger than \(maximumSourceBytes / 1024) KiB",
+                )
+            }
+            return try [resolveExecutable(interpreter, installRoot: installRoot), flag, source]
+        }
+    }
+
+    /// The working directory: a plain relative path that still resolves
+    /// inside the project, by component.
+    static func workingDirectory(_ relative: String, project: String) throws -> String {
+        let relative = relative.isEmpty ? "." : relative
+        guard relative == "." || CanonicalPath.isPlainRelative(relative),
+              let path = CanonicalPath.resolve(project + "/" + relative),
+              CanonicalPath.isCanonical(path, inside: project)
+        else {
+            throw ApelinError(.denied, "the working directory must stay inside the project")
+        }
+        var metadata = stat()
+        guard stat(path, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFDIR else {
+            throw ApelinError(.notFound, "\(relative) is not a directory in the project")
+        }
+        return path
+    }
+
+    /// Runs the request, or, when Confirm let it through as a preset, the
+    /// preset as the host reads it (`AgentApprovals.authorize`).
+    static func run(
+        _ request: AgentRunCodeRequest,
+        preset: Preset?,
+        project: ResolvedProject,
+        installRoot: String,
+        home: String,
+        stopsSeen: Int,
+    ) async throws -> AgentRunCodeResponse {
+        guard timeoutRange.contains(request.timeoutSeconds) else {
+            throw ApelinError(
+                .badRequest,
+                "timeoutSeconds must be \(timeoutRange.lowerBound)–\(timeoutRange.upperBound)",
+            )
+        }
+        let argv = try argv(for: preset.map { .argv($0.argv) } ?? request.spec, installRoot: installRoot)
+        let directory = try workingDirectory(request.workingDirectory, project: project.path)
+        let prefix = Self.prefix(for: installRoot)
+        let environment = (preset?.environment ?? []) + [
+            "HOME=\(home)",
+            "PATH=\(searchPath(installRoot: installRoot).joined(separator: ":"))",
+            "LANG=en_US.UTF-8",
+            "TERM=dumb",
+            "TMPDIR=\(prefix)/var/tmp",
+            "APELIN_PROJECT_ROOT=\(project.path)",
+        ]
+        let timeout = request.timeoutSeconds
+        let session = request.sessionID
+        return try await offThePool {
+            try execute(
+                argv: argv,
+                environment: environment,
+                directory: directory,
+                timeoutSeconds: timeout,
+                session: session,
+                stopsSeen: stopsSeen,
+            )
+        }
+    }
+
+    /// Runs `body` — a spawn waited on for up to its timeout — on a Dispatch
+    /// thread, so it never holds a thread of the cooperative pool.
+    private static func offThePool<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(with: Result { try body() })
+            }
+        }
+    }
+
+    // MARK: Spawning
+
+    /// Runs a tool of the host's own choosing (`argv[0]` a canonical path)
+    /// from `directory` (`/` unless asked) to read what it prints, the way
+    /// run_code runs: as mobile when the host is root, as the user running
+    /// it on a test host, which is no more than that user may do anyway.
+    /// With a `session`, it is one of that session's calls, as `run` makes
+    /// it: a stop since it took `stopsSeen` ends it. Nil when it could not start.
+    static func capture(
+        _ argv: [String],
+        environment: [String],
+        directory: String = "/",
+        timeoutSeconds: Int,
+        session: String? = nil,
+        stopsSeen: Int = 0,
+    ) async -> AgentRunCodeResponse? {
+        try? await offThePool {
+            try execute(
+                argv: argv,
+                environment: environment,
+                directory: directory,
+                timeoutSeconds: timeoutSeconds,
+                asMobile: geteuid() == 0,
+                session: session,
+                stopsSeen: stopsSeen,
+            )
+        }
+    }
+
+    private static func execute(
+        argv: [String],
+        environment: [String],
+        directory: String,
+        timeoutSeconds: Int,
+        asMobile: Bool = true,
+        session: String?,
+        stopsSeen: Int,
+    ) throws -> AgentRunCodeResponse {
+        var out: [Int32] = [-1, -1]
+        var err: [Int32] = [-1, -1]
+        guard pipe(&out) == 0 else { throw ApelinError(.internal, "pipe: \(String(cString: strerror(errno)))") }
+        guard pipe(&err) == 0 else {
+            close(out[0]); close(out[1])
+            throw ApelinError(.internal, "pipe: \(String(cString: strerror(errno)))")
+        }
+        for descriptor in out + err {
+            _ = fcntl(descriptor, F_SETFD, FD_CLOEXEC)
+        }
+
+        var actions: posix_spawn_file_actions_t?
+        var attributes: posix_spawnattr_t?
+        posix_spawn_file_actions_init(&actions)
+        posix_spawnattr_init(&attributes)
+        defer {
+            posix_spawn_file_actions_destroy(&actions)
+            posix_spawnattr_destroy(&attributes)
+        }
+        posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_adddup2(&actions, out[1], 1)
+        posix_spawn_file_actions_adddup2(&actions, err[1], 2)
+        guard spawnAddChdir(&actions, directory) == 0 else {
+            [out[0], out[1], err[0], err[1]].forEach { close($0) }
+            throw ApelinError(.internal, "could not set run_code's working directory")
+        }
+
+        var everySignal = sigset_t()
+        var noSignal = sigset_t()
+        sigfillset(&everySignal)
+        sigemptyset(&noSignal)
+        posix_spawnattr_setsigdefault(&attributes, &everySignal)
+        posix_spawnattr_setsigmask(&attributes, &noSignal)
+        posix_spawnattr_setpgroup(&attributes, 0)
+        let flags = Int16(
+            POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETPGROUP,
+        )
+        posix_spawnattr_setflags(&attributes, flags)
+
+        var groups = [gid_t(WorkerRole.mobileGID)]
+        guard !asMobile
+            || (spawnSetGroups(&attributes, 1, &groups, uid_t(WorkerRole.mobileUID)) == 0
+                && spawnSetGID(&attributes, gid_t(WorkerRole.mobileGID)) == 0
+                && spawnSetUID(&attributes, uid_t(WorkerRole.mobileUID)) == 0)
+        else {
+            [out[0], out[1], err[0], err[1]].forEach { close($0) }
+            throw ApelinError(.internal, "could not set mobile's identity for run_code")
+        }
+
+        let started = Date()
+        var pid: pid_t = 0
+        let status = cStrings(argv) { argvPointer in
+            cStrings(environment) { environmentPointer in
+                posix_spawn(&pid, argv[0], &actions, &attributes, argvPointer, environmentPointer)
+            }
+        }
+        close(out[1])
+        close(err[1])
+        guard status == 0 else {
+            close(out[0]); close(err[0])
+            throw ApelinError(.internal, "posix_spawn \(argv[0]): \(String(cString: strerror(status)))")
+        }
+
+        let stdout = CappedReader(descriptor: out[0], cap: outputCap)
+        let stderr = CappedReader(descriptor: err[0], cap: outputCap)
+        let timedOut = SharedFlag()
+        let killer = DispatchWorkItem {
+            timedOut.set()
+            kill(-pid, SIGKILL)
+            kill(pid, SIGKILL)
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(timeoutSeconds), execute: killer)
+        if let session {
+            Self.running.insert(pid, session: session, stopsSeen: stopsSeen)
+        }
+
+        var waitStatus: Int32 = 0
+        while waitpid(pid, &waitStatus, 0) < 0, errno == EINTR {}
+        Self.running.remove(pid)
+        killer.cancel()
+        // Anything the process group left behind is not ours to keep.
+        kill(-pid, SIGKILL)
+        // A descendant that left the group (setsid) survives that kill and
+        // may still hold the pipes' write ends, so EOF may never come. The
+        // host cannot reliably find such a process — it is mobile's, in a
+        // session of its own — and leaves it running; what bounds the call
+        // is reading for no longer than the drain, then closing the pipes.
+        let drained = DispatchTime.now() + .seconds(drainSeconds)
+        let output = stdout.finish(by: drained)
+        let errors = stderr.finish(by: drained)
+
+        let exitCode: Int32 = if timedOut.isSet {
+            -1
+        } else if waitStatus & 0x7F == 0 {
+            (waitStatus >> 8) & 0xFF
+        } else {
+            128 + (waitStatus & 0x7F)
+        }
+        return AgentRunCodeResponse(
+            exitCode: exitCode,
+            stdout: output.text,
+            stderr: errors.text,
+            truncated: output.truncated || errors.truncated || timedOut.isSet,
+            timedOut: timedOut.isSet,
+            durationMilliseconds: Int(Date().timeIntervalSince(started) * 1000),
+        )
+    }
+
+    private static func cStrings<T>(
+        _ strings: [String],
+        _ body: (UnsafePointer<UnsafeMutablePointer<CChar>?>) -> T,
+    ) -> T {
+        var pointers = strings.map { strdup($0) }
+        pointers.append(nil)
+        defer { pointers.forEach { free($0) } }
+        return pointers.withUnsafeBufferPointer { body($0.baseAddress!) }
+    }
+}
+
+/// Drains a pipe on its own thread, keeping the first `cap` bytes and
+/// reading the rest away so the writer never blocks on a full pipe. The
+/// thread polls, so a stop asked for by `finish(by:)` ends it within a
+/// tenth of a second even while nothing arrives; it closes the descriptor
+/// itself on the way out.
+private final class CappedReader: @unchecked Sendable {
+    private let done = DispatchSemaphore(value: 0)
+    private let stopped = SharedFlag()
+    private var data = Data()
+    private var overflow = false
+    private var cut = false
+
+    init(descriptor: Int32, cap: Int) {
+        Thread.detachNewThread { [self] in
+            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+            while true {
+                if stopped.isSet {
+                    cut = true
+                    break
+                }
+                var ready = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
+                let polled = poll(&ready, 1, 100)
+                if polled < 0, errno == EINTR {
+                    continue
+                }
+                if polled < 0 {
+                    break
+                }
+                if polled == 0 {
+                    continue
+                }
+                let count = buffer.withUnsafeMutableBytes { read(descriptor, $0.baseAddress, $0.count) }
+                if count < 0, errno == EINTR {
+                    continue
+                }
+                if count <= 0 {
+                    break
+                }
+                let room = cap - data.count
+                if room > 0 {
+                    data.append(contentsOf: buffer[0 ..< min(room, count)])
+                }
+                if count > max(room, 0) {
+                    overflow = true
+                }
+            }
+            close(descriptor)
+            done.signal()
+        }
+    }
+
+    /// What was read: to EOF, or up to `deadline` and cut there.
+    func finish(by deadline: DispatchTime) -> (text: String, truncated: Bool) {
+        if done.wait(timeout: deadline) == .timedOut {
+            stopped.set()
+            done.wait()
+        }
+        return (String(decoding: data, as: UTF8.self), overflow || cut)
+    }
+}
+
+/// Run_code process groups and the session each runs for: the spawning
+/// thread adds its own and removes it once reaped; a stop kills them.
+private final class RunningGroups: @unchecked Sendable {
+    private let lock = PthreadLock()
+    private var sessions: [pid_t: String] = [:]
+    private var stops: [String: Int] = [:]
+
+    func stopCount(session: String) -> Int {
+        lock.withLock { stops[session, default: 0] }
+    }
+
+    /// Adds `group`, killing it at once when `session` was stopped after
+    /// its call took `stopsSeen`: a stop that came while the call was
+    /// being checked or spawned still ends it.
+    func insert(_ group: pid_t, session: String, stopsSeen: Int) {
+        lock.withLock {
+            sessions[group] = session
+            if stops[session, default: 0] != stopsSeen {
+                kill(-group, SIGKILL)
+                kill(group, SIGKILL)
+            }
+        }
+    }
+
+    func remove(_ group: pid_t) {
+        lock.withLock { sessions[group] = nil }
+    }
+
+    func stop(session: String) {
+        lock.withLock {
+            stops[session, default: 0] += 1
+            for (group, owner) in sessions where owner == session {
+                kill(-group, SIGKILL)
+                kill(group, SIGKILL)
+            }
+        }
+    }
+
+    func stopAll() {
+        lock.withLock {
+            for group in sessions.keys {
+                kill(-group, SIGKILL)
+                kill(group, SIGKILL)
+            }
+        }
+    }
+}
+
+private final class SharedFlag: @unchecked Sendable {
+    private let lock = PthreadLock()
+    private var value = false
+    func set() {
+        lock.withLock { value = true }
+    }
+
+    var isSet: Bool {
+        lock.withLock { value }
+    }
+}

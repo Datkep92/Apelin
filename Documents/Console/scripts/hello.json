@@ -1,0 +1,11 @@
+{
+  "name": "hello: needs nothing; apelind starts on demand and answers, and the session host brings up the build and environment workers",
+  "steps": [
+    {"op": "hello", "label": "hello"},
+    {"op": "expect", "request": {"step": "hello", "path": "response.installRoot", "exists": true}},
+    {"op": "extensionList", "label": "extensions"},
+    {"op": "sdkList", "label": "sdks"},
+    {"op": "toolchainStatus", "label": "toolchains"},
+    {"op": "expect", "request": {"step": "toolchains", "path": "response.activeTasks", "exists": true}}
+  ]
+}

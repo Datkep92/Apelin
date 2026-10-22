@@ -1,0 +1,127 @@
+import Foundation
+
+/// Everything the agent asks of the session host.
+///
+/// `apelin-agent` runs as mobile and holds no privilege of its own: every
+/// system capability in §7's table is one method here, with a typed request
+/// and a typed response, carried to `apelind-session` over the inherited
+/// internal channel. Nothing here is `exec(path, argv)` — `runCode` carries a
+/// classified invocation the host re-checks, not a command line it trusts.
+///
+/// The host decides independently (§2, §7): every request carries a
+/// `HostCallContext` naming the session, project, tool call and the evidence
+/// the agent's own approval gate acted on, so the host can refuse a forged
+/// approval instead of believing it.
+public protocol AgentHostBackend: Sendable {
+    /// Run a command or script inside the project, as mobile.
+    func runCode(_ request: RunCodeRequest) async throws -> RunCodeResponse
+    /// Build the project with the registered toolchain and SDK.
+    func build(_ request: BuildRequest) async throws -> BuildResponse
+    /// Package and install a built artifact through Irisin's daemon.
+    func install(_ request: InstallRequest) async throws -> InstallResponse
+    /// Remove a managed project package by its installation record.
+    func removePackage(_ request: RemovePackageRequest) async throws -> RemovePackageResponse
+    /// Restart SpringBoard.
+    func respring(_ request: RespringRequest) async throws -> RespringResponse
+    /// Check a build is loaded in its target: marker log, loaded images,
+    /// filter.
+    func confirmLoaded(_ request: ConfirmLoadedRequest) async throws -> ConfirmLoadedResponse
+    /// Bounded system log read, filtered to the project.
+    func readLogs(_ request: ReadLogsRequest) async throws -> ReadLogsResponse
+    /// Crash report ids the host can open.
+    func listCrashes(_ request: ListCrashesRequest) async throws -> ListCrashesResponse
+    /// One crash report's text.
+    func readCrash(_ request: ReadCrashRequest) async throws -> ReadCrashResponse
+    /// Symbolicate a report against the project's matching dSYM.
+    func symbolicateCrash(_ request: SymbolicateCrashRequest) async throws -> SymbolicateCrashResponse
+    /// Screenshot of the target, returned as a bounded attachment.
+    func captureScreen(_ request: CaptureScreenRequest) async throws -> CaptureScreenResponse
+    /// The target's accessibility/UI tree.
+    func readUITree(_ request: ReadUITreeRequest) async throws -> ReadUITreeResponse
+    /// One structured UI action on the target.
+    func uiAction(_ request: UIActionRequest) async throws -> UIActionResponse
+    /// Where a registered SDK lives, for `analyze_framework` and
+    /// `framework_header` to read as mobile.
+    func registeredSDK(_ request: RegisteredSDKRequest) async throws -> RegisteredSDKResponse
+    /// What a package for other people should not carry yet: warnings,
+    /// never a refusal.
+    func checkDistribution(_ request: DistributionCheckRequest) async throws -> DistributionCheckResponse
+    /// The templates a new project can start from, for General Chat.
+    func projectTemplates() async throws -> ProjectTemplateListResponse
+    /// A new project in `Projects/` from one of those templates.
+    func createProject(_ request: ProjectCreateToolRequest) async throws -> ProjectCreateToolResponse
+    /// The session's project's branch, HEAD and changed paths.
+    func gitStatus(_ request: GitStatusToolRequest) async throws -> GitStatusToolResponse
+    /// A unified diff of the worktree, or of the index against HEAD.
+    func gitDiff(_ request: GitDiffToolRequest) async throws -> GitDiffToolResponse
+    func gitStage(_ request: GitPathsToolRequest) async throws -> GitPathsToolResponse
+    func gitUnstage(_ request: GitPathsToolRequest) async throws -> GitPathsToolResponse
+    /// A local commit; the author is the host's setting, never the agent's.
+    func gitCommit(_ request: GitCommitToolRequest) async throws -> GitCommitToolResponse
+    /// The remote's branches into remote-tracking refs, read to the end.
+    func gitFetch(_ request: GitRemoteToolRequest) async throws -> GitTaskToolResponse
+    /// Fetch, then fast-forward only, read to the end.
+    func gitPull(_ request: GitRemoteToolRequest) async throws -> GitTaskToolResponse
+    /// Push a branch, never forced, read to the end.
+    func gitPush(_ request: GitRemoteToolRequest) async throws -> GitTaskToolResponse
+    /// Import a repository into the session's own (empty) workspace.
+    func gitClone(_ request: GitCloneToolRequest) async throws -> GitTaskToolResponse
+    /// The device's commit author and the hosts with a saved credential.
+    func gitSettings(context: HostCallContext) async throws -> GitSettingsToolResponse
+    func gitSetAuthor(_ request: GitAuthorToolRequest) async throws -> GitSettingsToolResponse
+    /// Saves a host's credential; the answer never carries the token.
+    func gitSaveCredential(_ request: GitCredentialToolRequest) async throws -> GitSettingsToolResponse
+    func gitRemoveCredential(_ request: GitCredentialRemoveToolRequest) async throws -> GitSettingsToolResponse
+    /// Another conversation in the session's project, opened with a first
+    /// message; answers without waiting for it.
+    func conversationCreate(_ request: ConversationCreateToolRequest) async throws -> ConversationCreateToolResponse
+    /// A message to another conversation of the project, as the user's.
+    func conversationSend(_ request: ConversationSendToolRequest) async throws -> ConversationActionToolResponse
+    /// The project's conversations.
+    func conversationList(context: HostCallContext) async throws -> ConversationListToolResponse
+    /// What a conversation of the project answered after a point, waiting
+    /// for its turn to end when asked to.
+    func conversationRead(_ request: ConversationReadToolRequest) async throws -> ConversationReadToolResponse
+    /// Aborts, and optionally closes, a conversation this session opened.
+    func conversationStop(_ request: ConversationStopToolRequest) async throws -> ConversationActionToolResponse
+}
+
+// MARK: - Context
+
+/// Identifies a call to the host. The host matches `sessionID` to the
+/// process it spawned and ignores any role the agent claims.
+public struct HostCallContext: Sendable, Hashable, Codable {
+    public var sessionID: String
+    public var project: ProjectIdentity
+    public var toolCallID: String
+    /// What the agent's gate acted on. Evidence, not authority.
+    public var approval: ApprovalEvidence
+
+    public init(sessionID: String, project: ProjectIdentity, toolCallID: String, approval: ApprovalEvidence) {
+        self.sessionID = sessionID
+        self.project = project
+        self.toolCallID = toolCallID
+        self.approval = approval
+    }
+}
+
+/// Why the agent's gate let a call through.
+public enum ApprovalEvidence: Sendable, Hashable, Codable {
+    /// The session is in Relaxed mode.
+    case relaxed
+    /// A user-editable preset matched; the name is the preset's.
+    case preset(String)
+    /// The build or packaging description matches its template.
+    case templateMatch(digest: String)
+    /// The description's digest was approved before; the host's ledger says so.
+    case digestApproved(digest: String)
+    /// The user approved this request.
+    case user(requestID: String, fingerprint: String)
+    /// The call needs no approval (read-only within the project).
+    case notRequired
+
+    /// The `requestID` of `.user` for a call identical to one the user
+    /// approved "for this session": the host accepts it only for a command
+    /// and working directory it recorded a session grant for.
+    public static let sessionRequestID = "session"
+}

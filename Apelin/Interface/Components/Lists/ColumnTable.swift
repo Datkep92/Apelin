@@ -1,0 +1,292 @@
+import Then
+import UIKit
+
+// Inspector's process list as a component: a name, then figures in columns
+// that line up from row to row under a heading row (Inspector's
+// ProcessListColumns, ProcessListHeaderView and ProcessRowCell, without the
+// icon and the sorting). A column is as wide as the widest sample it was
+// given, measured once per text size and never from the row being drawn. At
+// the accessibility sizes there is no room for columns: a row stacks its
+// figures under the name, and the headings go.
+
+/// A column after the name: its heading and the widest values it holds.
+struct TableColumn {
+    let title: String
+    let samples: [String]
+}
+
+final class ColumnTableMetrics {
+    let isStacked: Bool
+    let nameFont: UIFont
+    let valueFont: UIFont
+    let titleFont: UIFont
+    let columnSpacing: CGFloat
+    let rowHeight: CGFloat
+    private let minimumNameWidth: CGFloat
+    private let widths: [CGFloat]
+    /// Room at the trailing edge for a row's symbol (`plus.circle`); the
+    /// heading keeps it empty, so the figures stay under their titles.
+    let trailingSymbolWidth: CGFloat
+
+    static let rowPadding: CGFloat = 11
+    static let lineSpacing: CGFloat = 2
+
+    init(columns: [TableColumn], category: UIContentSizeCategory, trailingSymbol: Bool = false) {
+        // a view outside a window reports no text size; the app's stands in
+        let category = category == .unspecified ? UIApplication.shared.preferredContentSizeCategory : category
+        let traits = UITraitCollection(preferredContentSizeCategory: category)
+        isStacked = category.isAccessibilityCategory
+        nameFont = .preferredFont(forTextStyle: isStacked ? .body : .subheadline, compatibleWith: traits)
+        let footnote = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits)
+        valueFont = .monospacedDigitSystemFont(ofSize: footnote.pointSize, weight: .regular)
+        let caption = UIFont.preferredFont(forTextStyle: .caption1, compatibleWith: traits)
+        titleFont = .systemFont(ofSize: caption.pointSize, weight: .semibold)
+        columnSpacing = (valueFont.pointSize * 1.25).rounded()
+        minimumNameWidth = (nameFont.pointSize * 5.5).rounded()
+        trailingSymbolWidth = trailingSymbol ? ceil(nameFont.lineHeight) : 0
+        let nameLine = ceil(nameFont.lineHeight)
+        let valueLine = ceil(valueFont.lineHeight)
+        rowHeight = isStacked
+            ? nameLine + CGFloat(max(columns.count, 1)) * (Self.lineSpacing + valueLine) + 2 * Self.rowPadding
+            : max(nameLine, valueLine) + 2 * Self.rowPadding
+        widths = columns.map { [valueFont, titleFont] in
+            ($0.samples.map { Self.width(of: $0, in: valueFont) }
+                + [Self.width(of: $0.title, in: titleFont)]).max() ?? 0
+        }
+    }
+
+    /// The name's span, each column's and the trailing symbol's, across
+    /// `content`: the symbol at the trailing edge, figures filling in before
+    /// it, and the last ones going first when the name would be left less
+    /// than its minimum. A column left out is nil.
+    func layout(in content: CGRect, isRightToLeft: Bool) -> (name: CGRect, columns: [CGRect?], symbol: CGRect?) {
+        var trailing = content.maxX
+        var symbol: CGRect?
+        if trailingSymbolWidth > 0 {
+            symbol = CGRect(
+                x: trailing - trailingSymbolWidth,
+                y: content.minY,
+                width: trailingSymbolWidth,
+                height: content.height,
+            )
+            trailing -= trailingSymbolWidth + columnSpacing
+        }
+        let room = trailing - content.minX
+        var shown = widths.count
+        while shown > 0 {
+            let needed = widths.prefix(shown).reduce(0) { $0 + $1 + columnSpacing }
+            if room - needed >= minimumNameWidth {
+                break
+            }
+            shown -= 1
+        }
+        var columns = [CGRect?](repeating: nil, count: widths.count)
+        for index in (0 ..< shown).reversed() {
+            let leading = trailing - widths[index]
+            columns[index] = CGRect(x: leading, y: content.minY, width: widths[index], height: content.height)
+            trailing = leading - columnSpacing
+        }
+        var name = CGRect(
+            x: content.minX,
+            y: content.minY,
+            width: max(0, trailing - content.minX),
+            height: content.height,
+        )
+        if isRightToLeft {
+            func mirrored(_ rect: CGRect) -> CGRect {
+                var rect = rect
+                rect.origin.x = content.minX + content.maxX - rect.maxX
+                return rect
+            }
+            name = mirrored(name)
+            columns = columns.map { $0.map(mirrored) }
+            symbol = symbol.map(mirrored)
+        }
+        return (name, columns, symbol)
+    }
+
+    private static func width(of text: String, in font: UIFont) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+}
+
+/// The heading row above a section of `ColumnTableCell`s: Name (or the
+/// caller's word for it) over the names, each column's title right-aligned
+/// over its figures.
+final class ColumnTableHeaderView: UITableViewHeaderFooterView {
+    static let reuseIdentifier = "columnHeader"
+    private static let bottomSpacing: CGFloat = 7
+
+    private let nameLabel = UILabel()
+    private var titleLabels: [UILabel] = []
+    private var metrics: ColumnTableMetrics?
+
+    override init(reuseIdentifier: String?) {
+        super.init(reuseIdentifier: reuseIdentifier)
+        nameLabel.text = String(localized: "Name")
+        contentView.addSubview(nameLabel)
+        // the rows say what each figure is; the headings are only drawn
+        accessibilityElementsHidden = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("Use init(reuseIdentifier:)")
+    }
+
+    func configure(columns: [TableColumn], metrics: ColumnTableMetrics, nameTitle: String? = nil) {
+        self.metrics = metrics
+        nameLabel.text = nameTitle ?? String(localized: "Name")
+        titleLabels.forEach { $0.removeFromSuperview() }
+        titleLabels = columns.map { column in
+            UILabel().then {
+                $0.text = column.title
+                $0.textAlignment = effectiveUserInterfaceLayoutDirection == .rightToLeft ? .left : .right
+                contentView.addSubview($0)
+            }
+        }
+        for label in [nameLabel] + titleLabels {
+            label.font = metrics.titleFont
+            label.textColor = .secondaryLabel
+        }
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let metrics else { return }
+        let hidden = metrics.isStacked
+        nameLabel.isHidden = hidden
+        titleLabels.forEach { $0.isHidden = hidden }
+        guard !hidden else { return }
+        // one line of headings, sitting just over the rows as a section's
+        // title does
+        var content = contentView.bounds.inset(by: contentView.layoutMargins)
+        let line = ceil(metrics.titleFont.lineHeight)
+        content.origin.y = contentView.bounds.maxY - line - Self.bottomSpacing
+        content.size.height = line
+        let layout = metrics.layout(in: content, isRightToLeft: effectiveUserInterfaceLayoutDirection == .rightToLeft)
+        nameLabel.frame = layout.name
+        for (label, frame) in zip(titleLabels, layout.columns) {
+            label.isHidden = frame == nil
+            label.frame = frame ?? .zero
+        }
+    }
+}
+
+/// One row: the name, then its figures under the headings. Laid out by hand,
+/// as Inspector's, so the figures sit on the name's baseline.
+final class ColumnTableCell: UITableViewCell {
+    static let reuseIdentifier = "columnRow"
+
+    private let nameLabel = UILabel()
+    private var valueLabels: [UILabel] = []
+    private let symbolView = UIImageView().then {
+        $0.contentMode = .center
+    }
+
+    private var metrics: ColumnTableMetrics?
+    private var titles: [String] = []
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        nameLabel.lineBreakMode = .byTruncatingMiddle
+        contentView.addSubview(nameLabel)
+        contentView.addSubview(symbolView)
+        // one stop for the row; the figures are named in the value
+        isAccessibilityElement = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("Use init(style:reuseIdentifier:)")
+    }
+
+    /// `name` may carry an attachment (a warning mark); `accessibilityName`
+    /// is what VoiceOver says for it. `symbol` sits in the metrics' trailing
+    /// slot, drawn only: the name says what it means.
+    func configure(
+        name: NSAttributedString,
+        accessibilityName: String,
+        values: [String],
+        columns: [TableColumn],
+        metrics: ColumnTableMetrics,
+        symbol: UIImage? = nil,
+        symbolTint: UIColor = .tintColor,
+    ) {
+        self.metrics = metrics
+        symbolView.image = symbol
+        symbolView.tintColor = symbolTint
+        symbolView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: metrics.nameFont)
+        titles = columns.map(\.title)
+        if valueLabels.count != values.count {
+            valueLabels.forEach { $0.removeFromSuperview() }
+            valueLabels = values.map { _ in
+                UILabel().then {
+                    $0.textColor = .secondaryLabel
+                    $0.adjustsFontSizeToFitWidth = true
+                    $0.minimumScaleFactor = 0.7
+                    contentView.addSubview($0)
+                }
+            }
+        }
+        nameLabel.font = metrics.nameFont
+        nameLabel.attributedText = name
+        for (label, (title, value)) in zip(valueLabels, zip(titles, values)) {
+            label.font = metrics.valueFont
+            // under a heading the figure is enough; stacked, it says what it is
+            label.text = metrics.isStacked ? "\(title) \(value)" : value
+        }
+        accessibilityLabel = accessibilityName
+        accessibilityValue = zip(titles, values).map { "\($0) \($1)" }.joined(separator: ", ")
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let metrics else { return }
+        let content = contentView.bounds.inset(by: contentView.layoutMargins)
+        let isRightToLeft = effectiveUserInterfaceLayoutDirection == .rightToLeft
+        let nameHeight = ceil(metrics.nameFont.lineHeight)
+        let valueHeight = ceil(metrics.valueFont.lineHeight)
+        if metrics.isStacked {
+            symbolView.isHidden = true
+            var y = contentView.bounds.minY + ColumnTableMetrics.rowPadding
+            nameLabel.frame = CGRect(x: content.minX, y: y, width: content.width, height: nameHeight)
+            y += nameHeight
+            for label in valueLabels {
+                y += ColumnTableMetrics.lineSpacing
+                label.frame = CGRect(x: content.minX, y: y, width: content.width, height: valueHeight)
+                label.textAlignment = .natural
+                label.isHidden = false
+                y += valueHeight
+            }
+            return
+        }
+        let layout = metrics.layout(in: content, isRightToLeft: isRightToLeft)
+        symbolView.isHidden = layout.symbol == nil || symbolView.image == nil
+        symbolView.frame = layout.symbol.map {
+            CGRect(x: $0.minX, y: contentView.bounds.minY, width: $0.width, height: contentView.bounds.height)
+        } ?? .zero
+        nameLabel.frame = CGRect(
+            x: layout.name.minX,
+            y: pixelAligned(contentView.bounds.midY - nameHeight / 2),
+            width: layout.name.width,
+            height: nameHeight,
+        )
+        // names and figures differ in size: they share a baseline
+        let baseline = nameLabel.frame.minY + metrics.nameFont.ascender
+        let valueY = pixelAligned(baseline - metrics.valueFont.ascender)
+        for (label, frame) in zip(valueLabels, layout.columns) {
+            label.isHidden = frame == nil
+            guard let frame else { continue }
+            label.frame = CGRect(x: frame.minX, y: valueY, width: frame.width, height: valueHeight)
+            label.textAlignment = isRightToLeft ? .left : .right
+        }
+    }
+
+    private func pixelAligned(_ value: CGFloat) -> CGFloat {
+        let scale = max(traitCollection.displayScale, 1)
+        return (value * scale).rounded() / scale
+    }
+}

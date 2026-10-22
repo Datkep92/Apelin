@@ -1,0 +1,459 @@
+import ApelinAgent
+@testable import ApelinAgentWorker
+import ApelinCore
+import ApelinProtocol
+import Darwin
+import Foundation
+import Testing
+
+/// A session host in memory: answers each operation from a table and
+/// records what it was asked, in order.
+final class FakeHost: ApelinTransport, @unchecked Sendable {
+    typealias Answer = @Sendable (WireRequest) throws -> (Encodable & Sendable, [OwnedDescriptor])
+
+    private let lock = PthreadLock()
+    private var answers: [AppOperation: Answer] = [:]
+    private var log: [WireRequest] = []
+
+    func on(_ operation: AppOperation, _ answer: @escaping Answer) {
+        lock.withLock { answers[operation] = answer }
+    }
+
+    func on(_ operation: AppOperation, reply: some Encodable & Sendable) {
+        on(operation) { _ in (reply, []) }
+    }
+
+    var requests: [WireRequest] {
+        lock.withLock { log }
+    }
+
+    func requests<R: OperationRequest>(_: R.Type) -> [R] {
+        requests.filter { $0.operation == R.operation }.compactMap { try? $0.decode(R.self) }
+    }
+
+    func call(_ request: WireRequest, descriptors _: [OwnedDescriptor]) async throws -> (WireReply, [OwnedDescriptor]) {
+        let answer = lock.withLock { () -> Answer? in
+            log.append(request)
+            return answers[request.operation]
+        }
+        guard let answer else { return (.failure(request.requestID, .unimplemented(request.operation)), []) }
+        do {
+            let (value, descriptors) = try answer(request)
+            return (.success(request.requestID, AnyEncodable(value)), descriptors)
+        } catch let error as ApelinError {
+            return (.failure(request.requestID, error), [])
+        }
+    }
+}
+
+struct AnyEncodable: Encodable {
+    let value: any Encodable
+    init(_ value: any Encodable) {
+        self.value = value
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try value.encode(to: encoder)
+    }
+}
+
+/// A finished task's whole history in one batch.
+func batch(_ taskID: String, _ events: [(String, ApelinCore.JSONValue?)]) -> TaskEventBatch {
+    let numbered = events.enumerated().map { TaskEvent(seq: EventSeq(UInt64($0.offset + 1)), kind: $0.element.0, payload: $0.element.1) }
+    let state = numbered.last { $0.kind == TaskEvent.stateKind }?.payload?["state"]?.stringValue.flatMap(TaskState.init(rawValue:)) ?? .running
+    return TaskEventBatch(taskID: TaskID(taskID), events: numbered, state: state, lastSeq: numbered.last?.seq ?? .start, finished: state.isTerminal)
+}
+
+func stateEvent(_ state: TaskState, _ message: String? = nil) -> (String, ApelinCore.JSONValue?) {
+    var payload: [String: ApelinCore.JSONValue] = ["state": .string(state.rawValue)]
+    if let message {
+        payload["message"] = .string(message)
+    }
+    return (TaskEvent.stateKind, .object(payload))
+}
+
+/// A descriptor holding `data`, from an unlinked temporary file.
+func descriptor(holding data: Data) -> OwnedDescriptor {
+    let path = NSTemporaryDirectory() + "apelin-agent-worker-\(UUID().uuidString)"
+    FileManager.default.createFile(atPath: path, contents: data)
+    let fd = open(path, O_RDONLY)
+    unlink(path)
+    return OwnedDescriptor(adopting: fd)
+}
+
+struct Fixture {
+    let host = FakeHost()
+    let project: ApelinAgent.ProjectIdentity
+    let projectURL: URL
+    let backend: ChannelHostBackend
+
+    init(manifest: String? = nil) throws {
+        project = try ApelinAgent.ProjectIdentity(id: "6f1c5b0e-0000-4000-8000-000000000001", name: ApelinAgent.ProjectName("Hello"))
+        projectURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("apelin-worker-tests-\(UUID().uuidString)/Hello", isDirectory: true)
+        try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+        if let manifest {
+            try manifest.write(to: projectURL.appendingPathComponent("apelin-project.json"), atomically: true, encoding: .utf8)
+        }
+        backend = ChannelHostBackend(service: ApelinService(transport: host), sessionID: "11111111-2222-4333-8444-555555555555", project: project, projectURL: projectURL)
+    }
+
+    func context(_ approval: ApprovalEvidence = .relaxed) -> HostCallContext {
+        HostCallContext(sessionID: backend.sessionID, project: project, toolCallID: "call-1", approval: approval)
+    }
+}
+
+@Suite("ChannelHostBackend maps every tool onto one host operation")
+struct ChannelHostBackendTests {
+    @Test
+    func `build is buildStart and its task read to the end`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.buildStart, reply: TaskHandle(taskID: TaskID("build-task"), kind: .build))
+        try fixture.host.on(.buildAttach, reply: batch("build-task", [
+            ("stage", .object(["stage": .string("compile")])),
+            ("log", .object(["line": .string("clang Tweak.m")])),
+            ("diagnostic", ApelinCore.JSONValue(encoding: ProjectDiagnostic(code: "clang", severity: .warning, message: "unused", file: "Sources/Tweak.m", line: 3))),
+            ("artifact", ApelinCore.JSONValue(encoding: ApelinProtocol.BuildArtifact(artifactID: "art-1", digest: "sha256:ab", packageID: "wiki.qaq.hello", version: "0.0.1"))),
+            stateEvent(.succeeded),
+        ]))
+
+        let response = try await fixture.backend.build(BuildRequest(context: fixture.context(), configuration: .release, buildDescriptionDigest: "sha256:00", bootstrap: "roothide"))
+
+        let start = try #require(fixture.host.requests(BuildStartRequest.self).first)
+        #expect(start.projectID == fixture.project.id)
+        #expect(start.configuration == .release)
+        #expect(start.bootstrap == .roothide)
+        #expect(response.succeeded)
+        #expect(response.buildID == "build-task")
+        #expect(response.artifacts == [ApelinAgent.BuildArtifact(id: "art-1", kind: .package, name: "wiki.qaq.hello_0.0.1.deb", digest: "sha256:ab")])
+        #expect(response.diagnostics.first?.severity == .warning)
+        #expect(response.diagnostics.first?.line == 3)
+        #expect(response.logExcerpt.contains("clang Tweak.m"))
+    }
+
+    @Test
+    func `a build that names its APELIN_BUILD_ID reports that id`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.buildStart, reply: TaskHandle(taskID: TaskID("build-task"), kind: .build))
+        fixture.host.on(.buildAttach, reply: batch("build-task", [
+            ("stage", .object(["stage": .string("compile"), "buildID": .string("B-42")])),
+            stateEvent(.failed, "link failed"),
+        ]))
+        let response = try await fixture.backend.build(BuildRequest(context: fixture.context(), configuration: .debug, buildDescriptionDigest: "d"))
+        #expect(response.buildID == "B-42")
+        #expect(!response.succeeded)
+        #expect(response.logExcerpt.contains("link failed"))
+    }
+
+    @Test
+    func `install is installPackage with the artifact and its digest`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.installPackage, reply: TaskHandle(taskID: TaskID("install-task"), kind: .install))
+        try fixture.host.on(.buildAttach, reply: batch("install-task", [
+            ("result", ApelinCore.JSONValue(encoding: InstallResult(installationID: "inst-1", transactionID: "tx-1", packageID: "wiki.qaq.hello", version: "0.0.1"))),
+            stateEvent(.succeeded),
+        ]))
+        let response = try await fixture.backend.install(InstallRequest(context: fixture.context(), artifactID: "art-1", artifactDigest: "sha256:ab", packagingDescriptionDigest: "p"))
+        let sent = try #require(fixture.host.requests(InstallPackageRequest.self).first)
+        #expect(sent.artifactID == "art-1")
+        #expect(sent.digest == "sha256:ab")
+        #expect(response.succeeded)
+        #expect(response.installationID == "inst-1")
+        #expect(response.transactionID == "tx-1")
+    }
+
+    @Test
+    func `respring is the host's closed operation`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.respring, reply: Acknowledged())
+        let response = try await fixture.backend.respring(ApelinAgent.RespringRequest(context: fixture.context()))
+        #expect(response.succeeded)
+        #expect(fixture.host.requests.map(\.operation) == [.respring])
+    }
+
+    @Test
+    func `confirm_loaded starts a load check with the session's project and reads its answer from the final state`() async throws {
+        let fixture = try Fixture()
+        let answer = ApelinProtocol.ConfirmLoadedResponse(loaded: true, evidence: [
+            LoadEvidence(kind: "log", passed: true, detail: "confirmed: Marker logged by pid 55."),
+            LoadEvidence(kind: "image", passed: false, detail: "notRead: The image list was not read."),
+            LoadEvidence(kind: "filter", passed: true, detail: "confirmed: com.apple.springboard"),
+        ])
+        fixture.host.on(.confirmLoaded, reply: TaskHandle(taskID: TaskID("confirm-task"), kind: .confirmLoaded))
+        try fixture.host.on(.confirmLoadedAttach, reply: batch("confirm-task", [
+            ("stage", .object(["stage": .string("listening")])),
+            ("stage", .object(["stage": .string("trigger")])),
+            (TaskEvent.stateKind, .object(["state": .string("succeeded"), ApelinProtocol.ConfirmLoadedResponse.stateMember: JSONValue(encoding: answer)])),
+        ]))
+        let response = try await fixture.backend.confirmLoaded(ApelinAgent.ConfirmLoadedRequest(context: fixture.context(), buildID: "B-42", target: "SpringBoard", respring: true))
+        let sent = try #require(fixture.host.requests(ApelinProtocol.ConfirmLoadedRequest.self).first)
+        #expect(sent.buildID == "B-42")
+        #expect(sent.targetID == "SpringBoard")
+        #expect(sent.projectID == fixture.project.id)
+        #expect(sent.trigger == .respring)
+        #expect(sent.imageCheck == nil, "the agent never asks for the image list")
+        #expect(fixture.host.requests.map(\.operation) == [.confirmLoaded, .confirmLoadedAttach])
+        #expect(response.markerLogged)
+        #expect(!response.imageLoaded)
+        #expect(response.imageEvidence.isEmpty)
+        #expect(response.filterMatches == true)
+        #expect(response.loaded)
+        #expect(response.notes.contains("image: notRead"))
+    }
+
+    @Test
+    func `confirm_loaded without respring sends no trigger; a check that ended without an answer throws`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.confirmLoaded, reply: TaskHandle(taskID: TaskID("confirm-task"), kind: .confirmLoaded))
+        fixture.host.on(.confirmLoadedAttach, reply: batch("confirm-task", [stateEvent(.failed, "apelin-diagnostics exited")]))
+        await #expect(throws: ApelinError.self) {
+            _ = try await fixture.backend.confirmLoaded(ApelinAgent.ConfirmLoadedRequest(context: fixture.context(), buildID: "B-42", target: "SpringBoard"))
+        }
+        #expect(fixture.host.requests(ApelinProtocol.ConfirmLoadedRequest.self).first?.trigger == nil)
+    }
+
+    @Test
+    func `read_logs opens a bounded stream and reads it to its end`() async throws {
+        let fixture = try Fixture()
+        let entry: ApelinCore.JSONValue = .object([
+            "time": .string("2026-10-17T10:00:00Z"), "process": .string("SpringBoard"),
+            "subsystem": .string("wiki.qaq.hello"), "category": .string("tweak"),
+            "level": .string("default"), "message": .string("ApelinLoaded B-42 in SpringBoard"),
+        ])
+        fixture.host.on(.logStream) { request in
+            let poll = try request.decode(LogStreamRequest.self)
+            if poll.stream == nil {
+                return (TaskEventBatch(taskID: TaskID("logs"), events: [TaskEvent(seq: EventSeq(1), kind: "log", payload: entry)], state: .running, lastSeq: EventSeq(1), finished: false), [])
+            }
+            return (TaskEventBatch(taskID: TaskID("logs"), events: [
+                TaskEvent(seq: EventSeq(2), kind: "log", payload: entry),
+                TaskEvent(seq: EventSeq(3), kind: TaskEvent.stateKind, payload: .object(["state": .string("succeeded")])),
+            ], state: .succeeded, lastSeq: EventSeq(3), finished: true), [])
+        }
+        let response = try await fixture.backend.readLogs(ReadLogsRequest(context: fixture.context(), process: "SpringBoard", subsystem: "wiki.qaq.hello", sinceSeconds: 300, limit: 1))
+        let open = try #require(fixture.host.requests(LogStreamRequest.self).first)
+        #expect(open.filter?.subsystem == "wiki.qaq.hello")
+        #expect(open.filter?.process == "SpringBoard")
+        #expect(open.filter?.windowSeconds == ChannelHostBackend.maximumLogWindow)
+        #expect(response.entries.count == 1)
+        #expect(response.truncated)
+        #expect(response.entries.first?.message.hasPrefix("ApelinLoaded") == true)
+    }
+
+    @Test
+    func `read_crash reads the descriptor crashOpen hands back, bounded`() async throws {
+        let fixture = try Fixture()
+        let text = Data(String(repeating: "x", count: 100).utf8)
+        fixture.host.on(.crashOpen) { _ in (CrashOpenResponse(descriptor: DescriptorSlot(index: 0), size: 100), [descriptor(holding: text)]) }
+        let response = try await fixture.backend.readCrash(ReadCrashRequest(context: fixture.context(), reportID: "SpringBoard-2026-10-17-100000.ips", maxBytes: 40))
+        #expect(response.text.count == 40)
+        #expect(response.truncated)
+        #expect(fixture.host.requests(CrashOpenRequest.self).first?.id == "SpringBoard-2026-10-17-100000.ips")
+    }
+
+    @Test
+    func `symbolicate_crash asks the diagnostics worker with the project`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.crashSymbolicate, reply: CrashSymbolicateResponse(id: "r.ips", process: "SpringBoard", matchedImageUUIDs: ["UUID-1"], crashedThread: [
+            ApelinProtocol.SymbolicatedFrame(index: 0, image: "Hello.dylib", address: "0x1000", symbol: "HookedDidFinishLaunching", file: "Tweak.m", line: 30),
+        ], suspects: ["Hello.dylib"]))
+        let response = try await fixture.backend.symbolicateCrash(SymbolicateCrashRequest(context: fixture.context(), reportID: "r.ips", buildID: nil))
+        #expect(fixture.host.requests(CrashSymbolicateRequest.self).first?.projectID == fixture.project.id)
+        #expect(response.matchedImageUUID == "UUID-1")
+        #expect(response.crashedThread.first?.symbol == "HookedDidFinishLaunching")
+        #expect(response.suspects == ["Hello.dylib"])
+    }
+
+    @Test
+    func `capture_screen reads the image from the reply's descriptor`() async throws {
+        let fixture = try Fixture()
+        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
+        fixture.host.on(.captureScreen) { _ in (ApelinProtocol.CaptureScreenResponse(image: DescriptorSlot(index: 0), width: 10, height: 20), [descriptor(holding: jpeg)]) }
+        let response = try await fixture.backend.captureScreen(ApelinAgent.CaptureScreenRequest(context: fixture.context(), targetID: nil))
+        #expect(response.imageData == jpeg)
+        #expect(response.mimeType == "image/jpeg")
+        #expect(response.width == 10)
+    }
+
+    @Test
+    func `the UI tree is one root and its elements; tapping one goes by identifier or text`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.readUITree, reply: ReadUITreeResponse(tree: .object([
+            "pid": .number(42),
+            "elements": .array([
+                .object(["identifier": .string("ok-button"), "label": .string("OK"), "role": .string("button"), "frame": .object(["x": .number(1), "y": .number(2), "width": .number(3), "height": .number(4)])]),
+                .object(["identifier": .string(""), "label": .string("Cancel"), "role": .string("button")]),
+            ]),
+        ])))
+        fixture.host.on(.uiAction, reply: Acknowledged())
+        let tree = try await fixture.backend.readUITree(ApelinAgent.ReadUITreeRequest(context: fixture.context(), targetID: nil, maxDepth: 4))
+        #expect(tree.root.children.map(\.id) == ["ok-button", "text:Cancel"])
+        #expect(tree.root.children.first?.frame == [1, 2, 3, 4])
+
+        _ = try await fixture.backend.uiAction(ApelinAgent.UIActionRequest(context: fixture.context(), targetID: nil, action: .tapElement(id: "text:Cancel")))
+        _ = try await fixture.backend.uiAction(ApelinAgent.UIActionRequest(context: fixture.context(), targetID: nil, action: .tapElement(id: "ok-button")))
+        let actions = fixture.host.requests(ApelinProtocol.UIActionRequest.self).map(\.action)
+        #expect(actions == [.tapElement(text: "Cancel", identifier: nil), .tapElement(text: nil, identifier: "ok-button")])
+    }
+
+    @Test
+    func `run_code is agentRunCode: a shell line becomes an sh script, the evidence is passed on`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.agentRunCode, reply: AgentRunCodeResponse(exitCode: 0, stdout: "ok", stderr: "", durationMilliseconds: 5))
+        let response = try await fixture.backend.runCode(RunCodeRequest(
+            context: fixture.context(.user(requestID: "approval-7", fingerprint: "f")),
+            invocation: .shell("ls | wc -l"),
+            workingDirectory: "Sources",
+            timeoutSeconds: 30,
+        ))
+        let sent = try #require(fixture.host.requests(AgentRunCodeRequest.self).first)
+        #expect(sent.sessionID == fixture.backend.sessionID)
+        #expect(sent.spec == .script(interpreter: "sh", source: "ls | wc -l"))
+        #expect(sent.workingDirectory == "Sources")
+        #expect(sent.timeoutSeconds == 30)
+        #expect(sent.approval == .user(approvalID: "approval-7"))
+        #expect(response.stdout == "ok")
+
+        _ = try await fixture.backend.runCode(RunCodeRequest(context: fixture.context(.preset("ls")), invocation: .argv(["ls", "-l"]), workingDirectory: ".", timeoutSeconds: 5))
+        let second = try #require(fixture.host.requests(AgentRunCodeRequest.self).last)
+        #expect(second.spec == .argv(["ls", "-l"]))
+        #expect(second.approval == .preset("ls"))
+
+        // A call the user approved for the session is sent as one.
+        let sessionEvidence = ApprovalEvidence.user(requestID: ApprovalEvidence.sessionRequestID, fingerprint: "f")
+        _ = try await fixture.backend.runCode(RunCodeRequest(context: fixture.context(sessionEvidence), invocation: .argv(["make"]), workingDirectory: ".", timeoutSeconds: 5))
+        #expect(fixture.host.requests(AgentRunCodeRequest.self).last?.approval == .session)
+    }
+
+    @Test
+    func `a preset the host does not count comes back as HostRefusedPresetError, so the runner asks`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.agentRunCode) { _ in throw RunCodeApproval.presetRefusal }
+        await #expect(throws: HostRefusedPresetError.self) {
+            _ = try await fixture.backend.runCode(RunCodeRequest(context: fixture.context(.preset("cat")), invocation: .argv(["cat", "x"]), workingDirectory: ".", timeoutSeconds: 5))
+        }
+        // Any other refusal is the host's answer as it is.
+        fixture.host.on(.agentRunCode) { _ in throw ApelinError(.denied, "this session is in Confirm mode") }
+        await #expect(throws: ApelinError.self) {
+            _ = try await fixture.backend.runCode(RunCodeRequest(context: fixture.context(.preset("cat")), invocation: .argv(["cat", "x"]), workingDirectory: ".", timeoutSeconds: 5))
+        }
+    }
+
+    @Test
+    func `the host's preset refusal is known by its reason, across a real channel, whatever its message says`() async throws {
+        let (local, remote) = try WorkerChannel.makePair()
+        let host = WorkerChannel(adopting: local)
+        let worker = WorkerChannel(adopting: remote)
+        defer { host.close(); worker.close() }
+        let answer = PthreadLock()
+        nonisolated(unsafe) var refusal = ApelinError(.denied, "reworded for people", reason: .notAPreset)
+        host.onRequest { request in
+            (.failure(request.request.requestID, answer.withLock { refusal }), [])
+        }
+        host.start()
+        worker.start()
+        let fixture = try Fixture()
+        let backend = ChannelHostBackend(
+            service: ApelinService(transport: ChannelTransport(channel: worker)),
+            sessionID: fixture.backend.sessionID,
+            project: fixture.project,
+            projectURL: fixture.projectURL,
+        )
+        let request = RunCodeRequest(
+            context: fixture.context(.preset("cat")),
+            invocation: .argv(["cat", "x"]),
+            workingDirectory: ".",
+            timeoutSeconds: 5,
+        )
+        await #expect(throws: HostRefusedPresetError.self) { _ = try await backend.runCode(request) }
+
+        // The old message without the reason is the host's answer as it is.
+        answer.withLock { refusal = ApelinError(.denied, RunCodeApproval.presetRefusal.message) }
+        await #expect(throws: ApelinError.self) { _ = try await backend.runCode(request) }
+    }
+
+    @Test
+    func `the app's approval scope reaches the session's gate`() {
+        #expect(WorkerState.decision(AgentApproveRequest(sessionID: "s", approvalID: "a", decision: .approve)) == .approve(.once))
+        #expect(WorkerState.decision(AgentApproveRequest(sessionID: "s", approvalID: "a", decision: .approve, scope: .once)) == .approve(.once))
+        #expect(WorkerState.decision(AgentApproveRequest(sessionID: "s", approvalID: "a", decision: .approve, scope: .session)) == .approve(.session))
+        #expect(WorkerState.decision(AgentApproveRequest(sessionID: "s", approvalID: "a", decision: .deny, scope: .session)) == .deny(reason: "denied in Apelin"))
+    }
+
+    @Test
+    func `the framework tools read the SDK the project is pinned to`() async throws {
+        let fixture = try Fixture(manifest: #"{"projectID": "x", "environment": {"sdk": {"id": "iPhoneOS16.5-bbbbbbbb", "digest": "sha256:00"}}}"#)
+        fixture.host.on(.sdkList, reply: SDKListResponse(sdks: [
+            SDKRecord(id: "iPhoneOS17.0-aaaaaaaa", canonicalName: "iphoneos17.0", version: "17.0", path: "/sdk/17"),
+            SDKRecord(id: "iPhoneOS16.5-bbbbbbbb", canonicalName: "iphoneos16.5", version: "16.5", path: "/sdk/16.5"),
+        ]))
+        let pinned = try await fixture.backend.registeredSDK(RegisteredSDKRequest(sdkID: nil, project: fixture.project))
+        #expect(pinned.rootPath == "/sdk/16.5")
+        let named = try await fixture.backend.registeredSDK(RegisteredSDKRequest(sdkID: "iPhoneOS17.0-aaaaaaaa", project: fixture.project))
+        #expect(named.version == "17.0")
+        await #expect(throws: ApelinError.self) {
+            _ = try await fixture.backend.registeredSDK(RegisteredSDKRequest(sdkID: "nope", project: fixture.project))
+        }
+    }
+
+    @Test
+    func `a host refusal reaches the tool as the host's error`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.respring) { _ in throw ApelinError(.denied, "not now") }
+        await #expect(throws: ApelinError(.denied, "not now")) {
+            _ = try await fixture.backend.respring(ApelinAgent.RespringRequest(context: fixture.context()))
+        }
+    }
+
+    @Test
+    func `Confirm reads the host's ledger: the digest apelin-build computed, then approvalDigestState`() async throws {
+        let fixture = try Fixture(manifest: #"{"projectID": "x", "build": {"steps": []}}"#)
+        let template = "sha256:" + String(repeating: "a", count: 64)
+        let changed = "sha256:" + String(repeating: "b", count: 64)
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: true, descriptionDigests: DescriptionDigests(build: template, packaging: changed)))
+        fixture.host.on(.approvalDigestState) { request in
+            let query = try request.decode(ApprovalDigestStateRequest.self)
+            let baseline: ApprovalBaseline = query.digest == template ? .matchesTemplate : .changed
+            return (ApprovalDigestStateResponse(baseline: baseline, templateDigest: template, lastApprovedDigest: nil), [])
+        }
+        let ledger = HostDigestLedger(service: fixture.backend.service, projectURL: fixture.projectURL)
+        let build = try await ledger.state(of: .build, for: fixture.project)
+        #expect(build == DescriptionState(digest: template, baseline: .matchesTemplate))
+        let asked = try #require(fixture.host.requests(ApprovalDigestStateRequest.self).first)
+        #expect(asked.projectID == fixture.project.id)
+        #expect(asked.kind == .build)
+        let packaging = try await ledger.state(of: .packaging, for: fixture.project)
+        #expect(packaging.digest == changed)
+        if case .changed = packaging.baseline {} else {
+            Issue.record("a changed packaging digest asks")
+        }
+    }
+
+    @Test
+    func `without a digest from apelin-build the agent's own stands in, and asks`() async throws {
+        let fixture = try Fixture(manifest: #"{"projectID": "x", "build": {"steps": []}}"#)
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: false))
+        let ledger = HostDigestLedger(service: fixture.backend.service, projectURL: fixture.projectURL)
+        let state = try await ledger.state(of: .build, for: fixture.project)
+        #expect(try state.digest == (HostDigestLedger.digest(of: .build, projectURL: fixture.projectURL)))
+        if case .changed = state.baseline {} else {
+            Issue.record("an unknown digest asks")
+        }
+    }
+
+    @Test
+    func `an artifact's build id and file name reach the agent`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.buildStart, reply: TaskHandle(taskID: TaskID("build-task"), kind: .build))
+        try fixture.host.on(.buildAttach, reply: batch("build-task", [
+            ("artifact", ApelinCore.JSONValue(encoding: ApelinProtocol.BuildArtifact(
+                artifactID: "art-1", digest: "sha256:ab", packageID: "wiki.qaq.hello", version: "0.0.1",
+                buildID: "B-7", bootstrap: "rootless", packagingDigest: "sha256:cd",
+                path: "/var/mobile/Documents/wiki.qaq.apelin/Builds/p/B-7/wiki.qaq.hello_0.0.1_iphoneos-arm64.deb", projectID: "p",
+            ))),
+            stateEvent(.succeeded),
+        ]))
+        let response = try await fixture.backend.build(BuildRequest(context: fixture.context(), configuration: .debug, buildDescriptionDigest: "d"))
+        #expect(response.buildID == "B-7")
+        #expect(response.artifacts.first?.name == "wiki.qaq.hello_0.0.1_iphoneos-arm64.deb")
+    }
+}

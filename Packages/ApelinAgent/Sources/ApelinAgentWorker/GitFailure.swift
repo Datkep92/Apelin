@@ -1,0 +1,71 @@
+import ApelinAgent
+import ApelinProtocol
+import Foundation
+
+/// A git refusal in words the model can act on and pass on to the user.
+enum GitFailure {
+    /// `ApelinError.description` is `<code>: <message>`, which is how a
+    /// task's final `state` carries a failure.
+    static func split(_ text: String?) -> (ApelinError.Code?, String) {
+        guard let text, !text.isEmpty else { return (nil, "") }
+        if let colon = text.firstIndex(of: ":"), let code = ApelinError.Code(rawValue: String(text[..<colon])) {
+            return (code, text[text.index(after: colon)...].trimmingCharacters(in: .whitespaces))
+        }
+        if let code = ApelinError.Code(rawValue: text) {
+            return (code, "")
+        }
+        return (nil, text)
+    }
+
+    static func describe(
+        _ operation: String,
+        code: ApelinError.Code?,
+        message: String,
+        reason: String?,
+        host: String?,
+    ) -> GitToolFailure {
+        let detail = message.isEmpty ? (code?.rawValue ?? "no reason given") : message
+        var text = "\(operation) failed: \(detail)"
+        if !text.hasSuffix(".") {
+            text += "."
+        }
+        if let hint = hint(operation, code: code, message: message, reason: reason, host: host) {
+            text += " " + hint
+        }
+        return GitToolFailure(message: text)
+    }
+
+    static func isAuthentication(_ message: String, reason: String?) -> Bool {
+        let words = (message + " " + (reason ?? "")).lowercased()
+        // Not "auth" alone: a commit's missing author is not a credential.
+        return ["authenticat", "authoriz", "credential", "forbidden", "token", "password"].contains { words.contains($0) }
+            || words.range(of: #"\b40[13]\b"#, options: .regularExpression) != nil
+    }
+
+    private static func hint(
+        _ operation: String,
+        code: ApelinError.Code?,
+        message: String,
+        reason: String?,
+        host: String?,
+    ) -> String? {
+        if isAuthentication(message, reason: reason) {
+            let place = host.map { "for \($0) " } ?? ""
+            return "The remote wants a credential Apelin does not have, or refused the saved one: ask the user to add a token \(place)in Settings ▸ Git, then try again."
+        }
+        if operation == "git commit", message.lowercased().contains("author") {
+            return "Ask the user to set the commit author in Settings ▸ Git."
+        }
+        guard code == .conflict else { return nil }
+        switch operation {
+        case "git pull":
+            return "Pull only fast-forwards: the branch has diverged from its upstream, or a local change is in the way. Tell the user; do not force it."
+        case "git push":
+            return "The remote has commits this branch does not. Fetch and pull first (pull only fast-forwards); never force the push."
+        case "git clone":
+            return "The workspace already has a repository, or files with the same names as the repository's. Tell the user; do not delete their files to make room."
+        default:
+            return nil
+        }
+    }
+}

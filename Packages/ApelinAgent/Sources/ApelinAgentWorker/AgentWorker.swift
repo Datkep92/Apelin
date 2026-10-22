@@ -1,0 +1,555 @@
+import ApelinAgent
+import ApelinCore
+import ApelinProtocol
+import Darwin
+import Foundation
+import KWWKAI
+
+/// `apelin-agent`: one agent session per process. The session host spawns
+/// it as mobile for `agentOpen` (instance = session id) and forwards the
+/// session's prompt, steer, abort, approve and close to it; the same
+/// executable, spawned as the `credential-import` instance, serves
+/// `agentCredentialImport` and the accounts: `agentAccountList`,
+/// `agentSignIn` (a `signIn` task), `agentSignInRespond`, its cancel and
+/// `agentSignOut` (`AccountDesk`).
+///
+/// The session's events go to the host as the events of its `agent` task.
+public enum AgentWorker {
+    /// Apelin's own keychain items, shared by nothing else.
+    public static let keychainAccessGroup = "wiki.qaq.apelin.agent"
+    public static let defaultCopilotModel = "claude-sonnet-5.5"
+
+    /// Sign-ins and the accounts list, against the keychain the sessions read.
+    static let accounts = AccountDesk(store: KeychainCredentialSource(accessGroup: keychainAccessGroup))
+
+    public static func main() -> Never {
+        let state = WorkerState()
+        WorkerMain.run(role: .agent, onCancel: { taskID, _ in
+            Task {
+                // A sign-in's cancel ends that sign-in; any other is the session's.
+                if await accounts.cancel(taskID) {
+                    return
+                }
+                await state.abort()
+            }
+        }) { request, context in
+            await handle(request, context: context, state: state)
+        }
+    }
+
+    static func handle(
+        _ request: ChannelRequest,
+        context: WorkerContext,
+        state: WorkerState,
+    ) async -> (WireReply, [OwnedDescriptor]) {
+        switch request.request.operation {
+        case .agentOpen:
+            await WorkerMain.serve(AgentOpenRequest.self, request) { open in
+                guard let taskID = request.taskID else {
+                    throw ApelinError(.badRequest, "agentOpen comes with its task")
+                }
+                try await state.open(open, taskID: taskID, context: context)
+                return AgentOpenResponse(
+                    sessionID: context.assignment.sessionID ?? "",
+                    task: TaskHandle(taskID: taskID, kind: .agent),
+                )
+            }
+        case .agentPrompt:
+            await WorkerMain.serve(AgentPromptRequest.self, request) { prompt in
+                let session = try await state.session(prompt.sessionID)
+                if let mode = prompt.approvalMode {
+                    await session.setApprovalMode(AgentWorker.approvalMode(mode))
+                }
+                if let provider = prompt.provider {
+                    try await session.configure(
+                        provider: AgentWorker.provider(AgentOpenRequest(provider: provider, model: prompt.model)),
+                        thinking: .init(rawValue: prompt.reasoningEffort?.rawValue ?? "off") ?? .off,
+                        credentials: KeychainCredentialSource(accessGroup: keychainAccessGroup),
+                    )
+                    await state.modelChoice.set(
+                        provider: provider,
+                        model: prompt.model,
+                        reasoningEffort: prompt.reasoningEffort,
+                    )
+                }
+                guard (prompt.attachments?.count ?? 0) <= 8 else {
+                    throw ApelinError(.badRequest, "invalid attachment descriptor")
+                }
+                let limit = AgentSession.maximumAttachmentBytes
+                let files = try (prompt.attachments ?? []).map { attachment -> (name: String, mimeType: String, data: Data) in
+                    guard request.descriptors.indices.contains(attachment.descriptor.index) else {
+                        throw ApelinError(.badRequest, "invalid attachment descriptor")
+                    }
+                    let descriptor = request.descriptors[attachment.descriptor.index]
+                    var info = stat()
+                    guard fstat(descriptor.rawValue, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
+                          info.st_size >= 0, info.st_size <= off_t(limit)
+                    else {
+                        throw ApelinError(
+                            .badRequest,
+                            "attachments must be regular files no larger than \(limit >> 20) MB",
+                        )
+                    }
+                    let handle = FileHandle(fileDescriptor: descriptor.rawValue, closeOnDealloc: false)
+                    try handle.seek(toOffset: 0)
+                    let data = try handle.read(upToCount: limit + 1) ?? Data()
+                    guard data.count <= limit else { throw ApelinError(.badRequest, "attachment too large") }
+                    return (attachment.name, attachment.mimeType, data)
+                }
+                var sender: ConversationSender?
+                if let from = prompt.fromSessionID {
+                    sender = await AgentWorker.sender(from, context: context)
+                }
+                try await session.prompt(prompt.text, messageID: prompt.messageID, files: files, from: sender)
+                await session.generateTitle(for: prompt.text)
+                return Acknowledged()
+            }
+        case .agentSteer:
+            await WorkerMain.serve(AgentSteerRequest.self, request) { steer in
+                try await state.session(steer.sessionID).steer(steer.text)
+                return Acknowledged()
+            }
+        case .agentAbort:
+            await WorkerMain.serve(AgentAbortRequest.self, request) { abort in
+                try await (state.session(abort.sessionID)).abort()
+                return Acknowledged()
+            }
+        case .agentApprove:
+            await WorkerMain.serve(AgentApproveRequest.self, request) { approve in
+                try await state.approve(approve)
+                return Acknowledged()
+            }
+        case .agentClose:
+            await WorkerMain.serve(AgentCloseRequest.self, request) { close in
+                _ = try await state.session(close.sessionID)
+                await state.close(.succeeded, message: "closed")
+                return Acknowledged()
+            }
+        case .agentCredentialImport:
+            await WorkerMain.serve(AgentCredentialImportRequest.self, request) { _ in
+                await CredentialInbox(home: context.assignment.home)
+                    .importAll(into: KeychainCredentialSource(accessGroup: keychainAccessGroup))
+            }
+        case .agentAccountList:
+            await WorkerMain.serve(AgentAccountListRequest.self, request) { _ in
+                await accounts.list()
+            }
+        case .agentAPIConfiguration:
+            await WorkerMain.serve(AgentAPIConfigurationRequest.self, request) { query in
+                try await accounts.apiConfiguration(for: query.provider)
+            }
+        case .agentModelList:
+            await WorkerMain.serve(AgentModelListRequest.self, request) { query in
+                try await accounts.models(for: query.provider)
+            }
+        case .agentModelActivate:
+            await WorkerMain.serve(AgentModelActivateRequest.self, request) { query in
+                guard let taskID = request.taskID else {
+                    throw ApelinError(.badRequest, "model verification requires a task")
+                }
+                try await accounts.activateModels(query, taskID: taskID, reporter: SignInReporter(context: context))
+                return TaskHandle(taskID: taskID, kind: .signIn)
+            }
+        case .agentSignIn:
+            await WorkerMain.serve(AgentSignInRequest.self, request) { signIn in
+                guard let taskID = request.taskID else {
+                    throw ApelinError(.badRequest, "agentSignIn comes with its task")
+                }
+                try await accounts.start(signIn, taskID: taskID, reporter: SignInReporter(context: context))
+                return TaskHandle(taskID: taskID, kind: .signIn)
+            }
+        case .agentSignInRespond:
+            await WorkerMain.serve(AgentSignInRespondRequest.self, request) { respond in
+                try await accounts.respond(respond)
+                return Acknowledged()
+            }
+        case .agentSignOut:
+            await WorkerMain.serve(AgentSignOutRequest.self, request) { signOut in
+                try await accounts.signOut(signOut.provider)
+                return Acknowledged()
+            }
+        default:
+            WorkerMain.unimplemented(request)
+        }
+    }
+
+    /// The conversation a message came from (the host wrote its session ID),
+    /// with its title when the host lists one.
+    static func sender(_ sessionID: String, context: WorkerContext) async -> ConversationSender {
+        let listed = try? await context.host.agentList().sessions.first { $0.sessionID == sessionID }
+        return ConversationSender(sessionID: sessionID, title: listed?.title)
+    }
+
+    /// The wire's approval mode as the session's gate takes it.
+    static func approvalMode(_ wire: ApelinProtocol.ApprovalMode) -> ApelinAgent.ApprovalMode {
+        wire == .relaxed ? .relaxed : .confirm
+    }
+
+    /// The kwwk provider configuration for an open request. The first four
+    /// keep their own cases (and need a model named, as they always have);
+    /// every other provider is kwwk's stored provider of its store id, with
+    /// kwwk's default model when none is named.
+    static func provider(_ open: AgentOpenRequest) throws -> ProviderConfiguration {
+        let model = open.model.flatMap { $0.isEmpty ? nil : $0 }
+        let provider = open.provider ?? .githubCopilot
+        switch provider {
+        case .githubCopilot:
+            return .githubCopilot(model: model ?? defaultCopilotModel)
+        case .anthropic:
+            guard let model else { throw ApelinError(.badRequest, "name the model for \(provider.rawValue)") }
+            return .anthropic(model: model, oauth: false)
+        case .anthropicOAuth:
+            guard let model else { throw ApelinError(.badRequest, "name the model for \(provider.rawValue)") }
+            return .anthropic(model: model, oauth: true)
+        case .openAICompatible:
+            guard let model else { throw ApelinError(.badRequest, "name the model for \(provider.rawValue)") }
+            return .openAICompatible(model: model)
+        case .openAICodex, .cursor, .devin, .kiro, .qoder, .qoderCN, .workBuddy, .workBuddyAI, .kimiCoding, .xai,
+             .zai, .zaiCodingCN, .openRouter, .openAI, .google:
+            return .stored(storeID: provider.storeID, model: model)
+        }
+    }
+}
+
+/// The one session this process serves, and the relay of its events.
+actor WorkerState {
+    /// What the session runs with now, which a conversation it opens starts with.
+    let modelChoice = SessionModelChoice()
+    private var session: AgentSession?
+    private var taskID: TaskID?
+    private var context: WorkerContext?
+    private var relay: Task<Void, Never>?
+    private var closeWhenFinished = false
+    private var finished = false
+
+    func open(_ open: AgentOpenRequest, taskID: TaskID, context: WorkerContext) async throws {
+        guard session == nil else { throw ApelinError(.conflict, "this process already serves a session") }
+        guard let sessionID = context.assignment.sessionID, SessionEventLog.isValidSessionID(sessionID) else {
+            throw ApelinError(.badRequest, "an agent session needs a session id from the host")
+        }
+        guard let projectID = open.projectID, let projectName = open.projectName else {
+            throw ApelinError(.badRequest, "the host did not name the session's project")
+        }
+        let identity: ApelinAgent.ProjectIdentity
+        do {
+            identity = try ApelinAgent.ProjectIdentity(id: projectID, name: ApelinAgent.ProjectName(projectName))
+        } catch {
+            throw ApelinError(.badRequest, "\(projectName) is not a project name")
+        }
+        let home = URL(fileURLWithPath: context.assignment.home, isDirectory: true)
+        let dataRoot = ApelinDataRoot(home: home)
+        let projectURL = dataRoot.workspace(for: identity.name, temporaryID: open.temporaryID)
+
+        // Credentials the owner dropped in the inbox are taken first.
+        let keychain = KeychainCredentialSource(accessGroup: AgentWorker.keychainAccessGroup)
+        let imported = await CredentialInbox(home: context.assignment.home).importAll(into: keychain)
+
+        let ledger = HostDigestLedger(service: context.host, projectURL: projectURL)
+        let session: AgentSession
+        do {
+            session = try await AgentSession(
+                configuration: AgentSessionConfiguration(
+                    id: sessionID,
+                    project: identity,
+                    temporaryID: open.temporaryID,
+                    provider: AgentWorker.provider(open),
+                    approval: ApprovalPolicy(mode: AgentWorker.approvalMode(open.approvalMode)),
+                    dataRoot: dataRoot,
+                    thinking: .init(rawValue: open.reasoningEffort?.rawValue ?? "off") ?? .off,
+                ),
+                backend: ChannelHostBackend(
+                    service: context.host,
+                    sessionID: sessionID,
+                    project: identity,
+                    projectURL: projectURL,
+                    modelChoice: modelChoice,
+                ),
+                digests: ledger,
+                credentials: keychain,
+            )
+        } catch let error as ProviderResolutionError {
+            var message = error.localizedDescription
+            if !imported.rejected.isEmpty {
+                message += " (inbox: \(imported.rejected.joined(separator: "; ")))"
+            }
+            throw ApelinError(.denied, message)
+        } catch let error as ApelinError {
+            throw error
+        } catch {
+            throw ApelinError(.internal, error.localizedDescription)
+        }
+
+        self.session = session
+        self.taskID = taskID
+        self.context = context
+        closeWhenFinished = open.closeWhenFinished == true
+        await modelChoice.set(provider: open.provider, model: open.model, reasoningEffort: open.reasoningEffort)
+
+        let events = try await session.events(afterSeq: 0)
+        let relay = EventRelay(context: context, taskID: taskID)
+        self.relay = Task { [weak self] in
+            for await record in events {
+                await relay.relay(record.event)
+                if case let .finished(reason) = record.event {
+                    await relay.flush()
+                    await self?.runFinished(reason)
+                }
+            }
+            await relay.flush()
+        }
+        if let prompt = open.prompt, !prompt.isEmpty {
+            try await session.prompt(prompt)
+            // A conversation another agent opened is named by its opener,
+            // or like one the user started; a headless run is not named.
+            if let title = open.title {
+                await session.setTitle(title)
+            } else if !closeWhenFinished {
+                await session.generateTitle(for: prompt)
+            }
+        }
+    }
+
+    func session(_ id: String) throws -> AgentSession {
+        guard let session, id == session.id else {
+            throw ApelinError(.notFound, "this process does not serve session \(id)")
+        }
+        return session
+    }
+
+    func approve(_ approve: AgentApproveRequest) async throws {
+        let session = try session(approve.sessionID)
+        guard await session.pendingApprovals.contains(where: { $0.id == approve.approvalID }) else {
+            throw ApelinError(.notFound, "This approval request is no longer waiting for a decision.")
+        }
+        // The host records a description or removal approval in its own
+        // ledger as it relays this decision; the agent keeps nothing.
+        try await session.approve(requestID: approve.approvalID, decision: Self.decision(approve))
+    }
+
+    /// The app's decision as the session's gate takes it: "for this
+    /// session" where the app said so (the gate keeps it only for a request
+    /// that offered it, and the host records the matching grant).
+    static func decision(_ approve: AgentApproveRequest) -> ApelinAgent.ApprovalDecision {
+        guard approve.decision == .approve else { return .deny(reason: "denied in Apelin") }
+        return .approve(approve.scope == .session ? .session : .once)
+    }
+
+    func abort() async {
+        await session?.abort()
+    }
+
+    /// A run ended; a headless session ends with it.
+    private func runFinished(_ reason: FinishReason) async {
+        guard closeWhenFinished else { return }
+        let state: TaskState = switch reason {
+        case .completed: .succeeded
+        case .aborted: .cancelled
+        case .failed: .failed
+        }
+        await close(state, message: "the run \(reason.rawValue)")
+    }
+
+    /// Ends the task and, a moment after the reply has gone, the process.
+    func close(_ state: TaskState, message: String) async {
+        guard !finished else { return }
+        finished = true
+        let session = session
+        let context = context
+        let taskID = taskID
+        Task.detached {
+            await session?.close()
+            if let context, let taskID {
+                context.finish(taskID, state, message: message)
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            exit(0)
+        }
+    }
+}
+
+/// Turns session events into task events. Streamed text is coalesced into
+/// `text` events of at least a few hundred bytes or a quarter second apart,
+/// so a long answer is not thousands of events in the host's registry.
+actor EventRelay {
+    private let context: WorkerContext
+    private let taskID: TaskID
+    private var text = ""
+    private var thinking = ""
+    private var lastFlush = Date()
+    private var flushScheduled = false
+    private var waiting = 0
+
+    init(context: WorkerContext, taskID: TaskID) {
+        self.context = context
+        self.taskID = taskID
+    }
+
+    func relay(_ event: AgentSessionEvent) {
+        switch event {
+        case let .textDelta(delta):
+            text += delta
+            scheduleFlush()
+            return
+        case let .thinkingDelta(delta):
+            thinking += delta
+            scheduleFlush()
+            return
+        default:
+            flush()
+        }
+        for (kind, payload) in Self.events(for: event, waiting: &waiting) {
+            context.emit(taskID, kind, payload)
+        }
+    }
+
+    func flush() {
+        if !thinking.isEmpty {
+            context.emit(taskID, "thinking", .object(["text": .string(thinking)]))
+        }
+        if !text.isEmpty {
+            context.emit(taskID, "text", .object(["text": .string(text)]))
+        }
+        text = ""
+        thinking = ""
+        lastFlush = Date()
+    }
+
+    private func scheduleFlush() {
+        if text.utf8.count + thinking.utf8.count >= 512 || Date().timeIntervalSince(lastFlush) > 0.25 {
+            flush()
+            return
+        }
+        guard !flushScheduled else { return }
+        flushScheduled = true
+        Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            self.timedFlush()
+        }
+    }
+
+    private func timedFlush() {
+        flushScheduled = false
+        flush()
+    }
+
+    /// The task events one session event becomes. Kinds and payloads are
+    /// listed in AGENTS.md ▸ Decisions ▸ Agent sessions.
+    static func events(for event: AgentSessionEvent, waiting: inout Int) -> [(String, ApelinCore.JSONValue?)] {
+        switch event {
+        case let .userMessage(id, text, attachments):
+            return [("prompt", .object([
+                "id": .string(id.uuidString),
+                "text": .string(text),
+                "attachments": (try? ApelinCore.JSONValue(encoding: attachments)) ?? .array([]),
+            ]))]
+        case let .userMessageQueued(id, text, attachments):
+            return [("queued", .object([
+                "id": .string(id.uuidString),
+                "text": .string(text),
+                "attachments": (try? ApelinCore.JSONValue(encoding: attachments)) ?? .array([]),
+            ]))]
+        case let .queuedMessagesDropped(ids):
+            return [("queueDropped", .object(["ids": .array(ids.map { .string($0.uuidString) })]))]
+        case let .promptSubmitted(text, from):
+            var payload: [String: ApelinCore.JSONValue] = ["text": .string(text)]
+            if let from {
+                payload["from"] = .string(from)
+            }
+            return [("prompt", .object(payload))]
+        case let .titleUpdated(title):
+            return [("title", .object(["text": .string(title)]))]
+        case let .projectNameSuggested(name):
+            return [("projectNameSuggested", .object(["name": .string(name)]))]
+        case let .steered(text):
+            return [("steer", .object(["text": .string(text)]))]
+        case .messageStarted:
+            return [("messageStarted", nil)]
+        case .toolCallPreparing:
+            return [("toolCallPreparing", nil)]
+        case let .textDelta(text):
+            return [("text", .object(["text": .string(text)]))]
+        case let .thinkingDelta(text):
+            return [("thinking", .object(["text": .string(text)]))]
+        case let .messageFinished(text):
+            return [("message", .object(["text": .string(text)]))]
+        case let .toolCallStarted(call):
+            return [("toolCall", .object([
+                "id": .string(call.id),
+                "tool": .string(call.name),
+                "arguments": .string(ToolArgumentRedaction.redacted(call.arguments, tool: call.name)),
+            ]))]
+        case let .toolCallFinished(result):
+            return [("toolResult", .object([
+                "id": .string(result.id),
+                "tool": .string(result.name),
+                "output": .string(result.output),
+                "isError": .bool(result.isError),
+                "attachments": (try? ApelinCore.JSONValue(encoding: result.attachments ?? [])) ?? .array([]),
+            ]))]
+        case let .approvalRequested(request):
+            waiting += 1
+            return [
+                ("approvalRequested", approvalPayload(request)),
+                (TaskEvent.stateKind, .object(["state": .string(TaskState.waitingForApproval.rawValue)])),
+            ]
+        case let .approvalResolved(requestID, decision):
+            waiting = max(0, waiting - 1)
+            var resolved: [(String, ApelinCore.JSONValue?)] = [("approvalResolved", .object([
+                "approvalID": .string(requestID),
+                "decision": .string(decisionName(decision)),
+            ]))]
+            if waiting == 0 {
+                resolved.append((TaskEvent.stateKind, .object(["state": .string(TaskState.running.rawValue)])))
+            }
+            return resolved
+        case let .error(message):
+            return [("error", .object(["message": .string(message)]))]
+        case let .finished(reason):
+            return [("finished", .object(["reason": .string(reason.rawValue)]))]
+        }
+    }
+
+    static func approvalPayload(_ request: ApprovalRequest) -> ApelinCore.JSONValue {
+        var payload: [String: ApelinCore.JSONValue] = [
+            "approvalID": .string(request.id),
+            "toolCallID": .string(request.toolCallID),
+            "tool": .string(request.tool),
+            "arguments": .string(ToolArgumentRedaction.redacted(request.arguments, tool: request.tool)),
+            "workingDirectory": .string(request.workingDirectory),
+            "projectID": .string(request.projectID),
+            "fingerprint": .string(request.fingerprint),
+            "reason": .string(request.reason),
+            "allowsSessionScope": .bool(request.allowsSessionScope),
+        ]
+        switch request.detail {
+        case .none:
+            break
+        case let .descriptionChanged(kind, digest, diff):
+            payload["detail"] = .object(["descriptionChanged": .object([
+                "kind": .string(kind.rawValue),
+                "digest": .string(digest),
+                "diff": .string(diff),
+            ])])
+        case let .command(invocation):
+            payload["detail"] = .object(["command": (try? ApelinCore.JSONValue(encoding: invocation)) ?? .null])
+        case let .packageRemoval(installationID):
+            payload["detail"] = .object(["packageRemoval": .object(["installationID": .string(installationID)])])
+        case let .gitPush(remote, branch):
+            var push: [String: ApelinCore.JSONValue] = ["remote": .string(remote)]
+            if let branch {
+                push["branch"] = .string(branch)
+            }
+            payload["detail"] = .object(["gitPush": .object(push)])
+        case let .gitSettings(summary):
+            payload["detail"] = .object(["gitSettings": .object(["summary": .string(summary)])])
+        }
+        return .object(payload)
+    }
+
+    static func decisionName(_ decision: ApelinAgent.ApprovalDecision) -> String {
+        switch decision {
+        case .approve: "approve"
+        case .deny: "deny"
+        }
+    }
+}

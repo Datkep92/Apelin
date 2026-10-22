@@ -1,0 +1,223 @@
+// Copyright (c) 2026 OwnGoal Studio. MIT; see LICENSE beside this file.
+// Table/action-bar layout copied from Irisin's WelcomeRepositoriesController.
+import ApelinCore
+import ApelinProtocol
+import UIKit
+
+/// The recommended toolchain and SDK for this device. The page's button
+/// installs them while anything is missing and moves on once both are in;
+/// Not Now skips the step, and Retry follows a failure.
+final class WelcomeEnvironmentPage: WelcomeListPage {
+    private enum Section: Hashable { case introduction, recommended }
+    private enum Row: Hashable { case toolchain, sdk }
+    private enum Primary { case install, next, retry }
+    private lazy var dataSource = TableDataSource<Section, Row, Row>(
+        tableView: tableView,
+        identifier: { $0 },
+    ) { [weak self] _, _, row in
+        row == .toolchain ? self?.toolchainRow : self?.sdkRow
+    }
+
+    private var recommendation: WelcomeEnvironmentRecommendation?
+    private var operation: Task<Void, Never>?
+    private var activeInstallation = false
+    private var installing = false
+    private var resolving = true
+    /// Loading or installing failed; the page's button tries again.
+    private var failed = false
+    private var statusText: String?
+    private let toolchainRow = WelcomeToolRow()
+    private let sdkRow = WelcomeToolRow()
+    private let recommendedHeader = WelcomeSectionHeader(reuseIdentifier: "recommended")
+
+    deinit { operation?.cancel() }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = String(localized: "Build Tools")
+        next { [weak self] in self?.performPrimary() }
+        updateRows()
+        dataSource.update([(.introduction, []), (.recommended, [.toolchain, .sdk])])
+        load()
+    }
+
+    private func load() {
+        operation?.cancel()
+        dataSource.beginLoad()
+        resolving = true
+        failed = false
+        activeInstallation = false
+        statusText = nil
+        updateRows()
+        operation = Task { [weak self] in
+            do {
+                async let catalog = ApelinService.app.toolchainCatalog()
+                async let toolchains = ApelinService.app.toolchainStatus()
+                async let sdks = ApelinService.app.sdkList(includeSources: true, readSources: true)
+                let values = try await (catalog, toolchains, sdks)
+                guard !Task.isCancelled, let self else { return }
+                resolving = false
+                recommendation = WelcomeEnvironmentRecommendation.resolve(
+                    catalog: values.0.products,
+                    status: values.1,
+                    sdks: values.2,
+                )
+                activeInstallation = !values.1.activeTasks.isEmpty || !values.2.activeTasks.isEmpty
+                if recommendation == nil {
+                    statusText = String(localized: "No compatible versions are available. You can set up build tools later in Settings.")
+                } else if activeInstallation {
+                    statusText = String(localized: "An installation is in progress. Check Settings for details.")
+                }
+                updateRows()
+            } catch {
+                guard !Task.isCancelled, let self else { return }
+                resolving = false
+                failed = true
+                recommendation = nil
+                statusText = String(localized: "Unable to load recommendations. Tap Retry or continue to set up later.")
+                updateRows()
+            }
+        }
+    }
+
+    func tableView(_: UITableView, heightForRowAt _: IndexPath) -> CGFloat {
+        UIFontMetrics(forTextStyle: .body).scaledValue(for: 65)
+    }
+
+    func tableView(_: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        dataSource.sectionIdentifier(for: section) == .introduction
+            ? text(.groupedHeader(), String(localized: "A compatible toolchain and iOS SDK, selected for this device. You can also install them later in Settings."))
+            : recommendedHeader
+    }
+
+    func tableView(_: UITableView, didSelectRowAt _: IndexPath) {
+        guard let statusText, !resolving, !installing else { return }
+        presentNotice(title: "Build Tools", message: statusText)
+    }
+
+    private func updateRows() {
+        let toolTitle = recommendation.map { String(localized: "Command Line Tools \($0.toolchain.version)") }
+            ?? String(localized: "Command Line Tools")
+        let sdkTitle = recommendation.map { String(localized: "iOS SDK \($0.sdk.version)") }
+            ?? String(localized: "iOS SDK")
+        let loadingDetail = String(localized: "Finding a compatible version…")
+        let languages = recommendation?.includesSwift == true
+            ? String(localized: "Swift, Objective-C, C and C++")
+            : String(localized: "Objective-C, C and C++")
+        let toolDetail = resolving ? loadingDetail : statusText ?? languages
+        let sdkDetail: String = if resolving {
+            loadingDetail
+        } else if recommendation == nil {
+            statusText ?? loadingDetail
+        } else {
+            recommendation?.sdk.installed == true
+                ? String(localized: "Installed")
+                : String(localized: "Ready to download")
+        }
+        toolchainRow.configure(
+            title: toolTitle,
+            detail: toolDetail,
+            loading: resolving,
+            installed: recommendation?.installedToolchain != nil,
+        )
+        sdkRow.configure(
+            title: sdkTitle,
+            detail: sdkDetail,
+            loading: resolving,
+            installed: recommendation?.sdk.installed == true,
+        )
+        recommendedHeader.configure(title: String(localized: "Recommended"), showsButton: false)
+        let primary = primary
+        actionBar.title = switch primary {
+        case .install: String(localized: "Install")
+        case .next: String(localized: "Next")
+        case .retry: String(localized: "Retry")
+        }
+        actionBar.isEnabled = !resolving && !installing
+        actionBar.isSecondaryHidden = primary == .next
+    }
+
+    override var secondaryTitle: String? {
+        String(localized: "Not Now")
+    }
+
+    override func secondaryAction() {
+        flow.showProviders()
+    }
+
+    /// Install while something recommended is missing, Retry after a
+    /// failure, Next once there is nothing left to install here.
+    private var primary: Primary {
+        if failed {
+            return .retry
+        }
+        if resolving || installing {
+            return .install
+        }
+        guard let recommendation, !activeInstallation, !recommendation.isInstalled else { return .next }
+        return .install
+    }
+
+    private func performPrimary() {
+        switch primary {
+        case .install: install()
+        case .retry: load()
+        case .next: flow.showProviders()
+        }
+    }
+
+    /// The installation is the host's task on Settings' own page, opened
+    /// as a sheet: Continue in Background leaves it running, and its end
+    /// reads the recommendation again. A missing toolchain's setup brings
+    /// the SDK it compiles against too; an SDK alone is imported.
+    private func install() {
+        guard let recommendation, !activeInstallation, !installing else { return }
+        installing = true
+        updateRows()
+        operation = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let page: EnvironmentTaskController
+                if recommendation.installedToolchain == nil {
+                    let components: [ToolchainComponentKind] = recommendation.includesSwift ? [.c, .swift] : [.c]
+                    let handle = try await ApelinService.app.toolchainSetup(.init(
+                        source: .appleCatalog(productID: recommendation.toolchain.productID),
+                        components: components,
+                    ))
+                    page = EnvironmentTaskController(
+                        handle: handle,
+                        work: .toolchainSetup,
+                        title: String(localized: "Setting Up Toolchain"),
+                        doneTitle: String(localized: "Toolchain Ready"),
+                    )
+                } else if let source = recommendation.sdk.source {
+                    let handle = try await ApelinService.app.sdkImport(source)
+                    page = EnvironmentTaskController(
+                        handle: handle,
+                        work: .sdkImport,
+                        title: String(localized: "Importing SDK"),
+                        doneTitle: String(localized: "SDK Imported"),
+                    )
+                } else {
+                    installing = false
+                    load()
+                    return
+                }
+                installing = false
+                page.onFinish = { [weak self] in
+                    NotificationCenter.default.post(name: TransferOpener.environmentChanged, object: nil)
+                    self?.load()
+                }
+                presentAsFormSheet(SheetNavigationController(rootViewController: page))
+                load()
+            } catch {
+                guard !Task.isCancelled else { return }
+                installing = false
+                failed = true
+                self.recommendation = nil
+                statusText = error.readableMessage
+                updateRows()
+            }
+        }
+    }
+}

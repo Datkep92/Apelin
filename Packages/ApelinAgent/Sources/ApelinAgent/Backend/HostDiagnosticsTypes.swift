@@ -1,0 +1,317 @@
+import Foundation
+
+// MARK: - confirm_loaded
+
+public struct ConfirmLoadedRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var buildID: String
+    /// Process name or bundle id the tweak should be loaded in.
+    public var target: String
+    /// Listen for the marker, then respring, in one call: the marker is
+    /// logged once, when the target starts, and the live log has no history.
+    public var respring: Bool
+
+    public init(context: HostCallContext, buildID: String, target: String, respring: Bool = false) {
+        self.context = context
+        self.buildID = buildID
+        self.target = target
+        self.respring = respring
+    }
+}
+
+public struct LoadedImage: Sendable, Hashable, Codable {
+    public var path: String
+    public var uuid: String?
+    public init(path: String, uuid: String? = nil) {
+        self.path = path
+        self.uuid = uuid
+    }
+}
+
+public struct ConfirmLoadedResponse: Sendable, Hashable, Codable {
+    /// The build's marker line appeared in the target's log.
+    public var markerLogged: Bool
+    /// The built image is in the target's loaded images. The host does not
+    /// read the image list for the agent (it panicked the iOS 27 kernel), so
+    /// this is false and `notes` says the image was not read.
+    public var imageLoaded: Bool
+    /// The tweak's filter selects the target; nil when not determined.
+    public var filterMatches: Bool?
+    public var logEvidence: [String]
+    public var imageEvidence: [LoadedImage]
+    public var notes: String
+
+    public var loaded: Bool {
+        markerLogged || imageLoaded
+    }
+
+    public init(
+        markerLogged: Bool,
+        imageLoaded: Bool,
+        filterMatches: Bool? = nil,
+        logEvidence: [String] = [],
+        imageEvidence: [LoadedImage] = [],
+        notes: String = "",
+    ) {
+        self.markerLogged = markerLogged
+        self.imageLoaded = imageLoaded
+        self.filterMatches = filterMatches
+        self.logEvidence = logEvidence
+        self.imageEvidence = imageEvidence
+        self.notes = notes
+    }
+}
+
+// MARK: - logs and crashes
+
+public struct ReadLogsRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var process: String?
+    public var subsystem: String?
+    public var sinceSeconds: Int
+    public var limit: Int
+
+    public init(context: HostCallContext, process: String?, subsystem: String?, sinceSeconds: Int, limit: Int) {
+        self.context = context
+        self.process = process
+        self.subsystem = subsystem
+        self.sinceSeconds = sinceSeconds
+        self.limit = limit
+    }
+}
+
+public struct LogEntry: Sendable, Hashable, Codable {
+    public var date: Date
+    public var process: String
+    public var subsystem: String?
+    public var level: String
+    public var message: String
+
+    public init(date: Date, process: String, subsystem: String? = nil, level: String, message: String) {
+        self.date = date
+        self.process = process
+        self.subsystem = subsystem
+        self.level = level
+        self.message = message
+    }
+}
+
+public struct ReadLogsResponse: Sendable, Hashable, Codable {
+    public var entries: [LogEntry]
+    public var truncated: Bool
+    public init(entries: [LogEntry], truncated: Bool = false) {
+        self.entries = entries
+        self.truncated = truncated
+    }
+}
+
+public struct ListCrashesRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var process: String?
+    public var limit: Int
+    public init(context: HostCallContext, process: String?, limit: Int) {
+        self.context = context
+        self.process = process
+        self.limit = limit
+    }
+}
+
+public struct CrashSummary: Sendable, Hashable, Codable {
+    public var id: String
+    public var process: String
+    public var date: Date
+    public var exceptionType: String?
+    public init(id: String, process: String, date: Date, exceptionType: String? = nil) {
+        self.id = id
+        self.process = process
+        self.date = date
+        self.exceptionType = exceptionType
+    }
+}
+
+public struct ListCrashesResponse: Sendable, Hashable, Codable {
+    public var reports: [CrashSummary]
+    public init(reports: [CrashSummary]) {
+        self.reports = reports
+    }
+}
+
+public struct ReadCrashRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var reportID: String
+    public var maxBytes: Int
+    public init(context: HostCallContext, reportID: String, maxBytes: Int) {
+        self.context = context
+        self.reportID = reportID
+        self.maxBytes = maxBytes
+    }
+}
+
+public struct ReadCrashResponse: Sendable, Hashable, Codable {
+    public var reportID: String
+    public var text: String
+    public var truncated: Bool
+    public init(reportID: String, text: String, truncated: Bool = false) {
+        self.reportID = reportID
+        self.text = text
+        self.truncated = truncated
+    }
+}
+
+public struct SymbolicateCrashRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var reportID: String
+    /// The build whose dSYM to match; nil lets the host match by image UUID.
+    public var buildID: String?
+    public init(context: HostCallContext, reportID: String, buildID: String?) {
+        self.context = context
+        self.reportID = reportID
+        self.buildID = buildID
+    }
+}
+
+public struct SymbolicatedFrame: Sendable, Hashable, Codable {
+    public var index: Int
+    public var image: String
+    public var address: String
+    public var symbol: String?
+    public var file: String?
+    public var line: Int?
+    public init(
+        index: Int,
+        image: String,
+        address: String,
+        symbol: String? = nil,
+        file: String? = nil,
+        line: Int? = nil,
+    ) {
+        self.index = index
+        self.image = image
+        self.address = address
+        self.symbol = symbol
+        self.file = file
+        self.line = line
+    }
+}
+
+public struct SymbolicateCrashResponse: Sendable, Hashable, Codable {
+    public var reportID: String
+    /// The dSYM UUID that matched the report's image, if any.
+    public var matchedImageUUID: String?
+    public var crashedThread: [SymbolicatedFrame]
+    /// Suspects, most likely first.
+    public var suspects: [String]
+    public init(
+        reportID: String,
+        matchedImageUUID: String?,
+        crashedThread: [SymbolicatedFrame],
+        suspects: [String] = [],
+    ) {
+        self.reportID = reportID
+        self.matchedImageUUID = matchedImageUUID
+        self.crashedThread = crashedThread
+        self.suspects = suspects
+    }
+}
+
+// MARK: - UI
+
+public struct CaptureScreenRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    /// nil for the whole screen.
+    public var targetID: String?
+    public init(context: HostCallContext, targetID: String?) {
+        self.context = context
+        self.targetID = targetID
+    }
+}
+
+public struct CaptureScreenResponse: Sendable, Hashable, Codable {
+    /// Host-side attachment handle; the event log records only this.
+    public var attachmentID: String
+    public var mimeType: String
+    public var width: Int
+    public var height: Int
+    /// The image itself, already bounded by the host; handed to the model
+    /// only, never written into the session's event log.
+    public var imageData: Data?
+    public init(attachmentID: String, mimeType: String, width: Int, height: Int, imageData: Data? = nil) {
+        self.attachmentID = attachmentID
+        self.mimeType = mimeType
+        self.width = width
+        self.height = height
+        self.imageData = imageData
+    }
+}
+
+public struct ReadUITreeRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var targetID: String?
+    public var maxDepth: Int
+    public init(context: HostCallContext, targetID: String?, maxDepth: Int) {
+        self.context = context
+        self.targetID = targetID
+        self.maxDepth = maxDepth
+    }
+}
+
+public struct UIElementNode: Sendable, Hashable, Codable {
+    public var id: String
+    public var role: String
+    public var label: String?
+    public var value: String?
+    /// x, y, width, height in points.
+    public var frame: [Double]
+    public var children: [UIElementNode]
+    public init(
+        id: String,
+        role: String,
+        label: String? = nil,
+        value: String? = nil,
+        frame: [Double] = [],
+        children: [UIElementNode] = [],
+    ) {
+        self.id = id
+        self.role = role
+        self.label = label
+        self.value = value
+        self.frame = frame
+        self.children = children
+    }
+}
+
+public struct ReadUITreeResponse: Sendable, Hashable, Codable {
+    public var root: UIElementNode
+    public init(root: UIElementNode) {
+        self.root = root
+    }
+}
+
+/// The fixed set of UI actions. No free-form command.
+public enum UIAction: Sendable, Hashable, Codable {
+    case tap(x: Double, y: Double)
+    case tapElement(id: String)
+    case typeText(String)
+    case swipe(fromX: Double, fromY: Double, toX: Double, toY: Double)
+    case pressButton(String)
+}
+
+public struct UIActionRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var targetID: String?
+    public var action: UIAction
+    public init(context: HostCallContext, targetID: String?, action: UIAction) {
+        self.context = context
+        self.targetID = targetID
+        self.action = action
+    }
+}
+
+public struct UIActionResponse: Sendable, Hashable, Codable {
+    public var performed: Bool
+    public var message: String
+    public init(performed: Bool, message: String = "") {
+        self.performed = performed
+        self.message = message
+    }
+}

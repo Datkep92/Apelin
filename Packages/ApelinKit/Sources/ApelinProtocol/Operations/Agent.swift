@@ -1,0 +1,388 @@
+import Foundation
+
+// Agent: one apelin-agent process per session (KWWKAgent), spawned by the
+// session host as mobile; the session is a task of kind `agent` whose events
+// are the agent's structured output (`message`, `toolCall`, `toolResult`,
+// `approvalRequested` {approvalID, tool, arguments}, `state`). The full list
+// is in AGENTS.md ▸ Decisions ▸ Agent sessions.
+// Served by apelin-agent (Workers/Agent; Packages/ApelinAgent) through the host.
+
+public enum ApprovalMode: String, Codable, Sendable {
+    /// Everything runs.
+    case relaxed
+    /// Project edits and the preset list run; anything else is confirmed.
+    case confirm
+}
+
+public enum ApprovalDecision: String, Codable, Sendable {
+    case approve
+    case deny
+}
+
+/// How far an approval reaches.
+public enum ApprovalScope: String, Codable, Sendable {
+    /// The call that asked, once.
+    case once
+    /// Identical calls for the rest of the session, where the request
+    /// offered it (`allowsSessionScope`); for run_code the host records a
+    /// grant for that command in that working directory.
+    case session
+}
+
+public struct AgentSessionSummary: Codable, Sendable, Equatable {
+    public var sessionID: String
+    public var task: TaskHandle
+    public var projectID: String?
+    public var title: String?
+    public var state: TaskState
+    public var updatedAt: Date
+    /// The session whose agent opened this one (`agentOpen` from an agent);
+    /// nil for one the app opened.
+    public var parentSessionID: String?
+
+    public init(
+        sessionID: String,
+        task: TaskHandle,
+        projectID: String? = nil,
+        title: String? = nil,
+        state: TaskState,
+        updatedAt: Date,
+        parentSessionID: String? = nil,
+    ) {
+        self.sessionID = sessionID
+        self.task = task
+        self.projectID = projectID
+        self.title = title
+        self.state = state
+        self.updatedAt = updatedAt
+        self.parentSessionID = parentSessionID
+    }
+}
+
+/// Conversations an agent opens and talks to (2026-10-22).
+///
+/// An agent may call `agentOpen`, `agentPrompt`, `agentList` and
+/// `agentAttach`, and `agentAbort` and `agentClose` for the sessions it
+/// opened. The host decides what it may not: the new session is always in
+/// the caller's own project (never a temporary one) under the caller's
+/// current approval mode, with a first prompt; a prompt goes only to
+/// another session of the same project, as the user's message marked
+/// `fromSessionID`, with no approval mode, provider, model or attachment of
+/// the caller's; a list names only the project's sessions and an attach
+/// reads only theirs. `agentApprove` and `agentSteer` stay the app's. At
+/// most `maximumOpenChildren` sessions an agent opened run in a project at
+/// once, and a chain of openings is at most `maximumDepth` deep.
+public enum AgentConversations {
+    public static let maximumOpenChildren = 6
+    /// A conversation the app opened is depth 0; one it opens is 1.
+    public static let maximumDepth = 2
+    /// The event the host appends to the opener's task when an agent opens
+    /// a session: {sessionID, task: {taskID, kind}, title?, prompt}. The app
+    /// adopts it as a conversation of the same project.
+    public static let openedEventKind = "conversationOpened"
+}
+
+/// Which provider a session talks to, and what Settings ▸ Model Providers
+/// signs in to: every login kwwk offers, each kept under one kwwk store id
+/// (in brackets). Credentials are never part of a request: the agent reads
+/// them from the keychain by that id. The first four are the original
+/// names; a case is never renamed on the wire.
+public enum AgentProvider: String, Codable, Sendable {
+    /// GitHub Copilot (kwwk's `github-copilot` credential).
+    case githubCopilot
+    /// Anthropic's Messages API with an API key (`anthropic-api-key`).
+    case anthropic
+    /// Anthropic with an OAuth sign-in (`anthropic`).
+    case anthropicOAuth
+    /// An OpenAI-compatible endpoint (`openai-compatible`; the base URL is
+    /// stored with the key).
+    case openAICompatible
+
+    // Subscriptions kwwk signs in to (`OAuthSubscriptions.providers`).
+
+    /// ChatGPT Plus or Pro through Codex (`openai-codex`).
+    case openAICodex
+    /// Cursor (`cursor`).
+    case cursor
+    /// Devin, Windsurf's and Cognition's (`devin`).
+    case devin
+    /// Kiro, through AWS Builder ID, Google or GitHub (`kiro`).
+    case kiro
+    /// Qoder, qoder.com (`qoder`).
+    case qoder
+    /// Qoder CN, qoder.cn (`qoder-cn`).
+    case qoderCN
+    /// WorkBuddy, Tencent's CodeBuddy plan, China build (`workbuddy`).
+    case workBuddy
+    /// WorkBuddy AI, the international build (`workbuddy-ai`).
+    case workBuddyAI
+    /// Kimi For Coding, Moonshot's coding plan (`kimi-coding`).
+    case kimiCoding
+    /// xAI Grok, SuperGrok or X Premium (`xai`).
+    case xai
+    /// Z.ai's GLM Coding Plan (`zai`).
+    case zai
+    /// BigModel's GLM Coding Plan, bigmodel.cn (`zai-coding-cn`).
+    case zaiCodingCN
+    /// OpenRouter, by a browser sign-in that mints a key or by a typed key
+    /// (`openrouter`).
+    case openRouter
+
+    // Keys kwwk keeps in its API-key shape.
+
+    /// OpenAI's API with an API key (`openai-api-key`).
+    case openAI
+    /// Google AI Studio's Gemini API with an API key (`google-api-key`).
+    case google
+}
+
+extension AgentProvider: CaseIterable {}
+
+public enum AgentReasoningEffort: String, Codable, Sendable, CaseIterable {
+    case off, minimal, low, medium, high, xhigh, max
+}
+
+public struct AgentOpenRequest: OperationRequest {
+    public typealias Response = AgentOpenResponse
+    public static let operation = AppOperation.agentOpen
+    /// The project's `projectID`; or name it with `projectName`.
+    public var projectID: String?
+    /// `Projects/<name>`, when the caller knows the name rather than the id.
+    public var projectName: String?
+    /// A UUID-named workspace under Temporary, when this chat has no project.
+    public var temporaryID: String?
+    /// Reopen the same persisted conversation after its worker has ended.
+    public var sessionID: String?
+    /// The provider; nil is GitHub Copilot.
+    public var provider: AgentProvider?
+    /// A model identifier from the app's model settings; nil is the default.
+    public var model: String?
+    public var approvalMode: ApprovalMode
+    public var reasoningEffort: AgentReasoningEffort?
+    /// A first prompt, submitted as soon as the session is open.
+    public var prompt: String?
+    /// End the session (its task) when the first run finishes: `succeeded`
+    /// when it completed, `failed` or `cancelled` otherwise. For headless
+    /// runs that follow the session task until it ends.
+    public var closeWhenFinished: Bool?
+    /// A name for the conversation, from an agent's conversation_create;
+    /// the host keeps it as the session's title and puts it on
+    /// `conversationOpened`.
+    public var title: String?
+
+    public init(
+        projectID: String? = nil,
+        projectName: String? = nil,
+        temporaryID: String? = nil,
+        sessionID: String? = nil,
+        provider: AgentProvider? = nil,
+        model: String? = nil,
+        approvalMode: ApprovalMode = .confirm,
+        reasoningEffort: AgentReasoningEffort? = nil,
+        prompt: String? = nil,
+        closeWhenFinished: Bool? = nil,
+        title: String? = nil,
+    ) {
+        self.projectID = projectID
+        self.projectName = projectName
+        self.temporaryID = temporaryID
+        self.sessionID = sessionID
+        self.provider = provider
+        self.model = model
+        self.approvalMode = approvalMode
+        self.reasoningEffort = reasoningEffort
+        self.prompt = prompt
+        self.closeWhenFinished = closeWhenFinished
+        self.title = title
+    }
+}
+
+public struct AgentOpenResponse: Codable, Sendable, Equatable {
+    public var sessionID: String
+    public var task: TaskHandle
+
+    public init(sessionID: String, task: TaskHandle) {
+        self.sessionID = sessionID
+        self.task = task
+    }
+}
+
+/// Input files travel as descriptors; names are display metadata, never paths.
+public struct AgentInputAttachment: Codable, Sendable, Equatable {
+    public var descriptor: DescriptorSlot
+    public var name: String
+    public var mimeType: String
+    public init(descriptor: DescriptorSlot, name: String, mimeType: String) {
+        self.descriptor = descriptor
+        self.name = name
+        self.mimeType = mimeType
+    }
+}
+
+/// A saved file relative to the session workspace, usable after replay.
+public struct AgentAttachment: Codable, Sendable, Hashable {
+    public var path: String
+    public var name: String
+    public var mimeType: String
+    public init(path: String, name: String, mimeType: String) {
+        self.path = path
+        self.name = name
+        self.mimeType = mimeType
+    }
+}
+
+public struct AgentPromptRequest: OperationRequest {
+    public typealias Response = Acknowledged
+    public static let operation = AppOperation.agentPrompt
+    public var sessionID: String
+    public var text: String
+    public var messageID: UUID?
+    public var provider: AgentProvider?
+    public var model: String?
+    public var reasoningEffort: AgentReasoningEffort?
+    public var attachments: [AgentInputAttachment]?
+    public var approvalMode: ApprovalMode?
+    /// The session whose agent sent this, written by the host for an
+    /// agent's prompt and cleared for the app's; the worker records it on
+    /// the `prompt` event as `from`.
+    public var fromSessionID: String?
+
+    public init(
+        sessionID: String,
+        text: String,
+        messageID: UUID? = nil,
+        attachments: [AgentInputAttachment]? = nil,
+        provider: AgentProvider? = nil,
+        model: String? = nil,
+        reasoningEffort: AgentReasoningEffort? = nil,
+        approvalMode: ApprovalMode? = nil,
+        fromSessionID: String? = nil,
+    ) {
+        self.sessionID = sessionID
+        self.text = text
+        self.messageID = messageID
+        self.provider = provider
+        self.model = model
+        self.reasoningEffort = reasoningEffort
+        self.attachments = attachments
+        self.approvalMode = approvalMode
+        self.fromSessionID = fromSessionID
+    }
+}
+
+public struct AgentSteerRequest: OperationRequest {
+    public typealias Response = Acknowledged
+    public static let operation = AppOperation.agentSteer
+    public var sessionID: String
+    public var text: String
+
+    public init(sessionID: String, text: String) {
+        self.sessionID = sessionID
+        self.text = text
+    }
+}
+
+public struct AgentAbortRequest: OperationRequest {
+    public typealias Response = Acknowledged
+    public static let operation = AppOperation.agentAbort
+    public var sessionID: String
+    public init(sessionID: String) {
+        self.sessionID = sessionID
+    }
+}
+
+public struct AgentApproveRequest: OperationRequest {
+    public typealias Response = Acknowledged
+    public static let operation = AppOperation.agentApprove
+    public var sessionID: String
+    public var approvalID: String
+    public var decision: ApprovalDecision
+    /// Absent is `.once`.
+    public var scope: ApprovalScope?
+
+    public init(sessionID: String, approvalID: String, decision: ApprovalDecision, scope: ApprovalScope? = nil) {
+        self.sessionID = sessionID
+        self.approvalID = approvalID
+        self.decision = decision
+        self.scope = scope
+    }
+}
+
+public struct AgentAttachRequest: TaskAttachRequest {
+    public static let operation = AppOperation.agentAttach
+    public var taskID: TaskID
+    public var afterSeq: EventSeq
+    public var waitMilliseconds: Int
+
+    public init(taskID: TaskID, afterSeq: EventSeq = .start, waitMilliseconds: Int = Self.defaultWaitMilliseconds) {
+        self.taskID = taskID
+        self.afterSeq = afterSeq
+        self.waitMilliseconds = waitMilliseconds
+    }
+}
+
+public struct AgentListRequest: OperationRequest {
+    public typealias Response = AgentListResponse
+    public static let operation = AppOperation.agentList
+    public init() {}
+}
+
+public struct AgentListResponse: Codable, Sendable, Equatable {
+    public var sessions: [AgentSessionSummary]
+    public init(sessions: [AgentSessionSummary] = []) {
+        self.sessions = sessions
+    }
+}
+
+public struct AgentCloseRequest: OperationRequest {
+    public typealias Response = Acknowledged
+    public static let operation = AppOperation.agentClose
+    public var sessionID: String
+    public init(sessionID: String) {
+        self.sessionID = sessionID
+    }
+}
+
+public extension ApelinService {
+    func agentOpen(_ request: AgentOpenRequest = AgentOpenRequest()) async throws -> AgentOpenResponse {
+        try await send(request)
+    }
+
+    func agentPrompt(sessionID: String, text: String) async throws {
+        _ = try await send(AgentPromptRequest(sessionID: sessionID, text: text))
+    }
+
+    func agentSteer(sessionID: String, text: String) async throws {
+        _ = try await send(AgentSteerRequest(sessionID: sessionID, text: text))
+    }
+
+    func agentAbort(sessionID: String) async throws {
+        _ = try await send(AgentAbortRequest(sessionID: sessionID))
+    }
+
+    func agentApprove(
+        sessionID: String,
+        approvalID: String,
+        decision: ApprovalDecision,
+        scope: ApprovalScope? = nil,
+    ) async throws {
+        _ = try await send(AgentApproveRequest(
+            sessionID: sessionID,
+            approvalID: approvalID,
+            decision: decision,
+            scope: scope,
+        ))
+    }
+
+    func agentAttach(_ request: AgentAttachRequest) async throws -> TaskEventBatch {
+        try await send(request)
+    }
+
+    func agentList() async throws -> AgentListResponse {
+        try await send(AgentListRequest())
+    }
+
+    func agentClose(sessionID: String) async throws {
+        _ = try await send(AgentCloseRequest(sessionID: sessionID))
+    }
+}

@@ -1,0 +1,1974 @@
+# Apelin — Agent Notes
+
+An on-device IDE where an agent writes, builds and installs tweaks, for
+jailbroken iOS 16.0+ — roothide and rootless bootstraps both. **iOS only**: there is no Mac Catalyst build and no
+macOS product. The app runs as `mobile`; with the privileged backend, the
+bundled `apelind` LaunchDaemon does the privileged half as root. Without that
+backend, the app still works under its own OS permissions.
+
+The single idea the design hangs off: **apelind is a session host** — the
+launchd job is a thin, authenticated proxy that launchd starts on demand, whatever
+must outlive the app with unbounded memory lives in a child launchd never
+sized, and nothing on the wire is a command. The child is `apelind-session`,
+the same executable in session mode; the workers are its children.
+
+## Hard rules
+
+- **The checklist comes before the code.** `CHECKLIST.md` is every one-time
+  decision this repo has to make. No code is written until every box is
+  ticked and `make check` passes `Scripts/check-checklist.sh`, which runs
+  first and lists what is still open. An agent starting here works through
+  it top to bottom and ticks a box only after doing or deciding the thing;
+  one that does not apply is ticked with the reason beside it. The file
+  stays, ticked: it is the record of what was decided.
+- **One app, several wrappers, and the backend is resolved at runtime.** Never a
+  build flag, never a compilation condition, never a per-packaging source
+  variant. The handshake with the daemon is the only honest answer to "am I
+  privileged", and it carries the install root rather than a boolean beside it.
+- **The daemon's absence is never surfaced as an error.** A miss means launchd
+  has not started it yet. Keep retrying, keep saying *Connecting…*, and fall
+  back only after a grace period measured as a duration from the first miss —
+  not a timeout, not a count of attempts. apelind is on-demand, never
+  `KeepAlive` or `RunAtLoad`: it stays up while it has work — a build, an
+  environment task, a PTY, an agent session, an install, a connected app —
+  and exits only after it has been idle with none of them. Task records are
+  on disk before it exits; the next launch resumes them.
+- **Peer authentication happens before the first request is decoded.** Audit
+  token, euid 0 or 501, the client entitlement and `no-sandbox`, then the
+  executable on disk (root-owned, not group/world writable). Require
+  `platform-application` only if the app actually carries it — match both
+  sides.
+- **No install prefix is written in Swift.** Derive it from the daemon's own
+  `proc_pidpath`; anything that needs it asks the daemon. Packaging fails on
+  `libvroot` in the app, daemon or helper.
+- **roothide is recognised by the process's own path** (`RoothideRoot`,
+  libroothide's own name rule), never by loading libroothide through the
+  `.jbroot` link, which is not promised, and never by falling back to
+  "`/var/jb`, so rootless". The daemon's `hello` stays the authority on the
+  install root.
+- **Every path is canonicalised before a decision is made about it.**
+  `realpath(3)` first, then compare components; reject an embedded NUL first.
+- **Start `ExecutableWatch` once, early in `didFinishLaunching`.** When the
+  opened executable loses its last hard link, offer Later or Quit with wording
+  covering both update and removal. Keep the registration-time check and the
+  cancellation guard; the callback runs once on the main queue. Do not watch
+  daemons: postinst restarts them after unpacking finishes. Omit this watch
+  for a self-updating installer whose helper owns completion and exit.
+- **The app never calls `exit` from the foreground.** A screen that vanishes
+  reads as a crash. Quit, and any other exit the app chooses, is
+  `QuietExit.run`: leave for the home screen, wait for the animation, run the
+  cleanup `exit` would skip, then exit.
+- **The app's data folder is `~/Documents/wiki.qaq.apelin`, and the package
+  makes it.** The app has no container, so its home is mobile's —
+  `<jbroot>/var/mobile` on roothide, `/var/mobile` on rootless — shared with
+  every other app without one. Anything it keeps there goes in a folder named
+  for its bundle id, the isolation a container would give, inside a
+  `Documents` mobile owns, which a container would have had too. The postinst
+  (dpkg, as root) makes each missing level — home, `Documents`, the folder —
+  and hands it to mobile on its own, leaves a level that exists alone, and
+  never follows a symlink. Never `mkdir -p` as root: it leaves every level
+  above the last one root's, and Irisin 4.3.4–4.5.25 left a roothide
+  bootstrap's `Documents` root's that way, so no other app without a
+  container could make anything there.
+- **A cold launch starts with no saved scenes.** `main.swift` deletes this
+  bundle's `Library/Saved Application State/<id>.savedState` before
+  `UIApplicationMain`. UIKit reads that archive before any scene delegate
+  runs; leftover sessions from a previous UI framework or Info.plist restore
+  the old delegate. Background resumes do not run `main`. Preferences stay.
+  The app delegate is not `@main`.
+- **The app icon is never looked up by name.** An Icon Composer icon leaves
+  `AppIcon` in the catalogue as an image stack with no bitmap, and on iOS 26
+  `UIImage(named: "AppIcon")` aborts inside UIKit rather than returning nil.
+  In-app uses draw the `AppIconMark` image set. Another app's icon comes
+  from IconServices, then from its `CFBundleIconFiles` names read as files
+  with `UIImage(contentsOfFile:)`, never `UIImage(named:in:)`.
+- **The app icon is three JPEGs in `AppIcon.appiconset`.** An Icon Composer
+  `.icon` compiles to six 1024×1024 lossless renders (any, dark, tinted, for
+  phone and again for pad) — megabytes no build setting removes. The `.icon`
+  is the source, in `Documents/Icon/` and in no target; the skill's
+  `scripts/render-app-icon.py` writes the icon set from it, and runs again
+  after every edit. `AppIconMark` is the any and dark renders scaled to
+  88 pt (JPEG, 1x–3x, `sips -Z`), made again with them. Test a changed icon on a device with the package removed
+  first: installing over it can leave IconServices drawing the cached icon.
+  Opaque image sets may be JPEG too; transparent ones stay PNG. Never reduce
+  colours to save space.
+- **A control with no text has no name.** Every icon-only button, bar button
+  item and invisible button over a row gets an `accessibilityLabel` when it
+  is written, not in a pass afterwards. The trait already says "button".
+  Set the label beside the state it describes, or it goes stale: a
+  pause/resume button labelled once at construction lies for half its life.
+- **A label on a container UIKit does not treat as an element is never
+  read.** A `UIView`, `UITableViewCell` or `UICollectionViewCell` with
+  subviews is not an accessibility element, so the sentence `configure`
+  assembles is walked past and the subviews are read instead, one stop each,
+  with the drawn separators spoken. Set `isAccessibilityElement = true` on
+  any cell or view that labels itself; `make check` runs
+  `Scripts/check-accessibility.py`, which fails on a label that nothing can
+  reach. A row that joins several labels puts the figure that changes in
+  `accessibilityValue`, so a live sample re-announces the number without
+  repeating the name. Setting the flag hides the subviews, so a row that
+  owns a button — menu accessory, disclosure, checkbox — gives each one an
+  `accessibilityCustomAction` or keeps the flag off and labels the subviews
+  instead. Decide which before setting it; do not copy the neighbouring
+  cell, which may be unreachable itself.
+- **State that is only drawn is not spoken.** A checkmark, a tick, a
+  selected card, a progress fill: `accessibilityValue` or a trait
+  (`.selected`, `.isHeader`), never prose bolted onto the label. And a label
+  that repeats what VoiceOver already reads is a regression — a
+  `UIListContentConfiguration` row reads "title, value" already, a `UISwitch`
+  supplies its own on/off, and a titled `UIAction` is already named.
+- **Accessibility is semantics, never behaviour.** No
+  `UIAccessibility.post(.layoutChanged)` on a routine view swap: it steals
+  focus, and on a live-sampling screen it does so on every sample. No custom
+  action that duplicates one the rotor already offers. Announce an event the
+  user cannot see; nothing else.
+- **Reading another app's bundle or container takes
+  `com.apple.private.security.storage.AppBundles` and `.AppDataContainers`
+  beside `no-sandbox`**, on the app and on the daemon; `no-sandbox` alone
+  does not open them on every platform.
+- **CI builds; Release publishes what CI built.** `ci.yml` compiles, packages
+  and verifies on every push and pull request, and keeps `build/Packages/` as
+  the artifact `<app>-<sha>` for thirty days. `release.yml` runs on the tag,
+  compiles nothing, waits for that commit's CI run, refuses to publish unless
+  it passed, and ships the bytes CI verified. Never rebuild at tag time: a
+  second build is a different build number, a different runner image and
+  bytes no test ever ran against. The workflow stays named `Release` —
+  `pages.yml` watches for it. Tag a commit only after its CI run passed.
+- **The release notes are a file in the repo**, `<docs>/Releases/<version>.md`,
+  written before the tag. One headline sentence saying what this release
+  does, one bullet per user-visible change in the user's words with the
+  symptom first, and a closing line naming the package to choose and
+  `SHA256SUMS`. No commit shas, no internal names, no `--generate-notes`
+  compare link — that tells a user nothing they could not already read.
+- **A crash is read before anything is changed.** Keep the dSYM of every
+  build installed on a device, match it to the report's image UUID
+  (`dwarfdump --uuid`), and symbolicate with `atos -o <dSYM DWARF> -l
+  0x100000000 <0x100000000 + imageOffset>` before guessing at a cause.
+- **Every path launchd opens names its root.** Roothide's launchctl puts the
+  bootstrap root in front of the program, `WatchPaths`, `QueueDirectories`,
+  `Standard*Path` and the other paths launchd reads, unless one starts with
+  `/rootfs/`; rootless's passes them through. A bootstrap path is spelled
+  `@PREFIX@/…`, a system one `@ROOTFS@/…` (the packager writes `/rootfs` for
+  roothide, nothing for rootless). `Scripts/check-launchd-paths.py` fails
+  `make check` on a bare one; a plist without such keys needs neither.
+- **Versions and the deployment target live in `Configuration/*.xcconfig`
+  only.** `make check` rejects either in `project.pbxproj`.
+- **No project generators.** `project.pbxproj` is hand-written; `objectVersion`
+  is pinned and `make check` fails when Xcode rewrites it.
+- **Name no specific package manager.** README, these notes and script
+  messages say "your preferred package manager".
+- **No Swift file names the SDK's XPC constant macros.** They come from
+  `Shared/XPCShim` through `AppXPC`; naming them in Swift links a dylib that
+  iOS 15 does not have. `make check` greps for them.
+- **No SF Symbol newer than `IPHONEOS_DEPLOYMENT_TARGET`.** It draws nothing on
+  the floor and warns nowhere. `make check` checks it against CoreGlyphs.
+- **No new dependency without a reason that survives the ladder**: what it
+  replaces, and why the hand-written version would be worse rather than merely
+  longer. Nothing third-party links into the daemon.
+- **The Licenses screen is generated, not written.** The app target's
+  **Collect Licenses** build phase runs `Scripts/collect-licenses.py`, which
+  writes `Licenses.json` into the app bundle from the repository `LICENSE`,
+  every pin in `Package.resolved` (checkouts and binary artifacts, nested
+  notices included) and any vendored source. A pin with no notice or
+  GPL-family text fails the build. Vendored code keeps its upstream `LICENSE`
+  beside it and its header on each file; MIT / BSD / Apache only. `make check`
+  requires the phase, the packager requires the file. Read the generated list
+  after adding a dependency.
+- **No absolute build path in a shipped binary.** `#file` is concise
+  (`SWIFT_UPCOMING_FEATURE_CONCISE_MAGIC_FILE`, prefix maps in `Base.xcconfig`);
+  the packager greps every binary for the repository root and fails on a hit.
+- **User-facing text is a `String.LocalizationValue` spelled out in English**,
+  resolved against `Localizable.xcstrings`. No `NSLocalizedString`, no
+  `SHOUTING_KEY` identifiers; `make check` greps for both. Pick one catalogue
+  discipline and keep it: compiler `.stringsdata` with no `extractionState`,
+  or unseen keys kept as `manual` and pruned by hand.
+- **No key Xcode marked stale survives a build.** `make check` runs
+  `Scripts/check-stale-strings.py`, which refuses `extractionState: stale` and
+  ignores `manual`. The marker is written during an ordinary build, into a
+  file too large to read, and otherwise rides into a commit as one green line.
+- **Stale does not mean dead — never bulk-delete a stale key.** The extractor
+  reports on the target it just built, so an iOS build marks every
+  macOS-only and visionOS-only string stale while all of them are live; so is
+  a key reached by interpolation or named in a xib. `Scripts/prune-xcstrings.py`
+  therefore keeps what it cannot find, as `manual`, and prints it as an orphan
+  candidate. Pass every target's sources. `--delete-orphans` is opt-in and is
+  for a single-target app only: with a root missing it takes live strings and
+  all of their translations out in one commit.
+
+## Decisions
+
+What `CHECKLIST.md` asked to be written down, and where the answer lives.
+
+- **The wire** (`Packages/ApelinKit/Sources/ApelinProtocol`) is a closed
+  list of operations, `AppOperation`, and none of them is `exec(path, argv)`:
+  `hello` (answered by apelind itself with the install root it derived from
+  its own path, its protocol version and the operation list);
+  `toolchainStatus`, `toolchainCatalog`, `toolchainSetup`, `toolchainRemove`,
+  `toolchainSelfTest`; `sdkList`,
+  `sdkImport`, `sdkRemove`; `environmentAttach`, `environmentCancel`;
+  `extensionList`, `projectCreate`, `projectCheck`, `projectRename`; `buildStart`,
+  `buildAttach`, `buildCancel`; `installPackage`, `removePackage`, `respring`,
+  `approvalDigestState`;
+  `fileRead`, `protectedEditOpen`, `protectedEditCommit`; `ptyOpen`,
+  `ptyAttach`, `ptyResize`, `ptyClose`; `logStream`, `crashList`,
+  `crashOpen`, `crashSymbolicate`; `confirmLoaded`, `confirmLoadedAttach`, `captureScreen`,
+  `readUITree`, `uiAction`; `agentOpen`, `agentPrompt`, `agentSteer`,
+  `agentAbort`, `agentApprove`, `agentAttach`, `agentList`, `agentClose`,
+  `agentRunCode`, `agentCredentialImport`, `agentAccountList`, `agentAPIConfiguration`, `agentModelList`, `agentModelActivate`, `agentSignIn`,
+  `agentSignInRespond`, `agentSignInCancel`, `agentSignOut`; `toolHostOpen`, `toolHostClose`,
+  `toolHostCall`;
+  `gitStatus`, `gitDiff`, `gitStage`, `gitUnstage`, `gitCommit`, `gitClone`,
+  `gitCloneInto`, `gitFetch`, `gitPull`, `gitPush`, `gitSettings`,
+  `gitAuthorSet`, `gitCredentialSet`, `gitCredentialRemove`;
+  `transferExport`, `transferInspect`, `transferImport`. Every one is
+  in the list today; most answer `unimplemented` until their domain lands.
+  The envelope (protocol version 2) carries `op`, `protocolVersion`,
+  `requestID` and a JSON `payload`, with descriptors beside it by index
+  (`DescriptorSlot`); a reply is `ok` with a JSON payload or `error{code,
+  message, reason?}` (`reason` an open-ended name a caller acts on, absent
+  when unset). Between the app and apelind it is an XPC dictionary
+  (`Shared/Protocol/XPCEnvelope.swift`, descriptors as XPC fd objects); between
+  apelind, its session host and the workers it is a `WorkerChannel` frame
+  (length-prefixed JSON over a socketpair, descriptors by `SCM_RIGHTS`).
+  Long work is a task: `TaskID`, events numbered by `EventSeq` from 1 with no
+  gaps, read by a long-poll attach with `afterSeq` (replay is a lower
+  `afterSeq`), ended by a `state` event, stopped by a cancel.
+  An operation is added in four places together: its case in
+  `AppOperation.swift` (`domain`, `requestType`); its request/response types
+  and `ApelinService` method in `Operations/<Domain>.swift`; its case in
+  `Apelind/Dispatch/<Domain>Handler.swift` (and `CallerPolicy` if a worker may
+  call it); and this list. A worker-served operation is then a case in that
+  worker's handler.
+- **The authenticator** (`Apelind/PeerAuthenticator.swift`) decides before a
+  request field is decoded, in this order: the kernel audit token; pid > 1;
+  euid 0 or 501; the entitlements `wiki.qaq.apelin.client`,
+  `com.apple.private.security.no-sandbox` and `platform-application`, each
+  strictly true (the app carries `platform-application`, so it is required;
+  drop it from both or neither); `proc_pidpath` realpath-equal to
+  `<install root>/Applications/Apelin.app/Apelin`; that file regular,
+  root-owned, owner-executable and not group- or world-writable.
+- **No CLI.** The app is the only peer. A CLI would be a second one, added to
+  `clientPaths`, signed with its own entitlements, and written down here.
+  The console (below) is the app itself, and the workers reach the session
+  host only through the socketpair it made for them, so neither is a peer.
+- **Process layout.** `apelind` (root, the launchd job, on demand) is the
+  proxy: it authenticates the peer, answers `hello`, forwards everything else
+  unread, and exits 30 s after its last connection, request and session-host
+  work (`Apelind/Proxy/WorkLedger.swift`) — past launchd's ten-second respawn
+  throttle. `apelind-session` (root) is the same executable with
+  `--session` and a socketpair as descriptor 3, the proxy's child — that
+  name is only its `argv[0]`: the kernel names both processes `apelind`, so
+  `killall` cannot tell them apart, and the host writes its pid to
+  `<install root>/var/lib/apelin/session.pid` for a restart test to kill
+  (`Documents/Console.md`). It holds the task
+  registry (records and events in `<install root>/var/lib/apelin/tasks/`, an
+  unfinished task resumed or `interrupted` on relaunch, an event line a crash
+  cut short — a last fragment with no newline — cut off the file at load; a
+  whole line that does not read stays in the file, is read past, and its
+  number is an `unreadable` event, so the events after it and the final
+  `state` survive with no gap), the worker supervisor and the
+  per-domain dispatch (`Apelind/Dispatch/<Domain>Handler.swift`). Workers are
+  spawned from `<install root>/usr/libexec/apelin/<name>` only if root-owned
+  and writable by root alone, with `POSIX_SPAWN_CLOEXEC_DEFAULT`, the channel
+  as descriptor 3, and — for mobile roles — uid, gid and groups 501 set by
+  `posix_spawnattr_set_*_np` before exec; `WorkerMain` refuses an assignment
+  for another role and drops to mobile itself if it is still root. The host
+  records each worker's role at spawn and ignores what a worker says it is;
+  `CallerPolicy` lets the agent call task-level operations (and
+  `agentRunCode`, and its project's conversations: `agentOpen`,
+  `agentPrompt`, `agentList`, `agentAttach`, `agentAbort`, `agentClose`,
+  each narrowed by AgentHandler), the environment worker `installPackage`, `removePackage`
+  and `buildAttach` (its local toolchain package, through the same bridge),
+  the diagnostics worker `crashOpen` and `respring`, and nothing else call
+  anything. Workers: `apelin-environment` (toolchain, SDKs, git, transfer
+  files; ApelinEnvironment, ApelinGit, ApelinProject, Packages/ApelinToolchain,
+  which brings ApelinFormats' ApelinCodeSign),
+  `apelin-build` (extensions, projects, builds; ApelinProject, ApelinBuild,
+  Packages/ApelinFormats), `apelin-agent` (one per session; ApelinProject,
+  Packages/ApelinAgent), `apelin-diagnostics` (icli, crashes, UI;
+  Packages/ApelinDiagnostics), all mobile; `apelin-log-reader` (root,
+  ApelinCore, ApelinProtocol and ApelinLogReaderWorker only). apelin-log-reader
+  adds to ApelinCore and ApelinProtocol only ApelinLogReaderWorker, whose
+  closure is ApelinLogReader, its Objective-C shim and the shared request
+  types; apelind links those two, ApelinToolHost and ApelinToolCore
+  (Packages/ApelinToolHost) and compiles the vendored IrisinExternalClient
+  (`Apelind/Vendor/`, MIT, Irisin 4.7.0, its LICENSE beside it) — every one
+  of them system code that depends on nothing else. `make harness` checks
+  all of it (`Scripts/check-system-only.py`). The agent, diagnostics and
+  log-reader workers' `main.swift` is one call into a package library
+  (`ApelinAgentWorker`, `ApelinDiagnosticsWorker`, `ApelinLogReaderWorker`),
+  so the logic is tested by `make harness`.
+  Each worker's entitlements are `Packaging/Workers/<name>.entitlements`,
+  never the client key.
+- **The session host's own work** (`Apelind/Session/`), all of it state in
+  `<install root>/var/lib/apelin/`, root's and 0700:
+  - *Lifecycle.* `TaskRegistry.load` hands back every task the last host left
+    running — the event log, not the record, says how far a task got and in
+    what state, so one whose last `state` event is final is written back
+    finished and never resumed, and only forward: a record already final
+    keeps its state whatever the last readable line says, and when no final
+    `state` line reads at all, the lines past the last that read become
+    `unreadable` events and a closing `state` with the record's state and a
+    note that its line could not be read is appended to the log, so an
+    attach still ends on one —; the resumer registered for its kind
+    (`registerResumer`) keeps it, the rest end `interrupted`. Installs resume: a staged one is
+    submitted again under its own transaction ID (irisind answers `dup`), a
+    submitted one is followed again from the last event relayed. Builds and
+    environment tasks resume (`Session/TaskResume.swift`): `startTask(…,
+    resumable: true)` writes the operation, its payload and the calling
+    worker into `resume` before the worker sees it; on relaunch, after the
+    workers are configured, the host appends `resumed` {resumes} (numbering
+    goes on from the last event) and sends the same request to a new worker
+    under the same task ID with `resumed` in the frame header — a build keeps
+    its build ID, and passes the host's checks again first. The worker starts
+    over: apelin-build removes the build's artifact record and
+    `Builds/<projectID>/<buildID>/`, apelin-environment's start clears
+    staging and every project folder named in `Environment/clones/<taskID>`
+    (still a repository or empty), a clone that had ended (its folder
+    unmarked, a repository of the request's URL and branch whose
+    `.git/config` names the task as `apelin.cloneTask`, written before the
+    marker goes) answers that folder, an import answers an SDK already registered as that record,
+    toolchain setup goes on from its job record, a `transferExport` writes
+    its file again.
+    Ended instead, with the reason: a task an agent session started (the
+    session ended with the old host, so nothing would read it), a task
+    started with a descriptor, a request whose URL has a user, password,
+    query or fragment (credentials are never written down), `toolchainRemove`
+    (its removal is an install task that resumes itself), `transferImport`
+    (a project it placed would be placed twice; a toolchain install it made
+    is in its job record for the same import run again), a cancel asked for
+    before the stop (`cancelled`), and a task already resumed twice
+    (`TaskResume.maximumResumes`), so a crash loop cannot keep apelind up.
+    apelin-build kills its tools when the host's channel closes. A session
+    host that exits while it reported work is started again by the proxy
+    1.5 s later, so its tasks resume without waiting for the app. The work
+    report counts tasks by kind (build, environment, terminal, agent,
+    install, load check, sign-in) — resumed ones included —, live workers and tool
+    extensions; the proxy counts the app.
+  - *Install bridge* (`Session/Install/`). The host is irisind's client:
+    apelind carries `wiki.qaq.irisin.client` (with `platform-application` and
+    `no-sandbox`; the app and the workers never do), the main package
+    depends on `wiki.qaq.irisin (>= 4.7.3)` — from 4.7.3 irisind takes an external client only at euid 0, which the session host is; nothing running as mobile may call it. `installPackage{artifactID,
+    digest}` takes a build's artifact — recorded by the host from the build
+    worker's own `artifact` event (`path` inside the data folder, `digest`,
+    `packageID`, `version`, `projectID`, `packagingDigest`) —, a toolchain
+    package `toolchain-<id>` from apelin-environment:
+    `Environment/Artifacts/<artifactID>.deb`, which must be
+    `wiki.qaq.apelin.toolchain.<id>` (the one Apelin-prefixed family a
+    non-IDE source may install, and only that source; the environment
+    worker removes only its own records) — or, from the app only,
+    `file:<path inside ~/Documents/wiki.qaq.apelin>`. A writer for the
+    bridge sets `DebPackageWriter.controlCompression = .gzip`: a zstd
+    control member is judged by the ID its source promised and failed
+    loudly if irisind reports another. The host
+    copies it into `staging/` while hashing, refuses a digest that is not
+    the request's and the build's, reads the control file itself (gzip, xz
+    or plain control members), applies the managed-package rules, writes
+    the installation record (`installations/<id>.json`: project and build,
+    artifact digest, package, version, the lowercase-UUID transaction ID it
+    chose, then irisind's receipt) and submits the staged copy by
+    descriptor. `removePackage{installationID}` acts only on a record whose
+    install succeeded and whose package is still installed at that version;
+    bootstrap core, Irisin, Apelin and essential or required packages are
+    refused both ways, and so is installing over a package Apelin did not
+    install (`ManagedPackagePolicy`). The installed state is read from
+    `var/lib/dpkg/status`, never through a package manager's binary.
+    `respring` is irisind's.
+  - *Approvals* (`Session/Approval/`). The host keeps the Confirm-mode ledger:
+    per project the template's build and packaging digests (recorded from
+    `projectCreate`'s `descriptionDigests`) and every digest the user
+    approved; per agent session its mode (default Confirm) and single-use
+    removal approvals. An agent's `buildStart` under Confirm is checked
+    against the build digest apelin-build's `projectCheck` reports
+    (`descriptionDigests.build`) and forwarded with it as
+    `approvedBuildDigest` (any the agent sent is dropped), which
+    apelin-build's own check must find before a step runs; its install
+    against the artifact's `packagingDigest`, its removal against a
+    removal approval; a digest the host cannot get is a change.
+    AgentHandler calls `approvals.setMode` on `agentOpen` and
+    `recordApproval` / `allowRemoval` when it relays an approval, and
+    takes what it added back (`withdrawApproval`,
+    `takeRemoval`) when the session's worker does not accept the relay
+    (`AgentApprovals.relay`). A description grant stays pending, in memory,
+    until its worker accepts it (`confirmApproval`): a digest several
+    sessions' relays hold goes only with the last pending grant and never
+    once one was accepted, and a withdrawn grant puts back the approval it
+    pushed out at the 64-entry cap — unless that one was itself still
+    pending, which no worker accepted — in its own place in age order (an
+    in-memory stamp per entry, given in file order on load), whatever
+    order the grants are withdrawn in. The file's format is unchanged.
+    Nothing on the wire writes the ledger, and
+    `approvalDigestState` is its read side for the agent.
+  - *Files* (`Session/Files/`). `fileRead` scopes: a project ID or
+    `project:<name>`, `sdk:<id>`, `extension:<id>`, `agent-tools:<id>`,
+    `grant:<id>` (app only); canonical paths, checked again on the opened
+    descriptor (`F_GETPATH`). The protected edit is `protectedEditOpen{path}`
+    → a 15-minute single-use grant bound to the file's identity and SHA-256,
+    then `protectedEditCommit{grantID, contents | contentsBase64,
+    expectedVersion, confirmed}`: existing regular files inside the install
+    root only; no symlink, hard link, execute bit, Mach-O, package-manager
+    or Apelin record; a LaunchDaemons plist needs `confirmed`; the old
+    contents are backed up to `~/Documents/wiki.qaq.apelin/backups/` (every
+    level opened `O_NOFOLLOW`, the file handed to mobile, the newest ten
+    per file) and replaced through `AtomicReplace` (Fila's AtomicSave:
+    temporary beside it, owner, group, mode, ACLs, xattrs and creation time
+    kept, fsync, rename, identity checked again right before).
+  - *Terminals* (`Session/Terminal/`, after iGhostVT's PTYSession).
+    `forkpty`; the child hands the tty to mobile, sets groups, gid and uid,
+    proves it cannot regain root, enters the project or home, closes every
+    descriptor above 2 and execs the bootstrap's shell with a login
+    environment — which also sets `safe.bareRepository=explicit` through
+    `GIT_CONFIG_COUNT=1` and `GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0`,
+    protected config a repository cannot turn off, so the user's git takes no bare
+    layout it finds by walking up and runs none of its pagers or hooks —;
+    the host then reads the shell's credentials from the kernel
+    and kills it unless all six ids are mobile's. Output is numbered into the
+    `terminal` task (`started`, `output` {base64, text}, `exit`), so a
+    reattach replays it; `ptyAttach{wantsDescriptor}` hands the app a socket
+    to the live terminal. `ptyOpen{initialInput}` types once, for the console.
+  - *Agent tools* (`Session/ToolHost/`): `toolHostOpen{id}` validates the
+    manifest under `usr/share/apelin/agent-tools/<id>/` and starts the
+    extension through `ToolHostClient` as mobile (`runAs`, checked in the
+    kernel after spawn); `toolHostCall{sessionID, tool, arguments,
+    attachments}` calls a tool the manifest declares; a session is its
+    opener's, and an agent's close with it. Files go both ways as
+    descriptors beside the envelope (`DescriptorSlot`), never paths: the
+    host copies each into an unlinked file in `var/lib/apelin/attachments`
+    (≤ 8 per call, ≤ 32 MB each) and passes a read-only descriptor, to the
+    extension over its SCM_RIGHTS socket and back to the caller in the
+    reply, with `byteCount` and `sha256` (`AttachmentCopies`).
+  - Every spawn to mobile (workers, shells, extensions) is checked after
+    the fact with `proc_pidinfo`: effective, real and saved uid and gid all
+    501, or the process is killed (`verifyDropped`, `Spawn.swift`).
+  `Scripts/test-session-host.sh`, in `make harness`, runs the macOS half
+  (`Tests/SessionHost/`): record persistence and resume (a build restarted
+  over a real channel, the refusals, the cancel, the retry bound), CallerPolicy, the
+  edit rules on a temporary root, the managed-package rules, the bridge
+  against a fake irisind, the ledger, the control reader, the attachment
+  copies and a real PTY.
+  `Documents/Console/scripts/i1-smoke.json` drives it on a device;
+  `r1-resume-build.json`, `r1-resume-sdk-import.json` and
+  `r2-resume-toolchain.json` check a resume, killing the host by its
+  `session.pid` (steps in `Documents/Console.md`).
+- **The environment worker** (`Packages/ApelinKit/Sources/ApelinEnvironment`,
+  `EnvironmentWorker`; layout in `EnvironmentLayout`). A task-starting
+  operation is checked before it is accepted — a bad request is the reply,
+  not a failed task — then runs in `Environment/staging/<taskID>/` and ends
+  with `state`.
+  *SDKs*: imported from an HTTPS archive, a descriptor, a folder or archive
+  in `~/Documents/wiki.qaq.apelin/inbox/`, or one branch of a
+  one-SDK-per-branch repository (shallow clone, HTTPS only); archives are
+  unpacked entry by entry through libarchive (no `..`, absolute or repeated
+  names, no directory through a link, no special files, bounded); identity
+  only from `SDKSettings.json`, `Foundation.tbd` and the Swift interfaces;
+  every link must resolve inside; Mach-O judged by header type through
+  ApelinMachO — `MH_DYLIB`, `MH_DYLIB_STUB`, `MH_OBJECT` pass, `MH_EXECUTE`
+  in any slice or static-archive member, `MH_BUNDLE` and the rest are
+  refused; each file's check and digest run on up to four cores, and the
+  digest and a refusal are the ones walk order gives. Registered as
+  `SDKs/<CanonicalName>-<sha8>/` by one rename, then
+  `SDKs/.registry/<id>.json` (the commit point); a tree without a record is
+  swept at worker start. Removal refuses an SDK a project binds. Sources live
+  in `Environment/sdk-sources.json`; without that file the default source is
+  `owngoal-dev/iOS-SDKs`, enabled by the owner on 2026-10-19. It credits
+  `xybp888/iOS-SDKs` and keeps one SDK per branch, starting at 14.5. The
+  13.0–14.4 trees lack C++ standard library headers and are excluded.
+  All 23 branches it keeps (14.5 to 27.1) are offered, with no filter: on
+  an iPhone 15 Pro running iOS 17.3.1 each was imported again and built,
+  with CLT 27.0, a C++, an Objective-C CLI and the tweak template's dylib
+  that ran and loaded there, and 14.5–17.0 also Swift with CLT 15.0
+  (2026-10-21, `Documents/Research/Device-Validation.md` ▸ Real devices). An
+  explicit list, including an empty one, replaces the default. SDKs stay
+  Apple's under Apple's terms.
+  *Git*: libgit2 in `ApelinGit`, no libgit2 type public. A project is named
+  by its `projectID` or, before it has a description, its folder name, and
+  resolved to exactly one component below the realpath of `Projects/`;
+  every path is plain, literal (never a pathspec glob) and resolves inside.
+  A commit's author is the request's, else `Settings/git.json`, else the
+  repository's config. SSH would exec `ssh`; HTTPS is the only transport.
+  Remotes (2026-10-22): `gitFetch`, `gitPull` (fetch, then a fast-forward
+  only: a diverged branch or a worktree change it would overwrite is
+  `conflict` and nothing changes) and `gitPush` (one branch to the branch
+  of the same name, never forced, recorded as its upstream) are tasks that
+  are not resumed; `gitCloneInto` imports a repository into an existing
+  workspace project — the repository initialised in the folder, `origin`
+  fetched in full, the branch checked out without overwriting a file
+  already there (a clash fails and leaves the folder as it was), Apelin's
+  own files kept out through `.git/info/exclude`. Credentials are one per
+  host (lowercased, with `:port` when named): a username and a token
+  (`GitCredentialStore`, keychain service and access group
+  `wiki.qaq.apelin.git`, `keychain-access-groups` on apelin-environment
+  only, after first unlock, this device only, never synchronised), offered
+  through libgit2's credential callback only to an HTTPS remote whose host
+  is exactly that one, once per operation; an authentication failure is
+  `denied` with reason `authenticationRequired`. `gitSettings`,
+  `gitAuthorSet`, `gitCredentialSet` and `gitCredentialRemove` are the
+  app's and the agent's (Settings ▸ Git, `Apelin/Interface/Settings/Git/`): the list names
+  hosts and usernames, never a token, and the console refuses
+  `gitCredentialSet` before sending it. An agent's git call is checked by
+  `GitHandler` to name its own session's project before it is forwarded.
+  An empty workspace's manifest says `"buildSystem": "external"` (one
+  without the key is read the same way): Apelin has no build description
+  for it, so the agent builds with the project's own tools through
+  `run_code` and writes down how in the project's `AGENTS.md`. New Project
+  takes an optional repository address for the empty workspace and sends
+  it to the project's first conversation, where the agent's `git_clone`
+  imports it; the app does nothing more.
+  *Toolchains*: `ToolchainBackend`, implemented by `Packages/ApelinToolchain`
+  through `RetargetToolchainBackend`, compiled only when that package is
+  linked (`#if canImport`); without it setup answers `unavailable`. Setup
+  keeps `Toolchains/jobs/<key>/job.json` (§3.4 stage, the task, a failure,
+  and the installation ID of an install not yet registered or rolled back)
+  per source and components and resumes from it; one setup per key runs at
+  a time. The retargeted tree becomes `Environment/Artifacts/toolchain-<id>.deb`
+  (`wiki.qaq.apelin.toolchain.<id>`, the bootstrap's architecture and
+  layout, no Depends, no maintainer scripts, `control.tar.gz`; every entry
+  root's, folders and executables 0755, other files 0644, links relative and
+  inside the tree), handed to the host's `installPackage` as artifact
+  `toolchain-<id>` with its SHA-256 and followed to the task's final `state`,
+  never to apt or dpkg; the deb is deleted once the host has its copy. An
+  install is reused only when the bridge has a record of it (job.json, or
+  the registered toolchain of that ID): matching bytes without one go
+  through the bridge again, so removal always has an installation to act
+  on. `matchesToolchainDigest` also recognises RootHide's runtime branding:
+  after validating its mark and page hash, it restores only that padding,
+  CS_ADHOC and the first-page hash in memory, then requires the original
+  whole-file SHA-256. Code, dependencies and entitlements remain covered;
+  neither the installed tool nor its manifest is rewritten. The install is
+  never abandoned: a cancel waits for irisind's answer.
+  job.json holds the host's install task from `installPackage`'s answer to
+  its end, so a setup resumed past it — re-run, or re-sent by the host under
+  the same task ID — follows that task (`buildAttach`) instead of handing
+  the package over twice; a task that ended without installing, or is gone,
+  is submitted afresh.
+  Setup takes the CLT releases `CommandLineToolsSupport.releases` lists —
+  27.0, 16.4, 15.3, 15.0 and 14.2 (owner, 2026-10-21; each set up and
+  self-tested on a device) — and refuses any other, before downloading,
+  with the catalog's `unsupportedReason`: 12.4 for its arm64e C++, and
+  16.2, 14.3, 13.4, 13.2 and 12.5, which passed but were dropped, as
+  releases Apelin no longer sets up. `toolchainCatalog` lists only the kept
+  releases (a product Apple lists that Apelin has not reviewed is left
+  out, `ToolchainProduct.reviewed`); a kept one this device cannot run
+  stays, with its reason.
+  Each release reads SDKs up to its Xcode's (`newestSDK`, major.minor),
+  which the record keeps: the self-test compiles against the newest
+  registered SDK the release reads. When none fits, the same setup task
+  imports the newest compatible SDK from an enabled source first (`sdk`
+  stage, import progress relayed with `phase`); with Swift it must also
+  match the release's SDK major. Its actual identity is checked again after
+  import. A resumed setup reuses the registered SDK, and cancelling cleans
+  unfinished SDK staging. `projectCreate` binds a compatible SDK, and
+  `projectCheck` fails a newer one (`environment.sdk.tooNewForToolchain`).
+  Several toolchains live side by side, each under its own ID and package.
+  Swift (`components: ["c", "swift"]`) is reviewed for CLT 14.2 (Swift 5.7.2,
+  iOS 17.3.1+, LRCPC), 15.0 (Swift 5.9) and 15.3 (Swift 5.10), both iOS
+  17.3.1+ and LRCPC — swift-frontend's two SHA3 sites, BLAKE3 hash_many and
+  the symbol-graph edge set, are off Apelin's build path, and an A12Z ran
+  every Swift case of both —, and 27.0 (Swift 6.4, iOS 26+,
+  LRCPC/SHA3/DotProd). 16.4 ships Swift 6.1.2 and does not offer it
+  (`swiftUnavailable`): its swift-driver imports macOS's zippered
+  availability check, which no iOS runtime exports (dyld stops it on iOS
+  17.3.1 and iPadOS 26.0.1), the 27.0 rename is right only from iOS 26,
+  and its swift-frontend needs DotProd and SHA3 (XXH3), so it could only
+  serve where 27.0's Swift already does. Each self-tests against
+  an SDK of its own major: Swift, Swift dylib, Swift async and, from
+  Swift 5.9, Swift macro for
+  each architecture the SDK has Swift interfaces for (arm64e only in the
+  iOS 27 SDK). apelin-build hands Swift 5.9+ `swiftc` `-nonlib-dependency-scanner` (the
+  tree has no libSwiftScan) and one module cache per toolchain and SDK,
+  `Builds/.swift-module-cache/<toolchain>-<sdk>`. The retarget scheme (2)
+  is part of the ID; scheme 2 keeps `libclang_rt.ios.a`, which `@available`
+  links against. Per-release Swift requirements and clang-module CPU
+  requirements are carried in the manifest, catalog and registered record.
+  The release table in `ApelinToolchain/Support.swift` also records the
+  reviewed Apple product IDs and package SHA-256 values, recommended SDK and
+  actual verified SDKs. Changed source bytes are refused before extraction.
+  The package comes down as 8 MB ranges, four in flight, each checked as
+  before and checkpointed in order; its pbzx payload is decoded four
+  chunks at a time and handed out in order, and file digests (packaging,
+  the installed-tree check) run on up to four cores — about half the
+  download and extract time on an iPhone 15 Pro and an A12Z.
+  An unknown product ID is not accepted just because its version matches.
+  `ReleaseCompatibility` turns that table into the `compatibility` snapshot
+  returned in `toolchainCatalog`, stored in the toolchain manifest and
+  `ToolchainRecord`, and read by the build worker. Older records still decode.
+  CLT 16.4 and 27.0 also record their required C++ runtime symbol,
+  `std::__1::__libcpp_verbose_abort`. Catalog, setup and project checks look
+  for the symbol in the fixed system C++ library before any tool is run,
+  rather than guessing an OS floor from SDK versions.
+  SDK imports do not consult it: a valid SDK may be stored without a compatible
+  toolchain. Setup prefers the recommended SDK when available, then falls back
+  to the newest compatible one. Legacy Swift's 17.3.1 bound is explicitly a
+  verified-host policy, not an instruction-set requirement; CLT 27.0's 26.0
+  bound follows the semantics of its retargeted OS-version query. CPU features
+  are evaluated independently. `cpuProfiles` covers A9/A9X and A10/A10X iPads,
+  A11 iPhones, A12/A12X/A12Z, A13 and later, and M-series iPads, for explanation
+  only; the kernel's feature flags remain the decision source. Static inventory
+  and full decoder comparisons run without executing the inspected compilers
+  (`StaticInventoryTests`, `Scripts/inspect-toolchain-imports.py`). Instructions
+  in guarded paths are recorded separately from per-capability requirements.
+  Only temporary Swift self-test executables carry `get-task-allow`, so
+  iOS permits their private test dylibs in writable app data; compiler
+  binaries and their libraries do not gain it. The download picker shows a
+  release's requirements, from the same catalog fields, when its row is
+  picked, before anything downloads.
+  The self-test runs as mobile on the installed tree, the install root and
+  the SDK by their `realpath`; only a toolchain whose installed bytes
+  passed the C self-test is written to `Toolchains/registry.json`, with the
+  bridge's installation ID and its physical path. A failed or cancelled
+  setup removes what it installed through `removePackage` (or hands it to
+  the registered toolchain of the same ID); a cancel also deletes its job.
+  `toolchainRemove` goes through `removePackage` for the record's
+  installation; when the bridge refuses because the package is gone and the
+  tree is gone too, only the record is dropped; a tree with no regular file
+  left is gone (roothide's package removal leaves every folder with its
+  `.jbroot` link). `toolchainSelfTest` (Self-Tests ▸ Run Again) runs the
+  installed tree's self-test again as mobile against the SDK setup used —
+  removed since, the one setup would pick — and the registry keeps the
+  new results, passed or not; a failure is a warning, never an
+  unregistration; it is not resumed. Proven on the Mac by
+  `ToolchainTests` and the session host's end-to-end test
+  (`Tests/SessionHost/ToolchainEndToEnd.swift`: `apelin-environment-harness`,
+  the real worker with a fake backend, against the install bridge and a fake
+  irisind); on a device by `Documents/Console/scripts/t1-toolchain-setup.json`,
+  `t2-toolchain-remove.json` and `t3-toolchain-side-by-side.json`.
+- **Transfer files** (2026-10-21; `Operations/Transfer.swift`,
+  `ApelinEnvironment/Transfer/`, `Apelind/Dispatch/TransferHandler.swift`,
+  `Apelin/Interface/Transfer/`). A registered toolchain (`.apetc`), a
+  registered SDK (`.apesdk`) or a project (`.apeproj`) goes from one device
+  to another as one file, user to own device: nothing is uploaded, and the
+  export's confirmation says so in a line. The app declares the exported
+  types `wiki.qaq.apelin.toolchain-package`, `…sdk-package` and
+  `…project-package` (conforming to `public.data` and `public.archive`, by
+  extension) and owns them in `CFBundleDocumentTypes`, in the partial
+  `Apelin/Resources/Info.plist` merged with the generated one (kept out of
+  the target's resources by the synced folder's exception set), with
+  `LSSupportsOpeningDocumentsInPlace`; no document icon, the system draws
+  one from the app's. *The format*: a pax tar through zstd whose first
+  member is `manifest.json` (`TransferManifest`: `formatVersion` 1, `kind`,
+  `id`, `name`, `createdBy`, `created`, every payload member with its kind,
+  size, SHA-256, execute bit or link target, and the kind's facts), every
+  other member `payload/<path>`. A toolchain's payload is its retargeted
+  tree as setup packaged it (its own `manifest.json` at the top), never a
+  deb: export copies the installed tree back to those bytes
+  (`ToolchainTransfer.exportCopy` in Packages/ApelinToolchain: every file
+  checked against the toolchain manifest's digest, RootHide's runtime brand
+  undone, folders and links as they are), and the importing device packages
+  it for its own bootstrap with `ToolchainPackager`, so what irisind gets is
+  always built on that device from checked bytes, never a deb's data member
+  from elsewhere, and a toolchain moves between rootless and roothide (the
+  file records the bootstrap and architecture it came from; the inspection
+  says it is packaged again). Its facts are the record without its path or
+  installation, the retarget scheme, the product, Apple's package digest
+  and the minimum OS. An SDK's payload is its registered tree, with its
+  record (no path); a project's is its folder: every tracked file and every
+  untracked one its ignore rules do not name (an uncommitted new file is
+  work, not junk). libgit2 applies nested `.gitignore` rules, negations and
+  `.git/info/exclude` one path at a time; tracked files and their parent
+  folders survive later ignore rules. Without a repository, an empty
+  temporary repository in task staging reads the same `.gitignore` rules
+  without changing the project. `apelin-project.json` always travels so
+  the result remains importable. It carries `.git` without `hooks/`, `config`, `modules/`,
+  `worktrees/`, `commondir` or locks; no `.DS_Store`, no repository nested
+  inside, nothing from `Builds/`; with its identity (project ID, template,
+  description digests for information only, the toolchain and SDK it binds,
+  an HTTPS origin). *Export* (`transferExport{kind, id, createdBy}`, a task:
+  `collecting` (items scanned), `hashing`, `packing`, `verifying` (each with
+  its own measured byte total)) writes `Exports/<kind>-<id>/<name>.<ext>` in the
+  data folder, replacing the item's earlier export, through a `.partial`
+  swept at worker start. File hashing and writing check cancellation in
+  1 MiB chunks; final archive hashing happens before the rename, inside the
+  same failure/cancellation cleanup. Its `result` {export: TransferExport} is in the
+  final `state` too. The app shares it with the share sheet anchored to the
+  `…` item and deletes the folder once a share completes. *Inspect*
+  (`transferInspect{source, fileName}`) reads the manifest alone and answers
+  the summary, the file's size, `problems` (which make it not importable),
+  `notes`, `existingID`, a project's `suggestedName`. *Import*
+  (`transferImport{source, fileName, kind?, projectName?}`, a task) checks
+  the same before it is accepted, then reads the whole file into its
+  staging (`TransferArchiveReader`: the first member must be the manifest,
+  ≤ 64 MB; every member listed once, of its kind, no NUL, absolute name,
+  `..` or depth past 64, names folded for APFS; folders made and checked
+  with `lstat`, files `O_EXCL | O_NOFOLLOW`, 0755 or 0644; each size and
+  SHA-256 the manifest's; links relative and staying inside; no hard link
+  or special file; nothing missing; ≤ 32 GB and 1,000,000 members) and only
+  then runs the kind's path. A toolchain: `importTree` verifies its own
+  manifest (identity, the ID setup derives from source, scheme, minimum OS
+  and components, a release `CommandLineToolsSupport` still lists from a
+  source it reviewed, host and Swift requirements, exactly the files and
+  links it lists, each matching), the record's `contentDigest` must match,
+  a registered one of that ID is refused (`conflict`); then setup's path —
+  the self-test's SDK (fetched from an enabled source when none fits),
+  `ToolchainPackager`, the bridge, the self-test on this device, the
+  registry only if it passed, removal through the bridge otherwise — under
+  the job record `Toolchains/jobs/import-<id>/`. An SDK: its tree must have
+  `SDKSettings.json` at the top, is inspected by `SDKInspector` like any
+  import, must be the ID and digest the file names, a registered one is
+  refused, and it is registered with origin `transfer <file>`. A project:
+  no `.git` anywhere but the top (compared without case); a new project ID
+  written into `apelin-project.json` by replacing its one quoted
+  occurrence, nothing else changed (so the Confirm ledger has nothing
+  approved under it and two folders never share an ID); `.git` given a
+  fresh minimal `config` (the HTTPS origin kept) and dropped with a warning
+  if it does not open; moved into `Projects/<name>/` by
+  `renamex_np(RENAME_EXCL)` — `projectName` taken is `conflict`, absent the
+  first free `<name> <n>`. Nothing in it runs and nothing is recorded as
+  approved. A `source` is the app's descriptor (`file`, rewound before each
+  read), or a file in `inbox/` or `Exports/` (an export's folder names its
+  one file), canonicalised; a named file's extension must be its kind.
+  The app's flows: Open in Apelin and launch URLs (`SceneDelegate`) and the
+  pickers (Toolchains ▸ + ▸ From File…, SDKs ▸ + ▸ From Files… for an
+  `.apesdk`) open the file read-only under its security scope and keep only
+  the descriptor; `TransferImportController` shows what it is and what it
+  needs, then follows the import on `EnvironmentTaskController` (whose `…`
+  menu has Show Log, every event). Export… is in the Toolchain and SDK
+  pages' `…` menu; project export has no page yet (the project list is a
+  stand-in), so it is the operation and `TransferExporter`'s project case.
+  Tested by `TransferTests` (round trips of each kind across two homes, a
+  failed self-test removed, the other bootstrap, an unsupported release, a
+  tampered member, members leading out, extra and missing members, a newer
+  format, a nested repository, name collisions) and
+  `ToolchainTransferTests`; on a device by `transfer` and
+  `transfer-project` (regression) and `transfer-toolchain` (manual: a GB
+  file).
+- **The console** (format in `Documents/Console.md`) runs the app headless
+  from a JSON script: `-apelin-console <path>`, or
+  `~/Documents/wiki.qaq.apelin/console/inbox/*.json` at launch and on every
+  foreground; results as JSON lines in `console/out/<runID>.jsonl` and the
+  unified log (`wiki.qaq.apelin`, `console`). It calls `ApelinService`, the
+  one typed surface — one async method per operation — that the UI and the
+  agent's tools (over `ChannelTransport`) call too; `ApelinService.app`
+  (`Apelin/Service/`) binds it to `DaemonClient`. The runner is the
+  `ApelinConsole` library (ApelinCore and ApelinProtocol only), given an
+  `ApelinService`, a `DataFolder` and a log sink; the app keeps the binding
+  and the launch and foreground hooks (`Apelin/Console/`). A step answering
+  a task handle, or an attach answering an unfinished batch, follows the
+  task to its end (an attach by ID reads a task an earlier run started). A followed task
+  is announced by a `step.task` line, so a launch after the app died
+  mid-follow re-attaches to that task after the last event written and
+  finishes the run; after a successful `respring` the run waits up to
+  15 s for the app to go before the next step starts (a `step.note` if it
+  survives), so a run that stops right after it goes on at the next step;
+  anything else left running is
+  `run.interrupted`. `make harness` tests it against a fake transport
+  (`Packages/ApelinKit/Tests/ApelinConsoleTests`): every typed `ApelinService` method once,
+  from a switch over `AppOperation` with no default, so an operation added
+  without a method does not build; the runner; and every script in
+  `Documents/Console/scripts/` — one per domain, which together must call
+  every operation. A new operation gets its row there and a step in its
+  domain's script. `Scripts/device.py` runs them on a vphone or device from
+  the Mac (`Documents/Console.md` ▸ From the Mac): it drops a script, quits
+  an idle app and launches it (never through another app: on an iPad that
+  app keeps the focus), follows the output, opens the app again after a
+  respring, and keeps the lines in `build/Device/<target>/`. What a script
+  needs, sets up, does while it runs (a session host or app killed by a
+  watcher on the device), checks and cleans up is its entry in
+  `Documents/Console/device-harness.json`, beside the suites; every script
+  has one, a script that cannot run unattended says why under `manual`, and
+  every other one is in `regression` (`make check` runs `device.py lint`).
+- **The replay** (`Packages/ApelinKit/Sources/ApelinReplay`, ApelinCore and
+  ApelinProtocol only) is how the UI works where no apelind runs:
+  `ReplayTransport` answers `ApelinService` from event streams the console
+  captured on a device — the latest reply whose request matches, else the
+  latest of that operation, else `unavailable`; a task's start, then its
+  events by long-poll attach, paced as recorded or at once; an agent
+  session held at each `waitingForApproval` until `agentApprove`; no
+  descriptor, no state that changes. Its `Fixtures/` resource (`replies.json`,
+  `tasks/<name>.json`) is written only by
+  `Documents/Console/demo/make-replay-fixtures.py <capture>` from the demo
+  scripts' output beside it: the bootstrap folder, hostnames, model and
+  kernel build scrubbed, logs trimmed, seq renumbered without gaps, and
+  nothing written if a key, a Mac path or a device identifier survives.
+  `ApelinReplayTests` (`make harness`) reads every fixture strictly through
+  the protocol types — a field a type does not know fails — with a shape
+  table for the event payloads ApelinProtocol has no type for, checks seq
+  from 1 to a final `state`, and replays tasks through `ApelinService`. A
+  protocol change that breaks a fixture means a new capture, not a hand
+  edit. It is linked into nothing; the app selects it by a launch argument
+  (`Documents/Plan/Handoff.md` ▸ the replay), never by build flag, and it
+  never links into apelind or a worker.
+- **Agent sessions** (`Apelind/Dispatch/AgentHandler.swift`,
+  `Packages/ApelinAgent/Sources/ApelinAgentWorker`). `agentOpen` comes
+  from the app, or from an agent for its own project (Conversations,
+  below): the host resolves the project by `projectID` or `projectName`
+  (canonical `Projects/<name>`, its `apelin-project.json` id), makes the
+  `agent` task, spawns `apelin-agent` with the session id as its instance and
+  hands it the request with the project filled in; provider (`githubCopilot`
+  default, model default `claude-sonnet-5.5`), approval mode, an optional
+  first `prompt` and `closeWhenFinished` (the task ends with the first run,
+  for headless runs) ride on it. Prompt, steer, abort, approve and close go
+  to that session's running worker and to no other. Task events: `prompt`, `title` {text},
+  `projectNameSuggested` {name} (only a concrete project intent),
+  `steer`, `queued` {id, text, attachments} (a message sent while a run
+  goes, handed to the run as a steer and recorded as its `prompt` of the
+  same id only when the run's loop takes it, after the tool call in
+  progress or before the run would end), `queueDropped` {ids} (queued
+  messages a run that was stopped, failed or had just ended never took,
+  cleared from kwwk's steering queue too so no later run reads them; the
+  app puts their text back in an empty composer), `messageStarted`, `toolCallPreparing` (the model began writing a
+  call, which `toolCall` follows once its arguments are whole), `text` and `thinking` (streamed text coalesced
+  to ≥ 512 bytes or 250 ms), `message`, `toolCall`, `toolResult`,
+  `approvalRequested` {approvalID, toolCallID, tool, arguments,
+  workingDirectory, projectID, fingerprint, reason, allowsSessionScope,
+  detail} followed by `state` `waitingForApproval`, `approvalResolved`
+  followed by `state` `running` when none is left, `error`, `finished`
+  {reason}. An app that is not attached leaves an approval waiting; nothing
+  approves by default. The file tools (write, create, patch; there is no
+  rename, delete or mkdir) never write a git directory: a `.git` entry at
+  any depth, compared without case, and what a `.git` file or link names
+  (its `gitdir:` or link target, followed even before it exists, and that
+  directory's `commondir`) or a `.git` directory's `commondir`, nor a folder
+  git takes as one by its contents (git's `is_git_directory`: a `HEAD` and
+  `objects/` and `refs/` or a `commondir`) — nothing below a folder with
+  that layout, nothing below the `objects/` or `refs/` of a folder with a
+  `HEAD`, no `HEAD` beside both or beside a `commondir`, and no `commondir`
+  beside a `HEAD`, so whatever order the files come in, the one that would
+  complete a bare repository is refused, while a `config` or `HEAD`
+  anywhere else is an ordinary file —, decided on the
+  canonical path (`Paths/GitDirectoryGuard.swift`: the target's own path
+  and the `.git` in each folder above it, looked at again at commit, and
+  one walk of the project per write, with no cap, for a `.git` elsewhere
+  that names it — a folder the walk cannot read refuses the write), so no config or hook
+  they write can feed the host's git presets. They read it freely; the
+  repository changes through the git operations. Every system tool is one
+  host request
+  (`ChannelHostBackend`): build → `buildStart` read to its end (the artifact's `buildID` is what confirm_loaded matches), install →
+  `installPackage`, remove_package, respring, confirm_loaded → a
+  `confirmLoaded` task with the session's project read to its end (with
+  `respring: true` it carries `trigger: respring` and is gated as respring;
+  it never asks for `imageCheck`), read_logs → a `logStream` of
+  at most 10 s, list/read/symbolicate crashes → `crashList`, `crashOpen`
+  (descriptor), `crashSymbolicate`, screen/UI → `captureScreen`,
+  `readUITree`, `uiAction`, the framework tools' SDK → `sdkList` (the
+  project's pinned `environment.sdk.id` first), run_code → `agentRunCode`;
+  in General Chat only, project_template_list → `extensionList` (isolated
+  extensions left out) and project_create{template, name, values} →
+  `projectCreate`, allowed under Confirm like a project edit — the new
+  project's chat builds it, and this one's file tools stay in its
+  temporary folder. In a project's chat only, git_status, git_diff,
+  git_stage, git_unstage and git_commit → the matching `git*` request,
+  git_fetch, git_pull, git_push and git_clone → `gitFetch`, `gitPull`,
+  `gitPush` and `gitCloneInto` read to their end; all of them run under
+  Confirm like a project edit except git_push, which asks every time for
+  the remote and branch it names (the checked-out branch read first when
+  none is given, then sent explicitly), never with a session grant. A
+  failure names its fix: a token in Settings ▸ Git, an author there, a
+  fetch before a rejected push, never a forced one. git_settings, git_set_author,
+  git_save_credential and git_remove_credential → `gitSettings`,
+  `gitAuthorSet`, `gitCredentialSet` and `gitCredentialRemove`, in any chat:
+  reading needs nothing, every change asks under Confirm (the card names
+  the host and user, never the token, and never a session grant), and the
+  token is masked in the `toolCall` and `approvalRequested` events
+  (`ToolArgumentRedaction`); `GitHandler` skips its project check for
+  these four. On a workspace whose
+  build system is external, build answers with that instead of asking.
+  Conversations (2026-10-22, `AgentConversations`,
+  `Session/Agent/AgentConversationRules.swift`): in a project's chat,
+  conversation_create {prompt, title?} → `agentOpen` from the agent with
+  this session's provider, model and effort (`SessionModelChoice`: the
+  open request's, then each app prompt's) and the title
+  (`AgentOpenRequest.title`), answered without waiting; the host opens it
+  in the caller's own project under the caller's current approval mode,
+  with a non-empty prompt and nothing else of the caller's (never a
+  temporary project, a session to reopen or a headless close; at most 6
+  opened by agents running per project, a place held from the check to
+  the open so two opens cannot both take the last, and a chain of
+  openings at most 2 deep), recording the parent and depth (kept when
+  the app reopens the session) and appending `conversationOpened`
+  {sessionID, task, title?, prompt} to the opener's task, from which the
+  app adopts it as a conversation of the same project without selecting
+  it (and from `agentList`'s `parentSessionID` at launch: `ChatAdoption`).
+  The worker names the new session by its title, else generates one.
+  conversation_send → `agentPrompt` to another session of the same
+  project as the user's message: the host writes `fromSessionID` (the
+  app's is dropped) and clears the mode, provider, model, effort, message
+  ID and attachments, and refuses descriptors; the worker records it as
+  `prompt` {text, from}, the model reading one line before it naming the
+  sending conversation (`ConversationSender`), and the app names the
+  sender over the bubble. conversation_list → `agentList`, the project's
+  sessions only, each with `parentSessionID`, titled by the session's
+  own `title` events as the host relays them; conversation_read →
+  `agentList` for the task, then `agentAttach` of a task of the project's
+  sessions only, read from the start (`ConversationReader`: state
+  running, waitingForApproval, idle or ended, the approvals still
+  waiting, the assistant's `message` and `error` texts after `after_seq`,
+  cut at 32 KiB with `last_seq` where the next read goes on), and with
+  `wait_seconds` (0–600) attaching again, 5 s at a time, until a turn
+  after `after_seq` finishes, a new approval is asked, it ends or the
+  time runs out; conversation_stop {close?} → `agentAbort`, then
+  `agentClose` when asked, of a session the caller opened. Create, send
+  and stop pass Confirm like a project edit, list and read as read
+  presets: the conversation it opens asks for its own risky steps.
+  `agentApprove` and `agentSteer` stay the app's.
+  `agentRunCode` is a closed request — `argv` (an executable name looked up
+  in the bootstrap's bin directories, then `/usr/bin`, `/bin`) or `script`
+  (sh, bash, zsh, python3, perl with `-c`/`-e`) — that the host runs itself,
+  only for the caller that is that session's worker, as mobile (uid, gid,
+  groups 501 before exec), in a working directory that resolves inside the
+  project, its own process group killed at the timeout (1–1800 s), both
+  streams capped at 256 KiB and read for at most 2 s after it exits or is
+  killed — a descendant that left the group (setsid) is neither found nor
+  killed, and the pipes it still holds are closed on it, the output marked
+  `truncated` —, so the timeout bounds the call. Under Confirm the host
+  re-decides it: a preset it recognises (read-only argv: ls, cat, head, tail, wc, file, stat,
+  `plutil -p`, `git status|diff|log`; `Session/Agent/AgentRunCodePresets.swift`)
+  — every path argument and `--option=value` value, read from the working
+  directory, staying in the project by realpath, no list of names read
+  from a file (`--files-from`, `wc --files0-from`), `file` with only
+  `-b -i -L -h -k -N -0` (bundled letter by letter) and `--brief --mime
+  --mime-type --mime-encoding --dereference --no-dereference --keep-going
+  --no-pad --print0` (no magic file, no decompressor), `ls` without `-L`,
+  `-R`, `--dereference*` or `--recursive`, and nothing after `plutil -p` but
+  files; git without `--output`, `-o`, `--ext-diff`, `--textconv`,
+  `--no-index`, `-c` (but after `log`, a combined diff), `-C` (but after
+  `diff` or `log`, find copies), `-O`, `--exec-path`, `--git-dir`,
+  `--work-tree`, `--submodule`, `--ignore-submodules`,
+  `--recurse-submodules`, `--show-signature` or any `%G`, `%+G`, `%-G` or
+  `% G` (long options
+  abbreviated too, as getopt_long and git accept them), and no short option
+  with anything attached but `-<n>`, `-U<n>`, `-l<n>`, `-n<n>`, `-M<n>`,
+  `-C<n>`, `-B<n>[/<m>]`, `-G<regex>`, `-S<string>` and a bundle of the
+  subcommand's value-less flags (status `-s -b -z -v` and a last `-u`
+  with `no`, `normal` or `all`; diff `-p -s -z -w -b -R -a` and a last
+  `-M` or `-C`; log those and `-c -m`); only in the
+  repository git itself names from the working directory (`git rev-parse
+  --absolute-git-dir --git-common-dir --show-toplevel` with the preset's
+  environment and overrides, as mobile; never a model of git's discovery,
+  which skips an invalid `.git` and takes HEAD beside `commondir` as a
+  repository): its git directory its own common one and a real
+  `<top level>/.git` directory inside the project, so neither a worktree,
+  a `commondir` nor a bare layout counts, with or without
+  `safe.bareRepository` (which a git older than 2.38 ignores); no
+  `.gitmodules` and no `.git/modules`; and a config holding nothing but
+  what `git init`, a clone (`apelin.cloneTask` included) and an author
+  write — read by git's
+  own parser (`git config --file … --list --name-only --null`, as mobile,
+  no system or global config, off the cooperative pool), never by hand, any
+  error or include refused — and run with `--no-pager --no-optional-locks`,
+  configured commands overridden by `-c` (`submodule.recurse=false`,
+  fsmonitor, pager, `diff.external`, hooks, attributes file,
+  `safe.bareRepository=explicit`, every `gpg.*program` pointing nowhere
+  and `log.showSignature=false`, so a signed commit never starts gpg),
+  `--no-ext-diff --no-textconv` for diff and log, `--ignore-submodules=all` for status
+  and diff, and no system or global config (`GIT_CONFIG_NOSYSTEM`,
+  `GIT_CONFIG_GLOBAL=/dev/null`, discovery stopped above the project);
+  the words of a preset are one rule, ApelinProtocol's `RunCodePresetRule`,
+  which ApelinAgent's presets read too, with paths read from the same
+  working directory — or an approval the app gave through
+  `agentApprove` for a `run_code` `approvalRequested` of this session, used
+  once, and only for the command its `detail.command` showed (shell text
+  as the `sh` script it is sent as) in its `workingDirectory`; any other
+  run is refused and leaves the approval unspent. An `agentApprove` with
+  `scope: session` for a request that offered it (`allowsSessionScope`)
+  also leaves a session grant for exactly that command and directory,
+  normalised the same way; the agent then sends an identical call as
+  `RunCodeApproval.session` (its gate's remembered fingerprint), which the
+  host runs only against a grant of this session, never spent, taken back
+  if the worker refuses the decision and forgotten on `agentClose`. A call
+  the agent sent as a preset that the host's rule does not count is
+  refused with `RunCodeApproval.presetRefusal` (`denied`, reason
+  `notAPreset`: the agent goes by `ApelinError.reason`, never the message);
+  the agent then asks the user (`approvalRequested` with the command), sends
+  it again with that approval. Nothing remembers the refusal: whether a
+  call is a preset depends on the repository (a `.git` made, a
+  `.gitmodules` removed), so the next one goes as a preset again and the
+  host decides. The build/install digest rule reads the host's ledger
+  (`HostDigestLedger`): the digest apelin-build answers in `projectCheck` ▸
+  `descriptionDigests`, then `approvalDigestState` — the template's own runs
+  without asking, an approved one too, a changed one asks (when apelin-build
+  gives no digest the agent's own SHA-256 over the description stands in,
+  which never matches, so it asks). `agentOpen` sets the session's mode in
+  the ledger (`setMode`); relaying an approved `agentApprove`, the host reads
+  what was asked from the session's own `approvalRequested` event and calls
+  `recordApproval(digest, kind:, project:)` for a changed description or
+  `allowRemoval(installationID:, session:)` for a package removal (a
+  remove_package request carries `detail.packageRemoval.installationID`;
+  without it the approval would never be spent), before
+  the worker hears it, and takes the grant and the session's record of the
+  decision back if the worker does not accept it; `agentClose` forgets the
+  session.
+- **Agent credentials** are the keychain's: `KeychainCredentialSource`,
+  service `wiki.qaq.apelin.agent`, access group `wiki.qaq.apelin.agent`
+  (`keychain-access-groups` on apelin-agent only), after first unlock, this
+  device only, never synchronised. The owner provisions one with no UI by
+  dropping a file in `~/Documents/wiki.qaq.apelin/console/inbox/credentials/`
+  — `<store id>.json` in kwwk's credential shape (any store id a provider
+  below is kept under: `github-copilot`, `anthropic`, `anthropic-api-key`,
+  `openai-compatible`, `openai-codex`, `kimi-coding`, …) or a kwwk `auth.json`
+  map — and running `agentCredentialImport` (or opening a session, which
+  imports first). Each file is opened without following links, bounded to
+  64 KiB, read once, stored and unlinked whatever it held; the reply names
+  store ids and reasons, never contents. The import runs in an apelin-agent
+  instance named `credential-import`, so the item is written and read by
+  the same signed executable.
+- **Agent sign-in** (`Packages/ApelinAgent/Sources/ApelinAgentWorker/SignIn/`,
+  `Apelin/Interface/Settings/Accounts/`). Settings ▸ Model Providers (one
+  row on the Settings root, the signed-in count beside it, pushing
+  `ModelProvidersController`: signed in first with who as and a `…` menu,
+  then the rest under Sign In with an Account and API Keys, searchable)
+  signs in to every login kwwk offers. API-key fields use native inset
+  grouped sections, with Fetch Models in the navigation bar. Setup stores
+  the key and gets the endpoint's model list before model selection; no
+  arbitrary default model is probed. The selection page allows custom IDs
+  only for API-key accounts. A trailing swipe removes an API model locally;
+  saved hidden IDs keep it out of later discovery, and adding the ID again
+  restores it. Custom IDs, hidden IDs and enabled IDs commit together on
+  Save. Save probes every selected ID in the account
+  worker before changing the device's enabled list; a long press offers
+  Save Without Verification. A failure preserves the selection. These
+  validation tasks use the existing sign-in task lifetime and cancellation.
+  `ProviderProgress` uses AlertController's progress view for discovery and
+  the existing AlertController-backed ProgressCard for cancellable work;
+  Cancel stops both the UI task and backend task. Both dismiss before success.
+  OAuth has no editable key, endpoint or custom-model controls. After OAuth,
+  users only select enabled models; Copilot applies the selected IDs' policy
+  opt-ins before saving, and a refusal does not silently count as activation.
+  `agentModelList` and `agentModelActivate` are app-only operations forwarded
+  to the credential worker. `agentAPIConfiguration` is also app-only: the explicit
+  Edit Configuration form receives the stored API key and endpoint in a direct
+  reply, keeps the key secure while editing, and prefills every saved field.
+  Account lists and task events remain secret-free; the console refuses this
+  operation before sending it, so no key reaches its output or logs. DeepSeek's official
+  Anthropic-compatible endpoint maps to the DeepSeek model family, not the
+  Claude catalog; API-key discovery reads the endpoint's model-list API.
+  `EnabledModels` owns only local, non-secret selections and custom IDs;
+  sign-out clears them. The chat picker is an uncached deferred context
+  menu reading enabled IDs only, and opens
+  Model Providers when there are none. API-key model IDs need not occur in
+  kwwk's static catalog; OAuth IDs remain restricted to that provider's list.
+  Each login is an `AgentProvider` case kept
+  under one kwwk store id (`AgentProvider.storeID`), with kwwk's own flows:
+  every subscription `OAuthSubscriptions.providers` names, through
+  `OAuthSubscriptions.login` (public KWWKAuth API; for Copilot kwwk's
+  model policy activation after selection) — a device code for
+  GitHub Copilot, Kimi For Coding and Grok; Safari with kwwk's loopback
+  listener for Claude Pro or Max, ChatGPT Codex, Devin and OpenRouter; a
+  page kwwk polls for Cursor, Qoder, Qoder CN, WorkBuddy, WorkBuddy AI, Z.ai
+  and BigModel; Kiro's own listener — and every API-key entry of KWWKCli's
+  `loginProviders` (Anthropic, OpenAI, Google AI Studio, OpenRouter,
+  OpenAI-compatible), its fields mirrored once in `SignInKeyForms` (KWWKCli
+  is an executable target), stored in kwwk's API-key shape (the key as
+  `access`, no refresh, never expiring, `baseUrl` and `defaultModel` as
+  extras — what KWWKCli's internal `apiKeyCredentials` writes, so it is
+  rewritten in `AccountDesk`). The order is kwwk's: subscriptions as
+  `OAuthSubscriptions.providers` lists them, then the key forms;
+  `AccountDeskTests` fails when kwwk gains a subscription or a stored
+  provider (`providerDirectory`) the table lacks, or when a provider here is
+  one kwwk cannot register for a session. OpenRouter signs in both ways
+  under one store id: `AgentAccount.alternativeMethods` names the key form
+  beside its browser sign-in, and `agentSignIn{provider, method}` picks one
+  (any other method is refused `badRequest` before the task is accepted).
+  Kimi binds a grant to a device id: kwwk records it in the credential
+  (`deviceId`), a sign-in again reuses the recorded one, a first one makes a
+  new one (`KimiIdentity`), and neither the sign-in nor a session's refresh
+  ever reaches kwwk's `~/.kwwk/kimi-device-id` (sessions build their
+  `OAuthManager` with `KimiIdentity.refreshers()`). Sessions can use every
+  provider: the first four keep their `ProviderConfiguration` cases, every
+  other is `.stored(storeID:, model:)`, registered by kwwk's
+  `registerStored` with kwwk's default model unless one is named. The
+  app cannot write the keychain group, so every flow runs in apelin-agent's
+  `credential-import` instance (`AccountDesk`), which stores the result
+  where the sessions read it. `agentSignIn{provider, method?}` (app only) is a task
+  of kind `signIn`, read with `agentAttach`, never resumed, one at a time
+  (a new one ends the old `cancelled`, freeing its port) and ended `failed`
+  after 15 minutes (`AgentSignInRequest.timeoutSeconds`). Its events carry
+  only what the user must see or open: `deviceCode` {code, verificationURL,
+  pageHoldsCode}, `authorize` {url, acceptsCallbackURL — false for a page
+  kwwk polls and for Kiro, whose listener is kwwk's own}, `input` {fields:
+  [{key, required, secure, defaultValue?, placeholder?}]}, then `state`.
+  `agentSignInRespond{taskID, values}` hands back, once, the typed fields
+  (`apiKey`, `baseUrl`, `defaultModel`) or a pasted `callbackURL`; the host
+  checks the task is a running sign-in and forwards it to the running
+  worker without keeping or logging it; a value that will not do is
+  refused `badRequest` naming the field, never quoting it, and the flow
+  goes on waiting. `agentSignInCancel{taskID}` is the host's cancel for
+  that kind only. `agentAccountList` answers every provider, in kwwk's
+  order, with `signedIn`, the method and any `alternativeMethods`, a typed
+  key's endpoint host as `account` (its form's default when none was
+  given) and `expiresAt` only for a sign-in nothing renews (Devin's
+  session) — never a secret; `agentSignOut{provider}` deletes the item.
+  The saved API key appears only in the app-only `agentAPIConfiguration`
+  reply requested by Edit Configuration; it is never an event or log. No
+  refresh token or authorization code is exposed; the device code is the one
+  thing the flow shows. A loopback redirect is the URI kwwk registered for
+  that provider (Claude's `http://localhost:53692/callback`, Codex's port
+  1455, Devin's `127.0.0.1:59653`, OpenRouter's port 53693): kwwk's NIO listener in
+  the worker, through kwwk's `loopback` seam (`PasteableLoopback`), answers
+  Safari on the same device, and is raced against the redirect address
+  pasted from Safari's address bar for a device where it cannot. No
+  ASWebAuthenticationSession: the redirect is a plain loopback URI, not a
+  scheme the app could claim, and Safari keeps the provider's own sign-in
+  cookies. Proven on the Mac by `AccountDeskTests` (fake flows and
+  listener, an in-memory store, no secret in any event: a device code that
+  is typed and one that is only checked, Kimi's device id, a loopback with
+  a paste, a polled page, every key form, OpenRouter both ways, kwwk's
+  lists covered); on a device by `Documents/Console/scripts/accounts.json`
+  (start, read, refuse and cancel a device code, a loopback, a polled page
+  and two key forms; signs nothing in) and, by name,
+  `a2-api-key-sign-in.json` (a placeholder key in and out again, which
+  replaces the device's openai-compatible sign-in); the real sign-ins by
+  hand.
+- **Diagnostics** (`Apelind/Dispatch/{Logs,Diagnostics}Handler.swift`,
+  `Packages/ApelinDiagnostics/Sources/{ApelinDiagnosticsWorker,ApelinLogReaderWorker}`).
+  A `logStream` with a `filter` opens a task on apelin-diagnostics (icli as
+  mobile) and answers its first batch; one with `stream` reads on. The worker
+  reads its first second before accepting, and answers `denied` when the
+  live log is not readable as mobile — only then does the host start
+  apelin-log-reader (root) with the same request. Either streams `log`
+  events {time, process, pid, subsystem, category, level, message} as they
+  arrive, with no gap, for `windowSeconds` (default 30, 1–600) or `limit`
+  (default 1000, 1–5000, then `truncated`), then `state` `succeeded`. The
+  root reader keeps one LoggingSupport live stream open for the window;
+  apelin-diagnostics keeps one icli `SyslogStream` open for it. icli
+  filters by subsystem (dotted children), category, pid, message and level
+  before anything counts; process (icli's is a substring, Apelin's the
+  whole name) and `since` stay Apelin's, and every entry passes
+  `LogFilter.matches`. icli's stream ending `interrupted` in the first
+  second with nothing heard is `denied`; later, `truncated`
+  {`reason: source`}. A streaming call belongs in icli, not beside it —
+  `SyslogStream` is that call.
+  Crash report ids are file names in icli's three crash directories.
+  `crashOpen` is the host's own (open as root, `O_NOFOLLOW`, canonical parent
+  equal to one of the three, regular, ≤ 16 MB, read-only descriptor);
+  apelin-diagnostics asks it for a report mobile cannot read.
+  `crashSymbolicate` decodes the report with ApelinCrash, symbolicates
+  against every dSYM in `Builds/<projectID>/` (and the project folder) by image UUID (no image is
+  opened by a path a report names) and ranks suspects. `confirmLoaded` is a
+  task (kind `confirmLoaded`, read with `confirmLoadedAttach`) the session
+  host owns, so the respring it may trigger — which takes the app down, not
+  apelind, its session host or the worker — cannot lose the answer. The
+  worker checks the request before accepting, then emits `stage`
+  {`listening`, `trigger`} and ends with `state` `succeeded`
+  carrying the `ConfirmLoadedResponse` as `result` (the check ran; whether
+  it found the tweak is `result.loaded`), kept on disk with the task whether
+  or not anyone is attached; `ApelinService.confirmLoaded` starts it and
+  reads it to the end. The evidence is the marker `ApelinLoaded <buildID>`
+  under the package id's subsystem, heard on the live log, which starts
+  listening before an optional `trigger: respring` (the host's respring,
+  icli's FrontBoard relaunch when the host has none); the live log has no
+  history on iOS (icli and the root reader stream only; `OSLogStore` is
+  current-process only; there is no `log` tool), so a marker logged at the
+  target's launch is seen only with the trigger, or with the target
+  relaunched during the window. The filter from `apelin-project.json` is
+  checked statically. The image list is **never read** (the evidence says
+  `notRead`): reading SpringBoard's image list panicked the iOS 27.0.1
+  kernel on 2026-10-17, twice with the task-port read of dyld's image
+  infos in place and once more through the region-path walk
+  (`proc_pidinfo PROC_PIDREGIONPATHINFO`) alone. Both readers and
+  `com.apple.system-task-ports.read` are gone; `imageCheck` still decodes
+  and is refused with `badRequest` before the task is accepted
+  (`Documents/Console/scripts/i3-image-check-refused.json`). `uiAction` with a
+  `targetID` runs only while that app is the verified foreground app;
+  `press` is not available (icli has no button press). Screenshots go back
+  as an unlinked temporary file's descriptor, JPEG.
+- **The hello** has a five-second bound per attempt, guarded by connection
+  generation, retried every second; the fallback to the unprivileged backend
+  comes ten seconds after the first miss (`Apelin/DaemonClient.swift`). After
+  it answers, the connection stays open — a connected app is work that keeps
+  apelind up — and is said hello to again after it drops. Without the
+  backend, calls fail with `backendUnavailable` after one fresh hello.
+- **The build number** is passed on the xcodebuild line and never written
+  back: CI passes its run number, a local build the commit count.
+  `Configuration/Version.xcconfig` holds the marketing version and the number
+  an Xcode-run build carries; `make set-version` writes both.
+- **Strings**: one catalogue, `Apelin/Resources/Localizable.xcstrings`, kept
+  the manual way — a key Xcode cannot see stays `extractionState: manual`,
+  `make check` refuses `stale`. Prune by hand with Xcode closed, passing every
+  source root: `Scripts/prune-xcstrings.py Apelin/Resources/Localizable.xcstrings
+  Apelin Apelind Shared Workers Packages`. Never `--delete-orphans`: the
+  project has several targets now.
+- **Licenses**: the reviewed discipline (`Licenses/README.md`). A dependency's
+  notices land in `Licenses/` and `review.json` in the commit that adds it.
+  GPL-family text fails the build except for an entry in `review.json` ▸
+  `gplExceptions`, keyed by notice id, text hash and pinned revision, with
+  the owner's acceptance. There are two (owner, 2026-10-17). libgit2 is
+  GPLv2 with the linking exception, its bundled xdiff
+  (LGPL-2.1-or-later) a known, accepted item, linked only into
+  apelin-environment. z2d, inside libghostty, is MPL-2.0, unmodified and
+  linked statically into the app only. Its GPL wording is only MPL
+  section 1.12's definition of "Secondary License", and its notice names
+  where the source is, per section 3.2.
+  `review.json` `excludedPaths` names, per pin, folders its own manifest
+  never compiles (libpng and zlib's `contrib`, libpng's `ci`); the collector
+  does not walk them. A component compiled from a checkout with no license
+  file (BoringSSL in swift-nio-ssl) or kept under a name the collector does
+  not walk (icli's ios-mcp notice) gets a `Licenses/<name>/` folder. So does
+  vendored source: Runestone (`Runestone`, `tree-sitter`,
+  `TreeSitterLanguages`, one `tree-sitter-<language>` per grammar), each
+  folder the same text as the `LICENSE` beside the source, which `make
+  check` compares. So does every component inside a prebuilt binary the
+  app links, found by reading the binary rather than trusting its
+  wrapper's LICENSE: each component of libghostty.a (`ghostty`,
+  `ghostty-*`, with FreeType taken under the FTL, not GPLv2); and each
+  SwiftMath font (`font-*`, OFL-1.1 or GUST), whose `OFL.txt` and
+  `GUST-FONT-LICENSE.txt` the collector does not walk. The glyph sets in
+  libghostty's embedded Symbols Nerd Font are covered too, one
+  `ghostty-nerd-fonts-*` folder per set in Nerd Fonts 3.4.0's
+  `license-audit.md`. `binaryRevisions` holds libghostty-spm, so an
+  upgrade means reading it again.
+- **UI dependencies** (owner, 2026-10-17: bundle everything, package size
+  does not matter). The app target alone links DisplayLink, ListViewKit,
+  Litext and LitextAnimation, MarkdownView and MarkdownParser, Runestone's
+  Runestone, RunestoneLanguageSupport and RunestoneThemeSupport, and
+  libghostty-spm's GhosttyTerminal and GhosttyTheme (`upToNextMajor` from
+  2.2.2026101502, the same as iGhostVT). Through them come SwiftMath,
+  swift-cmark, LRUCache and swift-collections, still the one pin kwwk
+  shares. Everything is static, so nothing new is a dylib. The one
+  `@rpath` library the app gains is `libswiftCompatibilitySpan.dylib`,
+  which Xcode embeds in `Apelin.app/Frameworks/`.
+- **Runestone is vendored and trimmed** (owner, 2026-10-17, the way Irisin
+  does it): `Packages/Runestone` is simonbs/Runestone 0.5.2 from source,
+  from Irisin's copy (the Xcode 27 `TreeSitter.h` fix, typed pointers,
+  `EditMenuController`, themes in code), with the Tree-sitter runtime and
+  only the grammars Apelin highlights: C, C++, Objective-C, Swift, Bash,
+  Python, Ruby, JSON, YAML, Markdown and Markdown inline, XML and Make. The
+  last three are upstream tree-sitter-grammars at ABI 14 (Make's parser
+  regenerated with the 0.24.7 CLI; README.md there says how).
+  tree-sitter-comment and -regex went too: nothing kept injects them.
+  `RunestoneLanguage(fileName:)` is the one file → language lookup;
+  Logos (`.x`, `.xm`) and `.h` read as Objective-C, a `control` file as
+  YAML; `RunestoneLanguageProvider` serves Markdown's fences and a
+  Makefile's recipes. The queries are compiled in as string literals, so
+  the only resource bundle is Runestone's own `Runestone_Runestone.bundle`
+  (theme colours, strings, privacy manifest), which Xcode copies beside
+  the executable and the packager requires. The package has no tests:
+  it has no Mac build (UIKit), so `make harness` skips it, and a grammar
+  of the wrong ABI or a query with a predicate Runestone drops fails
+  silently, as plain text. After touching it, put the app on a vphone
+  (`make vphone-app`) and open a file of each language it changed, and
+  one that injects it, to see them coloured. A grammar put back is paid
+  for in the binary: add one as README.md says, with its notice, and
+  look at it on the vphone.
+  The product links whole whether or not anything imports it (Swift
+  metadata keeps `RunestoneLanguage` alive): on 2026-10-17 the shipped
+  app binary went from 14.9 MB without Runestone to 30.7 MB with these
+  thirteen, Objective-C's tables the largest (5.5 MB of object); the
+  xcframework with all 38 languages in use made it 55.0 MB.
+- **The root** is laid out as ChatGPT's and FlowDown's (owner,
+  2026-10-21): `RootInterfaceController`
+  (`Apelin/Interface/Root/`), a container of its own, no
+  `UISplitViewController`, with the sidebar's navigation controller and
+  `DetailNavigator`, whose picked page — `ChatController` or the icon —
+  is the stack's root. The window's horizontal size
+  class picks the layout. Regular: a 340 pt sidebar beside the navigator,
+  hidden or brought back by the button first on the navigator's bar.
+  Compact (an iPhone): the navigator is the screen and the sidebar a
+  drawer under it, the window's width less 64 pt (at most 400): the same
+  button (`line.3.horizontal`) or a pan to the right on a root page slides
+  the page aside, dimmed; a tap or a pan to the left on the shade, VoiceOver's
+  escape, or picking or starting a conversation slides it back. A pushed
+  page keeps its back button and swipe; the drawer opens from the root.
+  While the sidebar is out of sight a New Chat button is last on a root
+  page's bar. The sidebar reports what is picked through `onSelect`. The sidebar holds the current project's
+  conversations (owner, 2026-10-19, 2026-10-21): its bar is the project's
+  name as a plain navigation title at the leading edge (`.editor` style),
+  and a plus on the right that opens New Project as a form sheet. Under
+  the bar a search field, hidden until the list is pulled down, filters
+  chats ("Search chats"). Its toolbar is New Chat on the left, with the
+  Projects folder immediately left of Settings (a gear) on the right.
+  The button shows the selected project's icon, or the folder in General Chat,
+  with its current selection in the accessibility value. Its uncached menu has
+  a fixed order: General Chat, a separator, the project names, a separator,
+  and All Projects, which opens the management sheet. Menu rows have no icons
+  except the system's selected checkmark. The toolbar is
+  glass on iOS 26 and the toolbar's blur before it. With no project open
+  the title is "Apelin" alone, with no subtitle (owner, 2026-10-21) and
+  no menu, and New Chat starts a temporary
+  conversation, as ChatGPT's temporary chat: it belongs to no project and
+  is kept in `~/Documents/wiki.qaq.apelin/Temporary/<conversation>/`,
+  its working folder too. `agentOpen.temporaryID` names that UUID; the host and worker both check the canonical direct child before using it. Below the bar
+  the conversations in the system's inset grouped table, cells and
+  headers as they come (owner, 2026-10-21: simple and native), a picked
+  row's ground black at 0.1 (white in the dark) rather than the system's
+  darker grey — a
+  title on one line each, with a system activity indicator at the trailing
+  edge while `ChatSummary.isWorking` is true (and "Working" as the row's
+  accessibility value). `SidebarController.setWorking(_:for:)` reconfigures
+  that row without changing selection or order; the runtime derives working state from prompt/finished events.
+  The saved conversation is restored at launch; an iPhone, or any drawer
+  layout, without one creates a new chat only after its project selection
+  is restored. New Chat reuses the project's untouched conversation (no
+  events, session, draft text or attachments, not pinned) instead of adding
+  another empty row, and a launch drops untouched ones other than the saved
+  one. Switching projects opens the project's most recent conversation
+  without closing a drawer; only a row or New Chat the reader picked puts
+  the drawer away. A drawer always has a conversation behind it: an empty
+  project, deleting the picked conversation, or a window narrowing onto the
+  icon starts one. The drawer's pan yields to content scrolled sideways (a
+  code block, a table, the attachments) and to a text selection. Pinned
+  conversations come first, the rest under the day they were last active (Today, Yesterday, the weekday
+  within the week, then the date); a leading swipe pins, a trailing one
+  deletes (and offers Stop while a turn is running), a long press offers the same actions, and an empty list shows a filled symbol, its
+  words left to VoiceOver. Settings and the picker are form
+  sheets through Xrash's `presentAsFormSheet` (`Interface/Components/`). The
+  list contains only persisted conversations; no sample conversation is injected at launch.
+  `ChatRuntime` owns drafts, session IDs, task cursors and histories; each chat is atomically saved under `Chats/`. A chat is removed from memory only after its session closes (an absent session is already closed) and its file is deleted; later queued saves cannot restore it.
+  Projects are read from validated project folders, and the picker refreshes them on appearance. Its swipe and context menu can delete a project after confirming its name: close its chat sessions, remove only its real direct-child directory in `Projects/` without following links, then remove its chat histories. With nothing picked the detail column shows
+  the app's icon (`NothingSelectedController`) beside the sidebar; behind a
+  drawer it is always a conversation. The placeholder cross-fades into a
+  selected page, and the first transcript layout jumps to the bottom without
+  animating. Never hide a
+  `UITabBarController`'s bar to simulate that hierarchy.
+  *The conversation page* (`Apelin/Interface/Chats/`, owner, 2026-10-21)
+  is made once: the root keeps one `ChatController`, picking a
+  conversation hands it over with `use(_:)`, and the navigator shows it
+  again only when something else is its root. Switching never builds a
+  page: the bar's title — the system's bar, its `titleView` a
+  `ChatTitleView` drawing the name in the bar's own headline at the
+  default size, `.label`, through Litext's `LTXAnimatableLabel` — rolls to
+  the new name with `LTXNumericTransitionAnimator` and its `policy`
+  (only on screen; a page coming back shows its name at once); the
+  message list is replaced with a new ListViewKit `ListView<ChatMessage>`
+  before applying the new conversation's live event rows, without transition
+  animations or retained rows from the previous chat; and the
+  composer's draft is kept per conversation on disk and put back, so
+  nothing typed in one shows up in another. User text sits in a trailing,
+  content-sized bubble with 12 pt padding and corners and a 10–15% accent
+  gradient, following FlowDown. Its width leaves another 20 pt on each side
+  inside the list insets before applying the 800 pt cap; text measurement and
+  layout use that same limit. Assistant text uses MarkdownView for headings,
+  lists, code, tables and math. Received images use an aspect-aware album with
+  2 pt gutters (single, paired, leading portrait and balanced rows); Quick Look
+  opens the selected image and pages through its album. `title` is still set, for
+  the back button and the window. The title view asks the bar for all
+  its room, so its frame holds still while the names roll, and places
+  the text itself: centred on the bar as the bar's own title is, slid
+  aside only as far as the items need, and cut with an ellipsis (Litext
+  has no truncation); it is one header element named by the title. The
+  composer (`Chats/Composer/`) is FlowDown's rich editor brought across
+  (below, *Lists and rich text*): `ComposerView` stacks its bands
+  (`ComposerSectionView`, the text band `ComposerInputView` alone for
+  now; the attachments bar, quick settings bar and control panel join
+  `sectionSubviews`) on one rounded ground — `UIGlassEffect` on iOS 26, a
+  card with a plain layer shadow before it (no ColorfulX) — and publishes
+  its height. The text band keeps FlowDown's three layouts (at rest,
+  focused and empty, with text: More gives way to Send), return, ⌘
+  return and ⌥ return by `ComposerBehavior`, a pasted image or a paste
+  over 512 characters handed to the delegate, and its edit menu. Its
+  icons are SF Symbols on `ComposerIconButton`, an element with the
+  button trait and the name of its action. It
+  sits on `view.keyboardLayoutGuide`, no wider than 750 pt and centred,
+  on a ground that reaches past the page's foot, and the list's bottom
+  inset follows it. Its actions reach `ChatController` through
+  `ComposerView.Delegate`; Send shows the message at once, a local row
+  under the draft's UUID, and empties the composer; the host's `prompt` or
+  `queued` event with that id takes the row's place. Until then the message
+  is kept on disk (`ChatRecord.sending`), and a launch puts one never echoed
+  back in the draft. A failed send removes the row and puts the draft back
+  in an empty composer. Only one submission is accepted
+  at a time; switching conversations invalidates its completion so a late
+  reply cannot touch the incoming draft. More uses FlowDown's inline
+  ControlPanel and GiantButton layout, with its camera, photo, file and web
+  artwork; it closes on editing, send and conversation changes. The panel's
+  published state alone drives the plus/close icon. Attachments use its
+  horizontal preview layout, removal and Quick Look; camera, Photos and
+  Files use system pickers, and web text uses FlowDown's ScrubberKit at its
+  pinned revision. Live assistant text uses `MarkdownStreamView` with a stable message identity and immediate first fill, so only streaming additions fade in. Each turn is followed for at most a page (`TurnFollowing`): from its user message (a local row just sent, a message a run took, or one another conversation sent) the list follows new output only until that message reaches the top of the visible area, under the bar's blur, then holds still while the reply grows below and the downward chevron above the composer shows. The chevron scrolls to the latest content once and does not follow again; a drag ends following for the turn, and reaching the bottom does not bring it back: only the next turn does. A message a running turn will take later is shown once on Send and starts no turn until it is taken. The chat header uses a 1 pt private `variableBlur` CAFilter with an alpha-gradient mask on an owned `CABackdropLayer`, following VariableBlur; the old transcript opacity mask and the system top scroll-edge effect are removed. Drafts persist their attachment bytes; submitted and received files are stored in the chat workspace. User attachments sit above the bubble with the same trailing edge. Image previews, PDF first pages and supported Quick Look thumbnails use the same album layout as assistant images; text and other files use document cards with a filename and up to three lines of text, preserving single line breaks and collapsing consecutive blank lines in at most eight passes over the 220-character preview. Each card is capped at the smallest of its natural content width, its user bubble’s width and 350 pt; size labels are omitted. All user attachment previews stay within the maximum user-bubble width. Each image album and document card is at most 30% of the window height; album fitting preserves tile proportions. Card borders use the user bubble’s background tint. Attachment changes cross-fade, while ordinary reconfiguration does not. Presentation thumbnails are bounded and cached separately from the original attachment, which remains unchanged for sending, persistence and Quick Look. Ordinary blocks share a 16 pt gap. Unordered, ordered and task-list items use MarkdownView’s independent list spacing with no extra item gap, retaining the renderer’s 4 pt wrapped-line spacing; the transcript normalizer preserves this instead of replacing it with 16 pt. An empty body adds neither height nor spacing. Imports are bound to a chat and draft ID, so a late result cannot
+  land in a newly cleared draft. The model control is below the input, with
+  the exact FlowDown BlockButton geometry and original editor SVGs, with
+  reasoning choices from kwwk's supported-thinking-level metadata; High is
+  selected by default when supported. The UI offers only supported Low,
+  High and Max levels, never Off. Unknown
+  custom models do not get guessed levels. `ComposerModelSelection.current`
+  saves the provider, model, effort and its last supported-level snapshot in
+  `UserDefaults`, shared by every conversation and restored on launch;
+  changes notify every open composer. Return and long-paste preferences
+  (`ComposerBehavior`) are also global `UserDefaults` values. Model, effort
+  and Stop blocks fade and reposition on the composer's spring, including
+  when the import panel hides or restores the row; Reduce Motion applies
+  changes immediately. `AgentOpenRequest.reasoningEffort`
+  reaches the worker's session configuration. The stop control's icon, text
+  and border are red. It takes a
+  live output cancellation callback and stays hidden without one. Settings stores a global `AgentPermissions.mode`,
+  default relaxed, with confirmation when changing from strict to relaxed.
+  The runtime reads that mode when opening a session, and reads the global model and effort on each send (changes apply between runs). The transport's explicit approval mode and host safeguards remain authoritative. A single summary groups consecutive thinking and tool steps, with body-size labels at 50% label
+  colour; an unfinished thought shimmers unless Reduce Motion is on, a
+  finished one names seconds and tool count. Tapping opens a live-updating trace form sheet with the thinking, tool calls and approval records, all without icons and aligned to the text margin. Main transcript headers also have no icons. Only provider-supplied reasoning
+  belongs in those entries. `ChatMarkdownView` uses a 16 pt block gap shared with the gap between cells,
+  removes extra heading top space and the trailing empty paragraph so gaps
+  match between cells. Pending approvals use `ComposerApprovalSection`
+  in place of the input, sharing its rounded background. The draft and
+  attachments are preserved while the editor, import controls and model,
+  effort and Stop row are hidden. Approval always stacks its content above
+  the full-width action row, with equal-width Deny then Approve buttons.
+  Both actions have tinted fills; only Approve has a border and semibold
+  text. Opening and closing, one card morphs between the input's height
+  and the section's on the composer's spring: the section is laid out
+  before it is revealed and cut off at the card's edge, never collapsed to
+  nothing, the bands it covers keep their own heights while they fade, and
+  the model row's blocks keep theirs, so nothing inside is squeezed; the
+  section keeps its text through its fade-out, and a request replacing
+  another cross-fades its text. Approvals appear only in the trace as a `ChatApprovalRow`, one body-sized operation title without an icon or written status prefix; VoiceOver still announces the decision. The next pending request replaces the section; it collapses
+  after the last decision. Test conversations are temporary fixtures created and
+  removed by the test driver; no preview-only approval or Stop handlers ship. `updateMessages`
+  follows a turn's output for at most a page and never after a drag; a
+  keyboard or composer height change keeps a reader at the latest message
+  there and leaves any other where it was. A reader at the latest message when the page changes width (the
+  sidebar opening or closing) is kept there while the rows wrap again and
+  are measured, until a drag. The message list is explicitly registered as the
+  navigation bar's top content scroll view. `ChatTopBlurView` owns the masked
+  backdrop and a matching page-color frost behind the status bar and navigation
+  controls: radius 1 pt, linear alpha mask, linear page-color frost from 1.0
+  to 0, and height equal to the top safe area plus 20 pt. The system top edge
+  effect is hidden on iOS 26. Image albums use
+  the user bubble's accent gradient with a 1 pt inset and concentric continuous
+  corners; that inset is included in their width and height limits. Transcript
+  rows do not clip selection handles. Text selections retain the system menu;
+  a system response with only Copy/Select All receives Look Up, Share and,
+  from iOS 17.4, the public translation presentation.
+- **The sibling wheels** (owner, 2026-10-17): the app target, and only it,
+  links the toolkit Irisin, Fila, Xrash and iGhostVT share, with Irisin's
+  pins and requirement shapes (`upToNextMajor`), all static, so that code
+  ported from them compiles as it is. One reason each:
+  *SPIndicator* 1.6.5 is the floating one-line confirmation ("Copied",
+  "Deleted") every sibling shows; UIKit has none, and one by hand is a
+  window, a queue and haptics. *AlertController* 3.0.0 is the siblings'
+  alert, with input fields and progress, which `UIAlertController` cannot
+  host; it runs `String(localized:)` on every title and message, so pass
+  it catalogue keys, never already-localized text. *Then* 3.0.0 is the
+  `.then {}` the siblings' view code is written in. *SnapKit* 6.0.0 is
+  their Auto Layout DSL; `remakeConstraints` and `updateConstraints` keep
+  each view's constraints in one place where anchors would leave them to
+  be tracked by hand. *SwifterSwift* 8.0.0 (the `SwifterSwift` product,
+  the only one) was asked for by the owner; never add an app extension
+  with a name it already has, or the call becomes ambiguous. *Dog* 0.1.2
+  is the siblings' persistent journal: the live log keeps no history on
+  iOS, so a file is the only record of an earlier launch a user can send.
+  Not taken: SDWebImage and ScribbleLetterView, which nothing needs yet,
+  and GlyphixTextFx (owner, 2026-10-17): Litext's animated text covers
+  the same `numericText`-style transition.
+  **Dog's journal** is `~/Documents/wiki.qaq.apelin/Journal/Dog_<date>_<id>.log`:
+  call `Dog.shared.initialization(writableDir: DataFolder(home:
+  NSHomeDirectory()).root)` once, early in `didFinishLaunching`, after the
+  data folder is known to exist. Never call it with no argument: its
+  default is `.documentDirectory`, which for an app with no container is
+  mobile's shared `~/Documents`, and the journal would land in
+  `~/Documents/Journal`. Dog keeps 128 files by default and mirrors every
+  line to the unified log under its own subsystem, `com.lakr233.dog`. It
+  is the app's alone: apelind and the workers never link it and keep their
+  own logging, and no task, scope or operation reads the journal.
+- **Release notes** live in `Documents/Releases/<version>.md`, written before
+  the tag.
+- **Before every push, tag or release**, an agent reads the diff, the staged
+  payload tree and `strings` of the built binaries for credentials, private
+  keys, home or scratch paths, device identifiers, hostnames and addresses.
+  Nothing goes out until it comes back clean. No device hostname, serial, UDID
+  or LAN address goes into docs, commit messages or release bodies.
+
+### Projects and builds (apelin-build, 2026-10-17)
+
+- **Documents** (`ApelinProject`) go through `StrictJSON` (UTF-8, no BOM,
+  no duplicate member, integers only within ±(2^53−1)), then the schemas
+  themselves, embedded by `Packages/ApelinKit/Scripts/embed-schemas.py` and
+  held to `Documents/Schemas/*.schema.json` by a test, then the rules beyond
+  them — `Documents/Schemas/Tools/apelin_schema.py` ported message for
+  message. Canonical JSON and both approval digests are byte-identical to
+  it: the fixtures, the edit table, and every shipped template instantiated
+  by both and compared file by file are in `ApelinProjectTests`.
+- **Extensions** are scanned from `<install root>/usr/share/apelin/development/`
+  on every `extensionList`; each is checked alone and a bad one, or both of
+  a duplicate id, is listed with its problems and never offered.
+- **projectCreate** stages beside `Projects/<name>/` (`.<name>.creating-…`)
+  and moves in with `renamex_np(RENAME_EXCL)`. Apelin supplies `projectName`,
+  `projectID` and the `template*` values; `bundleID` and `packageID` default
+  to `local.apelin.<name as a slug>`, an `identifier` parameter named
+  `productName` to the name's words joined and capitalised (`I3 Chain Tweak`
+  → `I3ChainTweak`, so two projects never install the same file),
+  `deploymentTarget` to 16.0,
+  `architectures` to the manifest's, toolchain and SDK to the registry's
+  defaults. The answer carries `descriptionDigests` {build, packaging},
+  which the session host's approval ledger records as the template baseline
+  for that project ID, and `baseline` (`ProjectBaseline`: the same digests
+  with both descriptions' canonical JSON and the template, for a diff);
+  nothing in the project folder holds either. `projectCheck` answers
+  `descriptionDigests` of the project as it is now, absent when a
+  description cannot be computed. With `purpose: distribution` (and an
+  optional `bootstrap`) it adds `distribution.*` warnings (`DistributionCheck`
+  in ApelinBuild: template placeholders, the template's first version, a
+  `local.apelin.` identifier, an app without an icon, a version already
+  packaged for the target), never an error; the distribution page and the
+  agent's `check_distribution` tool read them (`Documents/Distribution.md`).
+- **The environment** apelin-build reads through `EnvironmentRegistry`
+  (`ApelinProject/Environment`); on the device that is `EnvironmentStores`,
+  apelin-environment's own files read as they are — `Environment/Toolchains/registry.json`
+  and `SDKs/.registry/<id>.json` — without linking ApelinEnvironment. A
+  toolchain's binding digest is `sha256:` + its `contentDigest`, an SDK's
+  `sha256:` + its tree `digest`; a component counts only if its self-check
+  passed; tools are `<path>/usr/bin/<tool>` (or the CLT's
+  `Library/Developer/CommandLineTools/usr/bin`). A project builds only
+  against the toolchain and SDK whose ID *and* digest it is bound to.
+- **A build** (`ApelinBuild`) has one ID: the host's task ID, which is
+  `APELIN_BUILD_ID`, the artifact ID and what `confirmLoaded` takes. Its
+  layout comes from the assignment — mobile's home inside the install root
+  is roothide, otherwise rootless — and it builds only that one. Outputs live
+  in `~/Documents/wiki.qaq.apelin/Builds/<projectID>/<buildID>/` (objects,
+  slices, products, dSYMs, `build.log`, the deb), never in the project. Tools
+  are the registered toolchain's `usr/bin/<tool>`, posix_spawn'd by argv,
+  stdin `/dev/null`, `POSIX_SPAWN_CLOEXEC_DEFAULT`, a process group each
+  (cancel kills the group). clang gets `-isysroot <SDK>`, `-arch`,
+  `-mios-version-min`, `-O`, `-g`, `-fobjc-arc`, `-Wall -Wextra`,
+  `-Werror=unguarded-availability-new`, `-fvisibility=hidden`,
+  `-ffile-prefix-map=<project>=.` and the `APELIN_*` defines, run in the
+  project folder with relative sources. Signing is `ApelinCodeSign`, no ldid:
+  byte for byte what `ldid -Hsha256 -S[entitlements]` writes. It is the one
+  signer: the toolchain retarget (`Packages/ApelinToolchain`,
+  `MachOImage.signed`) lays out its own slice but builds the blobs with the
+  same `LdidStyleSignature` and `LdidEntitlements`, which Irisin's seven
+  device fixtures there hold too; never a second copy. Script steps
+  run with the bootstrap's own interpreter, in the project folder, as
+  mobile; Confirm reviews them through the build digest before `buildStart`.
+- **Its task events**: `stage {stage, product?}`, `log {line}`, `diagnostic`
+  (a `ProjectDiagnostic`; clang and ld lines parsed to file, line, column,
+  severity), `artifact` (a `BuildArtifact` with `path` — the deb, inside
+  `~/Documents/wiki.qaq.apelin/Builds/` —, `projectID` and
+  `packagingDigest`, which the host's ArtifactRegistry records), and a final `state` that, on
+  success, also carries `artifactID`, `digest`, `buildID`, `packageID`,
+  `version` and `bootstrap`.
+- **The artifact** is registered at `~/Documents/wiki.qaq.apelin/Builds/artifacts/<artifactID>.json`
+  (`ArtifactRecord`): the deb's path and `sha256:` digest, both description
+  digests as built, the products with their digests and UUIDs, the dSYMs,
+  and `loadCheck` (`BuildLoadCheck`: marker `ApelinLoaded <buildID>`,
+  subsystem the package ID, the dylib and its filter plist — `<dylib name>.plist`
+  beside it — logically and under this install root, the filter). The file
+  is mobile's: `installPackage{artifactID, digest}` copies the deb to the
+  host's private staging and refuses it unless the copy's digest is the one
+  asked for.
+- **The deb** is written by `DebPackageWriter`, never dpkg-deb: the logical
+  layout through `PackageLayout`, `Depends` from `firmware (>= deployment
+  target)`, `depends` and `dependsByBootstrap`, maintainer scripts with
+  `@PREFIX@`/`@ROOTFS@` filled and `sh -n` passing, `control.tar.gz`
+  (`controlCompression = .gzip`, which the host reads) and `data.tar.zst`. ApelinDebArchive brings
+  `libarchive.xcframework` into apelin-build, reviewed in `Licenses/`.
+- **Tested** by `make harness`: the schema fixtures and the reference
+  implementation, `ApelinCodeSign` against ldid's own output
+  (`Packages/ApelinFormats/Tests/ApelinCodeSignTests/Fixtures/build.sh`), and
+  the tweak template built with Xcode's tools and iPhoneOS SDK into a
+  roothide and a rootless deb read back by dpkg-deb, codesign and ldid. On a
+  device: `Documents/Console/scripts/i3-chain.json` (create → check → build →
+  install → confirmLoaded with `trigger: respring`; delete
+  `Projects/I3 Chain Tweak` before running it again).
+
+### Product (decided 2026-10-16)
+
+- **Toolchain**: no Apple binary is redistributed and no LLVM is built.
+  The device fetches Apple's Command Line Tools package itself (no Xcode, no
+  Apple ID), unpacks it and retargets the tools to iOS on the device — the
+  platform, the flattened framework paths, the Swift shims, the signature.
+  The tools being retargeted are macOS binaries, so that editing is our own
+  code, not `vtool` or `install_name_tool`. Exporting a retargeted toolchain
+  and importing one sent from elsewhere is a transfer file (`.apetc`,
+  Decisions ▸ Transfer files), user to own device.
+- **Swift** is in v1, optional at toolchain setup; templates default to ObjC.
+- **SDK**: the Command Line Tools carry no iPhoneOS SDK. The SDK manager
+  downloads one from `owngoal-dev/iOS-SDKs` — a detached fork of
+  `xybp888/iOS-SDKs` we maintain and credit, one SDK per branch — or another
+  source the user adds, or takes a file, identifies it from `SDKSettings.json`
+  and its `.tbd` targets, and registers it. No Apelin package carries an SDK.
+- **Git** is libgit2, built and kept as `Lakr233/libgit2.xcframework` the way
+  `Lakr233/libarchive.xcframework` is.
+- **Agent**: option C — the session host spawns `apelin-agent`, running as
+  mobile and linking KWWKAgent; the app renders its structured events.
+- **Credentials** live in the keychain, this device only, never synced, in
+  Apelin's own items; nothing is shared with kk or `~/.kwwk`. Exporting a
+  signed-in state comes later.
+- **Approval** has two modes. *Relaxed* runs everything. *Confirm* lets every
+  edit inside the project through — never one in a git directory, which no
+  mode writes —, plus a preset list of reads and commands
+  (respring among them); any other system tool or binary is confirmed at
+  every step. Under *Confirm*, a build or install whose build or packaging
+  description matches the project's template runs without asking; a changed
+  one is reviewed on its first run after each change, the approval bound to
+  that description's digest and kept by the session host. The UI and the
+  agent call *Confirm* Strict (严格模式; owner, 2026-10-22); `ApprovalMode.confirm`
+  and every stored or wire value keep the name.
+- **Install** always packages a deb and hands it to Irisin's daemon. irisind
+  is changed to accept a peer by its entitlement and an executable under the
+  jailbreak root or the system, not by Irisin's own path, and ships in a new
+  Irisin release; Apelin depends on that version and installs through it
+  from there on. No CLI, no symlinks into the load directory. Nothing in
+  Apelin couples to the `apt` or `dpkg` binaries: both are on their way out.
+- **Reuse before writing**: everything the five sibling apps already do comes
+  across — iGhostVT's terminal, log viewing, Fila's binary parsing and its
+  file-descriptor editing through the privileged process, Irisin's signing —
+  taken as is where it fits and changed where it does not.
+- **In v1**: everything that can be wired in, the terminal and git included.
+  Not clangd: the editor is basic editing on Runestone (vendored,
+  `Packages/Runestone`), with no completion, hints or jump-to-definition.
+- **Projects** live in `~/Documents/wiki.qaq.apelin/Projects/<name>/`, nowhere
+  else.
+- **Diagnostics** use `owngoal-dev/icli` for everything it can do — logs,
+  crash reports, screenshots, the UI tree and actions, respring — and gaps are
+  filled in icli, not beside it.
+- **Lists and rich text** follow FlowDown: ListViewKit, MarkdownView, Litext
+  and DisplayLink. FlowDown is the owner's own code (Lakr233's Inhouse
+  Code; owner, 2026-10-21), so it is brought across as it is, whatever
+  its licence says; every file taken from it starts with the two lines
+  `// Lakr233's Inhouse Code, from FlowDown.` and
+  `// I CAN DO WHAT THE FUCK I WANT.`
+- **Every package** — the IDE, each development extension, each agent tool
+  extension — ships as a rootless and a roothide deb in our repository
+  index.
+- **Packages**: the IDE is one package and depends on no injection framework.
+  The development environment ships as extensions — app, tweak, command-line
+  tool and preference bundle support — that the IDE package recommends, so
+  they come by default and removing one is not an error. The tweak extension
+  depends on an injection framework. Templates from OwnGoal's open-source
+  template repositories reach the extensions by a file convention, and the
+  app discovers extensions and templates at launch.
+- **Not in v1**: source packages (later, when a user links their GitHub, the
+  app manages the repository instead), and DCRM in any form.
+- **Milestone 1 is the whole chain end to end**: the toolchain set up on the
+  device, the SDK manager (download, check, register), project checks, the
+  extensions with their templates, then build, sign, package, install through
+  Irisin, respring and confirm the tweak loaded. The UI covers daemon access,
+  project management and install, on iPhone and iPad with a standard sidebar
+  split view, borrowing the five-field apps' designs — a privileged process
+  handing back a file descriptor for editing among them.
+
+## Layout
+
+```
+Apelin/                  the app: main.swift (manual UIApplicationMain), Application/
+                         (delegate, ExecutableWatch, QuietExit, saved-state reset),
+                         Interface/<feature>/, Resources/ (assets, string catalogue)
+                         Console/ (the console's launch hook), Service/ (ApelinService.app),
+                         DaemonClient (the app's ApelinTransport)
+Apelind/                 the daemon, product `apelind`: main.swift (mode switch), Proxy/
+                         (listener, WorkLedger, SessionLink), Session/ (SessionHost,
+                         TaskRegistry, WorkerSupervisor, CallerPolicy, Approval/, Install/,
+                         Files/, Terminal/, ToolHost/), Dispatch/ (Dispatcher,
+                         <Domain>Handler.swift), Vendor/ (IrisinExternalClient),
+                         PeerAuthenticator, Spawn, syscalls
+Workers/<Name>/          one tool target each: Environment, Build, Agent, Diagnostics,
+                         LogReader (products apelin-environment … apelin-log-reader)
+Packages/ApelinKit/      local package: ApelinCore, ApelinProtocol (AppOperation,
+                         Operations/<Domain>.swift, Tasks, Envelope, Service/, Worker/),
+                         ApelinEnvironment, ApelinBuild, ApelinProject, ApelinGit,
+                         ApelinConsole (the console's runner, linked into the app),
+                         ApelinReplay (ApelinService from captured runs, Fixtures/); Tests/
+Packages/<Other>/        standalone packages the workers link (ApelinToolchain,
+                         ApelinFormats, ApelinDiagnostics, ApelinAgent, ApelinToolHost)
+Packages/Runestone/      the editor's text view and grammars, vendored and trimmed
+                         (README.md: origins, changes, adding a language); the app only
+Shared/                  compiled into the app and apelind: the XPC side of the wire
+                         (Protocol/: AppProtocol, AppXPC, XPCEnvelope), the XPC constant
+                         shim (XPCShim/, a C module), RoothideRoot
+Configuration/           Version, Base, Development and Release xcconfigs
+Packaging/               entitlements (Workers/<name>.entitlements too), the launchd plist,
+                         DEBIAN/{control,postinst,prerm,postrm}
+Scripts/                 package-deb.sh, install-device.sh, device.py (the device harness),
+                         collect-licenses.py and the gates
+Tests/                   the harness's host tests (RoothideRoot, ExecutableWatch, SessionHost)
+Licenses/                reviewed notices: review.json, Compatibility.md, one folder per component
+Documents/               Icon/ (the .icon source, in no target), Site/ (Pages), Releases/,
+                         Plan/ (Milestone-1, Handoff), Research/ (Device-Validation, the
+                         toolchain retarget, ApelinHello), Console.md, Console/ (scripts/,
+                         device-harness.json, fixtures/, demo/: the capture scripts and
+                         the replay sanitiser),
+                         Schemas/
+manifest.json            the owngoal-packages entry
+```
+
+## Build & verify
+
+- **Finish every round** (owner, 2026-10-21): use `code-clarity` for code
+  changes, validate the result, commit and push this task's changes, then
+  install and launch the current build on the existing vphone and verify it
+  is running. Preserve other tasks' uncommitted changes. Report any failed
+  step explicitly instead of claiming the round is complete.
+- `make harness` — the host tests on the Mac: RoothideRoot, ExecutableWatch
+  against a real replace/unlink/rollback, `swift test` for ApelinKit (the
+  wire, the worker channel, paths, `ApelinService` and the console with its
+  scripts), the system-only check, and apelind and
+  every worker typechecked for macOS. Run this first. `SWIFTPM_SCRATCH`
+  moves the package's build directory (default `Packages/ApelinKit/.build`).
+- `make check` — project and packaging validation, including the floor greps.
+- `make format` — `swiftformat` over the repository, for Swift 6.2, as
+  `.swiftformat` configures it: Runestone, `Apelind/Vendor`, the
+  development templates (their digests are pinned) and `EmbeddedSchemas.swift`
+  are excluded. Run it before committing Swift. Two of its rewrites need a
+  hand: a `Task { [self] in … }` after `guard let self` loses the `self.` the
+  compiler still wants (write `Task { self.… }`), and `andOperator` turns
+  `&&` inside a ternary condition into a comma (name the condition with a
+  `let` first).
+- `make build` — unsigned app, daemon and workers for iPhoneOS.
+- `make deb` / `make deb-all` — roothide and rootless packages, verified.
+- Packages go onto a device through Irisin's installer (`irisin-cli install
+  --yes <deb>`, as root), never apt or dpkg; `install-device.sh` and
+  `device.py install` do so.
+- `make install` — build for `FLAVOR` and update the installation on
+  `DEVICE_HOST:DEVICE_PORT` over ssh, register the bundle with `uicache -p`,
+  and open the app.
+- `make vphone` — the same, roothide, onto the vphone VM: `VPHONE=<name>`
+  as vphone-launchpad names it (its address is read from the guest),
+  `VPHONE_HOST=<address>`, or with neither the one that is running.
+- `make vphone-app` — the inner loop while working on the app: the same
+  build, incremental, and only `Apelin.app` put over the installed one,
+  signed as the packager signs it and root's (`install-device.sh --app`),
+  in about ten seconds. No gates, no harness, no package; the daemon,
+  workers and dpkg's record stay as the last package left them, so a
+  change outside the app, and anything that ships, takes `make vphone`.
+  `make install-app` is the same onto `DEVICE_HOST`.
+- `make device-test [SUITE=smoke|regression|…]` — console scripts on that
+  vphone or device (`DEVICE_HOST`), set up, followed, checked and cleaned up
+  by `Scripts/device.py`; `make device-run SCRIPT='i1-smoke terminal'` for
+  some by name, `make device-status` for what it has, `make device-install`
+  for every built package without building. `Scripts/device.py --help` has
+  the rest (`call` one operation, `out`, `crashes --pull`, `screenshot`,
+  `kill-host`, `shell`).
+
+Give every parallel worker its own `DERIVED_DATA=/private/tmp/<name>` — spelled
+`/private/tmp`, never `/tmp`, or a package manifest that strips its own
+checkout path finds no headers.
+
+## Package Pages
+
+Every deb's control names its package manager icon (`Icon:`), served from
+`Documents/Site`: Apelin's is `icon.png`, rendered from the `.icon`; each
+extension's and the toolchain's is `icons/<package id>.png`, Apelin's plate
+and braces with a green mark in place of the leaf, drawn and rendered by
+`Scripts/render-package-icons.py` (sources in `Documents/Icon/Packages/`).
+A new package gets its mark there; `make check` fails a control without
+an icon Pages serves.
+
+`Documents/Site/depiction.json` is the native depiction page. Keep its Details
+copy accurate and use the largest banner referenced by the README as
+`headerImage`. The Pages workflow refreshes its Changelog from published GitHub
+releases using the shared updater pinned in that workflow; never maintain a
+second changelog implementation or edit generated release notes by hand.
+The copied publishing workflow must be named `Release` so Pages refreshes after
+it succeeds. Deploy from `main`, including when an older release is edited.
+
+Keep the `uikittools` dependency: its triggers register and unregister the app.
+Maintainer hooks manage the daemon only; never add explicit `uicache` calls.
+
+That trigger is `uicache -a`, which registers only what is not registered yet.
+A package manager's UI re-registers an upgrade itself; an install from a
+`.deb` file over an installed copy may not, and LaunchServices keeps the previous build's
+Info.plist — version, document types, URL schemes, every key SpringBoard reads
+from the record rather than from disk. After installing by hand, run
+`uicache -p <prefix>/Applications/<App>.app` in the terminal, and respring if
+SpringBoard has to read it again. When a plist or entitlement change "does not
+take", check the record's `CFBundleVersion` against the bundle's before
+anything else.
+
+## Where things get tested
+
+The Mac harness first (`make harness`: host tests on the Mac, no simulator);
+then a vphone for the app and everything visual — `make vphone-app
+VPHONE=Banana` for the iPad, `VPHONE=Date` for the iPhone, screenshots by
+`Scripts/device.py screenshot` —, `make vphone` and `make device-test` for
+anything that needs the package installed or runs a console script, a
+jailbroken device for what a vphone cannot show, and an actual device on the
+oldest OS this app claims for that floor (`make check`'s SF Symbol and XPC
+macro gates and the packager's rpath check catch some of what breaks there;
+none of them launches the app on it). There is no simulator
+build: the app is not run on the iOS Simulator. Report which of those actually
+ran. On a device, `make device-test` (the smoke suite, under a minute) after
+every install, `SUITE=regression` before calling a change done, on an iPhone
+and an iPad vphone both.
+What has run on a device so far, and what is still to run, is
+`Documents/Research/Device-Validation.md`; keep it current rather than
+adding a dated record beside it.
+
+## Gotchas that bit us
+
+- **A package resource bundle beside a tool.** KWWKAI reads its model
+  catalogue through `Bundle.module`. Xcode's accessor for a command-line
+  tool looks beside the executable and names no build path (SwiftPM's own,
+  which kk patches out, bakes in the build directory), so the packager
+  installs `kwwk_KWWKAI.bundle` in `usr/libexec/apelin/` next to
+  apelin-agent; without it the first session is a `fatalError`.
+- **A back-deployed Swift library beside a tool.** apelin-agent links
+  `@rpath/libswiftCompatibilitySpan.dylib` (Swift 6.2's `Span`
+  back-deployment library), and its only rpath was `/usr/lib/swift`. iOS 26 has
+  the library there; iOS 16–18 do not, and dyld would kill the worker before
+  `main`. Xcode embeds such a library into an app's `Frameworks/` only, never
+  beside a command-line tool. Every worker target's rpaths are now
+  `/usr/lib/swift`, then `@executable_path`, so the OS copy wins where it
+  exists. The packager installs the toolchain's copy
+  (`swift-*/iphoneos/`, install name `/usr/lib/swift/…`) in
+  `usr/libexec/apelin/`, re-signed with ldid like the rest
+  (`worker_runtime_libraries` in `Scripts/package-deb.sh`).
+  `Scripts/check-rpath-dependencies.py` then fails the package on any shipped
+  Mach-O with a strong `@rpath/` dependency that resolves to neither a file in
+  the package nor a library listed as present on the floor.
+- **C `__FILE__` in a package target.** Package targets do not read
+  `Configuration/Base.xcconfig`; BoringSSL's error macros put a derived-data
+  path into apelin-agent once per source file. The Makefile passes
+  `OTHER_CFLAGS` with `-ffile-prefix-map` on the xcodebuild line, which every
+  target sees: the derived-data folder for checkouts, and the repository
+  root for the vendored tree-sitter runtime's `assert`s
+  (`Packages/Runestone`).
+
+- **The scaffold's daemon idle-exited under `KeepAlive`.** The template's
+  daemon is on-demand and exits three seconds after its last client; the
+  session-host plist kept it alive, so launchd restarted it every few
+  seconds, throttled. It looked fine on the vphone — `apelind` was running
+  each time anyone looked. The plist and the idle exit must agree: apelind
+  is now on-demand (Product, 2026-10-16), and its idle exit waits for every
+  piece of work to finish, not three seconds after the last client.
+- **A vphone guest can refuse password authentication.** One answered only
+  keyboard-interactive, and an agent's keys used up the attempts first.
+  `install-device.sh` clears `SSH_AUTH_SOCK`, turns public keys off and asks
+  for keyboard-interactive, which sshpass answers.
+- **"Unable to register" from uicache is not always a failure.** On the
+  iOS 27 iPad vphone, uikittools' trigger and `uicache -p` both print it for
+  `Apelin.app`, and `uicache -i wiki.qaq.apelin` still shows the app
+  registered at the bundle's path, and it opens. Check the record before
+  chasing the message. `install-device.sh` runs `uicache -p` after every
+  install anyway, for the install-from-a-file case above.
+- **An iPad keeps the other app.** On the iOS 27 iPad vphone, opening
+  Settings and then Apelin, to make Apelin come to the foreground, left
+  Settings beside it with the focus: the UI tree read Settings, a tap meant
+  for Apelin went to Settings, and Apelin was suspended mid-run, its follow
+  stalled for good. The harness quits an idle app and launches it instead.
+  And (4, 4), a corner of the status bar on an iPhone, is a window's close
+  control on iPadOS 26: `diagnostics.json` taps (200, 4).
+- **A cancelled watchdog cancelled the reader it guarded.** The console's
+  follow cancelled its timeout task when the task ended; that task's
+  `try? await Task.sleep` woke and went on to cancel the reader, and when it
+  did so before the runner read `isCancelled`, a task that had ended
+  `succeeded` was reported as a timeout after 0.3 s (`i1-smoke`'s terminal,
+  once, on the iPad vphone). The watchdog now answers whether it fired. A
+  `try?` around a sleep that guards something else is the same bug.
+- **swift-nio 2.104.0 aborted sign-in on iOS 17.** On an iPhone 15 Pro on
+  iOS 17.3.1, apelin-agent died with SIGABRT on its event loop the moment a
+  browser reached the sign-in loopback: `swift_dynamicCastFailure` in
+  `configureHTTPServerPipeline`, casting its handlers to `[ChannelHandler]`.
+  2.104.0 made `ByteToMessageHandler`'s decoder `~Copyable`, so the
+  handler's conformances carry a `where Decoder: ~Copyable` condition, and a
+  Swift runtime before 6.0 (iOS before 18) cannot find such a conformance;
+  NIO's own `as?` casts to its handler protocols fail there too, silently.
+  The iOS 26 and 27 vphones never show it. `Packages/ApelinAgent` holds
+  swift-nio to `2.98.0..<2.104.0` through a product dependency, so the app's
+  and the package's `Package.resolved` both pin 2.103.0. Stay below 2.104.0
+  until NIO's noncopyable conformances work on the deployment floor, and
+  check again on an iOS 16 or 17 device before raising it.
+
+
+## Live chat and project UI (2026-10-21)
+
+- `ChatRuntime` keeps one reader per live session while the user switches pages. It persists ordered host events and reattaches after the saved cursor. A save that fails (a full disk, a folder it cannot write) leaves the conversation running in memory: `StorageWarning` says so once — "Storage Almost Full" when less than 512 MB is free, else the error — and not again until a save gets through; the unsaved conversations are written with the next save that works and on every return to the foreground, and the same notice comes at launch or on return when free space is already under 512 MB. Sending text never needs the disk; only attachments are staged. A stopped host can reopen the persisted session ID; the host and worker refuse a different workspace identity. Stop calls `agentAbort`; approval buttons call `agentApprove` and wait for the authoritative resolved event.
+- `agentPrompt` accepts an optional message UUID and descriptor-indexed attachments (at most eight, at most 32 MiB each). The worker saves them under random workspace-relative `Attachments/` paths; filenames remain display metadata. The session log records the message UUID and relative attachments, deduplicates a retried send, and supplies image content to the provider. Tool-returned images are saved the same way and replay into the image album UI.
+- Every app prompt also carries the current approval mode. The host updates its ledger before forwarding; the session updates its tool policy and metadata, records the message (its `prompt` or `queued` event), then reads its system prompt again before the model sees the message. A prompt naming the provider and model the session already resolved, with the same stored sign-in, keeps that resolution: no token exchange before the message is recorded, and a signed-out provider is still refused. An existing pending approval is not silently accepted. A bounded, tool-free completion on the current model summarizes the first user message into a `title` event; title failure leaves the local fallback and does not fail the turn.
+- Working state comes from session events, never a late send acknowledgement. Completed zero-second, zero-tool thought rows are omitted. A positive duration without tools shows only the duration; tools without a positive duration show only their count; “and” joins the clauses only when both values are positive. Thought headers use Litext numeric transitions, with reduced motion respected. User messages and reply text are selectable.
+- The conversation alternates a single thinking summary with response content. Consecutive thinking steps merge across tools and approvals. Tool calls and completed approvals stay out of the main transcript; tapping the summary opens their ordered trace in a form sheet, including provider-supplied thinking text. Headers use body-size 50% primary text aligned to the body margin, with a sentence for duration and tool count. Pending approval still replaces the composer.
+- Every agent tool, MCP tools included, requires a short `reason` (`ToolReason`), stripped from the arguments before the approval gate, the fingerprint, the tool or the host sees them; the `toolCall` event keeps it. The file tools end their result's first line with `+a -b` lines added and removed. While a turn runs, its trailing summary stays unfinished across calls and approvals, and `ThinkingPreviewView` shows one line under it, at the reading width, between hairlines on a 5% grey ground drawn out to the row's edges: the tail of the newest thinking pushed in from the trailing edge, or the newest call's reason, with a file edit's name and its green and red counts. A call without a reason shows its title. Thinking text, which arrives in chunks, is typed out a character at a time by a display link — fast enough to finish a chunk in about 0.35 s, never slower than 60 characters a second — with the newest eight fading in; a new thought types from its start, and the first text a line shows, text off screen and everything under Reduce Motion appear at once. A call's line fades in. The running summary reads “Executing N tools…” only while N calls await a result, “Thinking…” otherwise, and its title changes at most once a second: the first change at once, the latest of the rest when the second is up. A running summary stands in under a prompt, or under images a tool returned, until the turn shows something, with the id its next thought takes, and `toolCallPreparing` starts one while the model writes a call's arguments, so a turn never shows a gap. Transcript content is centred in at most 730 pt, the composer card's widest, so the two edges line up; the list itself stays full width, so its margins scroll.
+- `ProjectPickerController` lists real projects; `NewProjectController` chooses a catalog template, using its default parameters and calls `projectCreate`. Settings includes a read-only Templates catalog with single-line names with source-file byte counts at the trailing edge, no subtitles and no disclosure navigation. The built-in `wiki.qaq.apelin.workspace/empty` template creates only a workspace identity manifest, atomically and without SDK/toolchain requirements. It supplies no build or install baseline; a build requires a real build description.
+
+- Templates are a single read-only release catalog, with additions and corrections submitted as repository pull requests. There is no create/delete action or separate user template library. `make template-archive` validates and reproducibly packs sources, support files and licenses as `Apelin_<version>_Templates.tar.zst`; CI records its checksum and Release publishes that exact artifact without rebuilding.
+
+
+## Project display names and external project actions
+
+The project folder (`ProjectSummary.name`) and manifest `projectID` are stable.
+The optional manifest `displayName` is the name shown in the sidebar and project
+picker; `autoName` grants one automatic replacement of a generated placeholder.
+`ProjectCreateRequest.automaticallyName` is true while the name field is empty:
+the generated fruit name is only its placeholder, and the project takes it. A manual rename clears `autoName`; an automatic rename
+also checks that the displayed name still equals the original folder name, so
+a direct external rename wins even if it left the flag set. The current model's
+title completion returns a separate optional project-name candidate, limited to
+eight words and 80 characters. A greeting or generic question has no project
+candidate. If a greeting came first, the same chat can still receive a project
+candidate on a later concrete goal while the placeholder remains; its existing
+chat title is kept. Plain-title or malformed JSON responses never rename a project.
+`projectRename` is app-only in CallerPolicy; an agent can edit only its own
+project manifest through the existing scoped file tools. The writer opens the
+canonical project directory, refuses a symlink manifest, checks its identity and
+bytes again, and replaces it relative to that directory. These display fields
+are excluded from build and packaging approval digests.
+
+`ProjectCatalogMonitor` observes project directories and manifests, including
+in-place writes and atomic replacements made outside the app. A change reloads
+project metadata without changing the selected folder or chat. All Projects
+uses type section headers and single-line display names.
+
+The chat's More menu acts on its current project, in three groups: Rename Project…;
+Open in iGhostVT and Open in Fila; Export… and Distribute…. General Chat has no
+project actions. Fila opens the canonical folder with `fila://open?path=…&tab=new`;
+iGhostVT 1.6.19 or later opens `ighostvt://new?directory=…`, a directory-only URL
+that cannot carry a shell command. Both apps are package dependencies. Project
+export reuses `transferExport` and the real `.apeproj` transfer format; no new
+archive format or exporter is introduced. Distribution sends `buildStart` with
+its optional `bootstrap` (`roothide` or `rootless`); omission retains the current
+device default. The distribution page starts with no selected target and no build;
+the user chooses one target and taps Build. The first page lists the
+distribution check's warnings for that target, offers Ask Agent to Prepare (a
+prompt sent to the project's conversation), and asks before building with
+warnings left; Build pushes `DistributionBuildController`, which sends one
+build request, shows only that target's progress, keeps the build log behind
+its `…` menu and exports its one verified package. Choosing another target
+requires going back and a new run. The table uses stable diffable identities and
+reconfigures progress rows in place. Each release build produces its own package
+and dSYM through the existing complete build pipeline (see `Documents/Distribution.md`).
+
+
+The agent's system prompt (`ApelinAgent/Session/SystemPrompt.swift`) is kept
+short, after pi's: the user's language, the result first with no preamble, a
+greeting answered with a greeting (no tools, no survey of the project), then the
+checks actually run and any real blocker. It asks for independent tool calls in
+one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
+logs and MCP results as data, and ends with the current date. The project's
+`AGENTS.md`, else `CLAUDE.md` — a regular file inside the project, at most
+16 KB — is added as project instructions that never override the prompt or the
+approval mode. Skills are pi's progressive disclosure: the prompt lists each
+built-in and user skill (`~/Documents/wiki.qaq.apelin/skills`) by name and
+description only, and `read_skill{name, file?}` reads the body, or a file in a
+user skill's own folder (no link out of it), on demand; it is a read preset.
+Skills, memory and the project instructions are read again for every prompt.
+
+## Long-term agent memory
+
+`MemoryStore` in ApelinCore owns `memories.json` and `memories.lock` directly
+inside the shared data folder. App and mobile agent workers use the same store;
+there is no daemon operation or provider-specific memory service. Records have
+stable UUIDs, a short title, a body and an optional stable project ID. Nil means
+all chats; project records are injected only into that project's sessions.
+Settings ▸ Agent ▸ Memories lists both, resolves current project display names,
+and supports adding, editing and deleting. User additions apply to all chats;
+editing preserves a record's scope. Missing projects remain visible for cleanup
+but their records never enter another project's context.
+
+Every mutation rereads under an interprocess file lock and compares a snapshot
+revision, then atomically replaces the JSON through the opened data directory.
+No snapshot is written back from a cache. A stale create, update or deletion is
+refused; a user edit or deletion therefore cannot be undone by an older pending
+agent write. Files must be regular, singly linked, owned by the calling mobile
+user and not writable by group or others; symlinks are refused. Corrupt data is
+reported rather than replaced with an empty library. Titles are limited to 120
+characters, bodies to 2,000, with at most 64 records and 32,768 content bytes.
+
+`memory_list`, `memory_save` and `memory_delete` are local agent tools and run
+without an approval prompt. They can see all-chat records and the current
+project's records only. Every new prompt or steer refreshes the saved context
+from disk, including existing sessions. Memory is explicitly untrusted fact
+and preference data, never instructions or authorization. The agent is told to
+maintain only durable useful facts, avoid secrets and transient conversation,
+and not recreate user-deleted facts from older context. Cross-session memory
+is separate from transcript recovery and user skills; kwwk model selection and
+compaction defaults are unchanged.
+
+## Table updates
+
+The app's UIKit tables use diffable data sources. `TableDataSource` keeps stable
+row identities separate from their equatable display content, so unchanged
+refreshes leave selection and row actions alone. Every such table is a
+`FirstFillTableView` (a page that is one table derives from `TableController`,
+never `UITableViewController`; the project picker's list is a
+`FirstFillCollectionView`): its first snapshot waits until the list is in a
+window at its own width, then goes in and is laid out in that pass without
+animation, and every update until then replaces it. Rows laid out earlier are
+laid out at a width of zero, and the push or sheet that gives the list its width
+stretches them from there. Whether a later change animates is `ListPacing`'s,
+after Fila's lists: data that lands within 200 ms of the list's last change or
+of the load it answers (`TableDataSource.beginLoad()` where a fetch starts,
+`ListPacing.begin()` where a list is about to show other data: another project,
+a search) appears without animation, and so does the answer to the list's first
+load, however late. Only a list that has sat still in a window for longer
+animates its change, and never under Reduce Motion. Every table, the sidebar's,
+the memories' and the task log's raw diffable sources included, goes through
+both. Form fields and task-stage cells keep their existing views. The sidebar
+updates for changed titles, activity or order, rather than each streamed text
+fragment. The chat's ListViewKit keeps its own update mechanism.

@@ -1,0 +1,314 @@
+@testable import ApelinDiagnostics
+import XCTest
+
+/// Stands in for IcliKit, which does not build for macOS: answers each call
+/// with the fixture dictionary of the same name and records what was asked.
+final class FakeIcli: IcliSurface, @unchecked Sendable {
+    private let responses: [String: [String: Any]]
+    private let lock = NSLock()
+    private(set) var calls = [String]()
+    var lockStateResponse: [String: Any]?
+    var screenshotResponse: [String: Any] = [:]
+    var crashText: [String: Any] = [:]
+    /// Answers for `frontmostApp`, one per call, the last one repeated;
+    /// empty: the fixture's.
+    var frontmostAnswers: [[String: Any]] = []
+
+    init() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "icli-responses", withExtension: "json", subdirectory: "Fixtures"))
+        responses = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: [String: Any]])
+    }
+
+    private func answer(_ name: String, _ detail: String = "") -> [String: Any] {
+        lock.lock()
+        calls.append(detail.isEmpty ? name : "\(name) \(detail)")
+        lock.unlock()
+        return responses[name] ?? [:]
+    }
+
+    func captureSyslog(seconds: Double, filter: IcliSyslogFilter, maxLines: Int) throws -> [String: Any] {
+        let fields = [
+            "process=\(filter.process ?? "-")", "subsystem=\(filter.subsystem ?? "-")",
+            "message=\(filter.messageContains ?? "-")", "level=\(filter.level)",
+        ]
+        return answer("captureSyslog", "seconds=\(seconds) \(fields.joined(separator: " ")) maxLines=\(maxLines)")
+    }
+
+    func openSyslogStream(
+        filter _: IcliSyslogFilter,
+        seconds _: Double,
+        handler _: @escaping @Sendable (LogEntry) -> Bool,
+        onEnd _: @escaping @Sendable (String) -> Void,
+    ) throws -> any IcliSyslogStream {
+        _ = answer("openSyslogStream")
+        throw DiagnosticsError.unavailable("not in this fake")
+    }
+
+    func crashLogs(bundleID: String?) throws -> [String: Any] {
+        answer("crashLogs", bundleID ?? "-")
+    }
+
+    func readCrashLog(_ path: String, maxBytes: Int) throws -> [String: Any] {
+        _ = answer("readCrashLog", "\(path) \(maxBytes)"); return crashText
+    }
+
+    func takeScreenshot() throws -> [String: Any] {
+        _ = answer("takeScreenshot"); return screenshotResponse
+    }
+
+    func uiElements(maxElements: Int, visibleOnly _: Bool, clickableOnly _: Bool) throws -> [String: Any] {
+        answer("uiElements", "max=\(maxElements)")
+    }
+
+    func tap(x: Double, y: Double) throws -> [String: Any] {
+        answer("tap", "\(x),\(y)")
+    }
+
+    func tapElement(text: String?, identifier: String?, role _: String?, match: String, index: Int) throws -> [String: Any] {
+        answer("tapElement", "\(identifier ?? text ?? "-") \(match) \(index)")
+    }
+
+    func swipe(x1: Double, y1: Double, x2: Double, y2: Double, seconds: Double) throws -> [String: Any] {
+        answer("swipe", "\(x1),\(y1)->\(x2),\(y2) \(seconds)")
+    }
+
+    func typeText(_ text: String, delayMS _: Double) throws -> [String: Any] {
+        answer("typeText", text)
+    }
+
+    func frontmostApp() -> [String: Any] {
+        let fixture = answer("frontmostApp")
+        lock.lock()
+        defer { lock.unlock() }
+        guard let next = frontmostAnswers.first else { return fixture }
+        if frontmostAnswers.count > 1 {
+            frontmostAnswers.removeFirst()
+        }
+        return next
+    }
+
+    func lockState() -> [String: Any] {
+        lockStateResponse ?? answer("lockState")
+    }
+
+    func runningApps() throws -> [String: Any] {
+        answer("runningApps")
+    }
+
+    func respring() throws -> [String: Any] {
+        answer("respring")
+    }
+}
+
+final class DiagnosticsTests: XCTestCase {
+    // MARK: Logs
+
+    func testSubsystemGoesToIcliBeforeItsCap() throws {
+        let icli = try FakeIcli()
+        let result = try Diagnostics(icli: icli).readLogs(LogFilter(subsystem: "wiki.qaq.apelin.hello", duration: 3))
+        // The fixture is icli unfiltered; Apelin's own check still holds.
+        XCTAssertEqual(result.entries.map(\.message), ["ApelinHello: alert shown", "ApelinHello: second line"])
+        XCTAssertEqual(result.source, .icli)
+        XCTAssertFalse(result.truncated)
+        // icli filters the subsystem itself, so its cap counts only those.
+        XCTAssertEqual(icli.calls, ["captureSyslog seconds=3.0 process=- subsystem=wiki.qaq.apelin.hello message=- level=debug maxLines=501"])
+    }
+
+    func testProcessIsExactWhileIcliMatchesSubstrings() throws {
+        let icli = try FakeIcli()
+        let result = try Diagnostics(icli: icli).readLogs(LogFilter(process: "springboard", messageContains: "loaded into"))
+        XCTAssertEqual(result.entries.map(\.pid), [800], "SpringBoardHelper is not SpringBoard")
+        XCTAssertEqual(result.entries.first?.date, ISO8601DateFormatter().date(from: "2026-10-17T02:15:00Z"))
+        // Checked here after icli, so icli is asked for its whole cap.
+        XCTAssertEqual(icli.calls, ["captureSyslog seconds=3.0 process=springboard subsystem=- message=loaded into level=debug maxLines=5000"])
+    }
+
+    func testLevelIsIcliLevelByName() throws {
+        let icli = try FakeIcli()
+        let result = try Diagnostics(icli: icli).readLogs(LogFilter(minimumLevel: .error, maxEntries: 10))
+        XCTAssertEqual(result.entries.map(\.level), [.error, .fault])
+        XCTAssertEqual(icli.calls, ["captureSyslog seconds=3.0 process=- subsystem=- message=- level=error maxLines=11"])
+        for level in LogLevel.allCases {
+            XCTAssertTrue(["debug", "info", "default", "error", "fault"].contains(Diagnostics.icliFilter(LogFilter(minimumLevel: level)).level))
+        }
+    }
+
+    func testTheCapTruncates() throws {
+        let result = try Diagnostics(icli: FakeIcli()).readLogs(LogFilter(maxEntries: 2))
+        XCTAssertEqual(result.entries.count, 2)
+        XCTAssertTrue(result.truncated)
+    }
+
+    func testOutOfRangeFiltersNeverReachIcli() throws {
+        let icli = try FakeIcli()
+        let diagnostics = Diagnostics(icli: icli)
+        for filter in [
+            LogFilter(duration: 0),
+            LogFilter(duration: 61),
+            LogFilter(duration: .nan),
+            LogFilter(maxEntries: 0),
+            LogFilter(maxEntries: 5001),
+            LogFilter(subsystem: ""),
+            LogFilter(messageContains: "a\0b"),
+            LogFilter(process: String(repeating: "x", count: 257)),
+        ] {
+            XCTAssertThrowsError(try diagnostics.readLogs(filter)) { error in
+                guard case DiagnosticsError.invalidParameter = error else { return XCTFail("\(error)") }
+            }
+        }
+        XCTAssertEqual(icli.calls, [])
+    }
+
+    // MARK: Crash reports
+
+    func testCrashListIsFilteredAndBounded() throws {
+        let icli = try FakeIcli()
+        let diagnostics = Diagnostics(icli: icli)
+        let springBoard = try diagnostics.listCrashReports(CrashReportListRequest(processName: "springboard", limit: 1))
+        XCTAssertEqual(springBoard.map(\.name), ["SpringBoard-2026-10-17-101500.ips"])
+        XCTAssertEqual(try diagnostics.listCrashReports(CrashReportListRequest()).count, 3)
+        XCTAssertThrowsError(try diagnostics.listCrashReports(CrashReportListRequest(limit: 0)))
+        XCTAssertThrowsError(try diagnostics.listCrashReports(CrashReportListRequest(bundleIdentifier: "../x")))
+    }
+
+    func testOnlyReportsInsideTheCrashDirectoriesAreRead() throws {
+        let icli = try FakeIcli()
+        let diagnostics = Diagnostics(icli: icli)
+        let outside = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).ips")
+        try Data("{}".utf8).write(to: outside)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        for path in [outside.path, "/etc/passwd", "/var/mobile/Library/Logs/CrashReporter/../../../../etc/hosts", "a\0b.ips"] {
+            XCTAssertThrowsError(try diagnostics.readCrashReport(path: path)) { error in
+                guard case DiagnosticsError.invalidParameter = error else { return XCTFail("\(error)") }
+            }
+        }
+        XCTAssertThrowsError(try diagnostics.readCrashReport(path: outside.path, maxBytes: 0))
+        XCTAssertEqual(icli.calls, [])
+    }
+
+    func testCrashTextKeepsIcliSizeAndTruncation() {
+        // icli read at most maxBytes, cut back to a whole character.
+        let cut = Diagnostics.decodeCrashText(["path": "/x.ips", "content": "ab", "size": 8, "bytes": 2, "truncated": true])
+        XCTAssertEqual(cut.text, "ab")
+        XCTAssertTrue(cut.truncated)
+        XCTAssertEqual(cut.size, 8)
+        let whole = Diagnostics.decodeCrashText(["path": "/x.ips", "content": "ab😀cd", "size": 8, "bytes": 8, "truncated": false])
+        XCTAssertEqual(whole.text, "ab😀cd")
+        XCTAssertFalse(whole.truncated)
+    }
+
+    // MARK: Screen and UI
+
+    func testScreenshotIsDecodedAndCapped() throws {
+        let icli = try FakeIcli()
+        let bytes = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
+        icli.screenshotResponse = ["data": bytes.base64EncodedString(), "width": 390, "height": 844, "coordinate_scale": 1.0]
+        let shot = try Diagnostics(icli: icli).screenshot()
+        XCTAssertEqual(shot.jpeg, bytes)
+        XCTAssertEqual(shot.width, 390)
+
+        icli.screenshotResponse = ["data": Data(count: Screenshot.maximumBytes + 1).base64EncodedString()]
+        XCTAssertThrowsError(try Diagnostics(icli: icli).screenshot())
+        icli.screenshotResponse = ["path": "/tmp/x.jpg"]
+        XCTAssertThrowsError(try Diagnostics(icli: icli).screenshot(), "a path is not an attachment")
+    }
+
+    func testUITreeDecodes() throws {
+        let tree = try Diagnostics(icli: FakeIcli()).uiTree()
+        XCTAssertEqual(tree.pid, 800)
+        XCTAssertTrue(tree.truncated)
+        XCTAssertEqual(tree.elements.map(\.label), ["Hello World", "OK", "Volume"])
+        XCTAssertEqual(tree.elements[1].identifier, "hello.ok")
+        XCTAssertEqual(tree.elements[1].tapPoint, UIPoint(x: 190, y: 382))
+        XCTAssertEqual(tree.elements[1].frame, UIRect(x: 40, y: 360, width: 300, height: 44))
+        XCTAssertEqual(tree.elements[2].value, "0.5")
+    }
+
+    func testActionsAreTypedAndChecked() throws {
+        let icli = try FakeIcli()
+        let diagnostics = Diagnostics(icli: icli)
+        try diagnostics.perform(.tap(UIPoint(x: 10, y: 20)))
+        try diagnostics.perform(.tapElement(UIElementSelector(identifier: "hello.ok", match: .exact)))
+        try diagnostics.perform(.swipe(from: UIPoint(x: 1, y: 2), to: UIPoint(x: 3, y: 4), seconds: 0.3))
+        try diagnostics.perform(.type(text: "hi", delayMilliseconds: 30))
+        XCTAssertEqual(icli.calls.filter { !$0.hasPrefix("lockState") && $0 != "frontmostApp" }, [
+            "tap 10.0,20.0",
+            "tapElement hello.ok exact 0",
+            "swipe 1.0,2.0->3.0,4.0 0.3",
+            "typeText hi",
+        ])
+
+        for bad in [
+            UIAction.tap(UIPoint(x: -1, y: 0)),
+            .tap(UIPoint(x: .infinity, y: 0)),
+            .tapElement(UIElementSelector()),
+            .tapElement(UIElementSelector(text: "x", index: 101)),
+            .swipe(from: UIPoint(x: 0, y: 0), to: UIPoint(x: 1, y: 1), seconds: 10),
+            .type(text: "", delayMilliseconds: 0),
+            .type(text: String(repeating: "a", count: 4097), delayMilliseconds: 0),
+            .type(text: "a", delayMilliseconds: 501),
+        ] {
+            XCTAssertThrowsError(try diagnostics.perform(bad), "\(bad)")
+        }
+    }
+
+    /// Right after an app switch RunningBoard names no single focal app for
+    /// about a second (seen on the iOS 26.4 vphone: readUITree failed at 0
+    /// and 0.5 s after Apelin came to the front, passed from 1 s on). A read
+    /// waits for the same verified app twice in a row.
+    func testTheTreeWaitsForTheForegroundToSettle() throws {
+        let icli = try FakeIcli()
+        let unverified: [String: Any] = ["bundle_id": "com.apple.springboard", "verified": false, "source": "unavailable"]
+        let apelin: [String: Any] = ["bundle_id": "wiki.qaq.apelin", "verified": true, "source": "runningboard"]
+        let settings: [String: Any] = ["bundle_id": "com.apple.Preferences", "verified": true, "source": "runningboard"]
+        icli.frontmostAnswers = [unverified, settings, unverified, apelin, apelin]
+        var diagnostics = Diagnostics(icli: icli)
+        diagnostics.settleInterval = 0
+        XCTAssertEqual(try diagnostics.uiTree().pid, 800)
+        let asked = icli.calls.filter { $0 == "frontmostApp" || $0.hasPrefix("uiElements") }
+        XCTAssertEqual(asked, Array(repeating: "frontmostApp", count: 5) + ["uiElements max=250"])
+        XCTAssertEqual(
+            diagnostics.settledForegroundApp(),
+            ForegroundApp(bundleIdentifier: "wiki.qaq.apelin", verified: true, source: "runningboard"),
+        )
+    }
+
+    func testAForegroundThatNeverSettlesIsNotRead() throws {
+        let icli = try FakeIcli()
+        icli.frontmostAnswers = [["bundle_id": "com.apple.springboard", "verified": false, "source": "unavailable"]]
+        var diagnostics = Diagnostics(icli: icli)
+        diagnostics.settleTimeout = 0.05
+        diagnostics.settleInterval = 0.01
+        XCTAssertThrowsError(try diagnostics.uiTree()) { error in
+            guard case .unavailable = error as? DiagnosticsError else { return XCTFail("\(error)") }
+        }
+        XCTAssertThrowsError(try diagnostics.perform(.tapElement(UIElementSelector(identifier: "hello.ok", match: .exact))))
+        XCTAssertFalse(icli.calls.contains { $0.hasPrefix("uiElements") || $0.hasPrefix("tapElement") })
+        XCTAssertFalse(diagnostics.settledForegroundApp().verified)
+    }
+
+    func testALockedDeviceTakesNoInput() throws {
+        let icli = try FakeIcli()
+        icli.lockStateResponse = ["locked": true, "screen_off": false]
+        XCTAssertThrowsError(try Diagnostics(icli: icli).perform(.tap(UIPoint(x: 1, y: 1)))) { error in
+            XCTAssertEqual(error as? DiagnosticsError, .locked)
+        }
+        XCTAssertThrowsError(try Diagnostics(icli: icli).uiTree())
+        XCTAssertFalse(icli.calls.contains { $0.hasPrefix("tap") || $0.hasPrefix("uiElements") })
+    }
+
+    // MARK: Apps, respring
+
+    func testAppsAndRespringDecode() throws {
+        let diagnostics = try Diagnostics(icli: FakeIcli())
+        XCTAssertEqual(diagnostics.foregroundApp(), ForegroundApp(bundleIdentifier: "com.apple.springboard", verified: true, source: "runningboard"))
+        XCTAssertEqual(try diagnostics.runningApps().first?.bundleIdentifier, "wiki.qaq.apelin")
+        XCTAssertEqual(try diagnostics.respring(), RespringResult(method: "frontboard_relaunch", previousPID: 800, pid: 1200))
+    }
+
+    func testAnUnverifiedForegroundIsReportedAsSuch() {
+        let app = Diagnostics.decodeForeground(["bundle_id": "com.apple.springboard", "verified": false, "source": "unavailable"])
+        XCTAssertFalse(app.verified)
+        XCTAssertEqual(Diagnostics.decodeForeground([:]).source, "unavailable")
+    }
+}

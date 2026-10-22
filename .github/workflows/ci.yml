@@ -1,0 +1,125 @@
+# Pushes and pull requests: test on the host, and in parallel
+# build and package the IDE and every extension (the four development
+# extensions, the agent tool extensions and the GPL assembler's
+# corresponding-source archive), keeping them for thirty days. Nothing is
+# published from here: a tag publishes, through `release.yml`, the
+# packages of its commit's run, once that run has passed.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A pull request's new push cancels the run of its old one. A push to
+# main keeps its own run however soon the next one follows, since a tag
+# on that commit publishes what the run built.
+concurrency:
+  group: apelin-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: true
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  HOMEBREW_NO_ANALYTICS: "1"
+
+jobs:
+  # Seconds, where the build takes minutes, so a broken host test says so
+  # long before the packages would.
+  test:
+    name: Host tests
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select newest Xcode
+        run: |
+          latest="$(find /Applications -maxdepth 1 -type d -name 'Xcode*.app' -print | sort -V | tail -n1)"
+          sudo xcode-select -s "$latest/Contents/Developer"
+          xcodebuild -version
+
+      - name: Run host tests
+        run: make harness SWIFTPM_SCRATCH="$RUNNER_TEMP/apelin-spm"
+
+  build:
+    name: Build and verify Debian packages
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    steps:
+      - name: Configure build paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DERIVED_DATA=$RUNNER_TEMP/apelin-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select newest Xcode
+        run: |
+          latest="$(find /Applications -maxdepth 1 -type d -name 'Xcode*.app' -print | sort -V | tail -n1)"
+          sudo xcode-select -s "$latest/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install packaging dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          formulae=()
+          command -v dpkg-deb >/dev/null 2>&1 || formulae+=(dpkg)
+          command -v ldid >/dev/null 2>&1 || formulae+=(ldid)
+          command -v zstd >/dev/null 2>&1 || formulae+=(zstd)
+          if (( ${#formulae[@]} > 0 )); then
+            brew install "${formulae[@]}"
+          fi
+
+      # The harness runs in the job beside this one. deb-all packages the IDE
+      # for both flavours, then every extension: the development extensions
+      # (their templates built with the iPhoneOS SDK first) and the agent
+      # tool extensions, each read back and verified.
+      - name: Build, package and verify the IDE and every extension
+        run: make deb-all CONFIGURATION=Release SKIP_HARNESS=1 DERIVED_DATA="$DERIVED_DATA" BUILD_NUMBER="$GITHUB_RUN_NUMBER"
+
+      # Both flavours package the one build, and neither strip nor ldid touches
+      # LC_UUID, so one set of dSYMs matches every shipped binary.
+      - name: Archive dSYMs
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(make --no-print-directory print-version)"
+          cd "$DERIVED_DATA/Build/Products/Release-iphoneos"
+          zip -qry "$GITHUB_WORKSPACE/build/Packages/Apelin_${version}_dSYMs.zip" ./*.dSYM
+
+      - name: Write checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/Packages
+          shasum -a 256 ./*.deb ./*_source.tar.xz ./*_dSYMs.zip ./*_Templates.tar.zst > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload Debian packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: apelin-${{ github.sha }}
+          path: |
+            build/Packages/*.deb
+            build/Packages/*_source.tar.xz
+            build/Packages/*_dSYMs.zip
+            build/Packages/*_Templates.tar.zst
+            build/Packages/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30

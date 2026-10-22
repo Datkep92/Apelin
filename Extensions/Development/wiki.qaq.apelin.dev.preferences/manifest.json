@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "id": "wiki.qaq.apelin.dev.preferences",
+  "version": "0.1.0",
+  "kind": "preferences",
+  "displayName": "Preference Bundle Development",
+  "summary": "Build Settings panes with a preference bundle, a specifier plist and a PreferenceLoader entry.",
+  "apelinCompatibility": {
+    "minimumAppVersion": "0.1.0",
+    "projectSchemaVersions": [1],
+    "manifestSchemaVersion": 1
+  },
+  "requirements": {
+    "toolchainComponents": ["c-family"],
+    "languages": ["objc"],
+    "sdkFrameworks": ["Foundation", "UIKit"],
+    "bootstraps": ["rootless", "roothide"],
+    "architectures": {
+      "rootless": ["arm64", "arm64e"],
+      "roothide": ["arm64e"]
+    },
+    "runtimeDependencies": {
+      "rootless": ["preferenceloader"],
+      "roothide": ["preferenceloader"]
+    }
+  },
+  "support": {
+    "preferences": {
+      "summary": "Declarations and a link stub for the private Preferences framework (PSListController, PSSpecifier), so a pane links against any registered SDK.",
+      "includeDirectories": ["support/include"],
+      "linkStubDirectories": {
+        "rootless": "support/stubs",
+        "roothide": "support/stubs"
+      },
+      "frameworks": ["Preferences"],
+      "installNames": {
+        "rootless": "/System/Library/PrivateFrameworks/Preferences.framework/Preferences",
+        "roothide": "/System/Library/PrivateFrameworks/Preferences.framework/Preferences"
+      },
+      "symbols": [
+        "_OBJC_CLASS_$_PSListController",
+        "_OBJC_METACLASS_$_PSListController",
+        "_OBJC_IVAR_$_PSListController._specifiers",
+        "_OBJC_CLASS_$_PSSpecifier",
+        "_OBJC_METACLASS_$_PSSpecifier",
+        "_OBJC_CLASS_$_PSViewController",
+        "_OBJC_METACLASS_$_PSViewController"
+      ],
+      "architectures": ["arm64", "arm64e"],
+      "spdx": "MIT",
+      "license": "LICENSE"
+    }
+  },
+  "templates": [
+    {
+      "id": "objc-bundle",
+      "directory": "templates/objc-bundle",
+      "displayName": "Preference Bundle (Objective-C)",
+      "summary": "A Settings pane with a switch and text field, package-specific preferences and change notifications.",
+      "language": "objc",
+      "toolchainComponents": ["c-family"],
+      "project": "apelin-project.json",
+      "parameters": [
+        { "name": "productName", "type": "identifier", "label": "Product Name", "help": "The bundle name, also the prefix of its principal class.", "required": true, "default": "ApelinSettings" },
+        { "name": "displayName", "type": "string", "label": "Title in Settings", "default": "Apelin Settings", "maxLength": 64 },
+        { "name": "summary", "type": "string", "label": "Description", "default": "Built on this device with Apelin.", "maxLength": 200 },
+        { "name": "author", "type": "string", "label": "Author", "default": "Apelin User", "maxLength": 64 }
+      ],
+      "files": [
+        { "path": "apelin-project.json", "format": "json" },
+        { "path": "Sources/RootListController.m", "format": "objc" },
+        { "path": "Resources/Root.plist", "format": "plist-xml" },
+        { "path": "Resources/Info.plist", "format": "plist-xml" },
+        { "path": "Packaging/entry.plist", "format": "plist-xml" }
+      ],
+      "digest": "sha256:ca557897201e3458059432baa9dfb5135e3f8b8e0b987976eb56130c8eeb6f1e"
+    }
+  ],
+  "provenance": [
+    {
+      "scope": "template:objc-bundle",
+      "origin": "imported",
+      "repository": "local:platformize-tweak-ios",
+      "commit": "26910cd8c524165a085232d72559b66ae0cc298c",
+      "paths": ["template/src/prefs/TWListController.h", "template/src/prefs/TWListController.m", "template/src/prefs/Root.plist", "template/src/prefs/entry.plist", "template/scripts/build-ios.sh"],
+      "adaptations": [
+        "Kept: a PSListController subclass as principal class loading Root.plist, a switch stored in the package's own domain with a PostNotification, the PreferenceLoader entry with PSLinkCell/isController, the generated bundle Info.plist keys, preferenceloader as the package dependency, and the layout (Library/PreferenceBundles, Library/PreferenceLoader/Preferences).",
+        "Changed: plists are XML rather than OpenStep text; the controller caches in the framework's _specifiers ivar instead of a static, so a second instance reloads correctly; reading and writing values is left to Preferences' own defaults/key handling instead of overriding it with NSUserDefaults; a text field row is added to show a value round-trip.",
+        "Changed: the private framework comes from this extension's own declarations and link stub instead of requiring a Theos SDK with PrivateFrameworks."
+      ]
+    },
+    {
+      "scope": "support:preferences",
+      "origin": "written",
+      "adaptations": [
+        "PSListController.h is written for Apelin, growing platformize-tweak-ios's one-class declaration (template/src/prefs/TWListController.h, MIT, OwnGoal Studio) to the ivar and methods the template uses. The .tbd stub is hand-written."
+      ]
+    }
+  ],
+  "licenses": [
+    { "path": "LICENSE", "spdx": "MIT", "covers": ["template:objc-bundle", "support:preferences", "manifest"] }
+  ]
+}

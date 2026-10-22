@@ -1,0 +1,27 @@
+{
+  "name": "i2-git-remote",
+  "steps": [
+    {"op": "hello"},
+    {"op": "gitAuthorSet", "request": {"authorName": "Apelin Console", "authorEmail": "console@apelin.invalid"}},
+    {"op": "gitCredentialRemove", "request": {"host": "apelin.invalid"}, "label": "remove-absent"},
+    {"op": "gitSettings", "request": {}, "label": "settings"},
+    {"op": "expect", "request": {"step": "settings", "path": "response.authorName", "equals": "Apelin Console"}},
+    {"op": "expect", "request": {"step": "settings", "path": "response.authorEmail", "equals": "console@apelin.invalid"}},
+    {"op": "projectCreate", "request": {"templateID": "wiki.qaq.apelin.workspace/empty", "name": "I2GitImport", "values": {}}, "label": "workspace"},
+    {"op": "gitCloneInto", "request": {"projectID": "${workspace.response.projectID}", "url": "https://github.com/libgit2/TestGitRepository.git", "branch": "first-merge"}, "label": "import", "timeoutSeconds": 300},
+    {"op": "expect", "request": {"step": "import", "state": "succeeded"}},
+    {"op": "gitStatus", "request": {"projectID": "${workspace.response.projectID}"}, "label": "status"},
+    {"op": "expect", "request": {"step": "status", "path": "response.branch", "equals": "first-merge"}},
+    {"op": "expect", "request": {"step": "status", "path": "response.head", "equals": "0966a434eb1a025db6b71485ab63a3bfbea520b6"}},
+    {"op": "expect", "request": {"step": "status", "path": "response.entries", "equals": []}},
+    {"op": "gitFetch", "request": {"projectID": "${workspace.response.projectID}"}, "label": "fetch", "timeoutSeconds": 300},
+    {"op": "expect", "request": {"step": "fetch", "state": "succeeded"}},
+    {"op": "gitPull", "request": {"projectID": "${workspace.response.projectID}"}, "label": "pull", "timeoutSeconds": 300},
+    {"op": "expect", "request": {"step": "pull", "state": "succeeded"}},
+    {"op": "gitPush", "request": {"projectID": "${workspace.response.projectID}"}, "label": "push", "timeoutSeconds": 300, "allowError": true},
+    {"op": "expect", "request": {"step": "push", "state": "failed"}},
+    {"op": "expect", "request": {"step": "push", "path": "lastEvent.payload.reason", "equals": "authenticationRequired"}},
+    {"op": "gitCloneInto", "request": {"projectID": "${workspace.response.projectID}", "url": "https://github.com/libgit2/TestGitRepository.git"}, "label": "again", "allowError": true},
+    {"op": "expect", "request": {"step": "again", "errorCode": "conflict"}}
+  ]
+}

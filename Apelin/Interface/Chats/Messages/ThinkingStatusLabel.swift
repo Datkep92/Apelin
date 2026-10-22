@@ -1,0 +1,122 @@
+import LitextAnimation
+import UIKit
+
+/// A summary's title. On screen it changes at most once a second: the
+/// first change shows at once, and whatever arrives within the second waits,
+/// the latest of it shown when the second is up, so a run flipping between
+/// "Thinking…" and "Executing…" never cuts a transition short.
+final class ThinkingStatusLabel: LTXAnimatableLabel {
+    private static let minimumInterval: TimeInterval = 1
+
+    var font = UIFont.preferredFont(forTextStyle: .body) {
+        didSet { updateText(animated: false) }
+    }
+
+    var text: String? {
+        didSet { requestText() }
+    }
+
+    /// What is drawn, which trails `text` while a change waits its turn.
+    private var shown: String?
+    private var shownIdentity: AnyHashable?
+    private var lastChange: Date = .distantPast
+    private var pending: DispatchWorkItem?
+
+    var isThinking = false {
+        didSet {
+            if isThinking != oldValue {
+                updateShimmer()
+            }
+        }
+    }
+
+    private let shimmer = ShimmerLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        animator = LTXNumericTransitionAnimator()
+        animationPolicy = LTXNumericTransitionAnimator.policy
+        isSelectable = false
+        isAccessibilityElement = true
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateShimmer),
+            name: UIAccessibility.reduceMotionStatusDidChangeNotification,
+            object: nil,
+        )
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("Use init(frame:)")
+    }
+
+    /// Another row's text, or a label off screen, takes the text at once.
+    private func requestText() {
+        guard text != shown || pending != nil else { return }
+        pending?.cancel()
+        pending = nil
+        guard window != nil, shownIdentity == animationIdentity else {
+            show(animated: false)
+            return
+        }
+        let wait = lastChange.addingTimeInterval(Self.minimumInterval).timeIntervalSinceNow
+        guard wait > 0 else {
+            show(animated: true)
+            return
+        }
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            pending = nil
+            show(animated: window != nil)
+        }
+        pending = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: item)
+    }
+
+    private func show(animated: Bool) {
+        shownIdentity = animationIdentity
+        guard text != shown else { return }
+        shown = text
+        if animated {
+            lastChange = Date()
+        }
+        updateText(animated: animated)
+    }
+
+    /// While thinking the text is opaque and the shimmer's resting half
+    /// alpha dims it to the same 50% a finished header is drawn in.
+    private func updateText(animated: Bool) {
+        let color = layer.mask == nil ? UIColor.label.withAlphaComponent(0.5) : .label
+        setAttributedText(NSAttributedString(string: shown ?? "", attributes: [.font: font, .foregroundColor: color]),
+                          animated: animated && !UIAccessibility.isReduceMotionEnabled)
+        setNeedsLayout()
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        font = .preferredFont(forTextStyle: .body)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        shimmer.fit(width: NSAttributedString(string: shown ?? "", attributes: [.font: font]).size().width, in: bounds)
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updateShimmer()
+    }
+
+    @objc private func updateShimmer() {
+        shimmer.stop()
+        let shimmers = isThinking && window != nil && !UIAccessibility.isReduceMotionEnabled
+        if shimmers != (layer.mask != nil) {
+            layer.mask = shimmers ? shimmer : nil
+            updateText(animated: false)
+        }
+        if shimmers {
+            shimmer.start()
+        }
+    }
+}

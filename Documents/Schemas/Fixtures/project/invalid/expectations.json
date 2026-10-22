@@ -1,0 +1,22 @@
+{
+  "free-shell-step.json": "matches none of the allowed shapes",
+  "shell-string-type.json": "is not one of",
+  "script-without-approval-flag.json": "matches none of the allowed shapes",
+  "absolute-source.json": "does not match",
+  "dotdot-source.json": "does not match",
+  "unknown-kind.json": "is not one of",
+  "tweak-without-filter.json": "missing tweakFilter",
+  "reserved-define.json": "member name not allowed",
+  "bad-template-digest.json": "does not match",
+  "layout-outside-bootstrap.json": "does not match",
+  "deployment-below-floor.json": "does not match",
+  "schema-version-as-string.json": "must be 1",
+  "unknown-member.json": "unknown member",
+  "sign-not-last.json": "sign must be the last step",
+  "missing-lipo.json": "has no lipo step",
+  "firmware-in-depends.json": "firmware is added from deploymentTarget",
+  "flag-not-a-flag.json": "does not match",
+  "filter-dylib-elsewhere.json": "must be installed under /Library/MobileSubstrate/DynamicLibraries/",
+  "app-without-info-plist.json": "missing infoPlist",
+  "swift-source-in-objc.json": "is not a .c or .m source"
+}

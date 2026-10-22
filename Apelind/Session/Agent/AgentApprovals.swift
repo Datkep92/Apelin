@@ -1,0 +1,387 @@
+import ApelinCore
+import ApelinProtocol
+import Foundation
+
+/// The host's side of an agent session's approvals: what the app approved is
+/// matched against the session's own `approvalRequested` event, never against
+/// what the agent says it asked.
+enum AgentApprovals {
+    /// The payload of the session's own `approvalRequested` event for
+    /// `approvalID`, read from the registry wherever it is in the session's
+    /// log: an attach batch stops at a thousand events, a long session does
+    /// not.
+    private static func requested(
+        _ approvalID: String,
+        entry: AgentSessionTable.Entry,
+        registry: TaskRegistry,
+    ) async -> JSONValue? {
+        await registry.lastEvent(
+            entry.task.taskID,
+            kind: "approvalRequested",
+            field: "approvalID",
+            equals: approvalID,
+        )?.payload
+    }
+
+    /// Relays the app's decision: recorded in the session table (and, for an
+    /// approval, in the host's ledger) before `forward` hands it to the
+    /// worker, so the host knows it when the worker acts on it at once, and
+    /// taken back when the worker did not accept it, so the host never holds
+    /// a grant the worker was not given. A run_code approved for the
+    /// session also leaves a session grant for that command in that
+    /// directory (`recordSessionGrant`).
+    static func relay<Reply>(
+        _ approve: AgentApproveRequest,
+        registry: TaskRegistry,
+        ledger: ApprovalLedger,
+        forward: () async -> Reply,
+        accepted: (Reply) -> Bool,
+    ) async throws -> Reply {
+        let sessions = AgentSessionTable.shared
+        let previous = await sessions.entry(approve.sessionID)?.approvals[approve.approvalID]
+        await sessions.record(approve.sessionID, approvalID: approve.approvalID, decision: approve.decision)
+        var grant: LedgerGrant?
+        var sessionGrant: RunCodeGrant?
+        if approve.decision == .approve, let entry = await sessions.entry(approve.sessionID) {
+            do {
+                grant = try await recordInLedger(approve, entry: entry, registry: registry, ledger: ledger)
+            } catch {
+                await sessions.record(approve.sessionID, approvalID: approve.approvalID, decision: previous)
+                throw error
+            }
+            sessionGrant = await recordSessionGrant(approve, entry: entry, registry: registry)
+        }
+        let reply = await forward()
+        guard !accepted(reply) else {
+            if case let .description(granted) = grant {
+                await ledger.confirmApproval(granted)
+            }
+            return reply
+        }
+        await sessions.record(approve.sessionID, approvalID: approve.approvalID, decision: previous)
+        if let sessionGrant {
+            await sessions.removeGrant(approve.sessionID, sessionGrant)
+        }
+        switch grant {
+        case let .description(granted):
+            try? await ledger.withdrawApproval(granted)
+        case let .removal(installationID):
+            _ = await ledger.takeRemoval(installationID: installationID, session: approve.sessionID)
+        case nil:
+            break
+        }
+        return reply
+    }
+
+    /// Records a session grant when the app approved, for the session, a
+    /// run_code request that offered it: the command its `detail.command`
+    /// showed in its `workingDirectory`, normalised as `authorize` compares
+    /// them. Answers the grant when it is new, nil when it added nothing.
+    private static func recordSessionGrant(
+        _ approve: AgentApproveRequest,
+        entry: AgentSessionTable.Entry,
+        registry: TaskRegistry,
+    ) async -> RunCodeGrant? {
+        guard approve.scope == .session,
+              let asked = await requested(approve.approvalID, entry: entry, registry: registry),
+              asked["tool"]?.stringValue == "run_code", asked["allowsSessionScope"] == .bool(true),
+              let spec = approvedSpec(asked)
+        else { return nil }
+        let grant = RunCodeGrant(spec: spec, directory: directoryName(asked["workingDirectory"]?.stringValue))
+        return await AgentSessionTable.shared.addGrant(entry.sessionID, grant) ? grant : nil
+    }
+
+    /// What an approval added to the ledger.
+    enum LedgerGrant {
+        case description(ApprovalLedger.Grant)
+        case removal(installationID: String)
+    }
+
+    /// Records an approval of a changed description or a package removal in
+    /// the ledger; answers what it added, nil when it added nothing.
+    @discardableResult
+    static func recordInLedger(
+        _ approve: AgentApproveRequest,
+        entry: AgentSessionTable.Entry,
+        registry: TaskRegistry,
+        ledger: ApprovalLedger,
+    ) async throws -> LedgerGrant? {
+        let asked = await requested(approve.approvalID, entry: entry, registry: registry)
+        guard let detail = asked?["detail"] else { return nil }
+        if let changed = detail["descriptionChanged"],
+           let kindName = changed["kind"]?.stringValue, let kind = ApprovalDescriptionKind(rawValue: kindName),
+           let digest = changed["digest"]?.stringValue
+        {
+            guard let grant = try await ledger.recordApproval(digest, kind: kind, project: entry.project.id) else {
+                return nil
+            }
+            return .description(grant)
+        } else if let removal = detail["packageRemoval"], let installationID = removal["installationID"]?.stringValue {
+            guard await ledger.allowRemoval(installationID: installationID, session: entry.sessionID) else {
+                return nil
+            }
+            return .removal(installationID: installationID)
+        }
+        return nil
+    }
+
+    /// Whether the session may run `run`; under Confirm as a preset, the
+    /// preset to run in its place (`AgentRunCode.preset`), nil otherwise.
+    @discardableResult
+    static func authorize(
+        _ run: AgentRunCodeRequest,
+        entry: AgentSessionTable.Entry,
+        registry: TaskRegistry,
+        installRoot: String,
+    ) async throws -> AgentRunCode.Preset? {
+        if entry.mode == .relaxed {
+            return nil
+        }
+        switch run.approval {
+        case .relaxed:
+            throw ApelinError(.denied, "this session is in Strict mode")
+        case .preset:
+            let project = entry.project.path
+            let directory = try AgentRunCode.workingDirectory(run.workingDirectory, project: project)
+            guard let preset = await AgentRunCode.preset(
+                run.spec,
+                directory: directory,
+                project: project,
+                installRoot: installRoot,
+            ) else {
+                throw RunCodeApproval.presetRefusal
+            }
+            return preset
+        case let .user(approvalID):
+            // The approval must be one this session asked for run_code, for
+            // this command in this directory, checked before it is spent so
+            // a refused call leaves it alone.
+            let asked = await requested(approvalID, entry: entry, registry: registry)
+            guard let asked, asked["tool"]?.stringValue == "run_code" else {
+                throw ApelinError(.denied, "\(approvalID) is not an approval this session requested for run_code")
+            }
+            guard let approved = approvedSpec(asked), approved == run.spec,
+                  directoryName(asked["workingDirectory"]?.stringValue) == directoryName(run.workingDirectory)
+            else {
+                throw ApelinError(.denied, "\(approvalID) was given for another command or working directory")
+            }
+            guard await AgentSessionTable.shared.consume(run.sessionID, approvalID: approvalID) else {
+                throw ApelinError(.denied, "the app has not approved \(approvalID)")
+            }
+            return nil
+        case .session:
+            // Good for the rest of the session, never spent, and only for a
+            // command and directory the app approved for the session.
+            let grant = RunCodeGrant(spec: run.spec, directory: directoryName(run.workingDirectory))
+            guard await AgentSessionTable.shared.hasGrant(run.sessionID, grant) else {
+                throw ApelinError(.denied, "the app has not approved this command in this directory for the session")
+            }
+            return nil
+        }
+    }
+
+    /// The command a run_code approval request showed the user, as the
+    /// `RunCodeSpec` the agent sends for it: apelin-agent puts the classified
+    /// invocation in `detail.command` (ApelinAgent's `RunCodeInvocation`, in
+    /// its synthesized Codable shape) and hands shell text to `sh`
+    /// (`ChannelHostBackend.spec`). A request without one approves nothing.
+    private static func approvedSpec(_ asked: JSONValue) -> RunCodeSpec? {
+        guard let command = asked["detail"]?["command"],
+              let invocation = try? command.decode(RequestedInvocation.self)
+        else { return nil }
+        switch invocation {
+        case let .argv(argv): return .argv(argv)
+        case let .shell(text): return .script(interpreter: "sh", source: text)
+        case let .script(interpreter, source): return .script(interpreter: interpreter, source: source)
+        }
+    }
+
+    /// ApelinAgent's `RunCodeInvocation`, case for case, so it decodes what
+    /// that one encodes.
+    private enum RequestedInvocation: Decodable {
+        case argv([String])
+        case shell(String)
+        case script(interpreter: String, source: String)
+    }
+
+    /// The working directory as both sides spell it, the project root `.`.
+    private static func directoryName(_ name: String?) -> String {
+        guard let name, !name.isEmpty else { return "." }
+        return name
+    }
+}
+
+/// A run_code command and working directory the app approved for the rest
+/// of a session.
+struct RunCodeGrant: Equatable, Sendable {
+    var spec: RunCodeSpec
+    /// As both sides spell it, the project root `.`.
+    var directory: String
+}
+
+/// What the host keeps about each agent session it opened: the project it
+/// resolved, the approval mode the app chose, the approvals the app gave,
+/// the run_code calls it approved for the session, and, for one an agent
+/// opened (`AgentConversations`), the session that opened it.
+actor AgentSessionTable {
+    static let shared = AgentSessionTable()
+
+    struct Entry: Sendable {
+        var sessionID: String
+        var task: TaskHandle
+        var project: ResolvedProject
+        var mode: ApprovalMode
+        var title: String?
+        var createdAt: Date
+        var approvals: [String: ApprovalDecision] = [:]
+        /// The run_code calls the app approved for the rest of the session.
+        var runCodeGrants: [RunCodeGrant] = []
+        /// The session whose agent opened this one; nil for the app's.
+        var parentSessionID: String?
+        /// 0 for a session the app opened, its opener's plus one otherwise.
+        var depth = 0
+    }
+
+    private var entries: [String: Entry] = [:]
+    /// Places held, per project ID, for sessions agents are opening.
+    private var reservations: [String: Int] = [:]
+
+    /// `releasingReservation`: the place `reserveChild` held for it is
+    /// taken in the same step, so no count misses it in between.
+    func add(_ entry: Entry, releasingReservation: Bool = false) {
+        if releasingReservation {
+            releaseChild(project: entry.project.id)
+        }
+        entries[entry.sessionID] = entry
+    }
+
+    func entry(_ sessionID: String) -> Entry? {
+        entries[sessionID]
+    }
+
+    /// The session whose agent task is `taskID`.
+    func entry(task taskID: TaskID) -> Entry? {
+        entries.values.first { $0.task.taskID == taskID }
+    }
+
+    /// The title the session's agent gave it (its `title` event).
+    func setTitle(_ title: String, session: String) {
+        entries[session]?.title = title
+    }
+
+    /// Holds a place for one more session an agent opens in `project`,
+    /// unless `AgentConversations.maximumOpenChildren` of them are running
+    /// or being opened. The caller gives it back with `releaseChild`, or
+    /// with `add(_:releasingReservation:)` once the session is open.
+    func reserveChild(project: String, registry: TaskRegistry) async -> Bool {
+        let children = { self.entries.values.filter { $0.project.id == project && $0.parentSessionID != nil } }
+        var checked: Set<TaskID> = []
+        var running: Set<TaskID> = []
+        for child in children() {
+            checked.insert(child.task.taskID)
+            if let record = await registry.record(child.task.taskID), !record.state.isTerminal {
+                running.insert(child.task.taskID)
+            }
+        }
+        // Counted again after the awaits: an open that finished meanwhile
+        // is an entry now, and counts as running.
+        let count = children().count { running.contains($0.task.taskID) || !checked.contains($0.task.taskID) }
+        guard count + reservations[project, default: 0] < AgentConversations.maximumOpenChildren else { return false }
+        reservations[project, default: 0] += 1
+        return true
+    }
+
+    func releaseChild(project: String) {
+        guard let held = reservations[project] else { return }
+        reservations[project] = held > 1 ? held - 1 : nil
+    }
+
+    func setMode(_ mode: ApprovalMode, session: String) {
+        entries[session]?.mode = mode
+    }
+
+    /// Nil forgets the decision.
+    func record(_ sessionID: String, approvalID: String, decision: ApprovalDecision?) {
+        entries[sessionID]?.approvals[approvalID] = decision
+    }
+
+    /// An approval is good for one run.
+    func consume(_ sessionID: String, approvalID: String) -> Bool {
+        guard entries[sessionID]?.approvals[approvalID] == .approve else { return false }
+        entries[sessionID]?.approvals[approvalID] = nil
+        return true
+    }
+
+    /// Answers whether the grant is new.
+    func addGrant(_ sessionID: String, _ grant: RunCodeGrant) -> Bool {
+        guard let entry = entries[sessionID], !entry.runCodeGrants.contains(grant) else { return false }
+        entries[sessionID]?.runCodeGrants.append(grant)
+        return true
+    }
+
+    func removeGrant(_ sessionID: String, _ grant: RunCodeGrant) {
+        entries[sessionID]?.runCodeGrants.removeAll { $0 == grant }
+    }
+
+    func hasGrant(_ sessionID: String, _ grant: RunCodeGrant) -> Bool {
+        entries[sessionID]?.runCodeGrants.contains(grant) == true
+    }
+
+    /// The session closed: nothing it was granted for the session holds.
+    func forgetGrants(_ sessionID: String) {
+        entries[sessionID]?.runCodeGrants = []
+    }
+
+    /// Every session, or only `projectID`'s, oldest first.
+    func summaries(registry: TaskRegistry, projectID: String? = nil) async -> [AgentSessionSummary] {
+        var result: [AgentSessionSummary] = []
+        let listed = entries.values.filter { projectID == nil || $0.project.id == projectID }
+        for entry in listed.sorted(by: { $0.createdAt < $1.createdAt }) {
+            let record = await registry.record(entry.task.taskID)
+            result.append(AgentSessionSummary(
+                sessionID: entry.sessionID,
+                task: entry.task,
+                projectID: entry.project.id,
+                title: entry.title,
+                state: record?.state ?? .interrupted,
+                updatedAt: record?.updatedAt ?? entry.createdAt,
+                parentSessionID: entry.parentSessionID,
+            ))
+        }
+        return result
+    }
+}
+
+/// Who opened a session an agent opened, and how deep, kept root's in the
+/// host's state directory (`agent-sessions/<id>.json`), never read from
+/// mobile's `session.json`: the session table starts empty after a restart,
+/// and a session the app opens again keeps its opener, its depth and its
+/// place among its project's agent-opened sessions.
+enum AgentSessionLineage {
+    struct Record: Codable, Equatable {
+        var parentSessionID: String
+        var depth: Int
+    }
+
+    static func save(_ record: Record, session sessionID: String, state: URL) {
+        guard let file = file(sessionID, state: state) else { return }
+        try? FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700],
+        )
+        try? JSONCoding.encode(record).write(to: file, options: .atomic)
+    }
+
+    static func load(session sessionID: String, state: URL) -> Record? {
+        guard let file = file(sessionID, state: state), let data = try? Data(contentsOf: file) else { return nil }
+        return try? JSONCoding.decode(Record.self, from: data)
+    }
+
+    /// Nil unless the session ID is a UUID, so it names one file.
+    private static func file(_ sessionID: String, state: URL) -> URL? {
+        guard UUID(uuidString: sessionID) != nil else { return nil }
+        return state.appendingPathComponent("agent-sessions", isDirectory: true)
+            .appendingPathComponent("\(sessionID).json")
+    }
+}

@@ -1,0 +1,83 @@
+import Foundation
+import KWWKAgent
+
+/// A skill as the session uses it.
+public struct SkillDocument: Sendable, Hashable {
+    public var name: String
+    public var description: String
+    public var body: String
+    /// True for skills read from the user's folder.
+    public var isUserSkill: Bool
+    /// The folder a user skill's `SKILL.md` sits in, whose other files
+    /// `read_skill` may read; nil for a built-in or a root-level `.md`.
+    public var directory: String?
+
+    public init(name: String, description: String, body: String, isUserSkill: Bool = false, directory: String? = nil) {
+        self.name = name
+        self.description = description
+        self.body = body
+        self.isUserSkill = isUserSkill
+        self.directory = directory
+    }
+}
+
+/// The built-in skills plus the user's, from
+/// `~/Documents/wiki.qaq.apelin/skills` (kwwk's skill format: a folder per
+/// skill with a `SKILL.md`, or a root-level `.md`, with `name` and
+/// `description` frontmatter).
+///
+/// The system prompt lists only each skill's name and description, as pi's
+/// `<available_skills>` does; the body is read on demand with `read_skill`,
+/// since the file tools cannot read outside the project.
+public enum SkillCatalog {
+    public static func load(userDirectory: URL) -> (skills: [SkillDocument], diagnostics: [String]) {
+        var skills = BuiltInSkills.all
+        var names = Set(skills.map(\.name))
+        let loaded = Skills.load(directories: [userDirectory.path], useIndex: false)
+        var diagnostics = loaded.diagnostics.map { "\($0.path): \($0.message)" }
+        let userRoot = userDirectory.standardizedFileURL.path
+        for skill in loaded.skills where !skill.disableModelInvocation {
+            // A built-in name is not overridden by a file.
+            guard names.insert(skill.name).inserted else {
+                diagnostics.append(
+                    "\(skill.path): “\(skill.name)” is the name of a built-in skill. Rename this skill to use it.",
+                )
+                continue
+            }
+            let file = URL(fileURLWithPath: skill.path).standardizedFileURL
+            let folder = file.deletingLastPathComponent().path
+            skills.append(SkillDocument(
+                name: skill.name,
+                description: skill.description,
+                body: skill.body,
+                isUserSkill: true,
+                directory: file.lastPathComponent == "SKILL.md" && folder != userRoot ? folder : nil,
+            ))
+        }
+        return (skills, diagnostics)
+    }
+
+    static func promptSection(_ skills: [SkillDocument]) -> String {
+        guard !skills.isEmpty else { return "" }
+        var lines = [
+            "# Skills",
+            "Skills hold detailed instructions for particular tasks. When a task matches a skill's description, call read_skill with its name before you start, and follow it.",
+            "",
+            "<available_skills>",
+        ]
+        for skill in skills {
+            let source = skill.isUserSkill ? " source=\"user\"" : ""
+            lines.append("<skill name=\"\(escape(skill.name))\"\(source)>\(escape(skill.description))</skill>")
+        }
+        lines.append("</available_skills>")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func escape(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+}
