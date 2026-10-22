@@ -1303,7 +1303,17 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Apelin Apelind Shared Widgets Workers Packages`. Never `--delete-orphans`: the
   project has several targets now. The widget extension is a bundle of its own
   and keeps its own, `Widgets/Extension/Resources/Localizable.xcstrings`, the
-  same way; the gates run over both.
+  same way; the gates run over both. Apelin ships the thirteen languages the
+  sibling apps ship (owner, 2026-10-22): English, Arabic, German, Spanish,
+  French, Italian, Japanese, Korean, Portuguese (Brazil), Russian,
+  Vietnamese and Chinese (Simplified and Traditional, Taiwan usage), all
+  in the project's `knownRegions`. A key goes in with all twelve
+  translations, and so does a key of `Apelin/Resources/<language>.lproj/
+  InfoPlist.strings` (the camera prompt and the three document type
+  names): `make check` runs `Scripts/check-translations.py`, which refuses
+  a key missing one. Use the words the siblings already use for the same
+  English string — Fila, Irisin, Xrash, iGhostVT and Inspector ship the
+  same languages.
 - **Licenses**: the reviewed discipline (`Licenses/README.md`). A dependency's
   notices land in `Licenses/` and `review.json` in the commit that adds it.
   GPL-family text fails the build except for an entry in `review.json` ▸

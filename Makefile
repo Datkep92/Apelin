@@ -61,6 +61,7 @@ LICENSE_COLLECTOR   := $(ROOT_DIR)/Scripts/collect-licenses.py
 ACCESSIBILITY_CHECK := $(ROOT_DIR)/Scripts/check-accessibility.py
 STALE_STRINGS_CHECK := $(ROOT_DIR)/Scripts/check-stale-strings.py
 FORMAT_STRINGS_CHECK := $(ROOT_DIR)/Scripts/check-format-strings.py
+TRANSLATIONS_CHECK := $(ROOT_DIR)/Scripts/check-translations.py
 SYMBOL_CHECK        := $(ROOT_DIR)/Scripts/check-symbol-availability.py
 RPATH_CHECK         := $(ROOT_DIR)/Scripts/check-rpath-dependencies.py
 # The device harness: console scripts and suites on a vphone or a device,
@@ -219,7 +220,7 @@ check:
 	@command -v dpkg-deb >/dev/null || { echo "error: dpkg-deb is required (install it with your preferred package manager)" >&2; exit 69; }
 	@test -d "$(PROJECT)" || { echo "error: Apelin.xcodeproj is missing" >&2; exit 66; }
 	@for script in "$(DEB_PACKAGER)" "$(DEVICE_INSTALLER)" "$(VERSION_APPLIER)" "$(XCODEBUILD_WRAPPER)" \
-		"$(LICENSE_COLLECTOR)" "$(ACCESSIBILITY_CHECK)" "$(STALE_STRINGS_CHECK)" "$(FORMAT_STRINGS_CHECK)" \
+		"$(LICENSE_COLLECTOR)" "$(ACCESSIBILITY_CHECK)" "$(STALE_STRINGS_CHECK)" "$(FORMAT_STRINGS_CHECK)" "$(TRANSLATIONS_CHECK)" \
 		"$(SYMBOL_CHECK)" "$(RPATH_CHECK)" "$(SCHEMA_FIXTURES_CHECK)" "$(TEMPLATES_CHECK)" \
 		"$(EXTENSIONS_PACKAGER)" "$(AGENT_TOOLS_BUILDER)" "$(DEVICE_TOOL)"; do \
 		test -x "$$script" || { echo "error: $${script#$(ROOT_DIR)/} is not executable" >&2; exit 66; }; \
@@ -358,6 +359,7 @@ check:
 	@# passed). `stale` is what Xcode writes during a build and never survives.
 	@"$(STALE_STRINGS_CHECK)" "$(ROOT_DIR)/Apelin" "$(ROOT_DIR)/Widgets"
 	@"$(FORMAT_STRINGS_CHECK)" "$(ROOT_DIR)/Apelin" "$(ROOT_DIR)/Widgets"
+	@"$(TRANSLATIONS_CHECK)" "$(ROOT_DIR)/Apelin" "$(ROOT_DIR)/Widgets"
 	@"$(SYMBOL_CHECK)" "$(IOS_DEPLOYMENT_FLOOR)" $(SOURCE_ROOTS)
 
 # The Mac half of "where things get tested": what can run without a device.
