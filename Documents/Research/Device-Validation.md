@@ -1578,3 +1578,11 @@ key was removed afterwards. A banner tapped as it arrived opened its
 chat, and with Apelin in front `willPresentNotification` answered 0 and
 nothing showed. A Clock timer is a Live Activity on 26.4 and never
 reaches Notification Center.
+
+## Right to left, untitled chats and day headings (2026-10-22, build 13)
+
+On the iPadOS 26.4 iPad vphone, in Arabic: the sidebar, composer, model row,
+bubble and thinking header were mirrored, and in a narrow window the drawer
+came out from the right, panned left to open and right to close; English was
+unchanged. An earlier build's "New Chat" read 新規チャット in Japanese and took
+its first message as its name; French headed the list "Aujourd'hui", "Mardi".
