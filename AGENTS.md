@@ -1446,15 +1446,24 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   and GlyphixTextFx (owner, 2026-10-17): Litext's animated text covers
   the same `numericText`-style transition.
   **Dog's journal** is `~/Documents/wiki.qaq.apelin/Journal/Dog_<date>_<id>.log`:
-  call `Dog.shared.initialization(writableDir: DataFolder(home:
-  NSHomeDirectory()).root)` once, early in `didFinishLaunching`, after the
-  data folder is known to exist. Never call it with no argument: its
-  default is `.documentDirectory`, which for an app with no container is
-  mobile's shared `~/Documents`, and the journal would land in
+  `AppJournal.start()` calls `Dog.shared.initialization(writableDir:
+  DataFolder.app.root)` once, early in `didFinishLaunching`, after making
+  `Journal/` with `makeLevels` (so a missing data folder is an NSLog line,
+  never a folder Dog makes), and writes a launch header. `DataFolder.app`,
+  not `DataFolder(home: NSHomeDirectory())`: on roothide `NSHomeDirectory()`
+  is the system's `/var/mobile`, not the bootstrap's. Never call it with no
+  argument: its default is `.documentDirectory`, which for an app with no
+  container is mobile's shared `~/Documents`, and the journal would land in
   `~/Documents/Journal`. Dog keeps 128 files by default and mirrors every
   line to the unified log under its own subsystem, `com.lakr233.dog`. It
   is the app's alone: apelind and the workers never link it and keep their
   own logging, and no task, scope or operation reads the journal.
+  Settings ▸ About ▸ Logs (`Apelin/Interface/Settings/Logs/`) reads it
+  back: every launch Dog keeps (`JournalFiles`, tested by
+  `Tests/Journal`), this one first, each opening Irisin's log page
+  (`LogViewerController`: level and category filters, Errors Only, Share as
+  a `.log` file, row Copy; the running launch is followed and can be
+  Cleared from view); an earlier launch's file can be deleted.
 - **Release notes** live in `Documents/Releases/<version>.md`, written before
   the tag.
 - **Before every push, tag or release**, an agent reads the diff, the staged
@@ -1893,9 +1902,18 @@ in-place writes and atomic replacements made outside the app. A change reloads
 project metadata without changing the selected folder or chat. All Projects
 uses type section headers and single-line display names.
 
-The chat's More menu acts on its current project, in three groups: Rename Project…;
-Open in iGhostVT and Open in Fila; Export… and Distribute…. General Chat has no
-project actions. Fila opens the canonical folder with `fila://open?path=…&tab=new`;
+The chat's More menu (`ChatActions`) acts on its conversation and its current
+project, in three groups: Rename… (the conversation) and Rename Project…; Open in
+iGhostVT and Open in Fila; Export… and Distribute…. General Chat has Rename… and
+the two Open items for the conversation's own `Temporary/<conversation>/`,
+made if missing (`ProjectActions.temporaryDirectory`). A conversation the reader
+renamed keeps that name (`ChatSummary.isNamedByReader`, saved with the chat):
+the agent's `title` events and the first message's opening no longer replace
+it, and a name of only spaces changes nothing. Distribute… is disabled, saying
+it needs a build description, for a project apelin-build cannot package
+(`ProjectBuildDescription`: a workspace, `buildSystem: external`, or no
+`build`); the distribution page checks again and then offers no target.
+Fila opens the canonical folder with `fila://open?path=…&tab=new`;
 iGhostVT 1.6.19 or later opens `ighostvt://new?directory=…`, a directory-only URL
 that cannot carry a shell command. Both apps are package dependencies. Project
 export reuses `transferExport` and the real `.apeproj` transfer format; no new

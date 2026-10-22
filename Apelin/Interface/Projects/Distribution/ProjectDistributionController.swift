@@ -6,7 +6,9 @@ import UIKit
 /// package should not carry yet, then build on its own page
 /// (`DistributionBuildController`). What the check finds is advice: Build
 /// still goes ahead after a confirmation, and Ask Agent to Prepare hands
-/// the work to the project's conversation.
+/// the work to the project's conversation. A project with no build
+/// description (`ProjectBuildDescription`) has nothing to package: the page
+/// says so and offers no target.
 @MainActor
 final class ProjectDistributionController: TableController {
     private enum Section: Hashable {
@@ -30,6 +32,8 @@ final class ProjectDistributionController: TableController {
     private let onPrepare: ((String) -> Void)?
     private var displayName: String?
     private var selectedTarget: BuildBootstrap?
+    /// False once the check finds no build description; the targets go.
+    private var hasBuildDescription = true
     private var issues: [ProjectDiagnostic] = []
     private var checking = false
     private var checkFailure: String?
@@ -159,7 +163,9 @@ final class ProjectDistributionController: TableController {
 
     private func updateRows() {
         var readiness: [RowContent]
-        if checking {
+        if !hasBuildDescription {
+            readiness = [RowContent(row: .unavailable, text: DistributionProject.missingBuildDescription)]
+        } else if checking {
             readiness = [RowContent(row: .checking, text: String(localized: "Checking…"))]
         } else if let checkFailure {
             readiness = [RowContent(row: .unavailable, text: checkFailure)]
@@ -177,14 +183,17 @@ final class ProjectDistributionController: TableController {
                 readiness.append(RowContent(row: .prepare, text: String(localized: "Ask Agent to Prepare")))
             }
         }
-        dataSource.update([
+        var sections: [(Section, [RowContent])] = [
             (.project, [RowContent(row: .project, text: displayName ?? projectName)]),
-            (.target, BuildBootstrap.allCases.map { target in
+        ]
+        if hasBuildDescription {
+            sections.append((.target, BuildBootstrap.allCases.map { target in
                 RowContent(row: .target(target), text: target.rawValue, selected: target == selectedTarget)
-            }),
-            (.readiness, readiness),
-        ], reconfigure: true)
-        navigationItem.rightBarButtonItem?.isEnabled = selectedTarget != nil
+            }))
+        }
+        sections.append((.readiness, readiness))
+        dataSource.update(sections, reconfigure: true)
+        navigationItem.rightBarButtonItem?.isEnabled = hasBuildDescription && selectedTarget != nil
     }
 
     // MARK: - The check
@@ -201,7 +210,16 @@ final class ProjectDistributionController: TableController {
         check = Task { [weak self] in
             guard let self else { return }
             do {
-                let id = try await DistributionProject.id(named: projectName)
+                guard let id = try await DistributionProject.buildableID(named: projectName) else {
+                    guard !Task.isCancelled else { return }
+                    hasBuildDescription = false
+                    selectedTarget = nil
+                    issues = []
+                    checking = false
+                    updateRows()
+                    return
+                }
+                hasBuildDescription = true
                 let response = try await ApelinService.app.projectCheck(
                     projectID: id,
                     purpose: .distribution,
@@ -292,8 +310,22 @@ final class ProjectDistributionController: TableController {
 /// The project folder's identity, read from its own manifest after the
 /// folder is resolved inside `Projects/`.
 enum DistributionProject {
+    static var missingBuildDescription: String {
+        String(localized: "This project needs a build description before it can be distributed. Ask your agent to add one.")
+    }
+
+    /// The project's ID; throws for one with no build description.
     static func id(named name: String) async throws -> String {
-        try await Task.detached {
+        guard let id = try await buildableID(named: name) else {
+            throw ApelinError(.badRequest, missingBuildDescription)
+        }
+        return id
+    }
+
+    /// The project's ID, or nil when it has no build description
+    /// (`ProjectBuildDescription`) and so nothing to distribute.
+    static func buildableID(named name: String) async throws -> String? {
+        try await Task.detached { () throws -> String? in
             guard let root = DataFolder.app.project(named: name), let canonical = CanonicalPath.resolve(root.path),
                   let projects = CanonicalPath.resolve(DataFolder.app.projects.path),
                   canonical == projects + "/" + name,
@@ -303,8 +335,9 @@ enum DistributionProject {
                 throw ApelinError(.notFound, String(localized: "This project is no longer available."))
             }
             let value = try JSONCoding.decode(JSONValue.self, from: Data(contentsOf: URL(fileURLWithPath: manifest)))
-            guard value["kind"]?.stringValue != "workspace", let id = value["projectID"]?.stringValue else {
-                throw ApelinError(.badRequest, String(localized: "This workspace needs a build description before it can be distributed. Ask your agent to prepare the project for the chosen target."))
+            guard ProjectBuildDescription.isPresent(in: value) else { return nil }
+            guard let id = value["projectID"]?.stringValue else {
+                throw ApelinError(.notFound, String(localized: "This project is no longer available."))
             }
             return id
         }.value

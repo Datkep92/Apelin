@@ -46,5 +46,32 @@ import Foundation
         draft.edit("  Good Name  ")
         precondition(draft.isValid && draft.trimmedName == "Good Name")
         print("ok: onboarding pairing and project naming behavior")
+
+        // Distribute… and the distribution page's targets need a build
+        // description apelin-build can package.
+        let build: JSONValue = .object(["steps": .array([.object(["type": .string("compile")])])])
+        let tweak: JSONValue = .object(["projectID": .string("p"), "kind": .string("tweak"), "build": build])
+        precondition(ProjectBuildDescription.isPresent(in: tweak), "A template project has one")
+        for kind in ["app", "cli", "preferences"] {
+            precondition(ProjectBuildDescription.isPresent(in: .object(["kind": .string(kind), "build": build])))
+        }
+        let workspace: JSONValue = .object([
+            "projectID": .string("w"), "kind": .string("workspace"), "buildSystem": .string("external"),
+        ])
+        precondition(!ProjectBuildDescription.isPresent(in: workspace), "An empty workspace has none")
+        precondition(!ProjectBuildDescription.isPresent(in: .object(["kind": .string("workspace")])),
+                     "A workspace from before buildSystem has none")
+        precondition(!ProjectBuildDescription.isPresent(in: .object([
+            "kind": .string("workspace"), "build": build,
+        ])), "A workspace is built by its own tools, whatever it holds")
+        precondition(!ProjectBuildDescription.isPresent(in: .object([
+            "kind": .string("tweak"), "buildSystem": .string("external"), "build": build,
+        ])), "An external build system is not apelin-build's")
+        precondition(!ProjectBuildDescription.isPresent(in: .object(["kind": .string("tweak")])),
+                     "A manifest without a build has nothing to build")
+        precondition(!ProjectBuildDescription.isPresent(in: .object(["kind": .string("tweak"), "build": .null])))
+        precondition(!ProjectBuildDescription.isPresent(in: .object(["build": build])), "No kind, no build")
+        precondition(!ProjectBuildDescription.isPresent(in: .array([])))
+        print("ok: distribution needs a build description")
     }
 }

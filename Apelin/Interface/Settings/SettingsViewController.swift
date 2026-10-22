@@ -1,4 +1,5 @@
 import ApelinProtocol
+import Then
 import UIKit
 
 /// Settings, in a sheet off the sidebar's gear. Model Providers first — one
@@ -7,7 +8,8 @@ import UIKit
 /// the toolchain and the SDKs a project builds with, each with what is
 /// installed beside its name — then Git, the commit author and HTTPS
 /// credentials (`GitSettingsController`), then About: the version this build
-/// carries and the licenses it ships under.
+/// carries, the licenses it ships under and its logs (`LogsController`).
+/// The `…` in the bar opens the onboarding again, or a new GitHub issue.
 final class SettingsViewController: TableController {
     private enum Section: Hashable, CaseIterable {
         case agent
@@ -26,7 +28,7 @@ final class SettingsViewController: TableController {
         case git
         case version
         case licenses
-        case onboarding
+        case logs
     }
 
     private struct RowContent: Equatable {
@@ -81,6 +83,19 @@ final class SettingsViewController: TableController {
         super.viewDidLoad()
         title = String(localized: "Settings")
         navigationItem.backButtonDisplayMode = .minimal
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "ellipsis"),
+            menu: UIMenu(children: [
+                UIAction(
+                    title: String(localized: "Open Onboarding"),
+                    image: UIImage(systemName: "hand.wave"),
+                ) { [weak self] _ in self?.openOnboarding() },
+                UIAction(
+                    title: String(localized: "Report a Problem"),
+                    image: UIImage(systemName: "exclamationmark.bubble"),
+                ) { _ in Self.reportProblem() },
+            ]),
+        ).then { $0.accessibilityLabel = String(localized: "More") }
         updateRows()
     }
 
@@ -97,7 +112,7 @@ final class SettingsViewController: TableController {
         case .agent: [.modelProviders, .permissionMode, .memories]
         case .environment: [.toolchain, .sdks, .templates]
         case .git: [.git]
-        case .about: [.version, .licenses, .onboarding]
+        case .about: [.version, .licenses, .logs]
         }
     }
 
@@ -214,8 +229,8 @@ final class SettingsViewController: TableController {
             cell.selectionStyle = .none
         case .licenses:
             content.text = String(localized: "Open Source Licenses")
-        case .onboarding:
-            content.text = String(localized: "Open Onboarding")
+        case .logs:
+            content.text = String(localized: "Logs")
         }
         cell.contentConfiguration = content
         return cell
@@ -241,12 +256,21 @@ final class SettingsViewController: TableController {
         case .templates: page = TemplatesController()
         case .git: page = GitSettingsController()
         case .licenses: page = LicensesViewController()
-        case .onboarding:
-            guard let root = view.window?.rootViewController as? RootInterfaceController else { return }
-            navigationController?.dismiss(animated: true) { [weak root] in root?.presentWelcome() }
-            return
+        case .logs: page = LogsController()
         case .version: return
         }
         navigationController?.pushViewController(page, animated: true)
+    }
+
+    /// Closes Settings and shows the welcome pages from the start.
+    private func openOnboarding() {
+        guard let root = view.window?.rootViewController as? RootInterfaceController else { return }
+        navigationController?.dismiss(animated: true) { [weak root] in root?.presentWelcome() }
+    }
+
+    /// A new issue on Apelin's repository, in the browser.
+    private static func reportProblem() {
+        guard let url = URL(string: "https://github.com/owngoal-dev/Apelin/issues/new") else { return }
+        UIApplication.shared.open(url)
     }
 }

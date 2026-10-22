@@ -40,7 +40,10 @@ build.
 The project must have a valid `apelin-project.json`, an SDK and toolchain binding,
 and architectures for the chosen bootstrap. An empty workspace needs a real build
 description before distribution; the agent can create that description as part
-of implementing the project.
+of implementing the project. Until it has one — a workspace, a manifest with
+`buildSystem: external`, or one with no `build` — **Distribute…** in the menu is
+disabled and says it needs a build description, and the distribution page, if
+it is open when that is found, offers no target and says the same.
 
 Use the project's existing build and packaging description:
 

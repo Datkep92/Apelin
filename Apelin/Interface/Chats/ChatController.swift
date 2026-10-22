@@ -63,23 +63,15 @@ final class ChatController: UIViewController {
         navigationItem.largeTitleDisplayMode = .never
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: nil)
         more.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self, weak more] completion in
-            guard let self, let more else { completion([]); return }
-            if let projectName = chat?.projectName {
-                completion(ProjectActions.menu(
-                    projectName: projectName,
-                    from: self,
-                    anchor: more,
-                ) { [weak self] prompt in
-                    self?.sendPrompt(prompt)
-                }.children)
-            } else {
-                completion([UIAction(
-                    title: String(localized: "Model Providers"),
-                    image: UIImage(systemName: "gearshape"),
-                ) { [weak self] _ in
-                    self?.presentPageAsFormSheet(ModelProvidersController())
-                }])
-            }
+            guard let self, let more, let chat else { completion([]); return }
+            ChatActions.menu(
+                for: chat,
+                runtime: runtime,
+                from: self,
+                anchor: more,
+                onPrepareDistribution: { [weak self] prompt in self?.sendPrompt(prompt) },
+                completion: completion,
+            )
         }])
         more.accessibilityLabel = String(localized: "More")
         navigationItem.rightBarButtonItem = more
@@ -340,6 +332,10 @@ final class ChatController: UIViewController {
         guard let chat else { return }
         if let summary = runtime.records[chat.id]?.summary {
             self.chat = summary
+            if title != summary.title {
+                // a rename, or the agent's title: the back button's too
+                title = summary.title
+            }
             titleView.setTitle(summary.title, animated: view.window != nil)
             updateMessages(runtime.transcript(chat.id).messages)
             if summary.isWorking != chat.isWorking {

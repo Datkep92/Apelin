@@ -354,3 +354,27 @@ precondition(follow(300, latest: 400, top: 500) == (400, true), "exactly a page 
 precondition(follow(600, latest: 900, top: 500) == (600, true), "a message already above is not scrolled back to")
 precondition(follow(300, latest: 300, top: 900) == (300, false), "nothing new leaves the list where it is")
 print("ok: a turn is followed for at most a page, from its message")
+
+/// A name the reader gives a conversation is kept: the agent's `title`
+/// events and the first message's opening no longer replace it, a name of
+/// nothing but spaces changes nothing, and the name survives a relaunch.
+var renamed = ChatSummary(title: String(localized: "New Chat"), updated: Date())
+renamed.suggestTitle("Opening words")
+precondition(renamed.title == "Opening words" && renamed.isNamedByReader == nil, "an unnamed conversation takes suggestions")
+precondition(!renamed.rename(to: " \n\t "), "a name with nothing in it is refused")
+precondition(renamed.title == "Opening words" && renamed.isNamedByReader == nil, "and changes nothing")
+precondition(renamed.rename(to: "  Release checklist  "))
+precondition(renamed.title == "Release checklist" && renamed.isNamedByReader == true, "the typed name, trimmed")
+renamed.suggestTitle("Agent title after the rename")
+precondition(renamed.title == "Release checklist", "a host title after a rename does not replace it")
+let renamedFile = try JSONEncoder().encode(ChatRecord(summary: renamed))
+var relaunched = try JSONDecoder().decode(ChatRecord.self, from: renamedFile).summary
+precondition(relaunched.title == "Release checklist" && relaunched.isNamedByReader == true, "the name survives a relaunch")
+relaunched.suggestTitle("Title replayed from the start of the task")
+precondition(relaunched.title == "Release checklist", "a replayed title after a relaunch does not replace it either")
+precondition(relaunched.rename(to: "Second name") && relaunched.title == "Second name", "the reader can rename again")
+let olderSummary = try JSONDecoder().decode(ChatSummary.self, from: Data("""
+{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","title":"Old","updated":0,"isPinned":false,"isWorking":false}
+""".utf8))
+precondition(olderSummary.isNamedByReader == nil, "a file from before renaming reads as unnamed")
+print("ok: a renamed conversation keeps its name over the agent's titles and across a relaunch")

@@ -45,6 +45,11 @@ final class ChatRuntime {
             }
             for record in records.values where isUntouched(record) && record.summary.id != selected {
                 try? await removeRecord(record.summary.id)
+                if record.summary.projectName == nil {
+                    // the folder the menu's Open in iGhostVT or Fila made, if
+                    // it was left empty; rmdir takes nothing else
+                    rmdir(DataFolder.app.root.appendingPathComponent("Temporary/" + record.summary.id.uuidString).path)
+                }
             }
             isLoaded = true
             onChange?()
@@ -93,12 +98,12 @@ final class ChatRuntime {
         return records[summary.id]?.summary ?? summary
     }
 
-    /// Nothing sent, typed or attached, no session opening, and not pinned:
-    /// a row that holds nothing but its place.
+    /// Nothing sent, typed or attached, no session opening, not pinned and
+    /// not named: a row that holds nothing but its place.
     private func isUntouched(_ record: ChatRecord) -> Bool {
         record.events.isEmpty && record.sessionID == nil && record.task == nil && opening[record.summary.id] == nil
             && record.sending == nil && record.draft.text.isEmpty && record.draft.attachments.isEmpty
-            && !record.summary.isPinned
+            && !record.summary.isPinned && record.summary.isNamedByReader != true
     }
 
     func saveDraft(_ draft: ComposerDraft, for id: UUID) {
@@ -108,6 +113,13 @@ final class ChatRuntime {
 
     func togglePin(_ id: UUID) {
         records[id]?.summary.isPinned.toggle()
+        changed(id)
+    }
+
+    /// `name` as the conversation's title from now on: the agent's titles
+    /// no longer replace it (`ChatSummary.rename(to:)`).
+    func rename(_ id: UUID, to name: String) {
+        guard records[id]?.summary.rename(to: name) == true else { return }
         changed(id)
     }
 
@@ -283,10 +295,10 @@ final class ChatRuntime {
             descriptors: descriptors,
         )
         if records[id]?.summary.title == String(localized: "New Chat") {
-            records[id]?.summary.title = String(
+            records[id]?.summary.suggestTitle(String(
                 (draft.text.isEmpty ? draft.attachments.first?.name ?? String(localized: "New Chat") : draft.text)
                     .prefix(80),
-            )
+            ))
         }
         records[id]?.summary.updated = Date()
         changed(id)
@@ -371,10 +383,8 @@ final class ChatRuntime {
                     if !dropped.isEmpty {
                         restoreDropped(Set(dropped), in: id)
                     }
-                    if let title = batch.events.last(where: { $0.kind == "title" })?.payload?["text"]?.stringValue,
-                       !title.isEmpty
-                    {
-                        records[id]?.summary.title = title
+                    if let title = batch.events.last(where: { $0.kind == "title" })?.payload?["text"]?.stringValue {
+                        records[id]?.summary.suggestTitle(title)
                     }
                     if let proposed = batch.events
                         .last(where: { $0.kind == "projectNameSuggested" })?.payload?["name"]?.stringValue,

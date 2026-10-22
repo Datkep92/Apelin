@@ -1,5 +1,6 @@
 #!/bin/bash
-# Pure onboarding policy against the protocol/Core objects the harness built.
+# Pure onboarding and project policy against the protocol/Core objects the
+# harness built.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 modules="$1"
@@ -18,5 +19,6 @@ xcrun --sdk macosx swiftc -swift-version 5 -parse-as-library -target arm64-apple
     -I "$root/Shared/XPCShim" -I "$modules" "${objects[@]}" \
     "$root/Apelin/Interface/Onboarding/WelcomeEnvironmentRecommendation.swift" \
     "$root/Apelin/Interface/Projects/ProjectCreationDraft.swift" \
+    "$root/Apelin/Interface/Projects/ProjectBuildDescription.swift" \
     "$root/Tests/Onboarding/main.swift" -o "$work/onboarding"
 "$work/onboarding"

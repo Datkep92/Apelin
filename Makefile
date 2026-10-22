@@ -387,6 +387,11 @@ harness:
 		-o "$$harness_dir/composer-drop" && \
 	"$$harness_dir/composer-drop" && \
 	xcrun --sdk macosx swiftc -swift-version 5 \
+		"$(ROOT_DIR)/Apelin/Interface/Settings/Logs/JournalFiles.swift" \
+		"$(ROOT_DIR)/Tests/Journal/main.swift" \
+		-o "$$harness_dir/journal" && \
+	"$$harness_dir/journal" && \
+	xcrun --sdk macosx swiftc -swift-version 5 \
 		"$(ROOT_DIR)/Apelin/Application/ExecutableWatch.swift" \
 		"$(ROOT_DIR)/Tests/ExecutableWatch/main.swift" \
 		-o "$$harness_dir/executable-watch" && \
