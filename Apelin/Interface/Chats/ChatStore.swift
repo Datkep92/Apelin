@@ -12,6 +12,46 @@ struct ChatRecord: Codable, Sendable {
     /// once, and kept on disk until their `prompt` or `queued` event comes
     /// back, so a kill mid-send loses none. Absent from older files.
     var sending: [ComposerDraft]?
+    /// Set while the task of a reopened session replays the history
+    /// `events` already hold (`reopen(as:)`). Absent from older files.
+    var replay: SessionReplay?
+}
+
+/// The replay a reopened session's task starts with: every event of the
+/// session again, renumbered and newly timed, before anything new. It ends
+/// at the first user message the conversation has not seen.
+struct SessionReplay: Codable, Sendable {
+    private static let userMessageKinds: Set<String> = ["prompt", "steer"]
+
+    /// How far the task has been read.
+    var cursor = EventSeq.start
+    /// The user messages still to come again: those with an id, and how many
+    /// without one (a steer, or a message another conversation sent).
+    private var messageIDs: Set<UUID> = []
+    private var unnamedMessages = 0
+
+    /// The replay of a session whose history is `events`.
+    init(of events: [TaskEvent]) {
+        for event in events where Self.userMessageKinds.contains(event.kind) {
+            if let id = ChatTranscript.userMessageID(of: event) {
+                messageIDs.insert(id)
+            } else {
+                unnamedMessages += 1
+            }
+        }
+    }
+
+    /// Whether `event` is still part of the replay, counting off the user
+    /// message it repeats.
+    mutating func replays(_ event: TaskEvent) -> Bool {
+        guard Self.userMessageKinds.contains(event.kind) else { return true }
+        if let id = ChatTranscript.userMessageID(of: event) {
+            return messageIDs.remove(id) != nil
+        }
+        guard unnamedMessages > 0 else { return false }
+        unnamedMessages -= 1
+        return true
+    }
 }
 
 extension ChatRecord {
@@ -48,6 +88,44 @@ extension ChatRecord {
         guard !recorded, draft.text.isEmpty, draft.attachments.isEmpty else { return false }
         draft = message
         return true
+    }
+
+    /// The session is now `task`. One that is not the task `events` came
+    /// from belongs to a reopened session, and starts by replaying the whole
+    /// history under its own numbering; `events` already hold it, so `take`
+    /// reads past that replay instead of showing it again. With no history
+    /// there is nothing to read past: a first task's events are all new,
+    /// an error before its first prompt included.
+    mutating func reopen(as task: TaskHandle) {
+        guard self.task != task else { return }
+        self.task = task
+        replay = events.isEmpty ? nil : SessionReplay(of: events)
+    }
+
+    /// Where reading the session's task goes on from.
+    var cursor: EventSeq {
+        replay?.cursor ?? events.last?.seq ?? .start
+    }
+
+    /// Adds the events of `batch` past the cursor, less a reopened task's
+    /// replay, and returns them.
+    mutating func take(_ batch: [TaskEvent]) -> [TaskEvent] {
+        let fresh = batch.filter { $0.seq > cursor }
+        guard var replay else {
+            events += fresh
+            return fresh
+        }
+        for (index, event) in fresh.enumerated() {
+            guard replay.replays(event) else {
+                self.replay = nil
+                let taken = Array(fresh[index...])
+                events += taken
+                return taken
+            }
+            replay.cursor = event.seq
+        }
+        self.replay = replay
+        return []
     }
 
     /// After a relaunch, what is still in `sending` may never have reached

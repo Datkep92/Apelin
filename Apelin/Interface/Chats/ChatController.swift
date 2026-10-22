@@ -34,9 +34,11 @@ final class ChatController: UIViewController {
     /// different one starts a new turn.
     private var turnMessage: UUID?
     /// The turn whose output the list follows (`TurnFollowing`): nil once
-    /// its message reached the top of the visible area or the reader
-    /// dragged, until the next turn.
+    /// a fast reply has brought its message to the top of the visible area,
+    /// or the reader dragged, until the next turn.
     private var followedTurn: UUID?
+    /// How fast the followed turn's reply streams.
+    private var turnPace = TurnFollowing.Pace()
     private var isSwitchingChat = false
     private var needsInitialScroll = false
     /// Whether the reader was at the latest message when the page last
@@ -319,9 +321,10 @@ final class ChatController: UIViewController {
         let draft = runtime.records[chat.id]?.draft ?? ComposerDraft()
         composer.restore(draft: draft)
         messages = runtime.transcript(chat.id).messages
-        // A turn still running is followed for what is left of its page.
+        // A turn still running is followed again, its pace measured afresh.
         turnMessage = TurnFollowing.turnMessage(in: messages)
         followedTurn = runtime.records[chat.id]?.summary.isWorking == true ? turnMessage : nil
+        turnPace = TurnFollowing.Pace()
         showTranscript(messages)
         refreshRuntime()
         messageList.scrollToBottom(animated: false)
@@ -353,7 +356,7 @@ final class ChatController: UIViewController {
     }
 
     /// A new user message starts a turn, whose output the list then follows
-    /// for at most a page (`followTurn`).
+    /// (`followTurn`), timing its reply as it streams.
     private func updateMessages(_ items: [ChatMessage]) {
         guard messages != items else { return }
         messages = items
@@ -361,30 +364,38 @@ final class ChatController: UIViewController {
         if message != turnMessage {
             turnMessage = message
             followedTurn = message
+            turnPace = TurnFollowing.Pace()
+        }
+        if let followedTurn {
+            turnPace.observe(tokens: TurnFollowing.replyTokens(in: items, after: followedTurn), at: CACurrentMediaTime())
         }
         showTranscript(items)
         followTurn()
         updateLatestMessageButton()
     }
 
-    /// Moves the list with the followed turn's output until the turn's
-    /// message reaches the top of the visible area, under the bar's blur;
-    /// from then on the list holds still for the rest of the turn.
+    /// Moves the list with the followed turn's output: to its end while the
+    /// reply streams no faster than a reader keeps up with. A faster one is
+    /// followed until the turn's message reaches the top of the visible
+    /// area, under the bar's blur, and the list then holds still for the
+    /// rest of the turn.
     private func followTurn() {
         guard let followed = followedTurn, !messageList.isTracking, !messageList.isDecelerating else { return }
         let animated = !isSwitchingChat && !needsInitialScroll && !UIAccessibility.isReduceMotionEnabled
-        let step = TurnFollowing.step(
+        let move = TurnFollowing.move(
+            pace: turnPace,
             offset: messageList.contentOffset.y,
             latest: messageList.maximumContentOffset.y,
             messageTop: messageList.rectForRow(with: followed).minY,
             topInset: max(messageList.adjustedContentInset.top, topBlur.frame.maxY),
         )
-        guard step.reachesTop else {
+        switch move {
+        case .latest:
             messageList.scrollToBottom(animated: animated)
-            return
+        case let .stop(offset):
+            followedTurn = nil
+            messageList.setContentOffset(CGPoint(x: messageList.contentOffset.x, y: offset), animated: animated)
         }
-        followedTurn = nil
-        messageList.setContentOffset(CGPoint(x: messageList.contentOffset.x, y: step.offset), animated: animated)
     }
 
     /// Shows the newest content, once: the turn is not followed again.

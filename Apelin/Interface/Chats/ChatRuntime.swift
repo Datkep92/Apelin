@@ -58,7 +58,7 @@ final class ChatRuntime {
             let live = await (try? ApelinService.app.agentList().sessions) ?? []
             for record in records.values {
                 if let session = live.first(where: { $0.sessionID == record.sessionID }) {
-                    records[record.summary.id]?.task = session.task
+                    records[record.summary.id]?.reopen(as: session.task)
                     follow(record.summary.id, task: session.task)
                 } else if record.summary.isWorking {
                     records[record.summary.id]?.summary.isWorking = false
@@ -346,11 +346,8 @@ final class ChatRuntime {
             try? await ApelinService.app.agentClose(sessionID: result.sessionID)
             throw CancellationError()
         }
-        if records[id]?.task != result.task {
-            records[id]?.events = []
-        }
         records[id]?.sessionID = result.sessionID
-        records[id]?.task = result.task
+        records[id]?.reopen(as: result.task)
         changed(id)
         follow(id, task: result.task)
         return result
@@ -363,11 +360,9 @@ final class ChatRuntime {
             while !Task.isCancelled {
                 guard let self, let record = records[id], record.task == task else { return }
                 do {
-                    let batch = try await ApelinService.app.attach(task, afterSeq: record.events.last?.seq ?? .start)
+                    let batch = try await ApelinService.app.attach(task, afterSeq: record.cursor)
                     guard !Task.isCancelled, records[id]?.task == task else { return }
-                    let after = records[id]?.events.last?.seq ?? .start
-                    let fresh = batch.events.filter { $0.seq > after }
-                    records[id]?.events.append(contentsOf: fresh)
+                    let fresh = records[id]?.take(batch.events) ?? []
                     settleSending(in: id, against: fresh)
                     for event in fresh where event.kind == AgentConversations.openedEventKind {
                         if let parent = records[id] {

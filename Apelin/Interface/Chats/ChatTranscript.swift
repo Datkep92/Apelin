@@ -3,7 +3,8 @@ import ApelinProtocol
 import CryptoKit
 import Foundation
 
-/// Rebuilds visible rows from ordered host events. Replays use the same row IDs.
+/// Rebuilds visible rows from ordered host events. Rebuilding from the same
+/// events gives the same row IDs.
 struct ChatTranscript {
     var messages: [ChatMessage] = []
     var isWorking = false
@@ -30,10 +31,12 @@ struct ChatTranscript {
         // sent during a run and not taken by it yet: shown after everything
         // else until the run takes them, then in place like any message
         var queued: [ChatMessage] = []
-        for event in events {
+        // By position: a reopened session's events go on after the earlier
+        // task's under a numbering that starts again (`ChatRecord.reopen`).
+        for (index, event) in events.enumerated() {
             let payload = event.payload
             let text = payload?["text"]?.stringValue ?? ""
-            let id = Self.rowID("event:\(event.seq.rawValue)")
+            let id = Self.rowID("event:\(index)")
             switch event.kind {
             case "prompt", "steer":
                 finishThinking(at: event.time)

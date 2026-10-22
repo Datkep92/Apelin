@@ -1,10 +1,17 @@
 import CoreGraphics
 import Foundation
 
-/// How far the conversation page follows a turn's output: to the newest
-/// content, until the turn's own message reaches the top of the visible
-/// area. At most a page, so a fast reply never scrolls past the reader.
+/// How far the conversation page follows a turn's output. A reply that
+/// streams no faster than a reader keeps up with is followed to its end; a
+/// faster one only until the turn's own message reaches the top of the
+/// visible area, at most a page, so it never scrolls past the reader.
 enum TurnFollowing {
+    /// Faster than this a reader cannot keep up.
+    static let fastTokensPerSecond = 50.0
+    /// How long a turn's reply is watched before its pace counts, so that
+    /// one burst is not taken for the pace.
+    static let paceWindow: TimeInterval = 1
+
     /// The message a turn starts with: the newest user message a run has
     /// taken, or one just sent to an idle conversation. A message waiting
     /// for a running turn starts none yet.
@@ -12,18 +19,89 @@ enum TurnFollowing {
         rows.last { $0.role == .user && !$0.isQueued }?.id
     }
 
-    /// Where following moves the list from `offset`: toward `latest`, the
-    /// offset that shows the newest content, but no further than puts
-    /// `messageTop` (the turn's message, in content coordinates) at
-    /// `topInset` below the list's top edge, and never back up. `reachesTop`
-    /// once the message is there: the turn is followed no further.
-    static func step(
+    /// Roughly how many tokens the turn starting with `message` has replied
+    /// so far, in its assistant rows. Thinking and calls are summarised in a
+    /// line, so they leave the reader nothing to keep up with.
+    static func replyTokens(in rows: [ChatMessage], after message: UUID) -> Double {
+        guard let start = rows.lastIndex(where: { $0.id == message }) else { return 0 }
+        return rows[rows.index(after: start)...]
+            .filter { $0.role == .assistant }
+            .reduce(0) { $0 + estimatedTokens(in: $1.text) }
+    }
+
+    /// A token count without a tokenizer: about four characters to a token
+    /// for ASCII text, as for English and code, and a token to each other
+    /// character, as for Chinese, Japanese and Korean.
+    static func estimatedTokens(in text: some StringProtocol) -> Double {
+        var ascii = 0
+        var other = 0
+        for scalar in text.unicodeScalars {
+            if scalar.isASCII {
+                ascii += 1
+            } else {
+                other += 1
+            }
+        }
+        return Double(ascii) / 4 + Double(other)
+    }
+
+    /// Where following takes the list from `offset`: to `latest`, the offset
+    /// that shows the newest content, while the reply is not too fast to
+    /// read. A fast one goes no further than puts `messageTop` (the turn's
+    /// message, in content coordinates) at `topInset` below the list's top
+    /// edge, and never back up; once the message is there, the turn is
+    /// followed no further.
+    static func move(
+        pace: Pace,
         offset: CGFloat,
         latest: CGFloat,
         messageTop: CGFloat,
         topInset: CGFloat,
-    ) -> (offset: CGFloat, reachesTop: Bool) {
+    ) -> Move {
+        guard pace.isFast else { return .latest }
         let limit = messageTop - topInset
-        return (max(offset, min(latest, limit)), latest >= limit)
+        return latest < limit ? .latest : .stop(max(offset, limit))
+    }
+
+    enum Move: Equatable {
+        /// To the newest content; the turn is still followed.
+        case latest
+        /// To this offset, and the turn is followed no more.
+        case stop(CGFloat)
+    }
+
+    /// How fast a turn's reply streams: its estimated tokens a second,
+    /// averaged over everything since its first text. That first update came
+    /// at once (the first coalesced chunk, or a backlog the page caught up
+    /// on), so it marks the start and is not counted itself.
+    struct Pace {
+        private var first: Sample?
+        private var last: Sample?
+
+        private struct Sample {
+            let time: TimeInterval
+            let tokens: Double
+        }
+
+        /// The reply holds `tokens` at `time`, in seconds of any monotonic
+        /// clock.
+        mutating func observe(tokens: Double, at time: TimeInterval) {
+            guard tokens > 0 else { return }
+            let sample = Sample(time: time, tokens: tokens)
+            if first == nil {
+                first = sample
+            }
+            last = sample
+        }
+
+        /// Nil until `paceWindow` has passed since the first text.
+        var tokensPerSecond: Double? {
+            guard let first, let last, last.time - first.time >= TurnFollowing.paceWindow else { return nil }
+            return (last.tokens - first.tokens) / (last.time - first.time)
+        }
+
+        var isFast: Bool {
+            (tokensPerSecond ?? 0) > TurnFollowing.fastTokensPerSecond
+        }
     }
 }

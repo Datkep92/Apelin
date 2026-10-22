@@ -342,18 +342,118 @@ precondition(TurnFollowing.turnMessage(in: fromTranscript.messages) == fromTrans
              "a message from another conversation starts a turn")
 precondition(TurnFollowing.turnMessage(in: []) == nil)
 
-/// Following a turn moves toward the newest content until the turn's message
-/// reaches the top of the visible area, then no further, and never back up.
-func follow(_ offset: CGFloat, latest: CGFloat, top: CGFloat) -> (offset: CGFloat, reachesTop: Bool) {
-    TurnFollowing.step(offset: offset, latest: latest, messageTop: top, topInset: 100)
+// A reply's pace is its estimated tokens a second since its first text: about
+// four ASCII characters to a token, a token to each other character.
+precondition(TurnFollowing.estimatedTokens(in: "abcdefgh") == 2)
+precondition(TurnFollowing.estimatedTokens(in: "你好世界") == 4)
+precondition(TurnFollowing.estimatedTokens(in: "ok 好") == 1.75)
+let turnRows = ChatTranscript(events: [
+    event(1, "prompt", ["id": .string(userID.uuidString), "text": .string("Write a long story")]),
+    event(2, "messageStarted"), event(3, "thinking", ["text": .string("Planning the story out")]),
+    event(4, "text", ["text": .string("Once upon a time")]),
+]) { _ in nil }.messages
+precondition(TurnFollowing.replyTokens(in: turnRows, after: userID) == 4, "only the reply counts, not the prompt or thinking")
+
+/// A reply that streamed `tokens` more every quarter second for `seconds`.
+func pace(tokensPerQuarter tokens: Double, seconds: Double) -> TurnFollowing.Pace {
+    var pace = TurnFollowing.Pace()
+    var time = 10.0
+    var total = 0.0
+    while time <= 10 + seconds {
+        total += tokens
+        pace.observe(tokens: total, at: time)
+        time += 0.25
+    }
+    return pace
 }
 
-precondition(follow(0, latest: 300, top: 500) == (300, false), "within a page it shows the newest content")
-precondition(follow(300, latest: 450, top: 500) == (400, true), "past a page it stops with the message at the top")
-precondition(follow(300, latest: 400, top: 500) == (400, true), "exactly a page is the last step")
-precondition(follow(600, latest: 900, top: 500) == (600, true), "a message already above is not scrolled back to")
-precondition(follow(300, latest: 300, top: 900) == (300, false), "nothing new leaves the list where it is")
-print("ok: a turn is followed for at most a page, from its message")
+let slow = pace(tokensPerQuarter: 5, seconds: 8) // 20 tokens a second
+let fast = pace(tokensPerQuarter: 30, seconds: 8) // 120 tokens a second
+precondition(abs((slow.tokensPerSecond ?? 0) - 20) < 0.01 && !slow.isFast)
+precondition(abs((fast.tokensPerSecond ?? 0) - 120) < 0.01 && fast.isFast)
+precondition(!pace(tokensPerQuarter: 30, seconds: 0.5).isFast, "one burst is not taken for the pace")
+precondition(TurnFollowing.Pace().tokensPerSecond == nil, "a turn with no text yet has no pace")
+var backlog = TurnFollowing.Pace()
+backlog.observe(tokens: 4000, at: 0)
+backlog.observe(tokens: 4040, at: 2)
+precondition(!backlog.isFast, "what arrived at once marks the start and does not count")
+var atThreshold = TurnFollowing.Pace()
+atThreshold.observe(tokens: 1, at: 0)
+atThreshold.observe(tokens: 101, at: 2)
+precondition(!atThreshold.isFast, "50 tokens a second is still followed")
+atThreshold.observe(tokens: 103, at: 2)
+precondition(atThreshold.isFast, "faster is not")
+
+/// Where following takes the list, with a 100 pt bar over the visible area.
+func follow(_ pace: TurnFollowing.Pace, _ offset: CGFloat, latest: CGFloat, top: CGFloat) -> TurnFollowing.Move {
+    TurnFollowing.move(pace: pace, offset: offset, latest: latest, messageTop: top, topInset: 100)
+}
+
+precondition(follow(slow, 300, latest: 2000, top: 500) == .latest, "a reply a reader keeps up with is followed past a page")
+precondition(follow(slow, 1900, latest: 2600, top: 500) == .latest, "to its end")
+precondition(follow(fast, 0, latest: 300, top: 500) == .latest, "a fast one within a page shows the newest content")
+precondition(follow(fast, 300, latest: 2000, top: 500) == .stop(400), "past a page it stops with the message at the top")
+precondition(follow(fast, 300, latest: 400, top: 500) == .stop(400), "exactly a page is the last step")
+precondition(follow(fast, 1900, latest: 2600, top: 500) == .stop(1900), "followed past the page while slow, it stops where it is")
+print("ok: a turn is followed to its end unless it streams faster than 50 tokens a second, then for a page")
+
+// A reopened session comes back as a new task that first replays the whole
+// history, under its own numbering and times. The conversation keeps the
+// events it has, reads past the replay, and takes what follows it.
+let firstID = UUID()
+let history = [
+    event(1, "prompt", ["id": .string(firstID.uuidString), "text": .string("Tell me a story")]),
+    event(2, "messageStarted"), event(3, "thinking", ["text": .string("A short one")]),
+    event(4, "text", ["text": .string("Once")]), event(5, "text", ["text": .string(" upon")]),
+    event(6, "text", ["text": .string(" a")]), event(7, "text", ["text": .string(" time")]),
+    event(8, "finished"),
+    event(9, "steer", ["text": .string("From another chat")]),
+    event(10, "messageStarted"), event(11, "message", ["text": .string("Noted.")]), event(12, "finished"),
+]
+var reopened = ChatRecord(summary: ChatSummary(title: "Story", updated: Date()))
+reopened.task = TaskHandle(taskID: .make(), kind: .agent)
+reopened.events = history
+let before = ChatTranscript(events: reopened.events, sending: [sent]) { _ in nil }.messages
+reopened.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
+precondition(reopened.events == history && reopened.cursor == .start, "the history stays while the new task is read from its start")
+// the replay, in two batches, coalesced and numbered its own way
+precondition(reopened.take([
+    event(1, "prompt", ["id": .string(firstID.uuidString), "text": .string("Tell me a story")]),
+    event(2, "messageStarted"), event(3, "thinking", ["text": .string("A short one")]),
+]).isEmpty)
+precondition(reopened.events == history && reopened.cursor == EventSeq(3))
+precondition(ChatTranscript(events: reopened.events, sending: [sent]) { _ in nil }.messages == before,
+             "while the replay comes in, the conversation shows what it showed")
+let restOfReplay = [
+    event(4, "text", ["text": .string("Once upon a time")]), event(5, "finished"),
+    event(6, "steer", ["text": .string("From another chat")]),
+    event(7, "messageStarted"), event(8, "message", ["text": .string("Noted.")]), event(9, "finished"),
+    event(10, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")]),
+    event(11, "text", ["text": .string("Done")]),
+]
+var relaunched = try JSONDecoder().decode(ChatRecord.self, from: JSONEncoder().encode(reopened))
+precondition(relaunched.cursor == EventSeq(3), "a replay half read is saved with the record")
+precondition(relaunched.take(restOfReplay).map(\.seq) == [EventSeq(10), EventSeq(11)], "and goes on after a relaunch")
+precondition(reopened.take(restOfReplay).map(\.seq) == [EventSeq(10), EventSeq(11)], "what follows the replay is taken")
+precondition(reopened.events.count == history.count + 2 && reopened.cursor == EventSeq(11))
+let after = ChatTranscript(events: reopened.events) { _ in nil }.messages
+precondition(Array(after.prefix(before.count - 1)) == Array(before.prefix(before.count - 1)), "the rows already shown keep their ids")
+precondition(Set(after.map(\.id)).count == after.count, "and no id repeats, though the numbering started again")
+precondition(after.last { $0.role == .user }?.id == sent.id && after.last?.text == "Done")
+precondition(reopened.take([event(12, "text", ["text": .string(" now")])]).count == 1, "after the replay, everything is taken")
+var unknownHistory = ChatRecord(summary: ChatSummary(title: "Lost", updated: Date()))
+unknownHistory.events = history
+unknownHistory.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
+precondition(unknownHistory.take([event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]).count == 1,
+             "a task that replays nothing starts with the new message")
+var firstTask = ChatRecord(summary: ChatSummary(title: "New", updated: Date()))
+firstTask.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
+precondition(firstTask.take([event(1, "error", ["message": .string("Sign in first")])]).count == 1,
+             "a conversation with no history reads its first task from the start, an early error included")
+var sameTask = reopened
+sameTask.reopen(as: reopened.task!)
+precondition(sameTask.events == reopened.events && sameTask.cursor == EventSeq(12), "the same task again reads on")
+print("ok: a reopened session's replay is read past, and the conversation keeps its rows")
 
 /// A name the reader gives a conversation is kept: the agent's `title`
 /// events and the first message's opening no longer replace it, a name of
@@ -368,11 +468,11 @@ precondition(renamed.title == "Release checklist" && renamed.isNamedByReader == 
 renamed.suggestTitle("Agent title after the rename")
 precondition(renamed.title == "Release checklist", "a host title after a rename does not replace it")
 let renamedFile = try JSONEncoder().encode(ChatRecord(summary: renamed))
-var relaunched = try JSONDecoder().decode(ChatRecord.self, from: renamedFile).summary
-precondition(relaunched.title == "Release checklist" && relaunched.isNamedByReader == true, "the name survives a relaunch")
-relaunched.suggestTitle("Title replayed from the start of the task")
-precondition(relaunched.title == "Release checklist", "a replayed title after a relaunch does not replace it either")
-precondition(relaunched.rename(to: "Second name") && relaunched.title == "Second name", "the reader can rename again")
+var relaunchedNamed = try JSONDecoder().decode(ChatRecord.self, from: renamedFile).summary
+precondition(relaunchedNamed.title == "Release checklist" && relaunchedNamed.isNamedByReader == true, "the name survives a relaunch")
+relaunchedNamed.suggestTitle("Title replayed from the start of the task")
+precondition(relaunchedNamed.title == "Release checklist", "a replayed title after a relaunch does not replace it either")
+precondition(relaunchedNamed.rename(to: "Second name") && relaunchedNamed.title == "Second name", "the reader can rename again")
 let olderSummary = try JSONDecoder().decode(ChatSummary.self, from: Data("""
 {"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","title":"Old","updated":0,"isPinned":false,"isWorking":false}
 """.utf8))
