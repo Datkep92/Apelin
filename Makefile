@@ -69,9 +69,14 @@ DEVICE_TOOL         := $(ROOT_DIR)/Scripts/device.py
 CONTROL_TEMPLATE    := $(ROOT_DIR)/Packaging/DEBIAN/control
 ENTITLEMENTS        := $(ROOT_DIR)/Packaging/Apelin.entitlements
 DAEMON_ENTITLEMENTS := $(ROOT_DIR)/Packaging/Apelind.entitlements
+# The widget extension's (Widgets/Extension): sandboxed, the App Group alone.
+WIDGET_ENTITLEMENTS := $(ROOT_DIR)/Packaging/ApelinWidgets.entitlements
+# The one App Group the app and the widget extension share; the snapshot's
+# store names it too (Widgets/Shared/ChatWidgetSnapshot.swift).
+APP_GROUP           := group.wiki.qaq.apelin
 LAUNCH_DAEMON       := $(ROOT_DIR)/Packaging/$(DAEMON_ID).plist
 # Every Swift source root, for the greps and the gates that read source.
-SOURCE_ROOTS        := $(ROOT_DIR)/Apelin $(ROOT_DIR)/Apelind $(ROOT_DIR)/Shared $(ROOT_DIR)/Workers $(ROOT_DIR)/Packages/ApelinKit/Sources
+SOURCE_ROOTS        := $(ROOT_DIR)/Apelin $(ROOT_DIR)/Apelind $(ROOT_DIR)/Shared $(ROOT_DIR)/Widgets $(ROOT_DIR)/Workers $(ROOT_DIR)/Packages/ApelinKit/Sources
 # The shared package: `make harness` runs its tests on the Mac.
 APELINKIT           := $(ROOT_DIR)/Packages/ApelinKit
 SWIFTPM_SCRATCH     ?= $(APELINKIT)/.build
@@ -282,7 +287,7 @@ check:
 	@python3 -I -B "$(TEMPLATES_CHECK)" --no-build >/dev/null
 	@# Every console script says what a device run needs, sets up and checks.
 	@python3 -I -B "$(DEVICE_TOOL)" lint
-	@plutil -lint "$(ENTITLEMENTS)" "$(DAEMON_ENTITLEMENTS)" "$(LAUNCH_DAEMON)" $(WORKER_ENTITLEMENTS)
+	@plutil -lint "$(ENTITLEMENTS)" "$(DAEMON_ENTITLEMENTS)" "$(WIDGET_ENTITLEMENTS)" "$(LAUNCH_DAEMON)" $(WORKER_ENTITLEMENTS)
 	@for entitlements in $(WORKER_ENTITLEMENTS); do \
 		! /usr/libexec/PlistBuddy -c 'Print :wiki.qaq.apelin.client' "$$entitlements" >/dev/null 2>&1 \
 			|| { echo "error: $${entitlements#$(ROOT_DIR)/} carries the client entitlement; workers reach the session host by socketpair only" >&2; exit 65; }; \
@@ -303,8 +308,18 @@ check:
 		|| { echo "error: the daemon and its sessions require a 10240 soft file-descriptor limit" >&2; exit 65; }
 	@[[ "$$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$(LAUNCH_DAEMON)")" == "@PREFIX@/usr/libexec/apelind" ]] \
 		|| { echo "error: the launchd plist must start @PREFIX@/usr/libexec/apelind" >&2; exit 65; }
-	@! /usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups' "$(ENTITLEMENTS)" >/dev/null 2>&1 \
-		|| { echo "error: the app carries an App Group, but no extension shares its container and the packager substitutes none" >&2; exit 65; }
+	@# One App Group, the same on the app and the widget extension and in the
+	@# snapshot's store; the packager reads both back out of the signed binaries.
+	@for entitlements in "$(ENTITLEMENTS)" "$(WIDGET_ENTITLEMENTS)"; do \
+		[[ "$$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups' "$$entitlements" 2>/dev/null | sed -n 's/^ *\(group\.[^ ]*\)$$/\1/p')" == "$(APP_GROUP)" ]] \
+			|| { echo "error: $${entitlements#$(ROOT_DIR)/} must carry exactly the App Group $(APP_GROUP)" >&2; exit 65; }; \
+	done
+	@grep -qF 'appGroup = "$(APP_GROUP)"' "$(ROOT_DIR)/Widgets/Shared/ChatWidgetSnapshot.swift" \
+		|| { echo "error: ChatWidgetStore.appGroup must be $(APP_GROUP), the App Group both targets carry" >&2; exit 65; }
+	@for key in wiki.qaq.apelin.client com.apple.private.security.no-sandbox platform-application com.apple.security.exception.mach-lookup.global-name; do \
+		! /usr/libexec/PlistBuddy -c "Print :$$key" "$(WIDGET_ENTITLEMENTS)" >/dev/null 2>&1 \
+			|| { echo "error: Packaging/ApelinWidgets.entitlements carries $$key; the widget extension stays sandboxed and unprivileged" >&2; exit 65; }; \
+	done
 	@test -f "$(XPC_SHIM_DIR)/module.modulemap" -a -f "$(XPC_SHIM_DIR)/shim.h" \
 		|| { echo "error: Shared/XPCShim is missing — the XPC_TYPE_* macros are read through the CAppXPC module" >&2; exit 66; }
 	@grep -qF 'SWIFT_INCLUDE_PATHS' "$(CONFIG_DIR)/Base.xcconfig" \
@@ -341,8 +356,8 @@ check:
 	@# Discipline: keys Xcode cannot see stay `extractionState: manual`, pruned
 	@# by hand with prune-xcstrings.py (Xcode closed, every source root
 	@# passed). `stale` is what Xcode writes during a build and never survives.
-	@"$(STALE_STRINGS_CHECK)" "$(ROOT_DIR)/Apelin"
-	@"$(FORMAT_STRINGS_CHECK)" "$(ROOT_DIR)/Apelin"
+	@"$(STALE_STRINGS_CHECK)" "$(ROOT_DIR)/Apelin" "$(ROOT_DIR)/Widgets"
+	@"$(FORMAT_STRINGS_CHECK)" "$(ROOT_DIR)/Apelin" "$(ROOT_DIR)/Widgets"
 	@"$(SYMBOL_CHECK)" "$(IOS_DEPLOYMENT_FLOOR)" $(SOURCE_ROOTS)
 
 # The Mac half of "where things get tested": what can run without a device.
@@ -391,6 +406,12 @@ harness:
 		"$(ROOT_DIR)/Tests/Journal/main.swift" \
 		-o "$$harness_dir/journal" && \
 	"$$harness_dir/journal" && \
+	xcrun --sdk macosx swiftc -swift-version 5 \
+		"$(ROOT_DIR)/Widgets/Shared/ApelinLink.swift" \
+		"$(ROOT_DIR)/Widgets/Shared/ChatWidgetSnapshot.swift" \
+		"$(ROOT_DIR)/Tests/ApelinLink/main.swift" \
+		-o "$$harness_dir/apelin-link" && \
+	"$$harness_dir/apelin-link" && \
 	xcrun --sdk macosx swiftc -swift-version 5 \
 		"$(ROOT_DIR)/Apelin/Application/ExecutableWatch.swift" \
 		"$(ROOT_DIR)/Tests/ExecutableWatch/main.swift" \

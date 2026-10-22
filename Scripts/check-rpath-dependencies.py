@@ -65,12 +65,13 @@ def load_commands(path):
 
 
 def executable_directory(path, root):
-    """The directory @executable_path names for this image: the app bundle
-    for anything inside an .app, else the image's own directory."""
+    """The directory @executable_path names for this image: the innermost
+    bundle with a main executable that holds it — an .appex inside an .app
+    is its own process — else the image's own directory."""
     relative = os.path.relpath(path, root)
     parts = relative.split(os.sep)
-    for index, part in enumerate(parts):
-        if part.endswith(".app"):
+    for index in range(len(parts) - 1, -1, -1):
+        if parts[index].endswith((".app", ".appex")):
             return os.path.join(root, *parts[: index + 1])
     return os.path.dirname(path)
 

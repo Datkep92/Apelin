@@ -19,6 +19,10 @@ final class RootInterfaceController: UIViewController {
     private let chatRuntime = ChatRuntime()
     private var restoredChat = false
     private var opensChatAfterWelcome = false
+    /// An `apelin://` link that came before the conversations were read.
+    private var pendingLink: ApelinLink?
+    /// A link is being looked up: the launch's own restore waits for it.
+    private var isResolvingLink = false
     private lazy var sidebarNavigation = UINavigationController(rootViewController: sidebar)
     /// The conversation page, made once and handed each conversation picked.
     private lazy var chatController: ChatController = {
@@ -73,7 +77,9 @@ final class RootInterfaceController: UIViewController {
             sidebar.refresh()
             restoreChatIfReady()
             chatController.refreshRuntime()
+            ChatWidgetPublisher.shared.chatsChanged()
         }
+        ChatWidgetPublisher.shared.attach(chatRuntime)
         chatRuntime.onDraftRestored = { [weak self] id in self?.chatController.restoreDraft(for: id) }
         chatRuntime.onError = { [weak self] error in
             self?.presentNotice(title: "Unable to Load Chats", message: error.readableMessage)
@@ -88,7 +94,13 @@ final class RootInterfaceController: UIViewController {
     /// A restored chat already names its project. A fresh phone chat must
     /// wait for the sidebar's saved project, rather than racing it into General.
     private func restoreChatIfReady() {
-        guard !WelcomeFlow.shouldPresent, chatRuntime.isLoaded, !restoredChat else { return }
+        guard !WelcomeFlow.shouldPresent, chatRuntime.isLoaded, !isResolvingLink else { return }
+        if let link = pendingLink {
+            pendingLink = nil
+            open(link)
+            return
+        }
+        guard !restoredChat else { return }
         if let saved = Self.savedChatID, let summary = chatRuntime.records[saved]?.summary {
             restoredChat = true
             sidebar.select(summary)
@@ -341,6 +353,37 @@ final class RootInterfaceController: UIViewController {
             navigator.popToRootViewController(animated: false)
         }
         if picked, drawerProgress > 0 {
+            setDrawerOpen(false)
+        }
+    }
+
+    /// Opens an `apelin://` link: its conversation, in its project, as if
+    /// picked, which on an iPhone puts the drawer away. One that names
+    /// nothing leaves the page as it was and says so. A link before the
+    /// conversations are read waits for them, and the launch shows it
+    /// instead of the conversation saved; during the welcome it is dropped.
+    func open(_ link: ApelinLink) {
+        guard link != .app, !WelcomeFlow.shouldPresent else { return }
+        guard chatRuntime.isLoaded else {
+            pendingLink = link
+            return
+        }
+        isResolvingLink = true
+        Task { [weak self] in
+            guard let self else { return }
+            let destination = await ChatLinkTarget.resolve(link, in: chatRuntime)
+            isResolvingLink = false
+            guard let destination else {
+                ChatLinkTarget.reportUnresolved(link)
+                restoreChatIfReady()
+                return
+            }
+            restoredChat = true
+            let summary = switch destination {
+            case let .chat(summary): summary
+            case let .newChat(project): chatRuntime.newChat(project: project, preferring: nil)
+            }
+            sidebar.select(summary)
             setDrawerOpen(false)
         }
     }

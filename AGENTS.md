@@ -1273,8 +1273,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the manual way — a key Xcode cannot see stays `extractionState: manual`,
   `make check` refuses `stale`. Prune by hand with Xcode closed, passing every
   source root: `Scripts/prune-xcstrings.py Apelin/Resources/Localizable.xcstrings
-  Apelin Apelind Shared Workers Packages`. Never `--delete-orphans`: the
-  project has several targets now.
+  Apelin Apelind Shared Widgets Workers Packages`. Never `--delete-orphans`: the
+  project has several targets now. The widget extension is a bundle of its own
+  and keeps its own, `Widgets/Extension/Resources/Localizable.xcstrings`, the
+  same way; the gates run over both.
 - **Licenses**: the reviewed discipline (`Licenses/README.md`). A dependency's
   notices land in `Licenses/` and `review.json` in the commit that adds it.
   GPL-family text fails the build except for an entry in `review.json` ▸
@@ -1779,12 +1781,17 @@ Packages/Runestone/      the editor's text view and grammars, vendored and trimm
 Shared/                  compiled into the app and apelind: the XPC side of the wire
                          (Protocol/: AppProtocol, AppXPC, XPCEnvelope), the XPC constant
                          shim (XPCShim/, a C module), RoothideRoot
+Widgets/                 Extension/ (target ApelinWidgets, ApelinWidgets.appex: the home
+                         screen widget and the Live Activity, Resources/ with its
+                         catalogue); Shared/ (compiled into the app and the extension:
+                         ApelinLink, ChatWidgetSnapshot, ChatActivityAttributes)
 Configuration/           Version, Base, Development and Release xcconfigs
 Packaging/               entitlements (Workers/<name>.entitlements too), the launchd plist,
                          DEBIAN/{control,postinst,prerm,postrm}
 Scripts/                 package-deb.sh, install-device.sh, device.py (the device harness),
                          collect-licenses.py and the gates
-Tests/                   the harness's host tests (RoothideRoot, ExecutableWatch, SessionHost)
+Tests/                   the harness's host tests (RoothideRoot, ExecutableWatch, ApelinLink,
+                         SessionHost)
 Licenses/                reviewed notices: review.json, Compatibility.md, one folder per component
 Documents/               Icon/ (the .icon source, in no target), Site/ (Pages), Releases/,
                          Plan/ (Milestone-1, Handoff), Research/ (Device-Validation, the
@@ -2133,3 +2140,81 @@ the memories' and the task log's raw diffable sources included, goes through
 both. Form fields and task-stage cells keep their existing views. The sidebar
 updates for changed titles, activity or order, rather than each streamed text
 fragment. The chat's ListViewKit keeps its own update mechanism.
+
+## Widgets, the Live Activity and `apelin://` links (2026-10-22)
+
+- **Links.** `apelin://conversation/<id>` opens a conversation: `<id>` is its
+  agent session ID (what the conversation tools return), or the app's own
+  chat ID. `apelin://project/<projectID or folder name>` opens a project on
+  its most recent conversation, or a new one. `apelin://` opens the app as it
+  is. The format is fixed — the agent writes these links. `ApelinLink`
+  (`Widgets/Shared/ApelinLink.swift`, Foundation only; `Tests/ApelinLink` in
+  `make harness`) parses and builds them; the scheme is declared in the
+  partial `Apelin/Resources/Info.plist`. `SceneDelegate` hands an `apelin:`
+  URL from the connection options or `openURLContexts` to `ApelinLinkRouter`
+  and anything else to `TransferOpener`, as before. A link tapped in a
+  transcript (`ChatMessageRow`'s `linkHandler`) goes there too, never through
+  the system. `RootInterfaceController.open(_:)` resolves it with
+  `ChatLinkTarget`: a session the app has no row for is taken in first
+  (`ChatAdoption`: in its opener's project, else the project `agentList`
+  names), then the conversation is selected in its project (General Chat for
+  a temporary one) as if picked, which puts an iPhone's drawer away. A link
+  that comes before the conversations are read waits for them and wins over
+  the saved selection; one during the welcome is dropped; one that names
+  nothing leaves the page as it was and says so in an `SPIndicator`.
+- **Widgets** (design approved by the owner, 2026-10-22; the SwiftUI that
+  rendered it is the views). `ApelinWidgets.appex` (`Widgets/Extension/`,
+  embedded by the app target's Embed Foundation Extensions phase). Small: the
+  conversation that most needs a look — waiting for an approval, then
+  working, then the most recent — with the mark, a status line and its dot
+  (`Approve: Install`, 需要授权 · 安装: "Needs Approval · Install" did not
+  fit the small widget's one line), the title and the project dimmed; a tap opens
+  it, where a waiting approval stands in for the composer. Medium: the
+  header with the counts (`2 working · 1 awaiting approval`), up to three
+  conversations, waiting and working first, each a `Link`, then `N more
+  chats`; a tap elsewhere opens the app. Working is green, waiting amber,
+  done grey, failed red (a last turn that finished `failed`, or was cut off
+  by its task failing or being interrupted); with no conversation, New Chat.
+- **The snapshot.** The extension is sandboxed and cannot read mobile's
+  Documents, and the app has no container, so the app writes
+  `ChatWidgetSnapshot` to `Widgets/chats.json` in the App Group container
+  `group.wiki.qaq.apelin`, which both targets carry — the way Fila's save
+  action shares Fila's. `make check` and the packager require exactly that
+  group on both, and nothing privileged on the extension (no `no-sandbox`,
+  `platform-application`, storage, container or client keys, no Mach
+  lookup). The snapshot is ready to draw — status, the project's display
+  name, the order, the counts, and no dates, so streamed text writes nothing.
+  `ChatWidgetPublisher` (`Apelin/Widgets/`) is attached and told of every
+  `ChatRuntime` change by the root, looks at most once a second and only
+  once the saved conversations are read, writes and reloads the timeline
+  (one entry, policy `.never`) only when the snapshot changed, and reads the
+  display names again on `.apelinProjectsChanged`. An untouched New Chat is
+  not listed; a deleted conversation, a deleted or renamed project and a
+  temporary conversation (General Chat) show as they are on the next look.
+  The widgets show what the app last saw: a suspended app follows nothing.
+- **The Live Activity.** One while any conversation works or waits; its
+  state is the snapshot cut to those (at most four, inside ActivityKit's
+  4 KB). The lock screen shows the header and three rows; the island,
+  closed, the mark and the count, amber while an approval waits; minimal,
+  the mark; expanded, the counts and two rows. A tap opens the conversation
+  waiting, else the latest working. It ends when nothing is in progress, and
+  in `applicationWillTerminate` (nothing would update it after); one that a
+  killed run left is updated or ended by the first look after the next
+  launch. iPadOS 26.4 shows it on the lock screen too, after asking once to
+  allow Live Activities from Apelin.
+- **After installing over an earlier build**, chronod keeps refusing the new
+  extension's timelines (`WidgetArchiver.ValidationError.bundleStubNotSupported`
+  in its log) and the widgets go on showing their last render until chronod
+  restarts — a respring or a reboot; the app's reloads cannot fix it. Seen on
+  the iPad vphone, 2026-10-22; the hooks do not restart chronod (they manage
+  the daemon only).
+- **The floor.** The extension deploys to 16.0 with the app, because a
+  jailbreak install registers it whatever its minimum OS says. The home
+  screen widget runs from 16.0; the Live Activity from 16.2 (`ActivityContent`,
+  as iGhostVT's), with `-weak_framework ActivityKit` on the app and the
+  extension so 16.0 and 16.1 load them; `containerBackground` from 17, the
+  view's own padding before. The packager requires exactly this appex in
+  `PlugIns/` with the app's versions, strips it, greps it for build paths,
+  signs it with `Packaging/ApelinWidgets.entitlements` and reads them back;
+  `install-device.sh --app` signs it too, and the rpath check takes an
+  `.appex` as its own `@executable_path`.

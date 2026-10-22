@@ -1,0 +1,140 @@
+import SwiftUI
+
+extension ChatWidgetSnapshot.Chat {
+    /// What its status is called, alone.
+    var statusWord: String {
+        switch status {
+        case .working: String(localized: "Working")
+        case .waiting: String(localized: "Needs Approval")
+        case .done: String(localized: "Done")
+        case .failed: String(localized: "Failed")
+        }
+    }
+
+    /// The status line: what it waits for, when the approval names a step
+    /// worth naming ("Approve: Install", 需要授权 · 安装). Short enough for
+    /// the small widget's one line, where "Needs Approval · Install" was not.
+    var statusLine: String {
+        guard status == .waiting, let step = approvalStep else { return statusWord }
+        return String(localized: "Approve: \(step)")
+    }
+
+    /// The project, or General Chat for a conversation in none.
+    var projectName: String {
+        project ?? String(localized: "General Chat")
+    }
+
+    /// The step a waiting approval is for, in a word.
+    private var approvalStep: String? {
+        switch approvalTool {
+        case "install": String(localized: "Install")
+        case "remove_package": String(localized: "Remove")
+        case "build": String(localized: "Build")
+        case "run_code": String(localized: "Run")
+        case "respring": String(localized: "Respring")
+        case "write_file", "create_file", "patch_file": String(localized: "Edit")
+        case "git_commit": String(localized: "Commit")
+        case "git_pull": String(localized: "Pull")
+        case "git_push": String(localized: "Push")
+        case "git_set_author", "git_save_credential", "git_remove_credential": String(localized: "Git Settings")
+        case "project_create": String(localized: "Create Project")
+        case "ui_action": String(localized: "Control Screen")
+        default: nil
+        }
+    }
+}
+
+extension ChatWidgetSnapshot {
+    /// "2 working · 1 awaiting approval", skipping an empty group; nil when
+    /// nothing is in progress.
+    var summaryLine: String? {
+        var parts: [String] = []
+        if workingCount > 0 {
+            parts.append(String(localized: "\(workingCount) working"))
+        }
+        if waitingCount > 0 {
+            parts.append(String(localized: "\(waitingCount) awaiting approval"))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// The mark, the name and the counts trailing in the dim style.
+struct ChatWidgetHeader: View {
+    let snapshot: ChatWidgetSnapshot
+    let theme: WidgetTheme
+
+    var body: some View {
+        HStack(alignment: .center, spacing: WidgetSpacing.line) {
+            MarkView(size: 22, braces: theme.braces)
+            Text(verbatim: "Apelin")
+                .font(.rounded(.subheadline, .bold))
+            Spacer(minLength: WidgetSpacing.line)
+            if let summary = snapshot.summaryLine {
+                Text(summary)
+                    .font(.rounded(.subheadline))
+                    .opacity(0.6)
+                    .lineLimit(1)
+                    .contentTransition(.numericText())
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One line per conversation — its status dot, its title and its project —
+/// then how many more there are past the last.
+struct ChatWidgetRows: View {
+    let snapshot: ChatWidgetSnapshot
+    let theme: WidgetTheme
+    let limit: Int
+    var spacing: CGFloat = WidgetSpacing.row
+    /// Each row opens its conversation (the medium widget). The Live
+    /// Activity opens one conversation for the whole card instead.
+    var linksRows = false
+
+    var body: some View {
+        let shown = Array(snapshot.chats.prefix(limit))
+        let hidden = snapshot.totalCount - shown.count
+        VStack(alignment: .leading, spacing: spacing) {
+            ForEach(shown) { chat in
+                if linksRows {
+                    Link(destination: chat.link) {
+                        ChatWidgetRow(chat: chat, theme: theme)
+                    }
+                } else {
+                    ChatWidgetRow(chat: chat, theme: theme)
+                }
+            }
+            if hidden > 0 {
+                Text("\(hidden) more chats")
+                    .font(.rounded(.footnote))
+                    .opacity(0.5)
+                    .padding(.leading, WidgetSpacing.dotColumn)
+            }
+        }
+    }
+}
+
+struct ChatWidgetRow: View {
+    let chat: ChatWidgetSnapshot.Chat
+    let theme: WidgetTheme
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: WidgetSpacing.line) {
+            StatusDot(color: theme.color(for: chat.status))
+                .alignmentGuide(.firstTextBaseline) { dimensions in dimensions[.bottom] + 1.5 }
+            Text(verbatim: chat.title)
+                .font(.rounded(.subheadline))
+                .lineLimit(1)
+                .layoutPriority(1)
+            Spacer(minLength: WidgetSpacing.line)
+            Text(verbatim: chat.projectName)
+                .font(.rounded(.footnote))
+                .opacity(0.5)
+                .lineLimit(1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(Text(chat.statusLine))
+    }
+}

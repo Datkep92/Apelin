@@ -12,7 +12,11 @@
 	Mach-lookup of `wiki.qaq.apelin.service` is not optional: without it the app
 	cannot find the daemon.
 
-	No App Group: no extension shares the app's container.
+	`com.apple.security.application-groups` names the one App Group the
+	widget extension shares (`group.wiki.qaq.apelin`): the app writes the
+	widgets' snapshot there, because the sandboxed extension cannot read
+	mobile's Documents (Packaging/ApelinWidgets.entitlements). Nothing else
+	goes in it.
 
 	`platform-application` attests "signed as platform", not "this client".
 	The app carries it and the authenticator requires it; drop it from both
@@ -55,6 +59,10 @@
 <dict>
 	<key>application-identifier</key>
 	<string>wiki.qaq.apelin</string>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.wiki.qaq.apelin</string>
+	</array>
 	<key>com.apple.security.iokit-user-client-class</key>
 	<array>
 		<string>AGXCommandQueue</string>

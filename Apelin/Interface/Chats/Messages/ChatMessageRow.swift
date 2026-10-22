@@ -83,12 +83,17 @@ final class ChatMessageRow: ListRowView {
         label.isAccessibilityElement = true
         addSubview(label)
         addSubview(markdownView)
-        markdownView.linkHandler = { link, _, _ in
+        markdownView.linkHandler = { [weak self] link, _, _ in
             let url: URL? = switch link {
             case let .url(value): value
             case let .string(value): URL(string: value)
             }
-            if let url, ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
+            guard let url else { return }
+            // an apelin:// link opens its conversation in place
+            if ApelinLinkRouter.open(url, in: self?.window?.windowScene) {
+                return
+            }
+            if ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
                 UIApplication.shared.open(url)
             }
         }

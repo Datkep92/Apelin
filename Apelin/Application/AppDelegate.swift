@@ -29,6 +29,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
+    /// A quit takes the Live Activity with it: nothing would update it
+    /// after (`ChatWidgetPublisher.endActivitiesForQuit`).
+    func applicationWillTerminate(_: UIApplication) {
+        ChatWidgetPublisher.endActivitiesForQuit()
+    }
+
     func application(
         _: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,
@@ -84,22 +90,25 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = RootInterfaceController()
         window.makeKeyAndVisible()
         self.window = window
-        // A cold launch by Open in Apelin: the file comes with the scene.
-        // Opened on the next turn, once the root is on screen to present from.
-        DispatchQueue.main.async { [weak self] in self?.openFiles(connectionOptions.urlContexts, in: scene) }
+        // A cold launch by Open in Apelin or an `apelin://` link: the URL
+        // comes with the scene. Opened on the next turn, once the root is on
+        // screen to present from.
+        DispatchQueue.main.async { [weak self] in self?.openURLs(connectionOptions.urlContexts, in: scene) }
     }
 
-    /// Open in Apelin while the app runs.
+    /// Open in Apelin, or an `apelin://` link, while the app runs.
     func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {
         guard let scene = scene as? UIWindowScene else { return }
-        openFiles(contexts, in: scene)
+        openURLs(contexts, in: scene)
     }
 
-    /// Transfer files only; anything else is refused by the opener with a
-    /// notice. One at a time: a second sheet could not be presented over
-    /// the first.
-    private func openFiles(_ contexts: Set<UIOpenURLContext>, in scene: UIWindowScene) {
+    /// An `apelin://` link goes to its conversation or project
+    /// (`ApelinLinkRouter`); anything else is a transfer file, and the
+    /// opener refuses what is not one with a notice. One at a time: a
+    /// second sheet could not be presented over the first.
+    private func openURLs(_ contexts: Set<UIOpenURLContext>, in scene: UIWindowScene) {
         guard let context = contexts.first else { return }
+        guard !ApelinLinkRouter.open(context.url, in: scene) else { return }
         TransferOpener.open(context.url, in: scene)
     }
 }

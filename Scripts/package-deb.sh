@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Package one build of Apelin.app, apelind and its workers as a .deb for one
-# bootstrap layout, ad-hoc signed with ldid, and verify what was packaged: the
+# Package one build of Apelin.app (its widget extension inside), apelind and
+# its workers as a .deb for one bootstrap layout, ad-hoc signed with ldid, and verify what was packaged: the
 # entitlements read back out of the signed binaries, no build path in any of
 # them, no placeholder left in anything shipped.
 
@@ -54,9 +54,17 @@ login_profile="$packaging_root/profile.d/wiki.qaq.apelin.sh"
 [[ -f "$login_profile" ]] || { echo "error: missing packaging input: $login_profile" >&2; exit 66; }
 /bin/sh -n "$login_profile" || { echo "error: $login_profile is not valid sh" >&2; exit 65; }
 
+# The one app extension: the widgets (Widgets/Extension), sandboxed, signed
+# with Packaging/ApelinWidgets.entitlements, sharing one App Group with the
+# app and nothing else.
+widget_appex=ApelinWidgets.appex
+widget_bundle_identifier=wiki.qaq.apelin.widgets
+widget_entitlements="$packaging_root/ApelinWidgets.entitlements"
+app_group=group.wiki.qaq.apelin
+
 [[ -d "$app_bundle" && -f "$app_bundle/Info.plist" ]] || { echo "error: $app_bundle is not a complete app bundle; expected a directory containing Info.plist" >&2; exit 66; }
 [[ -x "$daemon_binary" ]] || { echo "error: daemon binary is missing" >&2; exit 66; }
-for input in "$control_template" "$app_entitlements" "$daemon_entitlements" "$launch_plist"; do
+for input in "$control_template" "$app_entitlements" "$daemon_entitlements" "$launch_plist" "$widget_entitlements"; do
     [[ -f "$input" ]] || { echo "error: missing packaging input: $input" >&2; exit 66; }
 done
 for resource in "${worker_resources[@]}"; do
@@ -105,7 +113,22 @@ esac
 # Native binaries keep physical paths; libroot's vroot would rewrite one side
 # of the XPC boundary and not the other.
 app_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_bundle/Info.plist")"
-native_binaries=("$daemon_binary" "$app_bundle/$app_executable")
+# Exactly the widget extension in PlugIns: another one is a second process
+# under the app's bundle id with none of its review, so the packager is
+# changed for it on purpose, not by accident.
+shopt -s nullglob
+built_appexes=("$app_bundle/PlugIns"/*)
+shopt -u nullglob
+[[ "${#built_appexes[@]}" -eq 1 && "$(basename "${built_appexes[0]}")" == "$widget_appex" ]] || {
+    echo "error: $app_bundle/PlugIns must hold $widget_appex and nothing else; sign and verify a new extension in this packager first" >&2
+    exit 65
+}
+widget_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_bundle/PlugIns/$widget_appex/Info.plist")"
+[[ -x "$app_bundle/PlugIns/$widget_appex/$widget_executable" ]] || {
+    echo "error: $widget_appex has no executable" >&2
+    exit 65
+}
+native_binaries=("$daemon_binary" "$app_bundle/$app_executable" "$app_bundle/PlugIns/$widget_appex/$widget_executable")
 for worker in "${workers[@]}"; do
     native_binaries+=("$workers_dir/$worker")
 done
@@ -127,6 +150,15 @@ bundle_identifier="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ap
 app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_bundle/Info.plist")"
 [[ "$app_version" == "$version" ]] || {
     echo "error: app version '$app_version' does not match package version '$version'" >&2
+    exit 65
+}
+# An embedded extension carries its app's versions, under its app's id.
+widget_plist="$app_bundle/PlugIns/$widget_appex/Info.plist"
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$widget_plist")" == "$widget_bundle_identifier" \
+    && "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$widget_plist")" == "$app_version" \
+    && "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$widget_plist")" == "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_bundle/Info.plist")" \
+    && "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$widget_plist")" == com.apple.widgetkit-extension ]] || {
+    echo "error: $widget_appex must be $widget_bundle_identifier, a WidgetKit extension with the app's version and build" >&2
     exit 65
 }
 
@@ -269,18 +301,19 @@ for library in "${worker_runtime_libraries[@]}"; do
     ldid -S -Cadhoc "$installed_workers/$library"
 done
 
+# The widget extension is its own Mach-O with its own signature: Xcode's is as
+# useless as the app's, and the system refuses to load an appex whose
+# signature does not verify.
+installed_widget="$installed_app/PlugIns/$widget_appex"
+rm -rf "$installed_widget/_CodeSignature"
+rm -f "$installed_widget/embedded.mobileprovision"
+strip_and_check_private_paths "$installed_widget/$widget_executable"
+ldid -S"$widget_entitlements" -Cadhoc "$installed_widget/$widget_executable"
+
 # Every strong @rpath dependency of every shipped Mach-O resolves to a file in
 # the package or to a library the OS has on the floor; dyld would otherwise
 # kill the process before main, and only on the older device.
 python3 -I -B "$repository_root/Scripts/check-rpath-dependencies.py" "$staging" "$install_prefix"
-
-# No extension ships with the app. One that appears is a second process under
-# the app's bundle id with none of its review: the packager is changed for it
-# on purpose, not by accident.
-[[ ! -d "$installed_app/PlugIns" ]] || {
-    echo "error: the app embeds extensions; sign and verify them in this packager first" >&2
-    exit 65
-}
 
 require_true() {
     local plist="$1"
@@ -297,6 +330,16 @@ require_absent() {
     local label="$3"
     [[ -z "$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>/dev/null || true)" ]] || {
         echo "error: $label must not carry $key" >&2
+        exit 65
+    }
+}
+
+# Exactly the one App Group the app and the widget extension share.
+require_app_group() {
+    local plist="$1"
+    local label="$2"
+    [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups' "$plist" 2>/dev/null | sed -n 's/^ *\(group\.[^ ]*\)$/\1/p')" == "$app_group" ]] || {
+        echo "error: $label must carry exactly the App Group $app_group" >&2
         exit 65
     }
 }
@@ -325,9 +368,30 @@ done
 for key in com.apple.private.security.no-container \
     wiki.qaq.irisin.client \
     com.apple.private.security.container-required \
-    com.apple.private.skip-library-validation \
-    com.apple.security.application-groups; do
+    com.apple.private.skip-library-validation; do
     require_absent "$app_signed_entitlements" "$key" "the app"
+done
+require_app_group "$app_signed_entitlements" "the app"
+
+# The widget extension stays a standard sandboxed extension: the App Group and
+# nothing that widens it. apelind authenticates peers by their binary, so an
+# extension with the client key or the service's Mach name would be an
+# entrance nobody designed — what was signed is checked, not what was asked.
+widget_signed_entitlements="$scratch/widget-entitlements.plist"
+ldid -e "$installed_widget/$widget_executable" >"$widget_signed_entitlements"
+require_app_group "$widget_signed_entitlements" "$widget_appex"
+for key in wiki.qaq.apelin.client \
+    wiki.qaq.irisin.client \
+    platform-application \
+    com.apple.private.security.no-sandbox \
+    com.apple.private.security.no-container \
+    com.apple.private.security.container-required \
+    com.apple.private.security.storage.AppBundles \
+    com.apple.private.security.storage.AppDataContainers \
+    com.apple.private.skip-library-validation \
+    com.apple.security.exception.mach-lookup.global-name \
+    com.apple.security.iokit-user-client-class; do
+    require_absent "$widget_signed_entitlements" "$key" "$widget_appex"
 done
 
 # The daemon: platform, unsandboxed, the two storage classes, irisind's
@@ -407,6 +471,7 @@ fi
 contents="$(dpkg-deb --contents "$temporary_deb")"
 grep -F ".$install_prefix/Applications/Apelin.app/$app_executable" <<<"$contents" >/dev/null
 grep -F ".$install_prefix/Applications/Apelin.app/Licenses.json" <<<"$contents" >/dev/null
+grep -F ".$install_prefix/Applications/Apelin.app/PlugIns/$widget_appex/$widget_executable" <<<"$contents" >/dev/null
 for resource in "${app_resources[@]}"; do
     grep -F ".$install_prefix/Applications/Apelin.app/$resource/Info.plist" <<<"$contents" >/dev/null
 done

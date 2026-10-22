@@ -50,6 +50,24 @@ enum ChatAdoption {
         )
     }
 
+    /// The record for a session an `apelin://conversation/` link names that
+    /// has no opener to take the project from, in `projectName`, the
+    /// project the host names for it; nil when a record has it already.
+    /// Ended or not: the link asked for it, and its log still reads.
+    static func record(linked session: AgentSessionSummary, projectName: String, records: [ChatRecord]) -> ChatRecord? {
+        guard !records.contains(where: { $0.sessionID == session.sessionID }) else { return nil }
+        return ChatRecord(
+            summary: ChatSummary(
+                title: title(session.title, prompt: nil),
+                updated: session.updatedAt,
+                projectName: projectName,
+                isWorking: !session.state.isTerminal,
+            ),
+            sessionID: session.sessionID,
+            task: session.task,
+        )
+    }
+
     /// The opener's title, else the first line of the prompt, as the
     /// sidebar shows a conversation the user started.
     static func title(_ title: String?, prompt: String?) -> String {

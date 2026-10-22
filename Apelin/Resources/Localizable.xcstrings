@@ -10101,6 +10101,36 @@
           }
         }
       }
+    },
+    "Conversation Not Found" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到这个聊天"
+          }
+        }
+      }
+    },
+    "Project Not Found" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到这个项目"
+          }
+        }
+      }
+    },
+    "Link Not Recognized" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法识别这个链接"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

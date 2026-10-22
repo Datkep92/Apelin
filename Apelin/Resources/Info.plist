@@ -13,6 +13,27 @@
 	-->
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<!--
+	`apelin://conversation/<id>` and `apelin://project/<id>` open a
+	conversation or a project (Widgets/Shared/ApelinLink.swift): the widgets,
+	the Live Activity and links the agent writes use them. Live Activities are
+	requested by the app itself while a conversation works or waits.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>wiki.qaq.apelin.link</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>apelin</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

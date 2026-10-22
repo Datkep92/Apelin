@@ -131,7 +131,8 @@ trap 'exit 143' TERM
 
 if [[ $mode == app ]]; then
     # The packager's signing, without its stripping and path checks: every
-    # embedded library ad hoc, then the executable with its entitlements.
+    # embedded library ad hoc, the widget extension with its entitlements,
+    # then the executable with its own.
     staging="$(mktemp -d)"
     /usr/bin/ditto "$package" "$staging/Apelin.app"
     shopt -s nullglob
@@ -144,8 +145,15 @@ if [[ $mode == app ]]; then
         fi
         ldid -S -Cadhoc "$library"
     done
+    packaging="$(cd "$(dirname "$0")/.." && pwd)/Packaging"
+    widget="$staging/Apelin.app/PlugIns/ApelinWidgets.appex"
+    if [[ -d "$widget" ]]; then
+        rm -rf "$widget/_CodeSignature"
+        ldid -S"$packaging/ApelinWidgets.entitlements" -Cadhoc \
+            "$widget/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$widget/Info.plist")"
+    fi
     executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$staging/Apelin.app/Info.plist")"
-    ldid -S"$(cd "$(dirname "$0")/.." && pwd)/Packaging/Apelin.entitlements" -Cadhoc "$staging/Apelin.app/$executable"
+    ldid -S"$packaging/Apelin.entitlements" -Cadhoc "$staging/Apelin.app/$executable"
 fi
 
 # This installer updates an existing Apelin installation. Derive its actual

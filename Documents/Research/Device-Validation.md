@@ -1455,3 +1455,54 @@ Apelin, apelind or worker process left a crash report.
 
 A reply that is only `4.` drew nothing. MarkdownView reads it as an empty
 numbered-list item and draws no marker for an item without a paragraph.
+
+## Widgets, the Live Activity and `apelin://` links (2026-10-22, builds 5 and 6)
+
+On the iPadOS 26.4 iPad vphone (roothide, Irisin 4.7.5), over build 4, both
+roothide builds went in through `irisin-cli install --yes`, then
+`uicache -p`. The vphone had no model account, so a stand-in
+OpenAI-compatible endpoint on the host's bridge answered the turns: one never
+ended (working), one called `run_code`, which Strict mode asks to approve
+(waiting), one answered HTTP 500 (failed), one answered at once (done). The
+account was signed in and the sessions opened through console scripts; every
+session reached the app only through `apelin://conversation/<session ID>`
+(`apps.open_url` and `uiopen`), which took each one in (`ChatAdoption`) and
+selected it in its project.
+
+- **App Group**: containermanagerd made `group.wiki.qaq.apelin` for the
+  ad hoc signed app and the sandboxed extension; the snapshot the app wrote
+  there read back in the order and states the design has (waiting
+  `run_code`, working, working, failed, done; 2 working, 1 waiting).
+- **Widgets**: Apelin is in the widget gallery; its previews read the real
+  snapshot. Small and medium went on the home screen and showed, in turn,
+  waiting with three in progress, working after the approval was approved
+  (the medium list re-ordered, the approved one grey), all finished with the
+  newest failed (red, no counts in the header), `Approve: Run` from build 6,
+  a project's display name changed to 相机翻译 by `projectRename`, and the
+  empty state once the conversations and projects were deleted and the app
+  relaunched.
+- **Taps**: a medium row opened its conversation in its project; the small
+  widget opened the waiting one at its approval card; from a killed app the
+  small widget cold-launched it at the conversation it shows, over the saved
+  selection.
+- **Links**: a transcript link `[…](apelin://conversation/…)` opened that
+  conversation in place, switching project; `apelin://project/Network%20Speed`
+  opened that project's most recent conversation; an unknown conversation ID
+  showed "Conversation Not Found" and left the page as it was.
+- **Live Activity**: iPadOS 26.4 shows it on the lock screen (with the
+  system's one-time "Allow Live Activities from Apelin?"): header, counts and
+  rows, amber with an approval waiting. A tap opened the latest working
+  conversation from another one; Stop on the last working conversation ended
+  it; one left by `killall -9` was ended by the next launch. The Dynamic
+  Island is an iPhone's and was not seen.
+- **Found**: after build 6 went over build 5, chronod refused the new
+  extension's timelines (`bundleStubNotSupported`) and kept the last render
+  until it restarted (AGENTS.md ▸ Widgets). English "Needs Approval · Run"
+  was cut off in the small widget; build 6 says `Approve: Run`.
+
+Not run: an iPhone (Dynamic Island), iOS 16.0–16.1 (no ActivityKit), dark
+appearance and Chinese on the device (both drawn from the same views and
+catalogue the Mac build checked), rootless (packaged and checked on the Mac
+only), and `applicationWillTerminate` (a vphone kill delivers none). The
+test conversations, projects, console files and both widgets were removed
+afterwards; build 6 stays installed.

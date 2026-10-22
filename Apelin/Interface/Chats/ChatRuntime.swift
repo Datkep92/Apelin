@@ -18,6 +18,9 @@ final class ChatRuntime {
     /// A conversation's draft was put back from outside the composer.
     var onDraftRestored: ((UUID) -> Void)?
     private(set) var isLoaded = false
+    /// The saved conversations have been checked against the host's live
+    /// sessions once: what says working is working.
+    private(set) var isReconciled = false
     private(set) var records: [UUID: ChatRecord] = [:]
     private let store = ChatStore(folder: .app)
     private var revision = 0
@@ -65,6 +68,8 @@ final class ChatRuntime {
                     changed(record.summary.id)
                 }
             }
+            isReconciled = true
+            onChange?()
             // What agents opened while the app was not following their
             // openers; the list is oldest first, so an opener comes first.
             for session in live {
@@ -80,6 +85,14 @@ final class ChatRuntime {
         records[record.summary.id] = record
         changed(record.summary.id)
         follow(record.summary.id, task: task)
+    }
+
+    /// Lists and follows a session an `apelin://` link named that had no
+    /// row (`ChatLinkTarget`), and returns its row.
+    func adoptLinked(_ record: ChatRecord) -> ChatSummary? {
+        guard !records.values.contains(where: { $0.sessionID == record.sessionID }) else { return nil }
+        adopt(record)
+        return records[record.summary.id]?.summary
     }
 
     /// A conversation to start in `project`: its untouched one, `current`
