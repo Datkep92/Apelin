@@ -492,7 +492,16 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     device log's: `com.apple.private.usernotifications.bundle-identifiers`
     naming `wiki.qaq.apelin` on apelind and on the app, and
     `SBAppUsesLocalNotifications` in the app's Info.plist; the packager
-    requires all three.
+    requires all three. A tap in Notification Center or on the Lock Screen
+    that only slides the row aside to show Open is SpringBoard's rule for
+    every app, not a fault in the request: on an iPhone with no Face ID or
+    Touch ID unlock and `SBAlwaysAllowDefaultAction` unset (CoverSheet's
+    `shouldHintForDefault`, logged `notCape - doesn'tForceDefault`), it
+    hints instead of running the default action, and Open or a swipe runs
+    it. A banner tap is never hinted, nor any tap on an iPad. Every iPhone
+    vphone hints; to test one tap, write `SBAlwaysAllowDefaultAction`
+    (bool, true) to `com.apple.springboard` (`allowsDefault`, live, no
+    respring) and delete it afterwards.
   - Every spawn to mobile (workers, shells, extensions) is checked after
     the fact with `proc_pidinfo`: effective, real and saved uid and gid all
     501, or the process is killed (`verifyDropped`, `Spawn.swift`).

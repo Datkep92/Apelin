@@ -1562,3 +1562,19 @@ the default action, while the same banner tapped as it arrived did open
 it. On the iPad, the floating keyboard bar covered the sidebar's toolbar
 until a relaunch, the widget said "No chats yet" with idle chats listed,
 and after some relaunches the sidebar's list sat about 16 pt lower.
+
+## Notification Center taps (2026-10-22, build 28)
+
+The Notification Center tap that only hinted is SpringBoard's, not
+Apelin's. On the iOS 26.4 iPhone vphone, an Xrash crash notification
+hinted the same way (`shouldHintForDefault hinting notCape -
+doesn'tForceDefault`, then `Hinting side swipe instead of executing
+action`), and the Open revealed beside Apelin's own cold-launched it onto
+the chat. CoverSheet hints on an iPhone with no biometric unlock and
+`SBAlwaysAllowDefaultAction` unset, whatever the notification carries.
+With that key set in `com.apple.springboard`, SpringBoard logged
+`allowsDefault` and one tap opened the chat, killed and suspended; the
+key was removed afterwards. A banner tapped as it arrived opened its
+chat, and with Apelin in front `willPresentNotification` answered 0 and
+nothing showed. A Clock timer is a Live Activity on 26.4 and never
+reaches Notification Center.
