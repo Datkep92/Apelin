@@ -101,8 +101,7 @@ final class ChatRuntime {
         let untouched = records.values.filter { $0.summary.projectName == project && isUntouched($0) }
         let reused = untouched.first { $0.summary.id == current }
             ?? untouched.max { $0.summary.updated < $1.summary.updated }
-        let summary = reused?.summary
-            ?? ChatSummary(title: String(localized: "New Chat"), updated: Date(), projectName: project)
+        let summary = reused?.summary ?? ChatSummary.untitled(updated: Date(), projectName: project)
         if reused == nil {
             records[summary.id] = ChatRecord(summary: summary)
         }
@@ -190,7 +189,7 @@ final class ChatRuntime {
     func transcript(_ id: UUID) -> ChatTranscript {
         let record = records[id]
         let conversationTitle = { [records] (sessionID: String) in
-            records.values.first { $0.sessionID == sessionID }?.summary.title
+            records.values.first { $0.sessionID == sessionID }?.summary.displayTitle
         }
         return ChatTranscript(
             events: record?.events ?? [],
@@ -311,12 +310,7 @@ final class ChatRuntime {
             ),
             descriptors: descriptors,
         )
-        if records[id]?.summary.title == String(localized: "New Chat") {
-            records[id]?.summary.suggestTitle(String(
-                (draft.text.isEmpty ? draft.attachments.first?.name ?? String(localized: "New Chat") : draft.text)
-                    .prefix(80),
-            ))
-        }
+        records[id]?.summary.nameAfterFirstMessage(text: draft.text, attachmentName: draft.attachments.first?.name)
         records[id]?.summary.updated = Date()
         changed(id)
     }

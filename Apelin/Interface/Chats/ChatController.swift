@@ -312,9 +312,9 @@ final class ChatController: UIViewController {
         ConversationNotices.shared.withdraw(session: runtime.records[chat.id]?.sessionID)
         updateModelSelection()
         ensureModelSelection()
-        title = chat.title
+        title = chat.displayTitle
         // rolled only on screen; a page coming back shows its name at once
-        titleView.setTitle(chat.title, animated: previous != nil && view.window != nil)
+        titleView.setTitle(chat.displayTitle, animated: previous != nil && view.window != nil)
         guard previous?.id != chat.id else { return }
         isSwitchingChat = true
         needsInitialScroll = true
@@ -349,11 +349,11 @@ final class ChatController: UIViewController {
         guard let chat else { return }
         if let summary = runtime.records[chat.id]?.summary {
             self.chat = summary
-            if title != summary.title {
+            if title != summary.displayTitle {
                 // a rename, or the agent's title: the back button's too
-                title = summary.title
+                title = summary.displayTitle
             }
-            titleView.setTitle(summary.title, animated: view.window != nil)
+            titleView.setTitle(summary.displayTitle, animated: view.window != nil)
             updateMessages(runtime.transcript(chat.id).messages)
             if summary.isWorking != chat.isWorking {
                 // the session stopped (or came back) with no event that redraws the request

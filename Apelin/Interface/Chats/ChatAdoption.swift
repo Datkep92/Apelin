@@ -69,7 +69,8 @@ enum ChatAdoption {
     }
 
     /// The opener's title, else the first line of the prompt, as the
-    /// sidebar shows a conversation the user started.
+    /// sidebar shows a conversation the user started; empty, untitled,
+    /// when there is neither.
     static func title(_ title: String?, prompt: String?) -> String {
         for text in [title, prompt] {
             let line = text?.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
@@ -78,6 +79,6 @@ enum ChatAdoption {
                 return String(trimmed.prefix(80))
             }
         }
-        return String(localized: "New Chat")
+        return ""
     }
 }

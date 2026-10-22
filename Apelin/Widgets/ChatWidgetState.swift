@@ -55,7 +55,7 @@ extension ChatRecord {
         }
         return ChatWidgetSnapshot.Chat(
             id: summary.id.uuidString,
-            title: String(summary.title.prefix(80)),
+            title: String(summary.displayTitle.prefix(80)),
             project: projectName,
             status: status,
             approvalTool: status == .waiting ? waiting.last?.tool : nil,

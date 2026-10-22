@@ -3,6 +3,8 @@ import Foundation
 /// One conversation as the sidebar lists it.
 struct ChatSummary: Hashable, Codable, Sendable {
     var id = UUID()
+    /// The name the reader, the agent or the first message gave it; empty
+    /// while it has none. What is shown is `displayTitle`.
     var title: String
     /// When it was last active: the day it is listed under.
     var updated: Date
@@ -18,6 +20,22 @@ struct ChatSummary: Hashable, Codable, Sendable {
 }
 
 extension ChatSummary {
+    /// A new conversation, with no name yet.
+    static func untitled(updated: Date, projectName: String?) -> ChatSummary {
+        ChatSummary(title: "", updated: updated, projectName: projectName)
+    }
+
+    /// Nothing has named it yet: shown as New Chat, in the language the
+    /// app runs in now, and named after its first message.
+    var isUntitled: Bool {
+        title.isEmpty
+    }
+
+    /// The name to show: its title, or New Chat while it has none.
+    var displayTitle: String {
+        isUntitled ? String(localized: "New Chat") : title
+    }
+
     /// Names the conversation as the reader typed it, for good. A name
     /// with nothing but spaces in it changes nothing; returns whether the
     /// name was taken.
@@ -36,5 +54,55 @@ extension ChatSummary {
     mutating func suggestTitle(_ suggestion: String) {
         guard isNamedByReader != true, !suggestion.isEmpty else { return }
         title = suggestion
+    }
+
+    /// Names a conversation that has no name yet after the message it was
+    /// just sent: the opening of its text, or else its first attachment's
+    /// name. The agent's title replaces it later.
+    mutating func nameAfterFirstMessage(text: String, attachmentName: String?) {
+        guard isUntitled else { return }
+        suggestTitle(String((text.isEmpty ? attachmentName ?? "" : text).prefix(80)))
+    }
+}
+
+extension ChatSummary {
+    private enum CodingKeys: String, CodingKey {
+        case id, title, updated, projectName, isPinned, isWorking, isNamedByReader
+    }
+
+    /// Reads a saved conversation. Before untitled was kept as no title,
+    /// it was saved as the words New Chat in whichever language the app
+    /// ran in then; any of those, unless the reader typed it, reads as
+    /// untitled, so it shows in today's language and is still named after
+    /// its first message.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        updated = try container.decode(Date.self, forKey: .updated)
+        projectName = try container.decodeIfPresent(String.self, forKey: .projectName)
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
+        isWorking = try container.decode(Bool.self, forKey: .isWorking)
+        isNamedByReader = try container.decodeIfPresent(Bool.self, forKey: .isNamedByReader)
+        if isNamedByReader != true, Self.savedPlaceholders.contains(title) {
+            title = ""
+        }
+    }
+
+    /// New Chat in each language this app has.
+    private static let savedPlaceholders = placeholderTitles(in: .main)
+
+    /// The key New Chat and its translation in each of `bundle`'s
+    /// localizations.
+    static func placeholderTitles(in bundle: Bundle) -> Set<String> {
+        let key = "New Chat"
+        var titles: Set<String> = [key]
+        for localization in bundle.localizations {
+            guard let path = bundle.path(forResource: localization, ofType: "lproj"),
+                  let localized = Bundle(path: path)
+            else { continue }
+            titles.insert(localized.localizedString(forKey: key, value: key, table: nil))
+        }
+        return titles
     }
 }

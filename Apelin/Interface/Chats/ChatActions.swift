@@ -62,7 +62,7 @@ enum ChatActions {
                 title: "Rename Chat",
                 message: "Choose a name for this chat. Your agent will no longer rename it.",
                 placeholder: "Chat Name",
-                text: chat.title,
+                text: chat.displayTitle,
                 doneButtonText: "Rename",
                 onConfirm: { [weak runtime] name in runtime?.rename(id, to: name) },
             ), animated: true)

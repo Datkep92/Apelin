@@ -254,7 +254,7 @@ if case var .object(fields) = elsewhere {
 
 precondition(ChatAdoption.record(opened: elsewhere, parent: general, records: [general])?.summary.projectName == "Far", "General Chat's opens in a project are adopted there")
 precondition(ChatAdoption.record(opened: elsewhere, parent: opener, records: [opener])?.summary.projectName == "Far", "and a project's opens in another one too")
-precondition(ChatAdoption.title(" ", prompt: nil) == "New Chat")
+precondition(ChatAdoption.title(" ", prompt: nil).isEmpty, "with neither a title nor a prompt it is untitled")
 
 func listed(_ state: TaskState, parent: String?) -> AgentSessionSummary {
     AgentSessionSummary(sessionID: childSession, task: TaskHandle(taskID: TaskID("child-task"), kind: .agent), title: "Docs", state: state, updatedAt: Date(timeIntervalSince1970: 9), parentSessionID: parent)
@@ -471,7 +471,7 @@ print("ok: a reopened session's replay is read past, and the conversation keeps 
 /// A name the reader gives a conversation is kept: the agent's `title`
 /// events and the first message's opening no longer replace it, a name of
 /// nothing but spaces changes nothing, and the name survives a relaunch.
-var renamed = ChatSummary(title: String(localized: "New Chat"), updated: Date())
+var renamed = ChatSummary.untitled(updated: Date(), projectName: nil)
 renamed.suggestTitle("Opening words")
 precondition(renamed.title == "Opening words" && renamed.isNamedByReader == nil, "an unnamed conversation takes suggestions")
 precondition(!renamed.rename(to: " \n\t "), "a name with nothing in it is refused")
@@ -491,3 +491,60 @@ let olderSummary = try JSONDecoder().decode(ChatSummary.self, from: Data("""
 """.utf8))
 precondition(olderSummary.isNamedByReader == nil, "a file from before renaming reads as unnamed")
 print("ok: a renamed conversation keeps its name over the agent's titles and across a relaunch")
+
+/// An untitled conversation is kept as no title: shown as New Chat in the
+/// language the app runs in now, and named after its first message. One an
+/// earlier version saved as the words New Chat, in any of the app's
+/// languages, reads as untitled too, unless the reader typed them.
+var fresh = ChatSummary.untitled(updated: Date(), projectName: "Clock")
+precondition(fresh.isUntitled && fresh.displayTitle == String(localized: "New Chat"), "a new conversation has only a placeholder")
+let freshFile = try JSONEncoder().encode(ChatRecord(summary: fresh))
+let freshSaved = try JSONDecoder().decode(ChatRecord.self, from: freshFile).summary
+precondition(freshSaved.isUntitled && freshSaved.title.isEmpty, "and is saved with no title")
+fresh.nameAfterFirstMessage(text: "Hook the lock screen", attachmentName: "notes.txt")
+precondition(!fresh.isUntitled && fresh.title == "Hook the lock screen", "its first message names it")
+fresh.nameAfterFirstMessage(text: "Then the home screen", attachmentName: nil)
+precondition(fresh.title == "Hook the lock screen", "a later message does not")
+fresh.suggestTitle("Lock screen tweak")
+precondition(fresh.displayTitle == "Lock screen tweak", "the agent's title replaces the first message's")
+var attachedOnly = ChatSummary.untitled(updated: Date(), projectName: nil)
+attachedOnly.nameAfterFirstMessage(text: "", attachmentName: "crash.ips")
+precondition(attachedOnly.title == "crash.ips", "a message of attachments alone is named after the first")
+var nothingSent = ChatSummary.untitled(updated: Date(), projectName: nil)
+nothingSent.nameAfterFirstMessage(text: "", attachmentName: nil)
+precondition(nothingSent.isUntitled, "nothing to name it after leaves it untitled, never the words New Chat")
+var longOpening = ChatSummary.untitled(updated: Date(), projectName: nil)
+longOpening.nameAfterFirstMessage(text: String(repeating: "a", count: 200), attachmentName: nil)
+precondition(longOpening.title.count == 80, "the opening is its first 80 characters")
+
+func savedSummary(title: String, namedByReader: Bool? = nil) throws -> ChatSummary {
+    let named = namedByReader.map { ",\"isNamedByReader\":\($0)" } ?? ""
+    let file = "{\"id\":\"6F9619FF-8B86-D011-B42D-00C04FC964FF\",\"title\":\"\(title)\","
+        + "\"updated\":0,\"isPinned\":false,\"isWorking\":false\(named)}"
+    return try JSONDecoder().decode(ChatSummary.self, from: Data(file.utf8))
+}
+
+var savedUntitled = try savedSummary(title: "New Chat")
+precondition(savedUntitled.isUntitled && savedUntitled.displayTitle == String(localized: "New Chat"),
+             "an earlier version's New Chat reads as untitled")
+savedUntitled.nameAfterFirstMessage(text: "Make a tweak", attachmentName: nil)
+precondition(savedUntitled.title == "Make a tweak", "and is still named after its first message")
+let typedNewChat = try savedSummary(title: "New Chat", namedByReader: true)
+precondition(typedNewChat.title == "New Chat", "a reader who typed New Chat keeps it")
+let otherTitle = try savedSummary(title: "Docs")
+precondition(otherTitle.title == "Docs", "any other title stays as it was")
+
+/// New Chat in every language a bundle has, read from its tables
+let languages = FileManager.default.temporaryDirectory.appendingPathComponent("apelin-languages-" + UUID().uuidString)
+for (language, translation) in [("ja", "新規チャット"), ("fr", "Nouvelle discussion"), ("ar", "محادثة جديدة")] {
+    let folder = languages.appendingPathComponent(language + ".lproj")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try Data("\"New Chat\" = \"\(translation)\";\n\"Send\" = \"-\";\n".utf8)
+        .write(to: folder.appendingPathComponent("Localizable.strings"))
+}
+
+let placeholders = ChatSummary.placeholderTitles(in: Bundle(path: languages.path)!)
+try FileManager.default.removeItem(at: languages)
+precondition(placeholders == ["New Chat", "新規チャット", "Nouvelle discussion", "محادثة جديدة"],
+             "every localization's New Chat and the key itself: \(placeholders)")
+print("ok: an untitled conversation is a state, shown in today's language and named after its first message")

@@ -193,7 +193,7 @@ final class SidebarController: UIViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "chat", for: indexPath)
         let summary = chat(id)
         var content = UIListContentConfiguration.cell()
-        content.text = summary?.title
+        content.text = summary?.displayTitle
         content.textProperties.numberOfLines = 1
         cell.contentConfiguration = content
         let isWorking = summary?.isWorking == true
@@ -289,7 +289,7 @@ final class SidebarController: UIViewController {
     private func applySnapshot(changedRows: [UUID] = [], restoreSelection: Bool = true) {
         var snapshot = NSDiffableDataSourceSnapshot<Section, UUID>()
         let shown = query.isEmpty ? chats : chats.filter {
-            $0.title.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
         }
         let newestFirst = shown.sorted { $0.updated > $1.updated }
         let pinned = newestFirst.filter(\.isPinned)
