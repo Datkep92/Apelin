@@ -1586,3 +1586,17 @@ bubble and thinking header were mirrored, and in a narrow window the drawer
 came out from the right, panned left to open and right to close; English was
 unchanged. An earlier build's "New Chat" read 新規チャット in Japanese and took
 its first message as its name; French headed the list "Aujourd'hui", "Mardi".
+
+## 0.1.2 release smoke (2026-10-22, build 19)
+
+The 0.1.2 roothide build 19 went onto the iOS 26.4 iPhone vphone (over the
+released 0.1.1, build 28) and the iPadOS 26.4 iPad vphone through
+`irisin-cli install --yes`, the same deb on both; the dSYMs of all eight
+images matched it. `i1-smoke` passed on both (26 steps). With Apelin's own
+language set to Arabic, 0.1.1 had stayed English and left to right; 0.1.2
+laid the bar, the composer and its model row, the menus and Settings out
+right to left, the iPad's sidebar on the right and the iPhone's drawer out
+from the right. Japanese and English screens were translated and unclipped,
+a chat 0.1.1 had saved as "New Chat" showed in the current language, and on
+the iPhone a message to the model was answered. No Apelin, apelind or worker
+process left a crash report.
