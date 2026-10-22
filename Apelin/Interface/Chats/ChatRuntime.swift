@@ -137,10 +137,13 @@ final class ChatRuntime {
     }
 
     func delete(_ id: UUID) async throws {
+        let session = records[id]?.sessionID
         try await closeSession(id)
         let isTemporary = records[id].map { $0.summary.projectName == nil } ?? false
         try await removeRecord(id)
         onChange?()
+        // its banners would open a conversation that is no longer there
+        ConversationNotices.shared.withdraw(session: session)
         // a temporary conversation's working folder, its files with it, once
         // the row is gone: a file it cannot remove leaves the folder behind,
         // never a row Delete can no longer take away
@@ -153,6 +156,7 @@ final class ChatRuntime {
     func deleteProject(_ name: String) async throws {
         let ids = records.values.filter { $0.summary.projectName == name }.map(\.summary.id)
         for id in ids {
+            ConversationNotices.shared.withdraw(session: records[id]?.sessionID)
             try await closeSession(id)
         }
         let folder = DataFolder.app

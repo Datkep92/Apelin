@@ -486,8 +486,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     `link` is `apelin://conversation/<session>`, which a tap hands to
     `UIApplication.open` (`ConversationNotices`). Banners are for a reader
     elsewhere: `willPresent` shows nothing while the app is active, opening
-    a conversation (or coming back to it) removes its delivered ones, and
-    the app asks for authorization when the reader first sends a message.
+    a conversation (or coming back to it) removes its delivered ones, so
+    does deleting it or its project (a banner left behind would open
+    nothing), and the app asks for authorization when the reader first
+    sends a message.
     Two declarations, or authorization stays false with no error but the
     device log's: `com.apple.private.usernotifications.bundle-identifiers`
     naming `wiki.qaq.apelin` on apelind and on the app, and
