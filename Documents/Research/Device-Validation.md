@@ -1528,3 +1528,37 @@ again, the replayed `approvalRequested` and `finished` posted nothing and the
 new turn posted once, from `notices.json` on disk. A `closeWhenFinished` run
 posted nothing. Not run: `make device-test` (the guest is reachable only from
 its host), and the tap, which needs the `apelin://` router.
+
+## 0.1.1 release smoke (2026-10-22, build 28)
+
+The 0.1.1 roothide build 28 went onto the iOS 26.4 iPhone vphone and the
+iPadOS 26.4 iPad vphone through `irisin-cli install --yes`, each after the
+released 0.1.0 (build 13) had been installed for the before screenshots;
+the dSYMs of all eight images matched the deb's. `i1-smoke` passed on both
+(26 steps on the iPhone). On both: the sidebar's plus opened New Chat and
+New Project; with `debug.monochromeAccent` set the checkmarks and filled
+buttons turned black, and blue again once it was removed; the chat's …
+menu led with Rename… (a renamed chat kept its name in the title and the
+sidebar), General Chat's offered Rename…, Open in iGhostVT and Open in
+Fila and no Model Providers; Distribute… was greyed on an empty workspace;
+Settings ▸ About listed Logs, which opened this launch's journal, and its
+… menu Open Onboarding and Report a Problem; `apelin://project/<folder>`
+opened that project's latest chat and an unknown conversation said so.
+On the iPhone, with an OpenAI-compatible account: asked which toolchains
+and SDKs were installed, the agent answered from its prompt with no tool
+call (0.1.0 said it did not know); a link it wrote opened its project; a
+turn finished in the background posted its banner, the Live Activity
+showed in the Dynamic Island, and the banner tapped with Apelin killed
+cold-launched it onto that chat; a reply measured above 50 tokens a second
+was followed for a page. On the iPad: a file dragged from Files in
+Windowed Apps tinted the composer and became an attachment card; the
+small and medium widgets were added and opened Apelin; the chat, its menu
+and Settings drew in light and dark. No Apelin, apelind or worker process
+left a crash report.
+
+Found: a banner tapped in Notification Center did not open Apelin, either
+killed or suspended. SpringBoard hinted a side swipe instead of running
+the default action, while the same banner tapped as it arrived did open
+it. On the iPad, the floating keyboard bar covered the sidebar's toolbar
+until a relaunch, the widget said "No chats yet" with idle chats listed,
+and after some relaunches the sidebar's list sat about 16 pt lower.
