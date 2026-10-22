@@ -159,4 +159,11 @@ private final class TaskLogCell: UITableViewCell {
         messageLabel.text = message
         accessibilityLabel = message
     }
+
+    /// The number stands against the line it numbers: on its right left
+    /// to right, on its left right to left.
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        numberLabel.textAlignment = laysOutRightToLeft ? .left : .right
+    }
 }

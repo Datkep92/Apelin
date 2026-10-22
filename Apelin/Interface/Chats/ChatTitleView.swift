@@ -85,9 +85,10 @@ final class ChatTitleView: UIView {
         setNeedsLayout()
     }
 
-    /// The title, or as much of it as fits with an ellipsis after it.
+    /// The title, or as much of it as fits with an ellipsis after it, set
+    /// in its own direction (`isolated`).
     private func fittedText(width: CGFloat) -> String {
-        guard width > 0, Self.width(of: title) > width else { return title }
+        guard width > 0, Self.width(of: title) > width else { return Self.isolated(title) }
         let characters = Array(title)
         var low = 0
         var high = characters.count
@@ -104,7 +105,15 @@ final class ChatTitleView: UIView {
     }
 
     private static func truncated(_ characters: [Character], to count: Int) -> String {
-        String(characters.prefix(count)).trimmingCharacters(in: .whitespaces) + "…"
+        isolated(String(characters.prefix(count)).trimmingCharacters(in: .whitespaces) + "…")
+    }
+
+    /// `text` between a first-strong isolate and its end: laid out in the
+    /// direction of its own first letter inside the left-to-right line the
+    /// indent needs, so an Arabic name reads right to left as a whole and
+    /// its ellipsis lands on its left. The marks take no room.
+    private static func isolated(_ text: String) -> String {
+        "\u{2068}" + text + "\u{2069}"
     }
 
     /// Where the text starts so that it sits centred on the bar, kept

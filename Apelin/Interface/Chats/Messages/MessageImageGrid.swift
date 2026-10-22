@@ -78,8 +78,10 @@ final class MessageImageGrid: UIView {
             width: maximumSize.width,
             maximumHeight: maximumSize.height,
         )
+        // the album reads from the leading edge: right to left, its first
+        // image on the right
         for (tile, frame) in zip(tiles, frames) {
-            tile.frame = frame
+            tile.frame = content.directionalFrame(frame)
         }
     }
 

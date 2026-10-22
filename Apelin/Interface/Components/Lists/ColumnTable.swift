@@ -93,14 +93,9 @@ final class ColumnTableMetrics {
             height: content.height,
         )
         if isRightToLeft {
-            func mirrored(_ rect: CGRect) -> CGRect {
-                var rect = rect
-                rect.origin.x = content.minX + content.maxX - rect.maxX
-                return rect
-            }
-            name = mirrored(name)
-            columns = columns.map { $0.map(mirrored) }
-            symbol = symbol.map(mirrored)
+            name = name.mirrored(across: content)
+            columns = columns.map { $0?.mirrored(across: content) }
+            symbol = symbol?.mirrored(across: content)
         }
         return (name, columns, symbol)
     }

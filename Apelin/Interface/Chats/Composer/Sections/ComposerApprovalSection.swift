@@ -141,12 +141,13 @@ final class ComposerApprovalSection: ComposerSectionView {
         )
         let buttonWidth = (contentWidth - ChatMarkdownView.blockSpacing) / 2
         let actionY = textScroll.frame.maxY + ChatMarkdownView.blockSpacing
-        denyButton.frame = CGRect(x: 0, y: actionY, width: buttonWidth, height: 44)
-        approveButton.frame = CGRect(
-            x: denyButton.frame.maxX + ChatMarkdownView.blockSpacing,
-            y: actionY,
-            width: buttonWidth,
-            height: 44,
+        // Deny then Approve in reading order: right to left, Deny on the right
+        let row = CGRect(x: 0, y: actionY, width: contentWidth, height: 44)
+        let deny = CGRect(x: 0, y: actionY, width: buttonWidth, height: 44)
+        denyButton.frame = directionalFrame(deny, across: row)
+        approveButton.frame = directionalFrame(
+            CGRect(x: deny.maxX + ChatMarkdownView.blockSpacing, y: actionY, width: buttonWidth, height: 44),
+            across: row,
         )
         return approveButton.frame.maxY + ChatMarkdownView.blockSpacing
     }

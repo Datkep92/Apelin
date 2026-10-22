@@ -85,10 +85,17 @@ final class ThinkingStatusLabel: LTXAnimatableLabel {
     }
 
     /// While thinking the text is opaque and the shimmer's resting half
-    /// alpha dims it to the same 50% a finished header is drawn in.
+    /// alpha dims it to the same 50% a finished header is drawn in. Right
+    /// to left it is set against the right edge, where the shimmer is.
     private func updateText(animated: Bool) {
         let color = layer.mask == nil ? UIColor.label.withAlphaComponent(0.5) : .label
-        setAttributedText(NSAttributedString(string: shown ?? "", attributes: [.font: font, .foregroundColor: color]),
+        var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+        if laysOutRightToLeft {
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .right
+            attributes[.paragraphStyle] = paragraph
+        }
+        setAttributedText(NSAttributedString(string: shown ?? "", attributes: attributes),
                           animated: animated && !UIAccessibility.isReduceMotionEnabled)
         setNeedsLayout()
     }
@@ -100,7 +107,11 @@ final class ThinkingStatusLabel: LTXAnimatableLabel {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        shimmer.fit(width: NSAttributedString(string: shown ?? "", attributes: [.font: font]).size().width, in: bounds)
+        shimmer.fit(
+            width: NSAttributedString(string: shown ?? "", attributes: [.font: font]).size().width,
+            in: bounds,
+            rightToLeft: laysOutRightToLeft,
+        )
     }
 
     override func didMoveToWindow() {

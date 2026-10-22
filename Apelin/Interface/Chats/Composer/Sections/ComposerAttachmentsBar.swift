@@ -135,8 +135,9 @@ private final class AttachmentCell: UICollectionViewCell {
     override func layoutSubviews() {
         super.layoutSubviews()
         imageView.frame = contentView.bounds
-        deleteButton.frame = CGRect(x: bounds.width - 24, y: 4, width: 20, height: 20)
-        nameLabel.frame = CGRect(x: 4, y: 4, width: bounds.width - 32, height: 20)
+        // the remove button at the trailing corner, the name before it
+        deleteButton.frame = contentView.directionalFrame(CGRect(x: bounds.width - 24, y: 4, width: 20, height: 20))
+        nameLabel.frame = contentView.directionalFrame(CGRect(x: 4, y: 4, width: bounds.width - 32, height: 20))
         textLabel.frame = CGRect(x: 4, y: 28, width: bounds.width - 8, height: bounds.height - 32)
     }
 }

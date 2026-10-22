@@ -7,7 +7,7 @@ import UIKit
 /// The composer's text band: the text view between its icons, laid out one
 /// of three ways. At rest, the camera, the text and More;
 /// focused and empty, the camera goes and the text takes its room; with
-/// text, More gives way to Send.
+/// text, More gives way to Send. Right to left, the band is mirrored.
 class ComposerInputView: ComposerSectionView {
     let font = UIFont.preferredFont(forTextStyle: .body)
     let textHeight: CurrentValueSubject<CGFloat, Never> = .init(0)
@@ -153,6 +153,9 @@ class ComposerInputView: ComposerSectionView {
         case .editingText:
             layoutAsEditingText()
         }
+        // laid out left to right; right to left the camera is on the right
+        // and More and Send on the left, as the placeholder reads
+        elementClipper.mirrorForLayoutDirection([cameraButton, textView, placeholderLabel, moreButton, sendButton])
 
         updatePlaceholderAlpha()
     }

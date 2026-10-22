@@ -6,12 +6,13 @@ import UIKit
 /// iPad full screen, the sidebar sits beside the detail column, and the
 /// button first on the detail bar hides it or brings it back. Narrow, as on
 /// an iPhone, the detail column is the screen and the sidebar a drawer under
-/// it: the same button, or a pan to the right on a page at the root of the
-/// column, slides the page aside to show it; a tap or a pan to the left on
-/// what is left of the page, or picking a conversation, slides it back.
-/// A drawer always has a conversation behind it, never the icon. While the
-/// sidebar is out of sight, a new conversation is the last item on the
-/// detail bar.
+/// it: the same button, or a pan toward the trailing side on a page at the
+/// root of the column, slides the page aside to show it; a tap or a pan
+/// back on what is left of the page, or picking a conversation, slides it
+/// back. A drawer always has a conversation behind it, never the icon.
+/// While the sidebar is out of sight, a new conversation is the last item
+/// on the detail bar. Right to left, all of it is mirrored: the sidebar is
+/// on the right and the drawer comes out from there.
 final class RootInterfaceController: UIViewController {
     /// The detail column's stack.
     let navigator = DetailNavigator()
@@ -209,17 +210,18 @@ final class RootInterfaceController: UIViewController {
     }
 
     /// Places both columns for the current state; inside an animation
-    /// block, it is what the animation moves to.
+    /// block, it is what the animation moves to. Worked out left to right
+    /// and mirrored right to left.
     private func layoutColumns() {
         let bounds = view.bounds
         if isDrawer {
             let width = drawerWidth
-            let shift = width * drawerProgress
+            let shift = view.directionalOffset(width * drawerProgress)
             // the drawer comes out from under the page, a little behind it
             place(
                 sidebarNavigation.view,
-                in: CGRect(x: 0, y: 0, width: width, height: bounds.height),
-                shift: -width * 0.25 * (1 - drawerProgress),
+                in: view.directionalFrame(CGRect(x: 0, y: 0, width: width, height: bounds.height)),
+                shift: view.directionalOffset(-width * 0.25 * (1 - drawerProgress)),
             )
             place(navigator.view, in: bounds, shift: shift)
             place(shade, in: bounds, shift: shift)
@@ -229,12 +231,14 @@ final class RootInterfaceController: UIViewController {
             let width = isSidebarHidden ? 0 : Self.sidebarWidth
             place(
                 sidebarNavigation.view,
-                in: CGRect(x: width - Self.sidebarWidth, y: 0, width: Self.sidebarWidth, height: bounds.height),
+                in: view.directionalFrame(
+                    CGRect(x: width - Self.sidebarWidth, y: 0, width: Self.sidebarWidth, height: bounds.height),
+                ),
                 shift: 0,
             )
             place(
                 navigator.view,
-                in: CGRect(x: width, y: 0, width: bounds.width - width, height: bounds.height),
+                in: view.directionalFrame(CGRect(x: width, y: 0, width: bounds.width - width, height: bounds.height)),
                 shift: 0,
             )
             place(shade, in: bounds, shift: 0)
@@ -310,10 +314,12 @@ final class RootInterfaceController: UIViewController {
             sidebarNavigation.view.isHidden = false
             shade.isHidden = false
         case .changed:
-            drawerProgress = min(max(panStart + pan.translation(in: view).x / width, 0), 1)
+            let travel = view.directionalOffset(pan.translation(in: view).x)
+            drawerProgress = min(max(panStart + travel / width, 0), 1)
             layoutColumns()
         case .ended:
-            let velocity = pan.velocity(in: view).x
+            // positive toward the trailing side, the way the drawer comes out
+            let velocity = view.directionalOffset(pan.velocity(in: view).x)
             let open = abs(velocity) > 300 ? velocity > 0 : drawerProgress > 0.5
             let distance = abs((open ? 1 : 0) - drawerProgress) * width
             setDrawerOpen(open, velocity: distance > 0 ? abs(velocity) / distance : 0)
@@ -462,36 +468,51 @@ extension RootInterfaceController: UINavigationControllerDelegate {
 }
 
 extension RootInterfaceController: UIGestureRecognizerDelegate {
-    /// Narrow only, and sideways: right on a root page with the drawer
-    /// closed, left on the shade with it open. Anything else is the page's:
-    /// its scrolling, a selection's handles, content scrolled sideways (a
-    /// code block, a table, the attachments) coming back, and the swipe
-    /// back on a pushed page.
+    /// Narrow only, and sideways: toward the trailing side (right, or left
+    /// right to left) on a root page with the drawer closed, back on the
+    /// shade with it open. Anything else is the page's: its scrolling, a
+    /// selection's handles, content scrolled sideways (a code block, a
+    /// table, the attachments) that this pan would move, and the swipe back
+    /// on a pushed page.
     func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
         guard let pan = gesture as? UIPanGestureRecognizer, isDrawer, presentedViewController == nil else {
             return false
         }
         let velocity = pan.velocity(in: view)
         guard abs(velocity.x) > abs(velocity.y) else { return false }
+        let outward = view.directionalOffset(velocity.x)
         if pan.view === shade {
-            return velocity.x < 0
+            return outward < 0
         }
+        let rightward = !view.laysOutRightToLeft
         var touched = navigator.view.hitTest(pan.location(in: navigator.view), with: nil)
         while let view = touched {
             if let text = view as? TextLabelView, text.selectionRange != nil {
                 return false
             }
-            if let scroll = view as? UIScrollView, scroll.contentOffset.x > -scroll.adjustedContentInset.left + 0.5 {
+            if let scroll = view as? UIScrollView, scroll.scrollsSideways(underPanRightward: rightward) {
                 return false
             }
             touched = view.superview
         }
-        return drawerProgress == 0 && velocity.x > 0 && navigator.viewControllers.count == 1
+        return drawerProgress == 0 && outward > 0 && navigator.viewControllers.count == 1
     }
 }
 
 /// The bar items `RootInterfaceController` puts on a page and takes back.
 private final class RootBarItem: UIBarButtonItem {}
+
+private extension UIScrollView {
+    /// Whether a pan to the right (or left) would scroll this sideways: to
+    /// the right, content scrolled away from its left end comes back; to
+    /// the left, content with more of it on the right goes on.
+    func scrollsSideways(underPanRightward rightward: Bool) -> Bool {
+        if rightward {
+            return contentOffset.x > -adjustedContentInset.left + 0.5
+        }
+        return contentOffset.x < contentSize.width + adjustedContentInset.right - bounds.width - 0.5
+    }
+}
 
 /// Over the page while the drawer is out: dims it, and a tap on it puts
 /// the drawer away. VoiceOver reads it as that button.

@@ -1,6 +1,8 @@
 import UIKit
 
-/// Both message roles share the same album and document cards, aligned by the row.
+/// Both message roles share the same album and document cards, aligned by the
+/// row: to the trailing edge for the reader's messages, the leading one for
+/// the agent's, each mirrored right to left.
 final class MessageAttachmentsView: UIView {
     var onPreview: ((ComposerAttachment) -> Void)?
     var onPreviewImages: (([ComposerAttachment], UUID) -> Void)?
@@ -86,7 +88,9 @@ final class MessageAttachmentsView: UIView {
         let images = Self.images(in: attachments)
         grid.maximumSize = CGSize(width: bounds.width, height: previewHeightLimit)
         let size = MessageImageGrid.size(for: images, width: bounds.width, maximumHeight: previewHeightLimit)
-        grid.frame = CGRect(x: trailing ? bounds.width - size.width : 0, y: 0, width: size.width, height: size.height)
+        grid.frame = directionalFrame(
+            CGRect(x: trailing ? bounds.width - size.width : 0, y: 0, width: size.width, height: size.height),
+        )
         var y = size.height
         for card in cards {
             if y > 0 {
@@ -94,7 +98,9 @@ final class MessageAttachmentsView: UIView {
             }
             let width = MessageDocumentCard.width(for: card.item, maximum: min(bounds.width, documentWidthLimit))
             let height = min(previewHeightLimit, MessageDocumentCard.height(for: card.item, width: width))
-            card.frame = CGRect(x: trailing ? bounds.width - width : 0, y: y, width: width, height: height)
+            card.frame = directionalFrame(
+                CGRect(x: trailing ? bounds.width - width : 0, y: y, width: width, height: height),
+            )
             y += height
         }
     }

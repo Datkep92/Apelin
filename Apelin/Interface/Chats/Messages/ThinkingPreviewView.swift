@@ -8,7 +8,7 @@ import UIKit
 /// typed out a character at a time, the newest few fading in. A tool call
 /// shows its reason, and a file edit the file's name with the lines added in
 /// green and removed in red. The full record stays in the trace the summary
-/// opens.
+/// opens. Right to left, leading and trailing swap sides.
 final class ThinkingPreviewView: UIView {
     static let height: CGFloat = 32
     /// Characters laid out from the end of the thinking text: enough to fill
@@ -221,6 +221,10 @@ final class ThinkingPreviewView: UIView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         fade.frame = clip.bounds
+        // clear at the leading edge, where the oldest words go
+        let rightToLeft = laysOutRightToLeft
+        fade.startPoint = CGPoint(x: rightToLeft ? 1 : 0, y: 0.5)
+        fade.endPoint = CGPoint(x: rightToLeft ? 0 : 1, y: 0.5)
         CATransaction.commit()
         layoutLabel()
     }
@@ -232,7 +236,9 @@ final class ThinkingPreviewView: UIView {
         let size = label.intrinsicContentSize
         let y = (clip.bounds.height - size.height) / 2
         if case .thinking = shown {
-            label.frame = CGRect(x: clip.bounds.width - size.width, y: y, width: size.width, height: size.height)
+            label.frame = clip.directionalFrame(
+                CGRect(x: clip.bounds.width - size.width, y: y, width: size.width, height: size.height),
+            )
         } else {
             label.frame = CGRect(x: 0, y: y, width: clip.bounds.width, height: size.height)
         }

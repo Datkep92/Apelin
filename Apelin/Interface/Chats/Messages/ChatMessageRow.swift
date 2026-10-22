@@ -5,6 +5,8 @@ import UIKit
 
 /// User messages use FlowDown's trailing, accent-tinted bubble geometry.
 /// Assistant text uses MarkdownView, with received images in an album below it.
+/// Laid out left to right and mirrored right to left, where the bubble
+/// and its attachments sit on the left.
 final class ChatMessageRow: ListRowView {
     static let horizontalPadding: CGFloat = 20
     /// The widest a row's content gets: the composer's card at its widest
@@ -222,6 +224,8 @@ final class ChatMessageRow: ListRowView {
             let textHeight = textSize.map { ceil($0.height) + Self.textPadding * 2 } ?? 0
             let width = documentWidth
             let senderHeight = senderLabel.isHidden ? 0 : Self.senderHeight
+            // over the bubble, at its trailing edge
+            senderLabel.textAlignment = laysOutRightToLeft ? .left : .right
             senderLabel.frame = CGRect(
                 x: content.minX,
                 y: content.minY,
@@ -229,18 +233,18 @@ final class ChatMessageRow: ListRowView {
                 height: ceil(Self.senderFont.lineHeight),
             )
             let top = content.minY + senderHeight
-            attachmentsView.frame = CGRect(
+            attachmentsView.frame = directionalFrame(CGRect(
                 x: content.maxX - attachmentWidth,
                 y: top,
                 width: attachmentWidth,
                 height: attachmentHeight,
-            )
-            bubble.frame = CGRect(
+            ))
+            bubble.frame = directionalFrame(CGRect(
                 x: content.maxX - width,
                 y: top + attachmentHeight + gap,
                 width: width,
                 height: textHeight,
-            )
+            ))
             bubbleGradient.frame = bubble.bounds
             label.frame = bubble.frame.insetBy(dx: Self.textPadding, dy: Self.textPadding)
         } else {

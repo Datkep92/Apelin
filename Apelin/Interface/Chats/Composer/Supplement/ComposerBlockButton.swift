@@ -72,12 +72,14 @@ final class ComposerBlockButton: UIButton {
     override func layoutSubviews() {
         super.layoutSubviews()
         borderView.frame = bounds
-        iconView.frame = CGRect(x: inset, y: (bounds.height - iconSize) / 2, width: iconSize, height: iconSize)
-        textLabel.frame = CGRect(
-            x: iconView.frame.maxX + spacing,
+        // the icon leads the text: right to left, on its right
+        let icon = CGRect(x: inset, y: (bounds.height - iconSize) / 2, width: iconSize, height: iconSize)
+        iconView.frame = directionalFrame(icon)
+        textLabel.frame = directionalFrame(CGRect(
+            x: icon.maxX + spacing,
             y: inset,
-            width: max(0, bounds.width - iconView.frame.maxX - spacing - inset),
+            width: max(0, bounds.width - icon.maxX - spacing - inset),
             height: bounds.height - inset * 2,
-        )
+        ))
     }
 }

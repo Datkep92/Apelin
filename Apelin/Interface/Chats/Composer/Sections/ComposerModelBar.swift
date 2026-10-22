@@ -108,9 +108,12 @@ final class ComposerModelBar: ComposerSectionView {
         let otherWidth = controls.dropFirst().reduce(CGFloat.zero) { $0 + $1.intrinsicContentSize.width + spacing }
         let modelWidth = min(button.intrinsicContentSize.width, max(44, bounds.width - otherWidth))
         var x = max(0, (bounds.width - modelWidth - otherWidth) / 2)
+        // model, effort, Stop in reading order: right to left, from the right
         for control in [button, effortButton, stopButton] {
             let width = control === button ? modelWidth : control.intrinsicContentSize.width
-            control.frame = CGRect(x: x, y: 0, width: width, height: control.intrinsicContentSize.height)
+            control.frame = directionalFrame(
+                CGRect(x: x, y: 0, width: width, height: control.intrinsicContentSize.height),
+            )
             if control.isUserInteractionEnabled {
                 x += width + spacing
             }

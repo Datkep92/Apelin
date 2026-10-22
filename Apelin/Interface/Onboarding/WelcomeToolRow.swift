@@ -89,6 +89,10 @@ final class WelcomeToolRow: UITableViewCell {
         guard loading, window != nil, !UIAccessibility.isReduceMotionEnabled else { wordsBox.layer.mask = nil; return }
         wordsBox.layer.mask = shimmer
         wordsBox.setNeedsLayout()
+        // swept from the leading edge
+        let rightToLeft = wordsBox.laysOutRightToLeft
+        shimmer.startPoint = CGPoint(x: rightToLeft ? 1 : 0, y: 0.5)
+        shimmer.endPoint = CGPoint(x: rightToLeft ? 0 : 1, y: 0.5)
         let animation = CABasicAnimation(keyPath: "locations")
         animation.fromValue = [-0.4, -0.2, 0]
         animation.toValue = [1, 1.2, 1.4]
