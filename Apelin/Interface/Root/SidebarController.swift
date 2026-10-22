@@ -106,12 +106,18 @@ final class SidebarController: UIViewController {
     /// moves rows between sections and would drop the table's selection.
     private var selectedID: UUID?
 
-    /// "Today" and "Yesterday" in the reader's language.
+    /// "Today" and "Yesterday" in the reader's language, capitalised as a
+    /// heading starts: French, Italian and Spanish write them in lower case
+    /// mid-sentence.
     private static let relativeDayFormatter = DateFormatter().then {
         $0.dateStyle = .medium
         $0.timeStyle = .none
         $0.doesRelativeDateFormatting = true
+        $0.formattingContext = .beginningOfSentence
     }
+
+    /// The other days' headings, capitalised the same way ("Lundi").
+    private static let dayHeading = Date.FormatStyle(capitalizationContext: .beginningOfSentence)
 
     private lazy var newChatButton: UIButton = {
         var configuration = UIButton.Configuration.plain()
@@ -382,12 +388,12 @@ final class SidebarController: UIViewController {
         }
         let age = calendar.dateComponents([.day], from: day, to: calendar.startOfDay(for: now)).day ?? .max
         if age < 7 {
-            return day.formatted(.dateTime.weekday(.wide))
+            return day.formatted(dayHeading.weekday(.wide))
         }
         if calendar.isDate(day, equalTo: now, toGranularity: .year) {
-            return day.formatted(.dateTime.month(.abbreviated).day())
+            return day.formatted(dayHeading.month(.abbreviated).day())
         }
-        return day.formatted(.dateTime.year().month(.abbreviated).day())
+        return day.formatted(dayHeading.year().month(.abbreviated).day())
     }
 
     // MARK: - The project
