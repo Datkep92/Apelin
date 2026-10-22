@@ -3,18 +3,20 @@ import ApelinProtocol
 import Foundation
 
 /// Conversations an agent opened (`AgentConversations`), taken in as the
-/// app's own: listed in the opener's project, followed like any other, and
-/// never selected on their own.
+/// app's own: listed in the project it was opened in — the opener's, or
+/// another one the opener named, General Chat's included —, followed like
+/// any other, and never selected on their own.
 enum ChatAdoption {
     /// The record for a `conversationOpened` event on `parent`'s task, or
     /// nil when a record already has that session or the event names none.
+    /// Its project is the one the event names, else the opener's.
     static func record(
         opened payload: JSONValue?,
         parent: ChatRecord,
         records: [ChatRecord],
         now: Date = Date(),
     ) -> ChatRecord? {
-        guard let project = parent.summary.projectName,
+        guard let project = payload?["projectName"]?.stringValue ?? parent.summary.projectName,
               let sessionID = payload?["sessionID"]?.stringValue, UUID(uuidString: sessionID) != nil,
               let task = try? payload?["task"]?.decode(TaskHandle.self), task.kind == .agent,
               !records.contains(where: { $0.sessionID == sessionID })
@@ -29,12 +31,13 @@ enum ChatAdoption {
 
     /// The record for a running session an agent opened while the app was
     /// not following its opener, or nil when it has one already, has ended,
-    /// or its opener has no record to take the project from.
+    /// or its opener has no record. Its project is the one the host lists
+    /// it in, else the opener's.
     static func record(session: AgentSessionSummary, records: [ChatRecord]) -> ChatRecord? {
         guard let parentID = session.parentSessionID, !session.state.isTerminal,
               !records.contains(where: { $0.sessionID == session.sessionID }),
               let parent = records.first(where: { $0.sessionID == parentID }),
-              let project = parent.summary.projectName
+              let project = session.projectName ?? parent.summary.projectName
         else { return nil }
         return ChatRecord(
             summary: ChatSummary(

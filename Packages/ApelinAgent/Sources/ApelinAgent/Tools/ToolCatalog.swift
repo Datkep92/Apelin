@@ -62,6 +62,12 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case conversationList = "conversation_list"
     case conversationRead = "conversation_read"
     case conversationStop = "conversation_stop"
+    case toolchainList = "toolchain_list"
+    case sdkList = "sdk_list"
+    case toolchainSetup = "toolchain_setup"
+    case sdkImport = "sdk_import"
+    case toolchainSelfTest = "toolchain_self_test"
+    case projectEnvironmentSet = "project_environment_set"
 
     /// Only General Chat starts projects: it belongs to none, and a project's
     /// own chat has no reason to make another.
@@ -71,16 +77,23 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
 
     /// The git tools act on the session's project, which General Chat does
     /// not have: the host resolves a project under `Projects/` or refuses.
-    /// So do the conversation tools: the conversations they open and talk
-    /// to are the project's, and the host refuses them from a temporary one.
+    /// So does the switch of the project's toolchain and SDK. The
+    /// conversation tools reach General Chat too, naming a project there.
     public var isProjectOnly: Bool {
         switch self {
         case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit,
-             .gitFetch, .gitPull, .gitPush, .gitClone,
-             .conversationCreate, .conversationSend, .conversationList, .conversationRead, .conversationStop:
+             .gitFetch, .gitPull, .gitPush, .gitClone, .projectEnvironmentSet:
             true
         default:
             false
+        }
+    }
+
+    /// The conversation tools, which may name another project.
+    public var isConversation: Bool {
+        switch self {
+        case .conversationCreate, .conversationSend, .conversationList, .conversationRead, .conversationStop: true
+        default: false
         }
     }
 
@@ -89,21 +102,26 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
         // The project's own repository: its index, commits and the refs a
         // fetch, pull or clone brings in. Nothing leaves the device.
         // Another conversation of the project works under the same approval
-        // mode, so its own risky steps still ask the user.
+        // mode, so its own risky steps still ask the user. The project's
+        // toolchain and SDK are a field of its apelin-project.json, which
+        // the file tools edit too; only registered, compatible ones go in.
         case .writeFile, .patchFile, .createFile, .memorySave, .memoryDelete, .projectCreate,
              .gitStage, .gitUnstage, .gitCommit, .gitFetch, .gitPull, .gitClone,
-             .conversationCreate, .conversationSend, .conversationStop:
+             .conversationCreate, .conversationSend, .conversationStop, .projectEnvironmentSet:
             .writeProject
         case .readFile, .list, .grep, .find, .analyzeFramework, .frameworkHeader,
              .confirmLoaded, .readLogs, .listCrashes, .readCrash, .symbolicateCrash,
              .captureScreen, .readUITree, .memoryList, .readSkill, .checkDistribution,
              .projectTemplateList, .gitStatus, .gitDiff, .gitSettings,
-             .conversationList, .conversationRead:
+             .conversationList, .conversationRead, .toolchainList, .sdkList:
             .readOnly
         // A push publishes commits with the user's credential; the author and
-        // the credentials are the device's, for every project.
+        // the credentials are the device's, for every project. A toolchain
+        // or an SDK is installed on the device for every project, and the
+        // self-test runs the toolchain's compilers and their output.
         case .runCode, .build, .install, .removePackage, .respring, .uiAction, .gitPush,
-             .gitSetAuthor, .gitSaveCredential, .gitRemoveCredential:
+             .gitSetAuthor, .gitSaveCredential, .gitRemoveCredential,
+             .toolchainSetup, .sdkImport, .toolchainSelfTest:
             .system
         }
     }
@@ -143,7 +161,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
         case .memoryDelete: "Delete a memory that is outdated or that the user asks to forget. Read memory_list first and supply its revision."
         case .readSkill: "Read a skill's full instructions by name, or one file from its folder."
         case .projectTemplateList: "List the templates a new project can start from, with each template's id, kind and the parameters it asks for."
-        case .projectCreate: "Create a new project from a template id from project_template_list. Apelin fills the identifiers, toolchain and SDK; pass values only for parameters the user cares about. The project appears in the Projects menu; this chat stays General Chat, and its file tools do not reach the new project."
+        case .projectCreate: "Create a new project from a template id from project_template_list. Apelin fills the identifiers, toolchain and SDK; pass values only for parameters the user cares about. The project appears in the Projects menu with its link; this chat stays General Chat and its file tools do not reach it, so hand the work on with conversation_create naming the project."
         case .gitStatus: "Show the project repository's branch, HEAD commit and changed files."
         case .gitDiff: "Show a unified diff of the worktree against the index, or with staged: true of the index against HEAD; optionally one path."
         case .gitStage: "Stage project files for the next commit."
@@ -158,34 +176,67 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
         case .gitSaveCredential: "Save the HTTPS credential for one host, replacing any it had: a username and a personal access token the user gave you. It is kept in the device's keychain and offered only to remotes on exactly that host."
         case .gitRemoveCredential: "Remove the saved HTTPS credential for one host."
         case .checkDistribution: "Before a distribution build, list what the package should not carry yet: the template's name, description, author or first version, a local identifier, an app without an icon, a version already packaged for the target."
-        case .conversationCreate: "Open another conversation in this project with a first message and return at once with its session id. Another agent works on it in parallel, under the same approval mode, and the user sees it in the sidebar. Collect its answer with conversation_read."
-        case .conversationSend: "Send a message to another conversation of this project, as if the user typed it; it waits there if that conversation is busy. Read the answer with conversation_read."
-        case .conversationList: "List this project's conversations: session id, title, state (open, waitingForApproval or ended), the conversation that opened each, and when it was last active."
-        case .conversationRead: "Read a conversation of this project: its state (running, waitingForApproval, idle or ended), the assistant's messages after after_seq, the approvals it is waiting on, and last_seq to pass as after_seq next time. With wait_seconds, wait until it finishes a turn after after_seq, asks for approval, or ends."
+        case .conversationCreate: "Open another conversation, in this project or the one project names, with a first message, and return at once with its session id and link. Another agent works on it in parallel, under the same approval mode, and the user sees it in the sidebar. Collect its answer with conversation_read."
+        case .conversationSend: "Send a message to another conversation, as if the user typed it; it waits there if that conversation is busy. Name its project with project when it is not this one. Read the answer with conversation_read."
+        case .conversationList: "List the conversations of this project, or of the one project names: session id, link, title, state (open, waitingForApproval or ended), the conversation that opened each, and when it was last active."
+        case .conversationRead: "Read a conversation of this project, or of the one project names: its state (running, waitingForApproval, idle or ended), the assistant's messages after after_seq, the approvals it is waiting on, and last_seq to pass as after_seq next time. With wait_seconds, wait until it finishes a turn after after_seq, asks for approval, or ends."
         case .conversationStop: "Stop the turn a conversation you opened is running. With close: true, also end the conversation and free its place; the user can still reopen it from the sidebar."
+        case .toolchainList: "List the toolchains set up on this device (id, Command Line Tools version, components, the newest SDK each reads, self-test results) and the releases Apelin can set up from Apple's catalog, each with its download size, requirements and why this device cannot take it, if so; and which toolchain this project binds."
+        case .sdkList: "List the iPhoneOS SDKs registered on this device and the ones the enabled SDK sources offer, each with the registered toolchains that read it; and which SDK this project binds."
+        case .toolchainSetup: "Set up a Command Line Tools release from toolchain_list on this device: Apple's package is downloaded, adapted, installed as a package and self-tested, importing a compatible SDK first if none is registered. Long; asks the user in Strict mode. Then bind it with project_environment_set."
+        case .sdkImport: "Import an iPhoneOS SDK an enabled source offers (sdk_list's available) onto this device: one branch is fetched, checked and registered. Asks the user in Strict mode. Then bind it with project_environment_set."
+        case .toolchainSelfTest: "Run a registered toolchain's self-test again: small programs are compiled, signed and run for each language and architecture, and the results recorded. A failure is reported, never unregistered."
+        case .projectEnvironmentSet: "Switch this project to a registered toolchain and/or SDK (ids from toolchain_list and sdk_list). The switch is checked first as projectCheck checks a project, and an incompatible pair, such as an SDK newer than the toolchain reads, is refused with that reason; then apelin-project.json is rewritten with the registry's digests."
         }
     }
 
     public var parameters: JSONValue {
         switch self {
-        case .memoryList, .projectTemplateList, .gitStatus, .gitSettings, .conversationList:
+        case .memoryList, .projectTemplateList, .gitStatus, .gitSettings, .toolchainList, .sdkList:
             Schema.object([:], required: [])
+        case .conversationList:
+            Schema.object([
+                "project": Self.projectParameter,
+            ], required: [])
         case .conversationCreate:
             Schema.object([
                 "prompt": Schema.string("The first message, which the other agent reads as the user's: the task, the files involved, what to deliver, and what to leave alone."),
                 "title": Schema.string("A short name for the sidebar, in the user's language."),
+                "project": Self.projectParameter,
             ], required: ["prompt"])
         case .conversationSend:
             Schema.object([
                 "session_id": Schema.string("Session id from conversation_create or conversation_list."),
                 "text": Schema.string("The message, which that agent reads as the user's."),
+                "project": Self.projectParameter,
             ], required: ["session_id", "text"])
         case .conversationRead:
             Schema.object([
                 "session_id": Schema.string("Session id from conversation_create or conversation_list."),
                 "after_seq": Schema.integer("Only messages after this point: last_seq from the previous read. Omit for the whole conversation."),
                 "wait_seconds": Schema.integer("Wait up to this long, 0 to \(ConversationReadToolRequest.maximumWaitSeconds), for a turn after after_seq to finish. Default 0."),
+                "project": Self.projectParameter,
             ], required: ["session_id"])
+        case .toolchainSetup:
+            Schema.object([
+                "version": Schema.string("A release from toolchain_list's available, e.g. 16.4. Omit for the newest this device can take."),
+                "product_id": Schema.string("Or the release's product id from toolchain_list."),
+                "swift": Schema.boolean("Also set up Swift, where the release offers it on this device. Default false."),
+            ], required: [])
+        case .sdkImport:
+            Schema.object([
+                "version": Schema.string("An SDK version from sdk_list's available, e.g. 17.5."),
+                "source": Schema.string("The source's name from sdk_list; omit for the first enabled source that offers the version."),
+            ], required: ["version"])
+        case .toolchainSelfTest:
+            Schema.object([
+                "toolchain_id": Schema.string("A registered toolchain's id from toolchain_list."),
+            ], required: ["toolchain_id"])
+        case .projectEnvironmentSet:
+            Schema.object([
+                "toolchain_id": Schema.string("A registered toolchain's id; omit to keep the project's."),
+                "sdk_id": Schema.string("A registered SDK's id; omit to keep the project's."),
+            ], required: [])
         case .conversationStop:
             Schema.object([
                 "session_id": Schema.string("Session id of a conversation you opened."),
@@ -418,6 +469,9 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
             ], required: ["action"])
         }
     }
+
+    /// The conversation tools' other project.
+    static let projectParameter = Schema.string("Another project, by its projectID or folder name (project_create answers both): required in General Chat, omit for this project. A call that reaches another project asks the user in Strict mode.")
 }
 
 /// Every tool asks for a short reason, which the app shows while the call

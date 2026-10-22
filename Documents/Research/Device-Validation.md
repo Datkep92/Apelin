@@ -229,6 +229,21 @@ console now goes on after a restart only past a successful respring.
       through Irisin and self-tested there), a roothide export imported on a
       rootless bootstrap, and a project's import followed by a build under
       Confirm, which must ask.
+- [ ] The agent's toolchain and SDK tools in a chat (2026-10-22, none has
+      run on a device): toolchain_list and sdk_list without asking;
+      sdk_import and toolchain_setup under Strict, each asking with its
+      card (release and size, or source and branch) and running once
+      approved, the setup installed through Irisin and self-tested;
+      project_environment_set refusing an SDK newer than the toolchain
+      reads and switching to one it reads, then a build that does not ask;
+      toolchain_self_test; the agent's git_fetch, which reads its task with
+      `environmentAttach`, now allowed for the tasks a session started.
+- [ ] Conversations across projects (2026-10-22): General Chat's
+      project_create, then conversation_create naming the new project under
+      Strict (asks, naming the project and the prompt), the child adopted in
+      that project without the selection moving, its `apelin://` link
+      opening it; conversation_read of it; a send without approval refused
+      by the host.
 
 ## SDK and toolchain matrix (2026-10-19)
 

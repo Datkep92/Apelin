@@ -34,10 +34,13 @@ public struct ProjectCheck: Sendable {
         }
     }
 
-    public func run(projectID: String) -> Result {
+    /// `environment`, when given, stands in for the binding the project file
+    /// names: the check a switch to it would pass or fail, before anything is
+    /// written. The description digests do not include the binding.
+    public func run(projectID: String, environment: ProjectDocument.EnvironmentBinding? = nil) -> Result {
         do {
             let (_, root) = try store.root(of: projectID)
-            return run(root: root)
+            return run(root: root, environment: environment)
         } catch {
             return Result(diagnostics: [
                 ProjectDiagnostic(code: "project.notFound", severity: .error, message: String(describing: error)),
@@ -45,7 +48,30 @@ public struct ProjectCheck: Sendable {
         }
     }
 
-    public func run(root: URL) -> Result {
+    /// The binding `choice` names, resolved in the registry: its digests are
+    /// the registry's, and a component it names that is not registered is
+    /// `notFound`. A nil component keeps the one `current` binds.
+    public func binding(
+        _ choice: ProjectEnvironmentChoice,
+        replacing current: ProjectDocument.EnvironmentBinding,
+    ) throws -> ProjectDocument.EnvironmentBinding {
+        var binding = current
+        if let id = choice.toolchainID {
+            guard let toolchain = try registry.toolchain(id) else {
+                throw ApelinError(.notFound, "toolchain \(id) is not registered on this device")
+            }
+            binding.toolchain = ProjectDocument.Binding(id: toolchain.id, digest: toolchain.digest)
+        }
+        if let id = choice.sdkID {
+            guard let sdk = try registry.sdk(id) else {
+                throw ApelinError(.notFound, "SDK \(id) is not registered on this device")
+            }
+            binding.sdk = ProjectDocument.Binding(id: sdk.id, digest: sdk.digest)
+        }
+        return binding
+    }
+
+    public func run(root: URL, environment: ProjectDocument.EnvironmentBinding? = nil) -> Result {
         var out: [ProjectDiagnostic] = []
         func add(
             _ code: String,
@@ -81,12 +107,15 @@ public struct ProjectCheck: Sendable {
             return Result(diagnostics: out)
         }
         let problems = ProjectValidation.errors(document)
-        guard problems.isEmpty, let project = try? ProjectDocument(document: document) else {
+        guard problems.isEmpty, var project = try? ProjectDocument(document: document) else {
             for problem in problems {
                 let (field, message) = Self.split(problem)
                 add("project.invalid", .error, message, file: ProjectStore.projectFileName, field: field)
             }
             return Result(diagnostics: out)
+        }
+        if let environment {
+            project.environment = environment
         }
         var digests: ApprovalDigests?
         do {

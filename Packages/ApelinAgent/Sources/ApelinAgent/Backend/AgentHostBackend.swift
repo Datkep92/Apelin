@@ -77,13 +77,62 @@ public protocol AgentHostBackend: Sendable {
     func conversationCreate(_ request: ConversationCreateToolRequest) async throws -> ConversationCreateToolResponse
     /// A message to another conversation of the project, as the user's.
     func conversationSend(_ request: ConversationSendToolRequest) async throws -> ConversationActionToolResponse
-    /// The project's conversations.
-    func conversationList(context: HostCallContext) async throws -> ConversationListToolResponse
+    /// The conversations of the session's project, or of the target.
+    func conversationList(_ request: ConversationListToolRequest) async throws -> ConversationListToolResponse
     /// What a conversation of the project answered after a point, waiting
     /// for its turn to end when asked to.
     func conversationRead(_ request: ConversationReadToolRequest) async throws -> ConversationReadToolResponse
     /// Aborts, and optionally closes, a conversation this session opened.
     func conversationStop(_ request: ConversationStopToolRequest) async throws -> ConversationActionToolResponse
+    /// A project under `Projects/` by its projectID or folder name, for a
+    /// conversation call that names another project; the host resolves it
+    /// again and decides.
+    func resolveProject(_ reference: String) async throws -> ProjectIdentity
+    /// The device's toolchains, and the releases Apple's catalog offers.
+    func toolchains(context: HostCallContext) async throws -> ToolchainListToolResponse
+    /// The device's SDKs, and the ones the enabled sources offer.
+    func sdks(context: HostCallContext) async throws -> SDKListToolResponse
+    /// A toolchain set up from Apple's catalog, read to its end.
+    func toolchainSetup(_ request: ToolchainSetupToolRequest) async throws -> ToolchainTaskToolResponse
+    /// A registered toolchain's self-test run again, read to its end.
+    func toolchainSelfTest(_ request: ToolchainSelfTestToolRequest) async throws -> ToolchainTaskToolResponse
+    /// An SDK imported from an enabled source, read to its end.
+    func sdkImport(_ request: SDKImportToolRequest) async throws -> SDKImportToolResponse
+    /// The session's project checked as if bound to these components:
+    /// the binding with the registry's digests and its findings.
+    func checkEnvironment(_ request: EnvironmentCheckToolRequest) async throws -> EnvironmentCheckToolResponse
+}
+
+/// A backend without the device's toolchains, SDKs or other projects (a
+/// test double, a live test): those tools say so.
+public extension AgentHostBackend {
+    func resolveProject(_ reference: String) async throws -> ProjectIdentity {
+        throw ToolDeniedError(message: "no project \(reference) is reachable here")
+    }
+
+    func toolchains(context _: HostCallContext) async throws -> ToolchainListToolResponse {
+        throw ToolDeniedError(message: "toolchains are not available here")
+    }
+
+    func sdks(context _: HostCallContext) async throws -> SDKListToolResponse {
+        throw ToolDeniedError(message: "SDKs are not available here")
+    }
+
+    func toolchainSetup(_: ToolchainSetupToolRequest) async throws -> ToolchainTaskToolResponse {
+        throw ToolDeniedError(message: "toolchain setup is not available here")
+    }
+
+    func toolchainSelfTest(_: ToolchainSelfTestToolRequest) async throws -> ToolchainTaskToolResponse {
+        throw ToolDeniedError(message: "toolchain self-tests are not available here")
+    }
+
+    func sdkImport(_: SDKImportToolRequest) async throws -> SDKImportToolResponse {
+        throw ToolDeniedError(message: "SDK import is not available here")
+    }
+
+    func checkEnvironment(_: EnvironmentCheckToolRequest) async throws -> EnvironmentCheckToolResponse {
+        throw ToolDeniedError(message: "project checks are not available here")
+    }
 }
 
 // MARK: - Context

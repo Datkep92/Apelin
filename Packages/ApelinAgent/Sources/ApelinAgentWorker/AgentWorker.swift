@@ -262,6 +262,7 @@ actor WorkerState {
                     sessionID: sessionID,
                     project: identity,
                     projectURL: projectURL,
+                    projectsURL: dataRoot.projects,
                     modelChoice: modelChoice,
                 ),
                 digests: ledger,
@@ -542,6 +543,14 @@ actor EventRelay {
             payload["detail"] = .object(["gitPush": .object(push)])
         case let .gitSettings(summary):
             payload["detail"] = .object(["gitSettings": .object(["summary": .string(summary)])])
+        // What the host matches an agent's setup, import or call into another
+        // project to (AgentEnvironmentRules, AgentConversationRules).
+        case let .toolchainSetup(setup):
+            payload["detail"] = .object(["toolchainSetup": (try? ApelinCore.JSONValue(encoding: setup)) ?? .null])
+        case let .sdkImport(sdkImport):
+            payload["detail"] = .object(["sdkImport": (try? ApelinCore.JSONValue(encoding: sdkImport)) ?? .null])
+        case let .otherProject(reach):
+            payload["detail"] = .object(["otherProject": (try? ApelinCore.JSONValue(encoding: reach)) ?? .null])
         }
         return .object(payload)
     }

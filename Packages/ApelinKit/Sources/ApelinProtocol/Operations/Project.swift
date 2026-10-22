@@ -263,6 +263,43 @@ public enum ProjectCheckPurpose: String, Codable, Sendable, CaseIterable {
     case distribution
 }
 
+/// A registered component a project binds: `apelin-project.json` ▸
+/// `environment.toolchain` or `environment.sdk`.
+public struct ProjectComponentBinding: Codable, Sendable, Equatable {
+    public var id: String
+    /// `sha256:…`, the registry's, never a caller's.
+    public var digest: String
+
+    public init(id: String, digest: String) {
+        self.id = id
+        self.digest = digest
+    }
+}
+
+/// The toolchain and SDK a project is bound to.
+public struct ProjectEnvironmentBinding: Codable, Sendable, Equatable {
+    public var toolchain: ProjectComponentBinding
+    public var sdk: ProjectComponentBinding
+
+    public init(toolchain: ProjectComponentBinding, sdk: ProjectComponentBinding) {
+        self.toolchain = toolchain
+        self.sdk = sdk
+    }
+}
+
+/// Registered components to check a project against in place of the ones
+/// it binds; a nil one keeps the project's. Nothing is written: the check
+/// answers the binding it ran with, its digests the registry's.
+public struct ProjectEnvironmentChoice: Codable, Sendable, Equatable {
+    public var toolchainID: String?
+    public var sdkID: String?
+
+    public init(toolchainID: String? = nil, sdkID: String? = nil) {
+        self.toolchainID = toolchainID
+        self.sdkID = sdkID
+    }
+}
+
 public struct ProjectCheckRequest: OperationRequest {
     public typealias Response = ProjectCheckResponse
     public static let operation = AppOperation.projectCheck
@@ -270,10 +307,21 @@ public struct ProjectCheckRequest: OperationRequest {
     public var purpose: ProjectCheckPurpose?
     /// The distribution target, for the already-packaged check; absent, any.
     public var bootstrap: BuildBootstrap?
-    public init(projectID: String, purpose: ProjectCheckPurpose? = nil, bootstrap: BuildBootstrap? = nil) {
+    /// Check as if the project were bound to these registered components,
+    /// before it is switched to them; one that is not registered is
+    /// `notFound`. Absent: the binding the project has.
+    public var environment: ProjectEnvironmentChoice?
+
+    public init(
+        projectID: String,
+        purpose: ProjectCheckPurpose? = nil,
+        bootstrap: BuildBootstrap? = nil,
+        environment: ProjectEnvironmentChoice? = nil,
+    ) {
         self.projectID = projectID
         self.purpose = purpose
         self.bootstrap = bootstrap
+        self.environment = environment
     }
 }
 
@@ -283,11 +331,21 @@ public struct ProjectCheckResponse: Codable, Sendable, Equatable {
     /// Absent when a description could not be computed (a referenced file
     /// missing or outside the project): the host treats that as a change.
     public var descriptionDigests: DescriptionDigests?
+    /// The binding the check ran with: the project's own, or the request's
+    /// `environment` resolved in the registry. Absent when the project file
+    /// did not read.
+    public var environment: ProjectEnvironmentBinding?
 
-    public init(passed: Bool, diagnostics: [ProjectDiagnostic] = [], descriptionDigests: DescriptionDigests? = nil) {
+    public init(
+        passed: Bool,
+        diagnostics: [ProjectDiagnostic] = [],
+        descriptionDigests: DescriptionDigests? = nil,
+        environment: ProjectEnvironmentBinding? = nil,
+    ) {
         self.passed = passed
         self.diagnostics = diagnostics
         self.descriptionDigests = descriptionDigests
+        self.environment = environment
     }
 }
 
@@ -304,8 +362,14 @@ public extension ApelinService {
         projectID: String,
         purpose: ProjectCheckPurpose? = nil,
         bootstrap: BuildBootstrap? = nil,
+        environment: ProjectEnvironmentChoice? = nil,
     ) async throws -> ProjectCheckResponse {
-        try await send(ProjectCheckRequest(projectID: projectID, purpose: purpose, bootstrap: bootstrap))
+        try await send(ProjectCheckRequest(
+            projectID: projectID,
+            purpose: purpose,
+            bootstrap: bootstrap,
+            environment: environment,
+        ))
     }
 
     func projectRename(_ request: ProjectRenameRequest) async throws -> ProjectRenameResponse {

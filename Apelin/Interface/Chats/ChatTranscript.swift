@@ -384,6 +384,12 @@ struct ChatTranscript {
         case "conversation_list": return String(localized: "List chats")
         case "conversation_read": return String(localized: "Read a chat")
         case "conversation_stop": return String(localized: "Stop a chat")
+        case "toolchain_list": return String(localized: "List toolchains")
+        case "sdk_list": return String(localized: "List SDKs")
+        case "toolchain_setup": return String(localized: "Set up a toolchain")
+        case "sdk_import": return String(localized: "Import an SDK")
+        case "toolchain_self_test": return String(localized: "Test the toolchain")
+        case "project_environment_set": return String(localized: "Switch the toolchain or SDK")
         case "project_template_list": return String(localized: "List project templates")
         case "project_create":
             let project = values?["name"]?.stringValue ?? ""

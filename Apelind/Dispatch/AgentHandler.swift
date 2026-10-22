@@ -8,11 +8,12 @@ import Foundation
 /// approvals the app gave, and re-decides `agentRunCode` itself — the agent's
 /// evidence is checked, never believed.
 ///
-/// An agent reaches its project's other conversations too
-/// (`AgentConversations`, `AgentConversationRules`): it opens one in its own
-/// project under its own mode, sends one a message as the user's, lists and
-/// reads its project's, and aborts or closes the ones it opened. Approving
-/// and steering stay the app's.
+/// An agent reaches other conversations too (`AgentConversations`,
+/// `AgentConversationRules`): it opens one in its own project or another
+/// under its own mode, sends one a message as the user's, lists and reads a
+/// project's, and aborts or closes the ones it opened. Another project is
+/// reached under Confirm only with the user's approval. Approving and
+/// steering stay the app's.
 enum AgentHandler: DomainHandler {
     /// The instance key of the agent worker that imports credentials, runs
     /// sign-ins, lists and forgets accounts; it serves no session. One
@@ -39,12 +40,26 @@ enum AgentHandler: DomainHandler {
         case .agentAttach:
             return await attach(request, host: host)
         case .agentList:
-            return await request.serve(AgentListRequest.self) { _ in
-                // An agent lists only its own project's conversations.
+            return await request.serve(AgentListRequest.self) { list in
+                // An agent lists its own project's conversations, or another
+                // project's it may reach.
                 let caller = try await callerSession(request, host: host)
+                var projectID = caller?.project.id
+                if list.projectID != nil || list.projectName != nil {
+                    let named = try AgentProjects.resolve(
+                        home: host.home,
+                        projectID: list.projectID,
+                        projectName: list.projectName,
+                    )
+                    if let caller {
+                        let reachable = await AgentSessionTable.shared.mayReach(named.id, session: caller.sessionID)
+                        try AgentConversationRules.mayReach(named, caller: caller, reachable: reachable)
+                    }
+                    projectID = named.id
+                }
                 return await AgentListResponse(sessions: AgentSessionTable.shared.summaries(
                     registry: host.registry,
-                    projectID: caller?.project.id,
+                    projectID: projectID,
                 ))
             }
         case .agentClose:
@@ -140,8 +155,10 @@ enum AgentHandler: DomainHandler {
     /// Resolves the project, registers the session's task, starts its worker
     /// and hands it the request with the project filled in by the host. An
     /// agent's open is rewritten first (`AgentConversationRules.childOpen`),
-    /// takes one of its project's places for agent-opened sessions, and is
-    /// announced on the opener's own task as `conversationOpened`.
+    /// in its own project or another one it names — which under Confirm
+    /// spends the user's approval of exactly that open —, takes one of that
+    /// project's places for agent-opened sessions, and is announced on the
+    /// opener's own task as `conversationOpened`.
     private static func open(_ request: HostRequest, host: SessionHost) async -> HostReply {
         let opener: AgentSessionTable.Entry?
         let open: AgentOpenRequest
@@ -149,15 +166,34 @@ enum AgentHandler: DomainHandler {
         do {
             opener = try await callerSession(request, host: host)
             let asked = try request.decode(AgentOpenRequest.self)
-            open = try opener.map { try AgentConversationRules.childOpen(asked, opener: $0) } ?? asked
-            project = try AgentProjects.resolve(
-                home: host.home,
-                projectID: open.projectID,
-                projectName: open.projectName,
-                temporaryID: open.temporaryID,
-            )
-            if let opener, project != opener.project {
-                throw ApelinError(.conflict, "the project moved since this conversation opened")
+            if let opener {
+                let target = asked.projectID == nil && asked.projectName == nil
+                    ? opener.project
+                    : try AgentProjects.resolve(home: host.home, projectID: asked.projectID, projectName: asked.projectName)
+                open = try AgentConversationRules.childOpen(asked, opener: opener, target: target)
+                if target != opener.project, opener.mode != .relaxed {
+                    let approved = await AgentApprovals.spend(entry: opener, registry: host.registry) {
+                        AgentConversationRules.coversOpen(open, target: target, asked: $0)
+                    }
+                    guard approved else {
+                        throw ApelinError(
+                            .denied,
+                            "approval required: opening a conversation in \(target.name) needs the user's approval of this call",
+                        )
+                    }
+                }
+                project = try AgentProjects.resolve(home: host.home, projectID: open.projectID, projectName: open.projectName)
+                if project != target {
+                    throw ApelinError(.conflict, "the project moved while the conversation was being opened")
+                }
+            } else {
+                open = asked
+                project = try AgentProjects.resolve(
+                    home: host.home,
+                    projectID: open.projectID,
+                    projectName: open.projectName,
+                    temporaryID: open.temporaryID,
+                )
             }
         } catch {
             return request.fail(error)
@@ -255,6 +291,7 @@ enum AgentHandler: DomainHandler {
                     task: handle,
                     title: open.title,
                     prompt: prompt,
+                    project: project,
                 ),
             )
         }
@@ -270,12 +307,26 @@ enum AgentHandler: DomainHandler {
         do {
             let asked = try request.decode(AgentPromptRequest.self)
             if let sender = try await callerSession(request, host: host) {
-                prompt = try await AgentConversationRules.childPrompt(
+                let target = await AgentSessionTable.shared.entry(asked.sessionID)
+                prompt = try AgentConversationRules.childPrompt(
                     asked,
                     sender: sender,
-                    target: AgentSessionTable.shared.entry(asked.sessionID),
+                    target: target,
                     descriptorCount: request.descriptors.count,
                 )
+                // Another project's conversation: under Confirm, the user's
+                // approval of exactly this message, spent here.
+                if let target, target.project != sender.project, sender.mode != .relaxed {
+                    let approved = await AgentApprovals.spend(entry: sender, registry: host.registry) {
+                        AgentConversationRules.coversSend(prompt, target: target, asked: $0)
+                    }
+                    guard approved else {
+                        throw ApelinError(
+                            .denied,
+                            "approval required: a message to a conversation of \(target.project.name) needs the user's approval of this call",
+                        )
+                    }
+                }
             } else {
                 prompt = AgentConversationRules.appPrompt(asked)
             }
@@ -292,16 +343,18 @@ enum AgentHandler: DomainHandler {
         }
     }
 
-    /// An agent reads only its own project's conversations.
+    /// An agent reads its own project's conversations, and another
+    /// project's it may reach.
     private static func attach(_ request: HostRequest, host: SessionHost) async -> HostReply {
         do {
             if let caller = try await callerSession(request, host: host) {
                 let attach = try request.decode(AgentAttachRequest.self)
-                try await AgentConversationRules.mayRead(
-                    attach.taskID,
-                    target: AgentSessionTable.shared.entry(task: attach.taskID),
-                    caller: caller,
-                )
+                let target = await AgentSessionTable.shared.entry(task: attach.taskID)
+                var reachable = false
+                if let target {
+                    reachable = await AgentSessionTable.shared.mayReach(target.project.id, session: caller.sessionID)
+                }
+                try AgentConversationRules.mayRead(attach.taskID, target: target, caller: caller, reachable: reachable)
             }
         } catch {
             return request.fail(error)

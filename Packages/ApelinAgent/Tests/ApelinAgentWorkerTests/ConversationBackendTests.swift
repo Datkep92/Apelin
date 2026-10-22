@@ -83,7 +83,7 @@ struct ConversationBackendTests {
             summary(state: .waitingForApproval),
             AgentSessionSummary(sessionID: "old", task: TaskHandle(taskID: TaskID("t2"), kind: .agent), state: .succeeded, updatedAt: Date()),
         ]))
-        let list = try await fixture.backend.conversationList(context: fixture.context()).conversations
+        let list = try await fixture.backend.conversationList(ConversationListToolRequest(context: fixture.context())).conversations
         #expect(list.map(\.state) == ["open", "waitingForApproval", "ended"])
         #expect(list.map(\.isThisConversation) == [true, false, false])
         #expect(list[1].openedBy == fixture.backend.sessionID && list[1].title == "Docs")

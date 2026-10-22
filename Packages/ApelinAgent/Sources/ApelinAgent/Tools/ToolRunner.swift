@@ -229,21 +229,22 @@ actor ToolRunner {
 
     /// "For this session" is never offered for package removal or for a
     /// request bound to a description digest: the host's ledger keeps those.
-    /// Nor for a push: each one publishes, so each one is asked.
+    /// Nor for a push: each one publishes, so each one is asked. Nor for a
+    /// toolchain or SDK install, which changes the device for every
+    /// project, nor for a call that reaches another project.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
-        if case .local(.removePackage) = tool {
+        switch tool {
+        case .local(.removePackage), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport):
             return false
+        default:
+            break
         }
-        if case .local(.gitPush) = tool {
+        switch detail {
+        case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject:
             return false
+        case .none, .command, .packageRemoval, .gitPush:
+            return true
         }
-        if case .gitSettings = detail {
-            return false
-        }
-        if case .descriptionChanged = detail {
-            return false
-        }
-        return true
     }
 
     // MARK: - Execution
@@ -508,6 +509,7 @@ actor ToolRunner {
                 context: context,
                 prompt: prompt,
                 title: arguments.argNonEmptyString("title"),
+                target: facts.targetProject,
             )))
 
         case .conversationSend:
@@ -523,10 +525,14 @@ actor ToolRunner {
                 context: context,
                 sessionID: target,
                 text: text,
+                target: facts.targetProject,
             )))
 
         case .conversationList:
-            return try await json(backend.conversationList(context: context))
+            return try await json(backend.conversationList(ConversationListToolRequest(
+                context: context,
+                target: facts.targetProject,
+            )))
 
         case .conversationRead:
             let request = try ConversationReadToolRequest(
@@ -534,6 +540,7 @@ actor ToolRunner {
                 sessionID: Self.conversation(arguments),
                 afterSeq: arguments.argInt("after_seq").map { UInt64(max(0, $0)) },
                 waitSeconds: Self.conversationWait(arguments),
+                target: facts.targetProject,
             )
             let backend = backend
             return try await json(Self.untilCancelled(cancellation) { try await backend.conversationRead(request) })
@@ -544,7 +551,83 @@ actor ToolRunner {
                 sessionID: Self.conversation(arguments),
                 close: arguments.argBool("close") ?? false,
             )))
+
+        case .toolchainList:
+            return try await json(backend.toolchains(context: context))
+
+        case .sdkList:
+            return try await json(backend.sdks(context: context))
+
+        case .toolchainSetup:
+            // The release the card named, by product ID.
+            guard let setup = facts.toolchainSetup else {
+                throw ToolDeniedError(message: "the toolchain to set up could not be identified")
+            }
+            return try await json(backend.toolchainSetup(ToolchainSetupToolRequest(
+                context: context,
+                productID: setup.productID,
+                components: setup.components,
+            )))
+
+        case .sdkImport:
+            guard let sdkImport = facts.sdkImport else {
+                throw ToolDeniedError(message: "the SDK to import could not be identified")
+            }
+            return try await json(backend.sdkImport(SDKImportToolRequest(
+                context: context,
+                url: sdkImport.url,
+                branch: sdkImport.branch,
+            )))
+
+        case .toolchainSelfTest:
+            return try await json(backend.toolchainSelfTest(ToolchainSelfTestToolRequest(
+                context: context,
+                toolchainID: arguments.requireString("toolchain_id"),
+            )))
+
+        case .projectEnvironmentSet:
+            return try await json(setEnvironment(arguments, context: context))
         }
+    }
+
+    /// Switches the project's toolchain and/or SDK: checked by the host as
+    /// a project bound to them would be, refused on any `environment.*`
+    /// error with its reason, then written into apelin-project.json through
+    /// the file tools' writer with the registry's digests.
+    private func setEnvironment(
+        _ arguments: JSONValue,
+        context: HostCallContext,
+    ) async throws -> ProjectEnvironmentSetToolResponse {
+        let toolchainID = arguments.argNonEmptyString("toolchain_id")
+        let sdkID = arguments.argNonEmptyString("sdk_id")
+        guard toolchainID != nil || sdkID != nil else {
+            throw ToolArgumentError("name toolchain_id, sdk_id or both")
+        }
+        guard ProjectBuildSystem.read(in: root) != .external else {
+            throw ToolDeniedError(message: "this workspace builds with its own tools through run_code; it binds no Apelin toolchain or SDK")
+        }
+        let checked = try await backend.checkEnvironment(EnvironmentCheckToolRequest(
+            context: context,
+            toolchainID: toolchainID,
+            sdkID: sdkID,
+        ))
+        let errors = checked.diagnostics.filter { $0.severity == "error" }
+        guard errors.isEmpty else {
+            throw ToolDeniedError(message: "refused: " + errors.map(\.message).joined(separator: "; "))
+        }
+        let target = try root.resolveForWrite(ProjectEnvironmentEdit.fileName)
+        guard target.exists else { throw PathPolicyError.notFound(ProjectEnvironmentEdit.fileName) }
+        let original = try Data(contentsOf: URL(fileURLWithPath: target.finalPath))
+        let edit = try ProjectEnvironmentEdit.rebind(original, toolchain: checked.toolchain, sdk: checked.sdk)
+        if edit.data != original {
+            try target.commit(edit.data, exclusive: false)
+        }
+        return ProjectEnvironmentSetToolResponse(
+            toolchain: checked.toolchain,
+            sdk: checked.sdk,
+            changed: edit.changed,
+            warnings: checked.diagnostics.filter { $0.severity == "warning" }.map(\.message),
+        )
     }
 
     /// Runs `body` until it answers or the call is cancelled: a stop does

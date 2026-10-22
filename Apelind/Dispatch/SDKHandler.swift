@@ -1,15 +1,19 @@
 import ApelinProtocol
 
-/// The SDK manager, served by apelin-environment.
+/// The SDK manager, served by apelin-environment. An agent's import passes
+/// the host's own check first (`AgentEnvironmentRules`).
 enum SDKHandler: DomainHandler {
     static func handle(_ request: HostRequest, host: SessionHost) async -> HostReply {
         switch request.operation {
         case .sdkList, .sdkRemove:
-            await host.forward(request, to: .environment)
+            return await host.forward(request, to: .environment)
         case .sdkImport:
-            await host.startTask(request, kind: .environment, role: .environment, resumable: true)
+            if let refusal = await ToolchainHandler.agentRefusal(request, host: host) {
+                return request.fail(refusal)
+            }
+            return await host.startTask(request, kind: .environment, role: .environment, resumable: true)
         default:
-            request.fail(ApelinError(.badRequest, "\(request.operation.rawValue) is not an SDK operation"))
+            return request.fail(ApelinError(.badRequest, "\(request.operation.rawValue) is not an SDK operation"))
         }
     }
 }

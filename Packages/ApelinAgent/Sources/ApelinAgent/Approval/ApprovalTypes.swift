@@ -75,6 +75,65 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// A change to the device's git settings: the author, or the credential
     /// saved for a host (never its token).
     case gitSettings(summary: String)
+    /// A toolchain set up from Apple's catalog: what is downloaded and
+    /// installed. The host lets through only the setup it names.
+    case toolchainSetup(ToolchainSetupApproval)
+    /// An SDK imported from an enabled source: the repository and branch.
+    /// The host lets through only the import it names.
+    case sdkImport(SDKImportApproval)
+    /// A conversation call that reaches another project than the session's.
+    case otherProject(OtherProjectApproval)
+}
+
+/// What a toolchain_setup card names, and the host matches its setup to.
+public struct ToolchainSetupApproval: Sendable, Hashable, Codable {
+    public var productID: String
+    public var version: String
+    /// `c`, and `swift` when asked for.
+    public var components: [String]
+    public var sizeBytes: Int64?
+    public init(productID: String, version: String, components: [String], sizeBytes: Int64?) {
+        self.productID = productID
+        self.version = version
+        self.components = components
+        self.sizeBytes = sizeBytes
+    }
+}
+
+/// What an sdk_import card names, and the host matches its import to.
+public struct SDKImportApproval: Sendable, Hashable, Codable {
+    public var source: String
+    public var url: String
+    public var branch: String
+    public var version: String
+    public init(source: String, url: String, branch: String, version: String) {
+        self.source = source
+        self.url = url
+        self.branch = branch
+        self.version = version
+    }
+}
+
+/// A conversation call that reaches another project: what it does there.
+/// The host matches an open or a message to `projectID`, `sessionID` and
+/// `text`, and lets the session list and read that project's conversations
+/// once the user approved any of them.
+public struct OtherProjectApproval: Sendable, Hashable, Codable {
+    /// `create`, `send`, `list` or `read`.
+    public var action: String
+    public var projectID: String
+    public var projectName: String
+    /// The conversation a send or a read names.
+    public var sessionID: String?
+    /// The prompt or message, as the other agent will read it.
+    public var text: String?
+    public init(action: String, projectID: String, projectName: String, sessionID: String? = nil, text: String? = nil) {
+        self.action = action
+        self.projectID = projectID
+        self.projectName = projectName
+        self.sessionID = sessionID
+        self.text = text
+    }
 }
 
 public enum ApprovalDecision: Sendable, Hashable, Codable {

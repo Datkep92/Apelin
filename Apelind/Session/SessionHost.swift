@@ -271,6 +271,10 @@ final class SessionHost: @unchecked Sendable {
         resumable: Bool = false,
     ) async -> HostReply {
         let handle = await registry.create(kind: kind, owner: role, ownerKey: instance)
+        // An agent reads back only the tasks its session started.
+        if case let .worker(.agent, session?) = request.caller {
+            await AgentSessionTable.shared.recordStarted(handle.taskID, session: session)
+        }
         if resumable {
             await registry.setResume(
                 handle.taskID,

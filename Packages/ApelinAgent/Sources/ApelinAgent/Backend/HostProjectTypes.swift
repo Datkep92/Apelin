@@ -1,3 +1,4 @@
+import enum ApelinProtocol.ApelinLink
 import Foundation
 
 // MARK: - Projects
@@ -88,8 +89,11 @@ public struct ProjectCreateToolRequest: Sendable, Hashable, Codable {
 public struct ProjectCreateToolResponse: Sendable, Hashable, Codable {
     public var projectID: String
     public var name: String
+    /// `apelin://project/<projectID>`, which opens it in the app.
+    public var link: String
     public init(projectID: String, name: String) {
         self.projectID = projectID
         self.name = name
+        link = ApelinLink.project(projectID)
     }
 }

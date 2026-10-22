@@ -13,7 +13,7 @@ struct ConversationToolTests {
     // MARK: Catalog
 
     @Test
-    func `the catalog names the conversation tools with their risks, for projects only`() {
+    func `the catalog names the conversation tools with their risks, in every chat`() {
         #expect(Self.tools.map(\.rawValue) == [
             "conversation_create", "conversation_send", "conversation_list", "conversation_read", "conversation_stop",
         ])
@@ -25,8 +25,9 @@ struct ConversationToolTests {
             #expect(!tool.isSensitiveRead, "\(tool.rawValue)")
         }
         for tool in Self.tools {
-            #expect(tool.isProjectOnly, "\(tool.rawValue)")
+            #expect(!tool.isProjectOnly, "\(tool.rawValue)")
             #expect(!tool.isGeneralChatOnly, "\(tool.rawValue)")
+            #expect(tool.isConversation, "\(tool.rawValue)")
             #expect(!tool.summary.isEmpty)
         }
     }
@@ -45,16 +46,17 @@ struct ConversationToolTests {
                 }
             })
         }
-        #expect(schema(.conversationCreate).properties == ["prompt", "title", "reason"])
+        #expect(schema(.conversationCreate).properties == ["prompt", "title", "project", "reason"])
         #expect(schema(.conversationCreate).required == ["prompt", "reason"])
         #expect(schema(.conversationSend).required == ["session_id", "text", "reason"])
-        #expect(schema(.conversationList).properties == ["reason"])
-        #expect(schema(.conversationRead).properties == ["session_id", "after_seq", "wait_seconds", "reason"])
+        #expect(schema(.conversationSend).properties.contains("project"))
+        #expect(schema(.conversationList).properties == ["project", "reason"])
+        #expect(schema(.conversationRead).properties == ["session_id", "after_seq", "wait_seconds", "project", "reason"])
         #expect(schema(.conversationStop).properties == ["session_id", "close", "reason"])
     }
 
     @Test
-    func `a project's chat offers them; General Chat does not`() throws {
+    func `a project's chat and General Chat both offer them`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         func offered(_ project: ProjectIdentity) throws -> [String] {
@@ -73,7 +75,120 @@ struct ConversationToolTests {
         let general = try offered(ProjectIdentity(id: "temporary:" + id, name: ProjectName(id)))
         for tool in Self.tools {
             #expect(project.contains(tool.rawValue), "\(tool.rawValue)")
-            #expect(!general.contains(tool.rawValue), "\(tool.rawValue)")
+            #expect(general.contains(tool.rawValue), "\(tool.rawValue)")
+        }
+    }
+
+    // MARK: Another project
+
+    /// A runner over `backend` that knows one other project, Far.
+    static func runner(
+        _ home: TemporaryHome,
+        project: ProjectIdentity,
+        mode: ApprovalMode = .confirm,
+        backend: MockBackend,
+        gate: ApprovalGate,
+    ) throws -> ToolRunner {
+        try ToolRunner(
+            sessionID: UUID().uuidString,
+            project: project,
+            root: ScopedRoot(home.projectURL),
+            policy: ApprovalPolicy(mode: mode),
+            backend: backend,
+            digests: MockDigestLedger(),
+            gate: gate,
+        )
+    }
+
+    static let far = try! ProjectIdentity(id: "6f1c5b0e-0000-4000-8000-00000000f00d", name: ProjectName("Far"))
+
+    @Test(.timeLimit(.minutes(1)))
+    func `Strict asks for every call that reaches another project, naming it and the text, never for the session`() async throws {
+        let harness = try DigestApprovalTests.Harness()
+        defer { harness.home.remove() }
+        await harness.backend.addProject(Self.far)
+        let (created, asked) = try await harness.run(.conversationCreate, ["prompt": "Import the repo and build it", "project": "Far"])
+        #expect(asked.count == 1 && asked.first?.allowsSessionScope == false)
+        #expect(asked.first?.detail == .otherProject(OtherProjectApproval(
+            action: "create",
+            projectID: Self.far.id,
+            projectName: "Far",
+            text: "Import the repo and build it",
+        )))
+        #expect(asked.first?.reason.contains("Far") == true && asked.first?.reason.contains("Import the repo and build it") == true)
+        let createdText = created.content.compactMap {
+            if case let .text(text) = $0 {
+                text.text
+            } else {
+                nil
+            }
+        }.joined()
+        #expect(createdText.contains("apelin://conversation/child-session") && createdText.contains("apelin://project/\(Self.far.id)"))
+        let (_, sendAsked) = try await harness.run(.conversationSend, ["session_id": "far-chat", "text": "Also push", "project": .string(Self.far.id)])
+        #expect(sendAsked.first?.detail == .otherProject(OtherProjectApproval(
+            action: "send",
+            projectID: Self.far.id,
+            projectName: "Far",
+            sessionID: "far-chat",
+            text: "Also push",
+        )))
+        let (_, listAsked) = try await harness.run(.conversationList, ["project": "Far"])
+        let (_, readAsked) = try await harness.run(.conversationRead, ["session_id": "far-chat", "project": "Far"])
+        #expect(listAsked.count == 1 && readAsked.count == 1)
+        let calls = await harness.backend.calls
+        #expect(calls.map {
+            if case let .conversationElsewhere(tool, project, _) = $0 {
+                "\(tool) \(project)"
+            } else {
+                ""
+            }
+        } == [
+            "conversation_create \(Self.far.id)", "conversation_send \(Self.far.id)",
+            "conversation_list \(Self.far.id)", "conversation_read \(Self.far.id)",
+        ])
+        // The same call again asks again.
+        let (_, again) = try await harness.run(.conversationCreate, ["prompt": "Import the repo and build it", "project": "Far"], answering: .approve(.session))
+        #expect(again.count == 1)
+        let (_, stillAsks) = try await harness.run(.conversationCreate, ["prompt": "Import the repo and build it", "project": "Far"])
+        #expect(stillAsks.count == 1, "a session approval is never remembered for another project")
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `naming the session's own project changes nothing, and Relaxed reaches another without asking`() async throws {
+        let harness = try DigestApprovalTests.Harness()
+        defer { harness.home.remove() }
+        await harness.backend.addProject(harness.home.project)
+        let (_, own) = try await harness.run(.conversationCreate, ["prompt": "Docs", "project": .string(harness.home.project.name.rawValue)])
+        #expect(own.isEmpty)
+        #expect(await harness.backend.calls == [.conversationCreate(prompt: "Docs", title: nil)])
+
+        let relaxed = try DigestApprovalTests.Harness(mode: .relaxed)
+        defer { relaxed.home.remove() }
+        await relaxed.backend.addProject(Self.far)
+        let (_, asked) = try await relaxed.run(.conversationCreate, ["prompt": "Build it", "project": "Far"])
+        #expect(asked.isEmpty)
+        #expect(await relaxed.backend.calls == [.conversationElsewhere(tool: "conversation_create", project: Self.far.id, evidence: .relaxed)])
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `General Chat names the project, and hands the new project its first conversation`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let backend = MockBackend()
+        await backend.addProject(Self.far)
+        let id = UUID().uuidString
+        let general = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
+        let runner = try Self.runner(home, project: general, mode: .relaxed, backend: backend, gate: ApprovalGate { _ in })
+        await #expect(throws: ToolArgumentError.self) {
+            try await runner.run(.local(.conversationCreate), toolCallID: "c1", arguments: ["prompt": "Build it"], cancellation: nil, mcp: nil)
+        }
+        await #expect(throws: ToolArgumentError.self) {
+            try await runner.run(.local(.conversationList), toolCallID: "c2", arguments: [:], cancellation: nil, mcp: nil)
+        }
+        _ = try await runner.run(.local(.conversationCreate), toolCallID: "c3", arguments: ["prompt": "Build it", "project": "Far"], cancellation: nil, mcp: nil)
+        #expect(await backend.calls == [.conversationElsewhere(tool: "conversation_create", project: Self.far.id, evidence: .relaxed)])
+        await #expect(throws: ToolDeniedError.self) {
+            try await runner.run(.local(.conversationCreate), toolCallID: "c4", arguments: ["prompt": "x", "project": "Nowhere"], cancellation: nil, mcp: nil)
         }
     }
 
@@ -153,7 +268,7 @@ struct ConversationToolTests {
     // MARK: Prompt
 
     @Test
-    func `a project's prompt explains conversations; General Chat's does not`() throws {
+    func `both prompts explain conversations; General Chat's hands a new project its first one, with links`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let project = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm, skills: [], mcpServers: [])
@@ -167,7 +282,11 @@ struct ConversationToolTests {
             skills: [],
             mcpServers: [],
         )
-        #expect(!general.contains("# Conversations"))
+        #expect(general.contains("# Conversations") && general.contains("conversation_create with project set to the new project"))
+        for prompt in [project, general] {
+            #expect(prompt.contains("apelin://conversation/<session id>") && prompt.contains("apelin://project/<projectID>"))
+            #expect(!prompt.contains("there is no Apelin URL scheme"))
+        }
     }
 
     @Test(.timeLimit(.minutes(1)))

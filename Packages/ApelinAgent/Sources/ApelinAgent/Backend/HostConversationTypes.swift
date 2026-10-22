@@ -1,28 +1,41 @@
+import enum ApelinProtocol.ApelinLink
 import Foundation
 
 // MARK: - conversations
 
-/// Every conversation call names the session's own project only through the
-/// host: it opens, lists and reads the caller's project's conversations and
-/// stops the ones the caller opened, whatever a request says.
+/// Every conversation call reaches the session's own project, or another
+/// project it names (`target`), only through the host: it opens, lists and
+/// reads that project's conversations and stops the ones the caller opened,
+/// and under Strict reaches another project only as the user approved.
 public struct ConversationCreateToolRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext
     /// The first message, read by the other agent as the user's.
     public var prompt: String
     public var title: String?
-    public init(context: HostCallContext, prompt: String, title: String? = nil) {
+    /// Another project to open it in; nil for the session's own.
+    public var target: ProjectIdentity?
+    public init(context: HostCallContext, prompt: String, title: String? = nil, target: ProjectIdentity? = nil) {
         self.context = context
         self.prompt = prompt
         self.title = title
+        self.target = target
     }
 }
 
 public struct ConversationCreateToolResponse: Sendable, Hashable, Codable {
     public var sessionID: String
     public var taskID: String
-    public init(sessionID: String, taskID: String) {
+    /// `apelin://conversation/<session id>`, which opens it in the app.
+    public var link: String
+    /// The project it opened in, when not the session's own, and its link.
+    public var project: String?
+    public var projectLink: String?
+    public init(sessionID: String, taskID: String, project: ProjectIdentity? = nil) {
         self.sessionID = sessionID
         self.taskID = taskID
+        link = ApelinLink.conversation(sessionID)
+        self.project = project?.name.rawValue
+        projectLink = project.map { ApelinLink.project($0.id) }
     }
 }
 
@@ -30,10 +43,23 @@ public struct ConversationSendToolRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext
     public var sessionID: String
     public var text: String
-    public init(context: HostCallContext, sessionID: String, text: String) {
+    /// The project the conversation is in, when not the session's own.
+    public var target: ProjectIdentity?
+    public init(context: HostCallContext, sessionID: String, text: String, target: ProjectIdentity? = nil) {
         self.context = context
         self.sessionID = sessionID
         self.text = text
+        self.target = target
+    }
+}
+
+public struct ConversationListToolRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    /// Another project whose conversations to list; nil for the session's own.
+    public var target: ProjectIdentity?
+    public init(context: HostCallContext, target: ProjectIdentity? = nil) {
+        self.context = context
+        self.target = target
     }
 }
 
@@ -62,6 +88,8 @@ public struct ConversationActionToolResponse: Sendable, Hashable, Codable {
 
 public struct ConversationSummary: Sendable, Hashable, Codable {
     public var sessionID: String
+    /// `apelin://conversation/<session id>`.
+    public var link: String
     public var title: String?
     /// `open` (running a turn or idle), `waitingForApproval` or `ended`.
     public var state: String
@@ -78,6 +106,7 @@ public struct ConversationSummary: Sendable, Hashable, Codable {
         isThisConversation: Bool = false,
     ) {
         self.sessionID = sessionID
+        link = ApelinLink.conversation(sessionID)
         self.title = title
         self.state = state
         self.openedBy = openedBy
@@ -103,11 +132,20 @@ public struct ConversationReadToolRequest: Sendable, Hashable, Codable {
     public var afterSeq: UInt64?
     /// 0 to `maximumWaitSeconds`.
     public var waitSeconds: Int
-    public init(context: HostCallContext, sessionID: String, afterSeq: UInt64? = nil, waitSeconds: Int = 0) {
+    /// The project the conversation is in, when not the session's own.
+    public var target: ProjectIdentity?
+    public init(
+        context: HostCallContext,
+        sessionID: String,
+        afterSeq: UInt64? = nil,
+        waitSeconds: Int = 0,
+        target: ProjectIdentity? = nil,
+    ) {
         self.context = context
         self.sessionID = sessionID
         self.afterSeq = afterSeq
         self.waitSeconds = waitSeconds
+        self.target = target
     }
 }
 
@@ -148,6 +186,8 @@ public struct ConversationApproval: Sendable, Hashable, Codable {
 
 public struct ConversationReadToolResponse: Sendable, Hashable, Codable {
     public var sessionID: String
+    /// `apelin://conversation/<session id>`.
+    public var link: String
     public var title: String?
     public var state: ConversationState
     public var messages: [ConversationMessage]
@@ -170,6 +210,7 @@ public struct ConversationReadToolResponse: Sendable, Hashable, Codable {
         timedOut: Bool = false,
     ) {
         self.sessionID = sessionID
+        link = ApelinLink.conversation(sessionID)
         self.title = title
         self.state = state
         self.messages = messages

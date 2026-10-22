@@ -62,7 +62,7 @@ public final class BuildWorker: @unchecked Sendable {
         case .projectCreate:
             return await WorkerMain.serve(ProjectCreateRequest.self, request) { try projectCreate($0) }
         case .projectCheck:
-            return await WorkerMain.serve(ProjectCheckRequest.self, request) { projectCheck($0) }
+            return await WorkerMain.serve(ProjectCheckRequest.self, request) { try projectCheck($0) }
         case .projectRename:
             return await WorkerMain.serve(ProjectRenameRequest.self, request) {
                 try ProjectMetadata.rename($0, in: dataFolder)
@@ -211,9 +211,17 @@ public final class BuildWorker: @unchecked Sendable {
         )
     }
 
-    public func projectCheck(_ request: ProjectCheckRequest) -> ProjectCheckResponse {
-        let result = ProjectCheck(store: store, catalog: catalog, registry: registry)
-            .run(projectID: request.projectID)
+    /// With `environment`, the check a switch to those registered
+    /// components would get, nothing written; a component that is not
+    /// registered is `notFound`.
+    public func projectCheck(_ request: ProjectCheckRequest) throws -> ProjectCheckResponse {
+        let check = ProjectCheck(store: store, catalog: catalog, registry: registry)
+        var candidate: ProjectDocument.EnvironmentBinding?
+        if let choice = request.environment {
+            let current = try store.locate(request.projectID).project.environment
+            candidate = try check.binding(choice, replacing: current)
+        }
+        let result = check.run(projectID: request.projectID, environment: candidate)
         var diagnostics = result.diagnostics
         if request.purpose == .distribution {
             diagnostics += DistributionCheck(store: store, catalog: catalog).run(
@@ -226,6 +234,12 @@ public final class BuildWorker: @unchecked Sendable {
             diagnostics: diagnostics,
             descriptionDigests: result.digests.map {
                 DescriptionDigests(build: $0.build.digest, packaging: $0.packaging.digest)
+            },
+            environment: result.project.map {
+                ProjectEnvironmentBinding(
+                    toolchain: ProjectComponentBinding(id: $0.environment.toolchain.id, digest: $0.environment.toolchain.digest),
+                    sdk: ProjectComponentBinding(id: $0.environment.sdk.id, digest: $0.environment.sdk.digest),
+                )
             },
         )
     }

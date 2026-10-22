@@ -243,7 +243,17 @@ if case var .object(fields) = untitled {
 precondition(ChatAdoption.record(opened: untitled, parent: opener, records: [opener])?.summary.title == "Write the README")
 precondition(ChatAdoption.record(opened: .object(["sessionID": .string("not-a-uuid")]), parent: opener, records: [opener]) == nil)
 let general = ChatRecord(summary: ChatSummary(title: "General", updated: Date(), projectName: nil), sessionID: openerSession)
-precondition(ChatAdoption.record(opened: opened, parent: general, records: [general]) == nil, "General Chat adopts nothing")
+precondition(ChatAdoption.record(opened: opened, parent: general, records: [general]) == nil, "a conversation naming no project is not adopted from General Chat")
+/// One opened in another project, General Chat's or a project's, goes there.
+var elsewhere = opened
+if case var .object(fields) = elsewhere {
+    fields["projectID"] = .string("6f1c5b0e-0000-4000-8000-00000000f00d")
+    fields["projectName"] = .string("Far")
+    elsewhere = .object(fields)
+}
+
+precondition(ChatAdoption.record(opened: elsewhere, parent: general, records: [general])?.summary.projectName == "Far", "General Chat's opens in a project are adopted there")
+precondition(ChatAdoption.record(opened: elsewhere, parent: opener, records: [opener])?.summary.projectName == "Far", "and a project's opens in another one too")
 precondition(ChatAdoption.title(" ", prompt: nil) == "New Chat")
 
 func listed(_ state: TaskState, parent: String?) -> AgentSessionSummary {
@@ -256,7 +266,10 @@ precondition(ChatAdoption.record(session: listed(.running, parent: openerSession
 precondition(ChatAdoption.record(session: listed(.succeeded, parent: openerSession), records: [opener]) == nil, "an ended one is not adopted")
 precondition(ChatAdoption.record(session: listed(.running, parent: nil), records: [opener]) == nil, "the app's own are not adopted")
 precondition(ChatAdoption.record(session: listed(.running, parent: "unknown"), records: [opener]) == nil, "nor one whose opener has no record")
-print("ok: conversations agents open are adopted once, into the opener's project")
+var listedElsewhere = listed(.running, parent: openerSession)
+listedElsewhere.projectName = "Far"
+precondition(ChatAdoption.record(session: listedElsewhere, records: [general])?.summary.projectName == "Far", "one General Chat opened is adopted into the project the host lists it in")
+print("ok: conversations agents open are adopted once, into the project they were opened in")
 
 // A sent message shows at once under its draft's id; the host's `prompt` or
 // `queued` event with that id takes its place, one row each time.

@@ -89,7 +89,44 @@ actor MockBackend: AgentHostBackend {
         case conversationList
         case conversationRead(sessionID: String, afterSeq: UInt64?, waitSeconds: Int)
         case conversationStop(sessionID: String, close: Bool)
+        /// A conversation call that went to another project.
+        case conversationElsewhere(tool: String, project: String, evidence: ApprovalEvidence)
+        case toolchains
+        case sdks
+        case toolchainSetup(productID: String, components: [String], evidence: ApprovalEvidence)
+        case toolchainSelfTest(String)
+        case sdkImport(url: String, branch: String, evidence: ApprovalEvidence)
+        case checkEnvironment(toolchainID: String?, sdkID: String?)
         case other(String)
+    }
+
+    /// What toolchain_list and sdk_list answer.
+    var toolchainList = ToolchainListToolResponse(
+        installed: [InstalledToolchain(id: "clt-16.4-c", version: "16.4", components: ["c"], newestSDK: "18.5", boundByThisProject: true)],
+        available: [
+            AvailableToolchain(productID: "082-27", version: "27.0", sizeBytes: 900_000_000, newestSDK: "27", unavailable: "This toolchain requires iOS 26.0 or later."),
+            AvailableToolchain(productID: "082-16", version: "16.4", sizeBytes: 800_000_000, newestSDK: "18.5", installedAs: ["clt-16.4-c"]),
+            AvailableToolchain(productID: "082-15", version: "15.3", sizeBytes: 700_000_000, newestSDK: "17.4", swift: "Swift 5.10"),
+        ],
+    )
+    var sdkList = SDKListToolResponse(
+        installed: [InstalledSDK(id: "iPhoneOS18.2-aaaaaaaa", version: "18.2", readBy: ["clt-16.4-c"], boundByThisProject: true)],
+        available: [
+            AvailableSDK(version: "17.5", branch: "sdk/iPhoneOS17.5", source: "OwnGoal iOS SDKs", sourceURL: "https://github.com/owngoal-dev/iOS-SDKs.git", readBy: ["clt-16.4-c"]),
+        ],
+    )
+    /// What project_environment_set's check answers, by SDK id.
+    var environmentFindings: [String: [EnvironmentDiagnostic]] = [:]
+    /// Other projects resolve_project finds, by name or id.
+    var otherProjects: [String: ProjectIdentity] = [:]
+
+    func addProject(_ identity: ProjectIdentity) {
+        otherProjects[identity.id] = identity
+        otherProjects[identity.name.rawValue] = identity
+    }
+
+    func setFindings(_ findings: [EnvironmentDiagnostic], forSDK sdkID: String) {
+        environmentFindings[sdkID] = findings
     }
 
     /// What git_status answers as the checked-out branch.
@@ -276,23 +313,81 @@ actor MockBackend: AgentHostBackend {
     }
 
     func conversationCreate(_ request: ConversationCreateToolRequest) -> ConversationCreateToolResponse {
-        calls.append(.conversationCreate(prompt: request.prompt, title: request.title))
-        return ConversationCreateToolResponse(sessionID: "child-session", taskID: "child-task")
+        if let target = request.target {
+            calls.append(.conversationElsewhere(tool: "conversation_create", project: target.id, evidence: request.context.approval))
+        } else {
+            calls.append(.conversationCreate(prompt: request.prompt, title: request.title))
+        }
+        return ConversationCreateToolResponse(sessionID: "child-session", taskID: "child-task", project: request.target)
     }
 
     func conversationSend(_ request: ConversationSendToolRequest) -> ConversationActionToolResponse {
-        calls.append(.conversationSend(sessionID: request.sessionID, text: request.text))
+        if let target = request.target {
+            calls.append(.conversationElsewhere(tool: "conversation_send", project: target.id, evidence: request.context.approval))
+        } else {
+            calls.append(.conversationSend(sessionID: request.sessionID, text: request.text))
+        }
         return ConversationActionToolResponse(sessionID: request.sessionID, done: "sent")
     }
 
-    func conversationList(context _: HostCallContext) -> ConversationListToolResponse {
-        calls.append(.conversationList)
+    func conversationList(_ request: ConversationListToolRequest) -> ConversationListToolResponse {
+        if let target = request.target {
+            calls.append(.conversationElsewhere(tool: "conversation_list", project: target.id, evidence: request.context.approval))
+        } else {
+            calls.append(.conversationList)
+        }
         return ConversationListToolResponse(conversations: [])
     }
 
     func conversationRead(_ request: ConversationReadToolRequest) -> ConversationReadToolResponse {
-        calls.append(.conversationRead(sessionID: request.sessionID, afterSeq: request.afterSeq, waitSeconds: request.waitSeconds))
+        if let target = request.target {
+            calls.append(.conversationElsewhere(tool: "conversation_read", project: target.id, evidence: request.context.approval))
+        } else {
+            calls.append(.conversationRead(sessionID: request.sessionID, afterSeq: request.afterSeq, waitSeconds: request.waitSeconds))
+        }
         return ConversationReadToolResponse(sessionID: request.sessionID, state: .idle, lastSeq: 0)
+    }
+
+    func resolveProject(_ reference: String) throws -> ProjectIdentity {
+        guard let found = otherProjects[reference] else { throw ToolDeniedError(message: "no project \(reference)") }
+        return found
+    }
+
+    func toolchains(context _: HostCallContext) -> ToolchainListToolResponse {
+        calls.append(.toolchains)
+        return toolchainList
+    }
+
+    func sdks(context _: HostCallContext) -> SDKListToolResponse {
+        calls.append(.sdks)
+        return sdkList
+    }
+
+    func toolchainSetup(_ request: ToolchainSetupToolRequest) -> ToolchainTaskToolResponse {
+        calls.append(.toolchainSetup(productID: request.productID, components: request.components, evidence: request.context.approval))
+        return ToolchainTaskToolResponse(succeeded: true, stages: ["downloading", "ready"])
+    }
+
+    func toolchainSelfTest(_ request: ToolchainSelfTestToolRequest) -> ToolchainTaskToolResponse {
+        calls.append(.toolchainSelfTest(request.toolchainID))
+        return ToolchainTaskToolResponse(succeeded: true, stages: ["validating"])
+    }
+
+    func sdkImport(_ request: SDKImportToolRequest) -> SDKImportToolResponse {
+        calls.append(.sdkImport(url: request.url, branch: request.branch, evidence: request.context.approval))
+        return SDKImportToolResponse(succeeded: true)
+    }
+
+    /// The registry's digest of each id is `sha256:<id>`.
+    func checkEnvironment(_ request: EnvironmentCheckToolRequest) -> EnvironmentCheckToolResponse {
+        calls.append(.checkEnvironment(toolchainID: request.toolchainID, sdkID: request.sdkID))
+        let toolchain = request.toolchainID ?? "clt-16.4-c"
+        let sdk = request.sdkID ?? "iPhoneOS18.2-aaaaaaaa"
+        return EnvironmentCheckToolResponse(
+            toolchain: ComponentBinding(id: toolchain, digest: "sha256:" + toolchain),
+            sdk: ComponentBinding(id: sdk, digest: "sha256:" + sdk),
+            diagnostics: environmentFindings[sdk] ?? [],
+        )
     }
 
     func conversationStop(_ request: ConversationStopToolRequest) -> ConversationActionToolResponse {

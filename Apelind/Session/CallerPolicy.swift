@@ -33,7 +33,15 @@ enum CallerPolicy {
     /// The agent's tools reach these; every call is still subject to the
     /// host's own approval decision.
     static let agentOperations: Set<AppOperation> = [
-        .toolchainStatus, .sdkList, .extensionList,
+        // The device's toolchains and SDKs: listed, a toolchain set up from
+        // Apple's catalog or tested again, an SDK imported from a source.
+        // A setup or import is one AgentEnvironmentRules allows (under
+        // Confirm, the user's approval of exactly it); environmentAttach
+        // reads only the tasks the session started (its git tasks too).
+        // Removal stays the app's.
+        .toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainSelfTest,
+        .sdkList, .sdkImport, .environmentAttach,
+        .extensionList,
         .projectCreate, .projectCheck,
         .buildStart, .buildAttach, .buildCancel,
         .installPackage, .removePackage, .respring, .approvalDigestState,

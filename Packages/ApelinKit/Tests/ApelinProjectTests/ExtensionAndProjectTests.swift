@@ -221,6 +221,40 @@ final class ExtensionAndProjectTests: XCTestCase {
         XCTAssertEqual(warning?.severity, .warning)
     }
 
+    /// A switch is checked before anything is written: the candidate binding
+    /// takes the registry's digests, an unregistered component is refused,
+    /// and an SDK newer than the toolchain reads fails with the same
+    /// diagnostic a project bound to it gets.
+    func testACandidateBindingIsCheckedBeforeASwitch() throws {
+        let scratch = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin"), withIntermediateDirectories: true)
+        let store = ProjectStore(dataFolder: DataFolder(home: scratch.path))
+        let catalog = ExtensionCatalog(directory: Repository.extensions)
+        let toolchain = RegisteredToolchain(id: "clt-16.4", digest: "sha256:" + String(repeating: "1", count: 64), version: "16.4", path: "/nonexistent", components: ["c-family"], newestSDK: "18.5")
+        func sdk(_ version: String, _ fill: Character) -> RegisteredSDK {
+            RegisteredSDK(id: "iPhoneOS\(version)-00000000", digest: "sha256:" + String(repeating: fill, count: 64), version: version, path: "/nonexistent")
+        }
+        let registry = StaticEnvironmentRegistry(toolchains: [toolchain], sdks: [sdk("27.0", "3"), sdk("18.2", "2")])
+        let created = try store.create(templateID: "wiki.qaq.apelin.dev.tweak/objc-hook", name: "Switching", values: [:], catalog: catalog, registry: registry)
+        let check = ProjectCheck(store: store, catalog: catalog, registry: registry)
+        let current = try store.locate(created.projectID).project.environment
+        XCTAssertEqual(current.sdk.id, "iPhoneOS18.2-00000000")
+
+        let newer = try check.binding(ProjectEnvironmentChoice(sdkID: "iPhoneOS27.0-00000000"), replacing: current)
+        XCTAssertEqual(newer.sdk.digest, "sha256:" + String(repeating: "3", count: 64), "the digest is the registry's")
+        XCTAssertEqual(newer.toolchain, current.toolchain, "a component not named stays")
+        let refused = check.run(projectID: created.projectID, environment: newer)
+        XCTAssertTrue(refused.diagnostics.contains { $0.code == "environment.sdk.tooNewForToolchain" && $0.severity == .error }, "\(refused.diagnostics)")
+        XCTAssertEqual(refused.project?.environment, newer, "the check ran with the candidate")
+        XCTAssertFalse(check.run(projectID: created.projectID).diagnostics.contains { $0.code == "environment.sdk.tooNewForToolchain" }, "the project itself is unchanged")
+        XCTAssertEqual(refused.digests?.build.digest, created.baseline.build.digest, "the binding is not in the build description")
+
+        XCTAssertThrowsError(try check.binding(ProjectEnvironmentChoice(toolchainID: "clt-99.0"), replacing: current)) { error in
+            XCTAssertEqual((error as? ApelinError)?.code, .notFound)
+        }
+    }
+
     /// A Swift project on an SDK of another major than its toolchain's, or
     /// on an architecture the SDK has no Swift interface for, is told so.
     func testSwiftProjectsAreWarnedAboutTheirSDK() throws {

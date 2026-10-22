@@ -97,7 +97,7 @@ final class BuildWorkerTests: XCTestCase {
         let createdJSON = try JSONValue(encoding: created)
         XCTAssertNotNil(createdJSON["descriptionDigests"]?["build"]?.stringValue)
         XCTAssertEqual(created.path, home.path + "/Documents/wiki.qaq.apelin/Projects/Worker Tweak")
-        let check = worker.projectCheck(ProjectCheckRequest(projectID: created.projectID))
+        let check = try worker.projectCheck(ProjectCheckRequest(projectID: created.projectID))
         XCTAssertTrue(check.passed, "\(check.diagnostics)")
         XCTAssertEqual(check.descriptionDigests, created.descriptionDigests)
 
@@ -182,19 +182,19 @@ final class BuildWorkerTests: XCTestCase {
         let (home, _) = try makeHome(in: scratch)
         let worker = BuildWorker(installRoot: "/var/jb", home: home.path, registry: registry, extensionDirectory: Repository.extensions)
         let created = try worker.projectCreate(ProjectCreateRequest(templateID: "wiki.qaq.apelin.dev.app/uikit-objc", name: "Shipping"))
-        func codes() -> Set<String> {
-            let check = worker.projectCheck(ProjectCheckRequest(projectID: created.projectID, purpose: .distribution))
+        func codes() throws -> Set<String> {
+            let check = try worker.projectCheck(ProjectCheckRequest(projectID: created.projectID, purpose: .distribution))
             XCTAssertTrue(check.passed, "\(check.diagnostics)")
             XCTAssertTrue(check.diagnostics.filter { $0.code.hasPrefix("distribution.") }.allSatisfy { $0.severity == .warning })
             return Set(check.diagnostics.map(\.code).filter { $0.hasPrefix("distribution.") })
         }
-        XCTAssertEqual(codes(), [
+        XCTAssertEqual(try codes(), [
             "distribution.package.name.template", "distribution.package.description.template",
             "distribution.package.author.template", "distribution.package.version.template",
             "distribution.package.id.local", "distribution.bundleID.local", "distribution.icon.missing",
         ])
         XCTAssertFalse(
-            worker.projectCheck(ProjectCheckRequest(projectID: created.projectID)).diagnostics.contains { $0.code.hasPrefix("distribution.") },
+            try worker.projectCheck(ProjectCheckRequest(projectID: created.projectID)).diagnostics.contains { $0.code.hasPrefix("distribution.") },
             "an ordinary check stays as it was",
         )
 
@@ -214,7 +214,7 @@ final class BuildWorkerTests: XCTestCase {
         plist["CFBundleIdentifier"] = "wiki.example.shipping"
         plist["CFBundleIcons"] = ["CFBundlePrimaryIcon": ["CFBundleIconFiles": ["AppIcon60x60"]]]
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: plistURL)
-        XCTAssertEqual(codes(), [])
+        XCTAssertEqual(try codes(), [])
     }
 
     func testDistributionBuildsDistinctBootstrapArtifacts() throws {
@@ -243,7 +243,7 @@ final class BuildWorkerTests: XCTestCase {
         }
         XCTAssertEqual(digests.count, 2, "the two outputs must be independently built packages")
         for target in BuildBootstrap.allCases {
-            let check = worker.projectCheck(ProjectCheckRequest(projectID: project.projectID, purpose: .distribution, bootstrap: target))
+            let check = try worker.projectCheck(ProjectCheckRequest(projectID: project.projectID, purpose: .distribution, bootstrap: target))
             XCTAssertTrue(check.diagnostics.contains { $0.code == "distribution.version.packaged" && $0.message.contains(target.rawValue) }, "\(check.diagnostics)")
             XCTAssertTrue(check.passed, "distribution findings never fail the check")
         }

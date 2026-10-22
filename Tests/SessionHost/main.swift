@@ -453,12 +453,26 @@ do {
     check(CallerPolicy.allows(.worker(.agent, instance: "s"), .confirmLoaded) && CallerPolicy.allows(.worker(.agent, instance: "s"), .confirmLoadedAttach), "the agent starts and reads a load check")
     // Accounts are the app's alone: a session's agent never starts, answers
     // or reads a sign-in, and never lists or forgets an account.
-    for operation: AppOperation in [.protectedEditOpen, .protectedEditCommit, .ptyOpen, .ptyAttach, .agentApprove, .agentSteer, .toolchainSetup, .sdkRemove,
+    for operation: AppOperation in [.protectedEditOpen, .protectedEditCommit, .ptyOpen, .ptyAttach, .agentApprove, .agentSteer,
+                                    .toolchainRemove, .sdkRemove, .environmentCancel,
                                     .agentAccountList, .agentAPIConfiguration, .agentModelList, .agentModelActivate, .agentSignIn, .agentSignInRespond, .agentSignInCancel, .agentSignOut,
                                     .agentCredentialImport, .transferExport, .transferInspect, .transferImport, .projectRename]
     {
         check(!CallerPolicy.allows(.worker(.agent, instance: "s"), operation), "the agent may not call \(operation.rawValue)")
     }
+    // The device's toolchains and SDKs: listed, set up, imported, tested
+    // again, and the tasks it started read back (AgentEnvironmentRules and
+    // EnvironmentHandler narrow each one). Removal stays the app's.
+    for operation: AppOperation in [.toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainSelfTest, .sdkList, .sdkImport, .environmentAttach] {
+        check(CallerPolicy.allows(.worker(.agent, instance: "s"), operation), "the agent reaches the device's toolchains and SDKs (\(operation.rawValue))")
+    }
+    let agentEnvironmentOperations = CallerPolicy.agentOperations.filter {
+        $0.domain == .toolchain || $0.domain == .sdk || $0.domain == .environment
+    }
+    check(
+        agentEnvironmentOperations == [.toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainSelfTest, .sdkList, .sdkImport, .environmentAttach],
+        "and exactly those of the environment domains: \(agentEnvironmentOperations.map(\.rawValue).sorted())",
+    )
     // The project's other conversations: AgentHandler narrows each one.
     for operation: AppOperation in [.agentOpen, .agentPrompt, .agentList, .agentAttach, .agentAbort, .agentClose] {
         check(CallerPolicy.allows(.worker(.agent, instance: "s"), operation), "the agent reaches its project's conversations (\(operation.rawValue))")
@@ -528,8 +542,8 @@ do {
         closeWhenFinished: true,
         title: "  Docs\nsecond line",
     )
-    let child = try AgentConversationRules.childOpen(asked, opener: opener)
-    check(child.projectID == project.id && child.projectName == project.name, "an opened conversation is in the opener's project")
+    let child = try AgentConversationRules.childOpen(asked, opener: opener, target: project)
+    check(child.projectID == project.id && child.projectName == project.name, "an opened conversation is in the project the host resolved, not the one the request spelled")
     check(child.temporaryID == nil && child.sessionID == nil && child.closeWhenFinished == nil, "and is new, in no temporary workspace, and not headless")
     check(child.approvalMode == .confirm, "and runs under the opener's mode, never a laxer one it asked for")
     check(child.provider == .anthropic && child.model == "claude-sonnet-5-5" && child.reasoningEffort == .high, "provider, model and effort go as sent")
@@ -538,22 +552,58 @@ do {
     let relaxedChild = try AgentConversationRules.childOpen(
         AgentOpenRequest(approvalMode: .confirm, prompt: "go"),
         opener: relaxed,
+        target: project,
     )
     check(relaxedChild.approvalMode == .relaxed, "a Relaxed opener's conversation is Relaxed")
     expectError("an opened conversation needs a prompt", code: .badRequest) {
-        _ = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "  \n "), opener: opener)
+        _ = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "  \n "), opener: opener, target: project)
     }
+    // Another project: General Chat included, never a temporary one.
+    let crossChild = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "Import the repository"), opener: opener, target: other)
+    check(crossChild.projectID == other.id && crossChild.projectName == other.name && crossChild.approvalMode == .confirm, "a conversation opens in another project under the opener's mode")
     let temporaryProject = ResolvedProject(id: "temporary:\(UUID().uuidString)", name: "t", path: scratchPath)
     let general = await session("c-general", in: temporaryProject)
-    expectError("General Chat opens no conversations", code: .denied) {
-        _ = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "go"), opener: general)
+    let fromGeneral = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "Import the repository"), opener: general, target: project)
+    check(fromGeneral.projectID == project.id, "General Chat opens a conversation in a project")
+    expectError("but never in a temporary chat", code: .denied) {
+        _ = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "go"), opener: general, target: temporaryProject)
+    }
+    expectError("nor in another temporary chat from a project", code: .denied) {
+        _ = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "go"), opener: opener, target: temporaryProject)
     }
     let deep = await session("c-deep", parent: "c-opener", depth: AgentConversations.maximumDepth)
     expectError("a chain of openings stops at the maximum depth", code: .denied) {
-        _ = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "go"), opener: deep)
+        _ = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "go"), opener: deep, target: project)
+    }
+    expectError("in another project too", code: .denied) {
+        _ = try AgentConversationRules.childOpen(AgentOpenRequest(prompt: "go"), opener: deep, target: other)
     }
     let middle = await session("c-middle", parent: "c-opener", depth: AgentConversations.maximumDepth - 1)
-    check((try? AgentConversationRules.childOpen(AgentOpenRequest(prompt: "go"), opener: middle)) != nil, "one short of the depth still opens")
+    check((try? AgentConversationRules.childOpen(AgentOpenRequest(prompt: "go"), opener: middle, target: project)) != nil, "one short of the depth still opens")
+
+    // The approval an open or a message in another project spends: the
+    // user's of exactly that call.
+    func otherProjectAsk(_ tool: String, action: String, projectID: String, sessionID: String? = nil, text: String) -> JSONValue {
+        var detail: [String: JSONValue] = [
+            "action": .string(action), "projectID": .string(projectID), "projectName": .string("Other"), "text": .string(text),
+        ]
+        if let sessionID {
+            detail["sessionID"] = .string(sessionID)
+        }
+        return .object(["tool": .string(tool), "detail": .object([AgentConversationRules.otherProjectDetail: .object(detail)])])
+    }
+    let openAsk = otherProjectAsk("conversation_create", action: "create", projectID: other.id, text: "Import the repository")
+    check(AgentConversationRules.coversOpen(crossChild, target: other, asked: openAsk), "an approval of this open in this project covers it")
+    let third = ResolvedProject(id: "p-third", name: "Third", path: scratchPath + "/Third")
+    check(!AgentConversationRules.coversOpen(crossChild, target: third, asked: openAsk), "not one in another project")
+    check(
+        !AgentConversationRules.coversOpen(AgentOpenRequest(prompt: "Delete everything"), target: other, asked: openAsk),
+        "nor another prompt",
+    )
+    check(
+        !AgentConversationRules.coversOpen(crossChild, target: other, asked: otherProjectAsk("conversation_send", action: "send", projectID: other.id, text: "Import the repository")),
+        "nor an approval of another tool",
+    )
 
     // The cap counts running agent-opened sessions and held places.
     let capped = ResolvedProject(id: "p-capped", name: "Capped", path: scratchPath + "/Capped")
@@ -629,11 +679,27 @@ do {
         )
     }
     let elsewhere = await session("c-elsewhere", in: other)
-    expectError("nor one of another project", code: .denied) {
+    let toElsewhere = try AgentConversationRules.childPrompt(
+        AgentPromptRequest(sessionID: "c-elsewhere", text: "Build it"),
+        sender: opener,
+        target: elsewhere,
+        descriptorCount: 0,
+    )
+    check(toElsewhere.fromSessionID == "c-opener", "a message goes to another project's conversation the same way")
+    let sendAsk = otherProjectAsk("conversation_send", action: "send", projectID: other.id, sessionID: "c-elsewhere", text: "Build it")
+    check(AgentConversationRules.coversSend(toElsewhere, target: elsewhere, asked: sendAsk), "an approval of this message to this conversation covers it")
+    check(
+        !AgentConversationRules.coversSend(AgentPromptRequest(sessionID: "c-elsewhere", text: "Push it"), target: elsewhere, asked: sendAsk),
+        "not another text",
+    )
+    let elsewhereToo = await session("c-elsewhere-too", in: other)
+    check(!AgentConversationRules.coversSend(toElsewhere, target: elsewhereToo, asked: sendAsk), "nor another conversation")
+    let temporaryTarget = await session("c-temporary-target", in: temporaryProject)
+    expectError("nor a temporary chat, which is the user's alone", code: .denied) {
         _ = try AgentConversationRules.childPrompt(
-            AgentPromptRequest(sessionID: "c-elsewhere", text: "x"),
+            AgentPromptRequest(sessionID: "c-temporary-target", text: "x"),
             sender: opener,
-            target: elsewhere,
+            target: temporaryTarget,
             descriptorCount: 0,
         )
     }
@@ -673,8 +739,19 @@ do {
     let named = await table.entry(task: target.task.taskID)
     check(named?.sessionID == "c-target", "a task names its session")
     check((try? AgentConversationRules.mayRead(target.task.taskID, target: target, caller: opener)) != nil, "an agent reads a conversation of its project")
-    expectError("not one of another project", code: .denied) {
+    expectError("not one of another project the user has not let it reach", code: .denied) {
         try AgentConversationRules.mayRead(elsewhere.task.taskID, target: elsewhere, caller: opener)
+    }
+    check(
+        (try? AgentConversationRules.mayRead(elsewhere.task.taskID, target: elsewhere, caller: opener, reachable: true)) != nil,
+        "one it may reach, it reads",
+    )
+    check(
+        (try? AgentConversationRules.mayRead(elsewhere.task.taskID, target: elsewhere, caller: relaxed)) != nil,
+        "and in Relaxed mode every project's",
+    )
+    expectError("never a temporary chat's", code: .denied) {
+        try AgentConversationRules.mayRead(temporaryTarget.task.taskID, target: temporaryTarget, caller: relaxed, reachable: true)
     }
     let build = await registry.create(kind: .build, owner: .build, ownerKey: nil)
     let noConversation = await table.entry(task: build.taskID)
@@ -685,6 +762,9 @@ do {
     check(!listed.isEmpty && listed.allSatisfy { $0.projectID == project.id }, "an agent's list names only its project's sessions")
     check(listed.first { $0.sessionID == "c-mine" }?.parentSessionID == "c-opener", "and says who opened each")
     check(listed.first { $0.sessionID == "c-target" }?.parentSessionID == nil, "the app's have no opener")
+    check(listed.allSatisfy { $0.projectName == project.name }, "and names each one's project folder")
+    let generalListed = await table.summaries(registry: registry, projectID: temporaryProject.id)
+    check(generalListed.allSatisfy { $0.projectName == nil }, "a temporary chat names none")
     let everything = await table.summaries(registry: registry)
     check(everything.contains { $0.projectID == other.id }, "the app's list names every project's")
     await table.setTitle("Docs pass", session: "c-mine")
@@ -705,6 +785,11 @@ do {
         "conversationOpened names the session, its task, its title and its prompt",
     )
     check(AgentConversationRules.openedEvent(sessionID: "s", task: mine.task, title: nil, prompt: "p")["title"] == nil, "and leaves out a title it was not given")
+    let openedElsewhere = AgentConversationRules.openedEvent(sessionID: "s", task: mine.task, title: nil, prompt: "p", project: other)
+    check(
+        openedElsewhere["projectID"]?.stringValue == other.id && openedElsewhere["projectName"]?.stringValue == other.name,
+        "and names the project it opened in, which the app adopts it into",
+    )
     check(AgentConversationRules.title(String(repeating: "x", count: 200))?.count == AgentConversationRules.maximumTitleLength, "a title is bounded")
     check(AgentConversationRules.title(" \n ") == nil, "and an empty one is none")
 }
@@ -1792,6 +1877,168 @@ do {
     await sessions.record(bound.sessionID, approvalID: "no-command", decision: .approve)
     let noCommandPassed = await authorized(runCode(bound, "no-command"))
     check(!noCommandPassed, "a run_code approval that names no command is refused")
+}
+
+// MARK: - An agent sets up a toolchain or imports an SDK only as the user approved it
+
+do {
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-environment-tasks"))
+    await registry.load()
+    let sessions = AgentSessionTable.shared
+    func session(_ id: String, mode: ApprovalMode = .confirm) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: ResolvedProject(id: "p-environment", name: "Environment", path: scratchPath),
+            mode: mode,
+            createdAt: Date(),
+        )
+        await sessions.add(entry)
+        return entry
+    }
+    // What apelin-agent writes into toolchain_setup's and sdk_import's
+    // approvalRequested `detail` (ApelinAgentWorker's tests hold that shape).
+    func ask(_ entry: AgentSessionTable.Entry, _ approvalID: String, tool: String, detail: JSONValue) async {
+        await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(approvalID), "tool": .string(tool), "detail": detail,
+        ]))
+    }
+    let setupDetail: JSONValue = .object(["toolchainSetup": .object([
+        "productID": .string("082-1"), "version": .string("16.4"), "components": .array([.string("c")]), "sizeBytes": .number(1),
+    ])])
+    let sourceURL = "https://github.com/owngoal-dev/iOS-SDKs.git"
+    let importDetail: JSONValue = .object(["sdkImport": .object([
+        "source": .string("OwnGoal iOS SDKs"), "url": .string(sourceURL), "branch": .string("sdk/iPhoneOS17.5"), "version": .string("17.5"),
+    ])])
+    func authorized(_ request: some OperationRequest, _ entry: AgentSessionTable.Entry?, descriptors: Int = 0) async -> Bool {
+        guard let wire = try? WireRequest(request) else { return false }
+        do {
+            try await AgentEnvironmentRules.authorize(wire, descriptorCount: descriptors, entry: entry, registry: registry)
+            return true
+        } catch {
+            return false
+        }
+    }
+    let setup = ToolchainSetupRequest(source: .appleCatalog(productID: "082-1"), components: [.c])
+    let strict = await session("environment-strict")
+
+    // The source rules hold in every mode.
+    let relaxed = await session("environment-relaxed", mode: .relaxed)
+    let relaxedSetup = await authorized(setup, relaxed)
+    check(relaxedSetup, "a Relaxed session sets up a catalog toolchain without asking")
+    let unnamed = await authorized(ToolchainSetupRequest(source: .appleCatalog(productID: nil)), relaxed)
+    check(!unnamed, "but always names the product the user is shown")
+    let packageFile = await authorized(ToolchainSetupRequest(source: .package(DescriptorSlot(index: 0))), relaxed, descriptors: 1)
+    check(!packageFile, "and never sets one up from a file")
+    for source: SDKSource in [
+        .url("https://example.com/iPhoneOS17.5.sdk.tar.xz"), .inbox(path: "sdk"), .file(DescriptorSlot(index: 0)),
+        .repository(url: "https://user:token@github.com/owngoal-dev/iOS-SDKs.git", branch: "sdk/iPhoneOS17.5"),
+        .repository(url: sourceURL + "?token=1", branch: "sdk/iPhoneOS17.5"),
+        .repository(url: sourceURL + "#frag", branch: "sdk/iPhoneOS17.5"),
+        .repository(url: "http://github.com/owngoal-dev/iOS-SDKs.git", branch: "sdk/iPhoneOS17.5"),
+    ] {
+        let passed = await authorized(SDKImportRequest(source: source), relaxed)
+        check(!passed, "an agent imports an SDK only from an HTTPS repository without credentials (\(source))")
+    }
+    let relaxedImport = await authorized(SDKImportRequest(source: .repository(url: sourceURL, branch: "sdk/iPhoneOS17.5")), relaxed)
+    check(relaxedImport, "a Relaxed session imports from a source without asking")
+    let noSession = await authorized(setup, nil)
+    check(!noSession, "a worker with no session sets up nothing")
+
+    // Under Confirm: exactly the approved setup, once.
+    let unapproved = await authorized(setup, strict)
+    check(!unapproved, "a Strict session needs the user's approval")
+    await ask(strict, "setup-1", tool: "toolchain_setup", detail: setupDetail)
+    let notYetGiven = await authorized(setup, strict)
+    check(!notYetGiven, "asking is not approving")
+    await sessions.record(strict.sessionID, approvalID: "setup-1", decision: .approve)
+    let otherProduct = await authorized(ToolchainSetupRequest(source: .appleCatalog(productID: "082-2"), components: [.c]), strict)
+    check(!otherProduct, "an approval covers the product it named only")
+    let otherComponents = await authorized(ToolchainSetupRequest(source: .appleCatalog(productID: "082-1"), components: [.c, .swift]), strict)
+    check(!otherComponents, "and its components only")
+    let approvedSetup = await authorized(setup, strict)
+    check(approvedSetup, "the approved setup goes through")
+    let again = await authorized(setup, strict)
+    check(!again, "once: a second setup asks again")
+    let importRequest = SDKImportRequest(source: .repository(url: sourceURL, branch: "sdk/iPhoneOS17.5"))
+    await ask(strict, "import-1", tool: "sdk_import", detail: importDetail)
+    await sessions.record(strict.sessionID, approvalID: "import-1", decision: .approve)
+    let otherBranch = await authorized(SDKImportRequest(source: .repository(url: sourceURL, branch: "sdk/iPhoneOS18.5")), strict)
+    check(!otherBranch, "an import approval covers its branch only")
+    let setupFromImport = await authorized(setup, strict)
+    check(!setupFromImport, "and no setup")
+    let approvedImport = await authorized(importRequest, strict)
+    check(approvedImport, "the approved import goes through")
+    await ask(strict, "denied-1", tool: "sdk_import", detail: importDetail)
+    await sessions.record(strict.sessionID, approvalID: "denied-1", decision: .deny)
+    let afterDenial = await authorized(importRequest, strict)
+    check(!afterDenial, "a denied approval lets nothing through")
+
+    // An agent reads only the environment tasks its session started.
+    let started = await registry.create(kind: .environment, owner: .environment, ownerKey: nil)
+    let foreign = await registry.create(kind: .environment, owner: .environment, ownerKey: nil)
+    await sessions.recordStarted(started.taskID, session: strict.sessionID)
+    let readsOwn = await sessions.started(started.taskID, session: strict.sessionID)
+    let readsForeign = await sessions.started(foreign.taskID, session: strict.sessionID)
+    let readsOthers = await sessions.started(started.taskID, session: relaxed.sessionID)
+    check(readsOwn && !readsForeign && !readsOthers, "a task counts as the session's only when that session started it")
+}
+
+// MARK: - Another project's conversations are reached only as the user approved
+
+do {
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-reach-tasks"))
+    await registry.load()
+    let ledger = ApprovalLedger(directory: scratch.appendingPathComponent("agent-reach-approvals"))
+    let sessions = AgentSessionTable.shared
+    let entry = await AgentSessionTable.Entry(
+        sessionID: "reach-opener",
+        task: registry.create(kind: .agent, owner: .agent, ownerKey: "reach-opener"),
+        project: ResolvedProject(id: "p-reach", name: "Reach", path: scratchPath),
+        mode: .confirm,
+        createdAt: Date(),
+    )
+    await sessions.add(entry)
+    let detail: JSONValue = .object([AgentConversationRules.otherProjectDetail: .object([
+        "action": .string("create"), "projectID": .string("p-far"), "projectName": .string("Far"), "text": .string("Build it"),
+    ])])
+    await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
+        "approvalID": .string("reach-1"), "tool": .string("conversation_create"), "detail": detail,
+    ]))
+    let before = await sessions.mayReach("p-far", session: entry.sessionID)
+    check(!before, "another project is out of reach until the user approves a call naming it")
+    // The worker refuses the relay: nothing is left behind.
+    _ = try await AgentApprovals.relay(
+        AgentApproveRequest(sessionID: entry.sessionID, approvalID: "reach-1", decision: .approve),
+        registry: registry,
+        ledger: ledger,
+        forward: { false },
+        accepted: { $0 },
+    )
+    let afterRefusedRelay = await sessions.mayReach("p-far", session: entry.sessionID)
+    check(!afterRefusedRelay, "an approval the worker did not take lets it reach nothing")
+    _ = try await AgentApprovals.relay(
+        AgentApproveRequest(sessionID: entry.sessionID, approvalID: "reach-1", decision: .approve),
+        registry: registry,
+        ledger: ledger,
+        forward: { true },
+        accepted: { $0 },
+    )
+    let afterRelay = await sessions.mayReach("p-far", session: entry.sessionID)
+    check(afterRelay, "once approved, the session may list and read that project's conversations")
+    let open = AgentOpenRequest(projectID: "p-far", projectName: "Far", prompt: "Build it")
+    let far = ResolvedProject(id: "p-far", name: "Far", path: scratchPath + "/Far")
+    let spent = await AgentApprovals.spend(entry: entry, registry: registry) {
+        AgentConversationRules.coversOpen(open, target: far, asked: $0)
+    }
+    check(spent, "the approved open spends its approval")
+    let spentAgain = await AgentApprovals.spend(entry: entry, registry: registry) {
+        AgentConversationRules.coversOpen(open, target: far, asked: $0)
+    }
+    check(!spentAgain, "and only once")
+    await sessions.forgetGrants(entry.sessionID)
+    let afterClose = await sessions.mayReach("p-far", session: entry.sessionID)
+    check(!afterClose, "a closed session reaches no other project")
 }
 
 // MARK: - An approval the worker never got leaves nothing behind

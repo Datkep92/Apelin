@@ -42,6 +42,7 @@ enum AgentApprovals {
         await sessions.record(approve.sessionID, approvalID: approve.approvalID, decision: approve.decision)
         var grant: LedgerGrant?
         var sessionGrant: RunCodeGrant?
+        var reached: String?
         if approve.decision == .approve, let entry = await sessions.entry(approve.sessionID) {
             do {
                 grant = try await recordInLedger(approve, entry: entry, registry: registry, ledger: ledger)
@@ -50,6 +51,7 @@ enum AgentApprovals {
                 throw error
             }
             sessionGrant = await recordSessionGrant(approve, entry: entry, registry: registry)
+            reached = await recordProjectReach(approve, entry: entry, registry: registry)
         }
         let reply = await forward()
         guard !accepted(reply) else {
@@ -61,6 +63,9 @@ enum AgentApprovals {
         await sessions.record(approve.sessionID, approvalID: approve.approvalID, decision: previous)
         if let sessionGrant {
             await sessions.removeGrant(approve.sessionID, sessionGrant)
+        }
+        if let reached {
+            await sessions.forgetProject(reached, session: approve.sessionID)
         }
         switch grant {
         case let .description(granted):
@@ -89,6 +94,41 @@ enum AgentApprovals {
         else { return nil }
         let grant = RunCodeGrant(spec: spec, directory: directoryName(asked["workingDirectory"]?.stringValue))
         return await AgentSessionTable.shared.addGrant(entry.sessionID, grant) ? grant : nil
+    }
+
+    /// Lets the session reach another project once the app approved a
+    /// conversation call of this session naming it (`detail.otherProject`):
+    /// its list and its conversations' tasks, which the agent's gate still
+    /// asks about one call at a time. Answers the project when it is new.
+    private static func recordProjectReach(
+        _ approve: AgentApproveRequest,
+        entry: AgentSessionTable.Entry,
+        registry: TaskRegistry,
+    ) async -> String? {
+        guard let asked = await requested(approve.approvalID, entry: entry, registry: registry),
+              let projectID = asked["detail"]?[AgentConversationRules.otherProjectDetail]?["projectID"]?.stringValue,
+              projectID != entry.project.id
+        else { return nil }
+        return await AgentSessionTable.shared.allowProject(projectID, session: entry.sessionID) ? projectID : nil
+    }
+
+    /// Spends one approval the app gave this session whose own
+    /// `approvalRequested` event `covers` accepts; false when there is none.
+    /// What was asked is read from the registry, never from the request.
+    static func spend(
+        entry: AgentSessionTable.Entry,
+        registry: TaskRegistry,
+        covers: (JSONValue) -> Bool,
+    ) async -> Bool {
+        for approvalID in await AgentSessionTable.shared.approvedIDs(entry.sessionID) {
+            guard let asked = await requested(approvalID, entry: entry, registry: registry), covers(asked) else {
+                continue
+            }
+            if await AgentSessionTable.shared.consume(entry.sessionID, approvalID: approvalID) {
+                return true
+            }
+        }
+        return false
     }
 
     /// What an approval added to the ledger.
@@ -240,6 +280,12 @@ actor AgentSessionTable {
         var parentSessionID: String?
         /// 0 for a session the app opened, its opener's plus one otherwise.
         var depth = 0
+        /// The tasks this session's agent started (setups, imports, git),
+        /// the only environment tasks it may read.
+        var startedTasks: Set<TaskID> = []
+        /// Projects besides its own whose conversations the app let this
+        /// session reach, by approving a conversation call naming them.
+        var reachableProjects: Set<String> = []
     }
 
     private var entries: [String: Entry] = [:]
@@ -305,6 +351,34 @@ actor AgentSessionTable {
         entries[sessionID]?.approvals[approvalID] = decision
     }
 
+    /// The approvals the app gave the session that are not spent yet, in a
+    /// fixed order.
+    func approvedIDs(_ sessionID: String) -> [String] {
+        (entries[sessionID]?.approvals ?? [:]).filter { $0.value == .approve }.map(\.key).sorted()
+    }
+
+    func recordStarted(_ taskID: TaskID, session sessionID: String) {
+        entries[sessionID]?.startedTasks.insert(taskID)
+    }
+
+    func started(_ taskID: TaskID, session sessionID: String) -> Bool {
+        entries[sessionID]?.startedTasks.contains(taskID) == true
+    }
+
+    /// Answers whether the project is new to the session.
+    func allowProject(_ projectID: String, session sessionID: String) -> Bool {
+        guard entries[sessionID] != nil else { return false }
+        return entries[sessionID]?.reachableProjects.insert(projectID).inserted == true
+    }
+
+    func forgetProject(_ projectID: String, session sessionID: String) {
+        entries[sessionID]?.reachableProjects.remove(projectID)
+    }
+
+    func mayReach(_ projectID: String, session sessionID: String) -> Bool {
+        entries[sessionID]?.reachableProjects.contains(projectID) == true
+    }
+
     /// An approval is good for one run.
     func consume(_ sessionID: String, approvalID: String) -> Bool {
         guard entries[sessionID]?.approvals[approvalID] == .approve else { return false }
@@ -330,6 +404,7 @@ actor AgentSessionTable {
     /// The session closed: nothing it was granted for the session holds.
     func forgetGrants(_ sessionID: String) {
         entries[sessionID]?.runCodeGrants = []
+        entries[sessionID]?.reachableProjects = []
     }
 
     /// Every session, or only `projectID`'s, oldest first.
@@ -342,6 +417,7 @@ actor AgentSessionTable {
                 sessionID: entry.sessionID,
                 task: entry.task,
                 projectID: entry.project.id,
+                projectName: entry.project.isTemporary ? nil : entry.project.name,
                 title: entry.title,
                 state: record?.state ?? .interrupted,
                 updatedAt: record?.updatedAt ?? entry.createdAt,

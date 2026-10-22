@@ -201,7 +201,7 @@ struct NoHostBackend: AgentHostBackend {
         throw Unexpected()
     }
 
-    func conversationList(context _: HostCallContext) async throws -> ConversationListToolResponse {
+    func conversationList(_: ConversationListToolRequest) async throws -> ConversationListToolResponse {
         throw Unexpected()
     }
 

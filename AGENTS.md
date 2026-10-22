@@ -275,9 +275,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   for another role and drops to mobile itself if it is still root. The host
   records each worker's role at spawn and ignores what a worker says it is;
   `CallerPolicy` lets the agent call task-level operations (and
-  `agentRunCode`, and its project's conversations: `agentOpen`,
+  `agentRunCode`; conversations, its project's or another's: `agentOpen`,
   `agentPrompt`, `agentList`, `agentAttach`, `agentAbort`, `agentClose`,
-  each narrowed by AgentHandler), the environment worker `installPackage`, `removePackage`
+  each narrowed by AgentHandler; the device's toolchains and SDKs:
+  `toolchainStatus`, `toolchainCatalog`, `toolchainSetup`,
+  `toolchainSelfTest`, `sdkList`, `sdkImport`, a setup or import narrowed
+  by `AgentEnvironmentRules`, and `environmentAttach` for the tasks its own
+  session started — its git tasks too; never a removal or a cancel), the environment worker `installPackage`, `removePackage`
   and `buildAttach` (its local toolchain package, through the same bridge),
   the diagnostics worker `crashOpen` and `respring`, and nothing else call
   anything. Workers: `apelin-environment` (toolchain, SDKs, git, transfer
@@ -399,6 +403,25 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     order the grants are withdrawn in. The file's format is unchanged.
     Nothing on the wire writes the ledger, and
     `approvalDigestState` is its read side for the agent.
+    Device setups and other projects (2026-10-22, in memory, per session,
+    `Session/Agent/AgentEnvironmentRules.swift`, `AgentConversationRules`):
+    in every mode an agent's `toolchainSetup` names an Apple catalog product
+    and carries no package file, and its `sdkImport` is one branch of an
+    HTTPS repository with no user, password, query or fragment and no
+    descriptor — never a URL archive, the inbox or a file. Under Confirm
+    each one also spends an approval the app gave this session whose own
+    `approvalRequested` names exactly it (`detail.toolchainSetup`
+    {productID, components} or `detail.sdkImport` {url, branch};
+    `AgentApprovals.spend`), so one approval sets up one thing once and
+    nothing is granted for the session. Likewise an `agentOpen` or
+    `agentPrompt` that reaches another project spends one naming its
+    project and its exact prompt or text (`detail.otherProject`), and a
+    relayed approval of any call naming another project lets the session
+    list and attach to that project's conversations
+    (`AgentSessionTable.reachableProjects`, taken back with the relay,
+    forgotten on `agentClose`); a temporary chat is never reached.
+    `environmentAttach` reads only the tasks the session started
+    (`startedTasks`, recorded by `startTask`).
   - *Files* (`Session/Files/`). `fileRead` scopes: a project ID or
     `project:<name>`, `sdk:<id>`, `extension:<id>`, `agent-tools:<id>`,
     `grant:<id>` (app only); canonical paths, checked again on the opened
@@ -843,9 +866,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   project's pinned `environment.sdk.id` first), run_code → `agentRunCode`;
   in General Chat only, project_template_list → `extensionList` (isolated
   extensions left out) and project_create{template, name, values} →
-  `projectCreate`, allowed under Confirm like a project edit — the new
-  project's chat builds it, and this one's file tools stay in its
-  temporary folder. In a project's chat only, git_status, git_diff,
+  `projectCreate`, allowed under Confirm like a project edit, answering
+  the project's link — the new project's chat builds it, which
+  conversation_create naming the project opens with the task, and this
+  one's file tools stay in its temporary folder. In a project's chat only, git_status, git_diff,
   git_stage, git_unstage and git_commit → the matching `git*` request,
   git_fetch, git_pull, git_push and git_clone → `gitFetch`, `gitPull`,
   `gitPush` and `gitCloneInto` read to their end; all of them run under
@@ -862,43 +886,98 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (`ToolArgumentRedaction`); `GitHandler` skips its project check for
   these four. On a workspace whose
   build system is external, build answers with that instead of asking.
+  Toolchains and SDKs (2026-10-22, `ChannelHostBackend+Environment.swift`),
+  in any chat: toolchain_list → `toolchainStatus` and `toolchainCatalog`
+  (the installed ones with their components, newest SDK read and
+  self-test results; each release Apelin sets up with its size, newest
+  SDK, recommended SDK, minimum iOS, CPU features, Swift and why this
+  device cannot take it, the catalog's fields the app's picker shows; the
+  project's binding), sdk_list → `sdkList` with the sources read and
+  `toolchainStatus` (registered SDKs and the branches the enabled sources
+  offer, each with the toolchains that read it), both read presets.
+  toolchain_setup {version | product_id, swift?} → `toolchainSetup` from
+  Apple's catalog, the release resolved in the catalog before asking and
+  sent by product ID (one this device cannot take, Swift a release does
+  not offer, or a release already set up is refused before asking), and
+  sdk_import {version, source?} → `sdkImport` of the branch an enabled
+  source offers (the model never names an address), each read to its end
+  with `environmentAttach`, only the stages, warnings, failed self-test
+  cases and the record kept; under Confirm each asks every time, the card
+  naming the release and its download size or the source, branch and
+  address, never with a session grant, and the host spends exactly that
+  approval (Approvals above). Their tasks are ended, not resumed, when
+  the host stops (an agent session started them); a setup's job record
+  stays, and the next setup of the same release goes on from it.
+  toolchain_self_test {toolchain_id} → `toolchainSelfTest`, asking under
+  Confirm (a session grant allowed: it records results and installs
+  nothing). In a project's chat, project_environment_set {toolchain_id?,
+  sdk_id?} → `projectCheck` with `environment` (the check a project bound
+  to them gets, nothing written, digests the registry's), refused on any
+  `environment.*` error with its message — an SDK newer than the
+  toolchain reads is `environment.sdk.tooNewForToolchain`, as for a
+  project bound to it —, then the four strings of `environment` rewritten
+  in `apelin-project.json` through the file tools' writer, every other
+  byte kept and read back to prove it (`ProjectEnvironmentEdit`). It is a
+  project edit under Confirm: the file tools could write the same field,
+  only a registered and checked pair goes in, and the binding is not in
+  the build description digest (Documents/Schemas/README.md), so the next
+  build does not ask for it. Left out (2026-10-22): toolchain and SDK
+  removal (device-wide, never needed to build, Settings asks itself),
+  transfer export (its file is only of use through the app's share sheet),
+  project rename (the file tools already edit `displayName`); a
+  distribution build is build {configuration: release, bootstrap}.
   Conversations (2026-10-22, `AgentConversations`,
-  `Session/Agent/AgentConversationRules.swift`): in a project's chat,
-  conversation_create {prompt, title?} → `agentOpen` from the agent with
-  this session's provider, model and effort (`SessionModelChoice`: the
-  open request's, then each app prompt's) and the title
-  (`AgentOpenRequest.title`), answered without waiting; the host opens it
-  in the caller's own project under the caller's current approval mode,
-  with a non-empty prompt and nothing else of the caller's (never a
-  temporary project, a session to reopen or a headless close; at most 6
-  opened by agents running per project, a place held from the check to
-  the open so two opens cannot both take the last, and a chain of
-  openings at most 2 deep), recording the parent and depth (kept when
+  `Session/Agent/AgentConversationRules.swift`), in any chat — General
+  Chat names a project, its own chat has no others:
+  conversation_create {prompt, title?, project?} → `agentOpen` from the
+  agent with this session's provider, model and effort
+  (`SessionModelChoice`: the open request's, then each app prompt's) and
+  the title (`AgentOpenRequest.title`), answered without waiting with the
+  session's link; the host opens it in the caller's own project, or the
+  project the request names (by projectID or folder, resolved by the host
+  as for the app's open), under the caller's current approval mode, with
+  a non-empty prompt and nothing else of the caller's (never a temporary
+  project, a session to reopen or a headless close; at most 6 opened by
+  agents running per project, a place held from the check to the open so
+  two opens cannot both take the last, and a chain of openings at most 2
+  deep, across projects too), recording the parent and depth (kept when
   the app reopens the session) and appending `conversationOpened`
-  {sessionID, task, title?, prompt} to the opener's task, from which the
-  app adopts it as a conversation of the same project without selecting
-  it (and from `agentList`'s `parentSessionID` at launch: `ChatAdoption`).
-  The worker names the new session by its title, else generates one.
-  conversation_send → `agentPrompt` to another session of the same
-  project as the user's message: the host writes `fromSessionID` (the
-  app's is dropped) and clears the mode, provider, model, effort, message
-  ID and attachments, and refuses descriptors; the worker records it as
+  {sessionID, task, title?, prompt, projectID, projectName} to the
+  opener's task, from which the app adopts it as a conversation of that
+  project without selecting it (and from `agentList`'s `parentSessionID`
+  and `projectName` at launch: `ChatAdoption`). The worker names the new
+  session by its title, else generates one. conversation_send {project?}
+  → `agentPrompt` to another session as the user's message (never a
+  temporary chat): the host writes `fromSessionID` (the app's is dropped)
+  and clears the mode, provider, model, effort, message ID and
+  attachments, and refuses descriptors; the worker records it as
   `prompt` {text, from}, the model reading one line before it naming the
   sending conversation (`ConversationSender`), and the app names the
-  sender over the bubble. conversation_list → `agentList`, the project's
-  sessions only, each with `parentSessionID`, titled by the session's
-  own `title` events as the host relays them; conversation_read →
-  `agentList` for the task, then `agentAttach` of a task of the project's
-  sessions only, read from the start (`ConversationReader`: state
-  running, waitingForApproval, idle or ended, the approvals still
-  waiting, the assistant's `message` and `error` texts after `after_seq`,
-  cut at 32 KiB with `last_seq` where the next read goes on), and with
-  `wait_seconds` (0–600) attaching again, 5 s at a time, until a turn
-  after `after_seq` finishes, a new approval is asked, it ends or the
-  time runs out; conversation_stop {close?} → `agentAbort`, then
-  `agentClose` when asked, of a session the caller opened. Create, send
-  and stop pass Confirm like a project edit, list and read as read
-  presets: the conversation it opens asks for its own risky steps.
+  sender over the bubble. conversation_list {project?} → `agentList`
+  {projectID?}, one project's sessions only, each with `parentSessionID`
+  and its link, titled by the session's own `title` events as the host
+  relays them; conversation_read {project?} → `agentList` for the task,
+  then `agentAttach` of a task of that project's sessions only, read from
+  the start (`ConversationReader`: state running, waitingForApproval,
+  idle or ended, the approvals still waiting, the assistant's `message`
+  and `error` texts after `after_seq`, cut at 32 KiB with `last_seq`
+  where the next read goes on), and with `wait_seconds` (0–600) attaching
+  again, 5 s at a time, until a turn after `after_seq` finishes, a new
+  approval is asked, it ends or the time runs out; conversation_stop
+  {close?} → `agentAbort`, then `agentClose` when asked, of a session the
+  caller opened, wherever it is. In the caller's own project, create,
+  send and stop pass Confirm like a project edit, list and read as read
+  presets: the conversation it opens asks for its own risky steps. Any of
+  the four that names another project asks under Confirm every time, the
+  card naming the project and the prompt or text, never with a session
+  grant, and the host decides again (Approvals above); the worker resolves
+  the project from `Projects/` for the card, the host resolves it again.
+  Links (2026-10-22): the app opens `apelin://conversation/<session ID>`
+  (selecting its project) and `apelin://project/<projectID>`
+  (`ApelinLink`); conversation_create, conversation_list,
+  conversation_read and project_create answer them beside the IDs, and
+  the system prompt tells the model to hand the user a markdown link
+  whenever it opens or points to another conversation or project.
   `agentApprove` and `agentSteer` stay the app's.
   `agentRunCode` is a closed request — `argv` (an executable name looked up
   in the bootstrap's bin directories, then `/usr/bin`, `/bin`) or `script`
@@ -1506,6 +1585,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `local.apelin.` identifier, an app without an icon, a version already
   packaged for the target), never an error; the distribution page and the
   agent's `check_distribution` tool read them (`Documents/Distribution.md`).
+  Its answer carries the `environment` binding it checked; with
+  `environment` {toolchainID?, sdkID?} in the request it checks the
+  project as if bound to those registered components instead — digests
+  the registry's, an unregistered one `notFound`, nothing written — which
+  is how the agent's project_environment_set is judged before it writes
+  (`ProjectCheck.binding`, `run(projectID:environment:)`).
 - **The environment** apelin-build reads through `EnvironmentRegistry`
   (`ApelinProject/Environment`); on the device that is `EnvironmentStores`,
   apelin-environment's own files read as they are — `Environment/Toolchains/registry.json`
@@ -1596,7 +1681,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   every step. Under *Confirm*, a build or install whose build or packaging
   description matches the project's template runs without asking; a changed
   one is reviewed on its first run after each change, the approval bound to
-  that description's digest and kept by the session host. The UI and the
+  that description's digest and kept by the session host. A toolchain
+  setup or an SDK import asks every time, and so does any conversation
+  call that reaches another project; neither is ever granted for the
+  session, and the host spends the one approval (owner, 2026-10-22).
+  Switching a project's toolchain or SDK is a project edit. The UI and the
   agent call *Confirm* Strict (严格模式; owner, 2026-10-22); `ApprovalMode.confirm`
   and every stored or wire value keep the name.
 - **Install** always packages a deb and hands it to Irisin's daemon. irisind

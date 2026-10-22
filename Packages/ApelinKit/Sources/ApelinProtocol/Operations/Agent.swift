@@ -33,6 +33,8 @@ public struct AgentSessionSummary: Codable, Sendable, Equatable {
     public var sessionID: String
     public var task: TaskHandle
     public var projectID: String?
+    /// The project's folder under `Projects/`; nil for a temporary chat.
+    public var projectName: String?
     public var title: String?
     public var state: TaskState
     public var updatedAt: Date
@@ -44,6 +46,7 @@ public struct AgentSessionSummary: Codable, Sendable, Equatable {
         sessionID: String,
         task: TaskHandle,
         projectID: String? = nil,
+        projectName: String? = nil,
         title: String? = nil,
         state: TaskState,
         updatedAt: Date,
@@ -52,6 +55,7 @@ public struct AgentSessionSummary: Codable, Sendable, Equatable {
         self.sessionID = sessionID
         self.task = task
         self.projectID = projectID
+        self.projectName = projectName
         self.title = title
         self.state = state
         self.updatedAt = updatedAt
@@ -63,23 +67,43 @@ public struct AgentSessionSummary: Codable, Sendable, Equatable {
 ///
 /// An agent may call `agentOpen`, `agentPrompt`, `agentList` and
 /// `agentAttach`, and `agentAbort` and `agentClose` for the sessions it
-/// opened. The host decides what it may not: the new session is always in
-/// the caller's own project (never a temporary one) under the caller's
-/// current approval mode, with a first prompt; a prompt goes only to
-/// another session of the same project, as the user's message marked
+/// opened. The host decides what it may not: a new session is in the
+/// caller's own project, or in another one the request names (never a
+/// temporary one), under the caller's current approval mode, with a first
+/// prompt; a prompt goes to another session as the user's message marked
 /// `fromSessionID`, with no approval mode, provider, model or attachment of
-/// the caller's; a list names only the project's sessions and an attach
-/// reads only theirs. `agentApprove` and `agentSteer` stay the app's. At
-/// most `maximumOpenChildren` sessions an agent opened run in a project at
-/// once, and a chain of openings is at most `maximumDepth` deep.
+/// the caller's; a list names one project's sessions and an attach reads
+/// only a session's of a project the caller may reach. Under Confirm,
+/// reaching another project takes the user's approval: an open or a prompt
+/// one the app gave for exactly it, a list or an attach one the app gave
+/// this session for that project. `agentApprove` and `agentSteer` stay the
+/// app's. At most `maximumOpenChildren` sessions an agent opened run in a
+/// project at once, and a chain of openings is at most `maximumDepth` deep.
 public enum AgentConversations {
     public static let maximumOpenChildren = 6
     /// A conversation the app opened is depth 0; one it opens is 1.
     public static let maximumDepth = 2
     /// The event the host appends to the opener's task when an agent opens
-    /// a session: {sessionID, task: {taskID, kind}, title?, prompt}. The app
-    /// adopts it as a conversation of the same project.
+    /// a session: {sessionID, task: {taskID, kind}, title?, prompt,
+    /// projectID, projectName}. The app adopts it as a conversation of that
+    /// project, which may be another than the opener's.
     public static let openedEventKind = "conversationOpened"
+}
+
+/// Links the app opens (`apelin://`), which an agent hands the user beside
+/// a conversation or project it opened or points to.
+public enum ApelinLink {
+    public static let scheme = "apelin"
+
+    /// `apelin://conversation/<session ID>`: that conversation, its project selected.
+    public static func conversation(_ sessionID: String) -> String {
+        "\(scheme)://conversation/\(sessionID)"
+    }
+
+    /// `apelin://project/<projectID>`: that project.
+    public static func project(_ projectID: String) -> String {
+        "\(scheme)://project/\(projectID)"
+    }
 }
 
 /// Which provider a session talks to, and what Settings ▸ Model Providers
@@ -324,7 +348,15 @@ public struct AgentAttachRequest: TaskAttachRequest {
 public struct AgentListRequest: OperationRequest {
     public typealias Response = AgentListResponse
     public static let operation = AppOperation.agentList
-    public init() {}
+    /// Only this project's sessions, named by its `projectID` or its folder;
+    /// absent, every project's for the app and the caller's own for an agent.
+    public var projectID: String?
+    public var projectName: String?
+
+    public init(projectID: String? = nil, projectName: String? = nil) {
+        self.projectID = projectID
+        self.projectName = projectName
+    }
 }
 
 public struct AgentListResponse: Codable, Sendable, Equatable {
@@ -378,8 +410,8 @@ public extension ApelinService {
         try await send(request)
     }
 
-    func agentList() async throws -> AgentListResponse {
-        try await send(AgentListRequest())
+    func agentList(projectID: String? = nil, projectName: String? = nil) async throws -> AgentListResponse {
+        try await send(AgentListRequest(projectID: projectID, projectName: projectName))
     }
 
     func agentClose(sessionID: String) async throws {

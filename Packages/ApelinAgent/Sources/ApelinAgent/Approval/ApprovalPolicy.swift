@@ -70,6 +70,16 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For run_code: its working directory, relative to the project root,
     /// which a preset's path arguments are read from.
     public var workingDirectory: String
+    /// For toolchain_setup: the release, resolved in Apple's catalog before
+    /// asking, and sent by product ID.
+    public var toolchainSetup: ToolchainSetupApproval?
+    /// For sdk_import: the source and branch, resolved before asking.
+    public var sdkImport: SDKImportApproval?
+    /// For a conversation tool that names another project than the
+    /// session's: what it does there.
+    public var otherProject: OtherProjectApproval?
+    /// That project, as the backend resolved it, which the call is sent to.
+    public var targetProject: ProjectIdentity?
 
     public init(
         tool: Tool,
@@ -80,6 +90,9 @@ public struct InvocationFacts: Sendable, Hashable {
         push: GitPushTarget? = nil,
         gitSettings: String? = nil,
         workingDirectory: String = ".",
+        toolchainSetup: ToolchainSetupApproval? = nil,
+        sdkImport: SDKImportApproval? = nil,
+        otherProject: OtherProjectApproval? = nil,
     ) {
         self.tool = tool
         self.pathCheck = pathCheck
@@ -89,6 +102,9 @@ public struct InvocationFacts: Sendable, Hashable {
         self.push = push
         self.gitSettings = gitSettings
         self.workingDirectory = workingDirectory
+        self.toolchainSetup = toolchainSetup
+        self.sdkImport = sdkImport
+        self.otherProject = otherProject
     }
 }
 
@@ -141,9 +157,46 @@ public struct ApprovalPolicy: Sendable, Hashable {
     }
 
     private func evaluateConfirm(_ tool: AgentToolName, facts: InvocationFacts, root: ScopedRoot) -> GateVerdict {
+        // A conversation call into another project asks every time, naming
+        // the project and what it sends there.
+        if tool.isConversation, let reach = facts.otherProject {
+            return .ask(reason: Self.otherProjectReason(reach), detail: .otherProject(reach))
+        }
         switch tool {
         case .writeFile, .patchFile, .createFile, .memorySave, .memoryDelete:
             return .allow(.notRequired)
+
+        // A field of the project's own apelin-project.json, which the file
+        // tools edit as well: only a registered, checked, compatible
+        // toolchain or SDK goes in. The binding is not part of the build
+        // description digest, so the next build does not ask for it.
+        case .projectEnvironmentSet:
+            return .allow(.notRequired)
+
+        // Installed on the device for every project, a toolchain through
+        // Irisin: every setup and import asks, naming what is downloaded.
+        case .toolchainSetup:
+            guard let setup = facts.toolchainSetup else {
+                return .ask(reason: "The toolchain to set up could not be identified.", detail: .none)
+            }
+            return .ask(reason: Self.setupReason(setup), detail: .toolchainSetup(setup))
+
+        case .sdkImport:
+            guard let sdkImport = facts.sdkImport else {
+                return .ask(reason: "The SDK to import could not be identified.", detail: .none)
+            }
+            return .ask(
+                reason: "Imports the iPhoneOS \(sdkImport.version) SDK onto this device from \(sdkImport.source) (branch \(sdkImport.branch) of \(sdkImport.url)): one branch is downloaded, checked and registered for every project. Each import needs your approval.",
+                detail: .sdkImport(sdkImport),
+            )
+
+        // Runs the toolchain's compilers and the programs they make, as
+        // mobile, and records the results; it installs nothing.
+        case .toolchainSelfTest:
+            return .ask(
+                reason: "Runs the toolchain's self-test again: small programs are compiled, signed and run as mobile, and the results recorded.",
+                detail: .none,
+            )
 
         // A new folder from a template: nothing in it runs, and its build
         // and packaging are the template's, which the host's ledger records.
@@ -188,7 +241,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
              .confirmLoaded, .readLogs, .listCrashes, .readCrash, .symbolicateCrash,
              .captureScreen, .readUITree, .memoryList, .readSkill, .checkDistribution,
              .projectTemplateList, .gitStatus, .gitDiff, .gitSettings,
-             .conversationList, .conversationRead:
+             .conversationList, .conversationRead, .toolchainList, .sdkList:
             if presets.readTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
             }
@@ -251,6 +304,27 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 detail: .packageRemoval(installationID: installationID),
             )
         }
+    }
+
+    static func setupReason(_ setup: ToolchainSetupApproval) -> String {
+        let components = setup.components.contains("swift") ? "C and Swift" : "C"
+        let size = setup.sizeBytes.map {
+            " (\(ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)))"
+        } ?? ""
+        return "Sets up Command Line Tools \(setup.version) (\(components)) on this device: Apple's package\(size) is downloaded from Apple, adapted, installed as a package through Irisin for every project and self-tested; if no registered SDK fits it, one is imported from an enabled SDK source first. Each install needs your approval."
+    }
+
+    static func otherProjectReason(_ reach: OtherProjectApproval) -> String {
+        // The whole text is in the call's arguments, which the card shows too.
+        let full = reach.text ?? ""
+        let text = full.count > 400 ? String(full.prefix(400)) + "…" : full
+        let what = switch reach.action {
+        case "create": "opens a conversation in the project \(reach.projectName) whose agent reads this as your message: “\(text)”"
+        case "send": "sends a conversation of the project \(reach.projectName) this as your message: “\(text)”"
+        case "list": "lists the conversations of the project \(reach.projectName)"
+        default: "reads a conversation of the project \(reach.projectName)"
+        }
+        return "This \(what). Each call that reaches another project needs your approval."
     }
 }
 

@@ -29,17 +29,23 @@ import Foundation
 /// git_fetch / git_pull / git_push / git_clone → `gitFetch` / `gitPull` /
 /// `gitPush` / `gitCloneInto`, each task read to its end;
 /// conversation_create → `agentOpen` with this session's provider, model
-/// and effort, answered without waiting; conversation_send → `agentPrompt`
-/// with the text alone; conversation_list → `agentList`; conversation_read
-/// → `agentList` for the task, then `agentAttach` (`ConversationReader`);
+/// and effort, in this session's project or the one named, answered
+/// without waiting; conversation_send → `agentPrompt` with the text alone;
+/// conversation_list → `agentList` of a project; conversation_read →
+/// `agentList` for the task, then `agentAttach` (`ConversationReader`);
 /// conversation_stop → `agentAbort`, then `agentClose` when asked. The host
-/// keeps all of them to this session's project.
+/// keeps them to this session's project, and to another one only as the
+/// user approved. toolchain_list, sdk_list, toolchain_setup,
+/// toolchain_self_test, sdk_import and project_environment_set's check:
+/// ChannelHostBackend+Environment.
 public struct ChannelHostBackend: AgentHostBackend {
     public let service: ApelinService
     public let sessionID: String
     public let project: ApelinAgent.ProjectIdentity
     /// `Projects/<name>`, read for the pinned SDK.
     public let projectURL: URL
+    /// `Projects/`, where a conversation call finds the other project it names.
+    public let projectsURL: URL
     /// What the session runs with now, which conversation_create passes on.
     public let modelChoice: SessionModelChoice
 
@@ -60,12 +66,14 @@ public struct ChannelHostBackend: AgentHostBackend {
         sessionID: String,
         project: ApelinAgent.ProjectIdentity,
         projectURL: URL,
+        projectsURL: URL? = nil,
         modelChoice: SessionModelChoice = SessionModelChoice(),
     ) {
         self.service = service
         self.sessionID = sessionID
         self.project = project
         self.projectURL = projectURL
+        self.projectsURL = projectsURL ?? projectURL.deletingLastPathComponent()
         self.modelChoice = modelChoice
     }
 
@@ -552,7 +560,7 @@ public struct ChannelHostBackend: AgentHostBackend {
     }
 
     /// Reads a task to its end, handing each event to `body`.
-    private func read(_ handle: TaskHandle, _ body: (TaskEvent) throws -> Void) async throws -> TaskEnd {
+    func read(_ handle: TaskHandle, _ body: (TaskEvent) throws -> Void) async throws -> TaskEnd {
         var end = TaskEnd(state: .running, message: nil)
         for try await event in service.events(of: handle) {
             if event.kind == TaskEvent.stateKind, let name = event.payload?["state"]?.stringValue, let state = TaskState(rawValue: name) {
