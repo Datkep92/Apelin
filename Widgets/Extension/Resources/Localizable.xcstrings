@@ -189,12 +189,12 @@
         }
       }
     },
-    "No chats yet. Tap to start." : {
+    "No messages yet. Tap to start a chat." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "还没有聊天，轻点开始"
+            "value" : "还没有消息，轻点开始聊天"
           }
         }
       }

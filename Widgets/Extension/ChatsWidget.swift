@@ -116,13 +116,13 @@ private struct MediumChatsView: View {
     }
 }
 
-/// No conversation yet.
+/// No conversation with a message yet: an untouched New Chat is not listed.
 private struct EmptyChatsText: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("New Chat")
                 .font(.rounded(.callout, .semibold))
-            Text("No chats yet. Tap to start.")
+            Text("No messages yet. Tap to start a chat.")
                 .font(.rounded(.footnote))
                 .opacity(0.5)
         }
