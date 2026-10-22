@@ -1506,3 +1506,25 @@ catalogue the Mac build checked), rootless (packaged and checked on the Mac
 only), and `applicationWillTerminate` (a vphone kill delivers none). The
 test conversations, projects, console files and both widgets were removed
 afterwards; build 6 stays installed.
+
+## Background notifications (2026-10-22, build 9)
+
+The roothide build 9 went onto the iOS 26.4 iPhone vphone
+through `irisin-cli install --yes`, followed by `uicache -p` and a respring.
+The first message sent from a chat showed the system's "Would Like to Send
+You Notifications" prompt, and Allow took. With Apelin on the home screen, a
+turn that finished posted the chat's title over the reply's first paragraph,
+with Apelin's icon; the banner then stayed in Notification Center. A Strict
+session's `run_code` request posted the first message's opening over
+"Approval Required" (the catalogue key, resolved by the system) and the
+call's own reason. The approved turn's finish and a later turn posted too,
+with Apelin not running. Each banner went into the delivered list as
+`<session>.turn.<n>` or `<session>.approval.<n>`, with the session as its
+thread and `link` = `apelin://conversation/<session>`. With Apelin in front,
+apelind still added the request and the app got `UIWillPresentNotification`;
+nothing showed and nothing was delivered. Opening the conversation emptied
+the delivered list. After the session host was killed and the session opened
+again, the replayed `approvalRequested` and `finished` posted nothing and the
+new turn posted once, from `notices.json` on disk. A `closeWhenFinished` run
+posted nothing. Not run: `make device-test` (the guest is reachable only from
+its host), and the tap, which needs the `apelin://` router.

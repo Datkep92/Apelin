@@ -34,6 +34,15 @@
 	</array>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<!--
+	A system app gets no data provider from SpringBoard, and so no
+	Notifications page in Settings and no authorization — Allow is tapped
+	and the answer is still no — unless it says it posts local
+	notifications. The session host posts the conversations' banners as the
+	app; the entitlements name the bundle for both (Packaging/*.entitlements).
+	-->
+	<key>SBAppUsesLocalNotifications</key>
+	<true/>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

@@ -43,6 +43,8 @@ sources=(
     "$root/Apelind/Session/Agent/AgentApprovals.swift"
     "$root/Apelind/Session/Agent/AgentConversationRules.swift"
     "$root/Apelind/Session/Agent/AgentEnvironmentRules.swift"
+    "$root/Apelind/Session/Notice/AgentNotices.swift"
+    "$root/Tests/SessionHost/AgentNoticeChecks.swift"
     "$root/Tests/SessionHost/ToolchainEndToEnd.swift"
     "$root/Tests/SessionHost/main.swift"
 )

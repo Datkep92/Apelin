@@ -1070,6 +1070,10 @@ do {
     await expectErrorAsync("a project ID with a slash", code: .badRequest) { _ = try await reloaded.state(of: changed, kind: .build, project: "../x") }
 }
 
+// MARK: - Agent notices (AgentNoticeChecks.swift)
+
+await agentNoticeChecks()
+
 // MARK: - Install bridge against a fake irisind
 
 final class FakeIrisin: InstallService, @unchecked Sendable {

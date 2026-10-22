@@ -119,6 +119,12 @@ final class ChatController: UIViewController {
             name: .composerModelSelectionChanged,
             object: nil,
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(withdrawNotifications),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil,
+        )
         updateModelSelection()
         modelButton.showsMenuAsPrimaryAction = true
         modelButton.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
@@ -303,6 +309,7 @@ final class ChatController: UIViewController {
         loadViewIfNeeded()
         let previous = self.chat
         self.chat = chat
+        ConversationNotices.shared.withdraw(session: runtime.records[chat.id]?.sessionID)
         updateModelSelection()
         ensureModelSelection()
         title = chat.title
@@ -329,6 +336,13 @@ final class ChatController: UIViewController {
         refreshRuntime()
         messageList.scrollToBottom(animated: false)
         updateLatestMessageButton()
+    }
+
+    /// Back in front with this conversation on screen: its banners have
+    /// said what they had to.
+    @objc private func withdrawNotifications() {
+        guard let chat, view.window != nil else { return }
+        ConversationNotices.shared.withdraw(session: runtime.records[chat.id]?.sessionID)
     }
 
     func refreshRuntime() {
@@ -538,6 +552,7 @@ extension ChatController: ComposerView.Delegate {
             completion()
             return
         }
+        ConversationNotices.shared.requestAuthorizationIfNeeded()
         // shown at once; the runtime puts the draft back if the send fails
         let sending = runtime.submit(draft, to: chat.id)
         // One a running turn takes later starts no turn yet: shown once.

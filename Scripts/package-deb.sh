@@ -365,6 +365,17 @@ done
     echo "error: app is missing the daemon mach lookup entitlement" >&2
     exit 65
 }
+# The app asks for notifications under its own bundle id, and says it posts
+# local ones; the daemon posts as the app under the same id. Either half
+# missing leaves authorization false with no error anywhere but the device log.
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.private.usernotifications.bundle-identifiers:0' "$app_signed_entitlements" 2>/dev/null || true)" == "$bundle_identifier" ]] || {
+    echo "error: app is missing the usernotifications bundle-identifiers entitlement for $bundle_identifier" >&2
+    exit 65
+}
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :SBAppUsesLocalNotifications' "$installed_app/Info.plist" 2>/dev/null || true)" == true ]] || {
+    echo "error: app Info.plist is missing SBAppUsesLocalNotifications" >&2
+    exit 65
+}
 for key in com.apple.private.security.no-container \
     wiki.qaq.irisin.client \
     com.apple.private.security.container-required \
@@ -406,6 +417,10 @@ for key in platform-application \
     com.apple.private.security.storage.AppDataContainers; do
     require_true "$daemon_signed_entitlements" "$key"
 done
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.private.usernotifications.bundle-identifiers:0' "$daemon_signed_entitlements" 2>/dev/null || true)" == "$bundle_identifier" ]] || {
+    echo "error: apelind is missing the usernotifications bundle-identifiers entitlement for $bundle_identifier" >&2
+    exit 65
+}
 require_absent "$daemon_signed_entitlements" wiki.qaq.apelin.client apelind
 require_absent "$daemon_signed_entitlements" com.apple.security.iokit-user-client-class apelind
 
@@ -420,6 +435,7 @@ for worker in "${workers[@]}"; do
     done
     require_absent "$worker_signed_entitlements" wiki.qaq.apelin.client "$worker"
     require_absent "$worker_signed_entitlements" wiki.qaq.irisin.client "$worker"
+    require_absent "$worker_signed_entitlements" com.apple.private.usernotifications.bundle-identifiers "$worker"
     require_absent "$worker_signed_entitlements" com.apple.security.exception.mach-lookup.global-name "$worker"
 done
 

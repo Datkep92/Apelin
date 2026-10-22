@@ -466,6 +466,33 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     (≤ 8 per call, ≤ 32 MB each) and passes a read-only descriptor, to the
     extension over its SCM_RIGHTS socket and back to the caller in the
     reply, with `byteCount` and `sha256` (`AttachmentCopies`).
+  - *Notifications* (`Session/Notice/`, after Xrash's). The host posts as
+    the app (`NoticePoster`: `UNUserNotificationCenter` through the private
+    `initWithBundleIdentifier:`, looked up at run time) when an agent
+    session relays `approvalRequested` (title the conversation, subtitle
+    "Approval Required", body the call's `reason` from its `toolCall`, else
+    the gate's) or `finished` with `completed` (body the turn's last
+    `message` with text, its first paragraph as plain text in at most 180
+    characters, else "Done") or `failed` (subtitle "Failed", body the last
+    `error`). Never for `aborted`, nor for a session opened with
+    `closeWhenFinished`. The title is the session's latest `title`, else its
+    first message's opening, else "New Chat"; keys are
+    `localizedUserNotificationString` keys the app also spells.
+    `AgentNoticeTrack` (tested in `Tests/SessionHost/`) decides; a reopened
+    session relays its whole log again, so turns and approvals are counted
+    per session and their counts kept in `notices.json`, and one already
+    counted posts nothing. Identifiers are `<session>.turn.<n>` and
+    `<session>.approval.<n>`, the thread is the session, and `userInfo`
+    `link` is `apelin://conversation/<session>`, which a tap hands to
+    `UIApplication.open` (`ConversationNotices`). Banners are for a reader
+    elsewhere: `willPresent` shows nothing while the app is active, opening
+    a conversation (or coming back to it) removes its delivered ones, and
+    the app asks for authorization when the reader first sends a message.
+    Two declarations, or authorization stays false with no error but the
+    device log's: `com.apple.private.usernotifications.bundle-identifiers`
+    naming `wiki.qaq.apelin` on apelind and on the app, and
+    `SBAppUsesLocalNotifications` in the app's Info.plist; the packager
+    requires all three.
   - Every spawn to mobile (workers, shells, extensions) is checked after
     the fact with `proc_pidinfo`: effective, real and saved uid and gid all
     501, or the process is killed (`verifyDropped`, `Spawn.swift`).
@@ -1764,7 +1791,7 @@ Apelin/                  the app: main.swift (manual UIApplicationMain), Applica
 Apelind/                 the daemon, product `apelind`: main.swift (mode switch), Proxy/
                          (listener, WorkLedger, SessionLink), Session/ (SessionHost,
                          TaskRegistry, WorkerSupervisor, CallerPolicy, Approval/, Install/,
-                         Files/, Terminal/, ToolHost/), Dispatch/ (Dispatcher,
+                         Files/, Terminal/, ToolHost/, Notice/), Dispatch/ (Dispatcher,
                          <Domain>Handler.swift), Vendor/ (IrisinExternalClient),
                          PeerAuthenticator, Spawn, syscalls
 Workers/<Name>/          one tool target each: Environment, Build, Agent, Diagnostics,

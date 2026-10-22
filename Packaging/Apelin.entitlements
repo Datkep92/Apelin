@@ -28,6 +28,14 @@
 	`no-sandbox` alone does not open them on every platform. The daemon carries
 	the same pair.
 
+	`usernotifications.bundle-identifiers` is what lets the app ask for
+	notifications at all. A platform binary is not taken at its bundle's
+	word: usernotificationsd refuses every call — authorization, the
+	delivered list, their removal — unless its own bundle id is listed here,
+	and Settings has no Notifications page to turn on. The Info.plist's
+	`SBAppUsesLocalNotifications` is the other half; the daemon, which posts
+	as the app, names the same id.
+
 	iCloud Drive (`~/Library/Mobile Documents`, `~/Library/CloudStorage`) is
 	a separate vault and is deliberately not opened here. An app that goes
 	there adds the storage classes `CloudDocsDB`, `CloudKit`,
@@ -129,6 +137,10 @@
 	<true/>
 	<key>com.apple.private.security.storage.AppDataContainers</key>
 	<true/>
+	<key>com.apple.private.usernotifications.bundle-identifiers</key>
+	<array>
+		<string>wiki.qaq.apelin</string>
+	</array>
 	<key>platform-application</key>
 	<true/>
 </dict>

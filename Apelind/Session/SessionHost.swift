@@ -27,6 +27,8 @@ final class SessionHost: @unchecked Sendable {
     let editor: ProtectedEditor
     let terminals: TerminalHost
     let toolHosts: ToolHostSessions
+    /// Banners for agent sessions, posted as the app.
+    let notices: AgentNotices
     /// Resumers by task kind: given a task the previous host left running,
     /// answer true once it is handled — kept, or ended with its own reason.
     /// Every other unfinished task is `interrupted`.
@@ -75,6 +77,7 @@ final class SessionHost: @unchecked Sendable {
             home: home,
             attachments: stateDirectory.appendingPathComponent("attachments", isDirectory: true),
         )
+        notices = AgentNotices(stateDirectory: stateDirectory, sessions: dataFolder.sessions)
         proxy = WorkerChannel(adopting: WorkerMain.channelDescriptor)
         resumers[.install] = { [install] record in await install.resume(record) }
         let restart = TaskResume(
@@ -147,6 +150,7 @@ final class SessionHost: @unchecked Sendable {
                         await AgentSessionTable.shared.setTitle(title, session: key)
                     }
                     await registry.append(taskID, kind: kind, payload: payload)
+                    await notices.relayed(record, kind: kind, payload: payload)
                 case let .exit(worker):
                     await registry.ownerExited(role: worker.role, key: worker.key)
                     if worker.role == .agent {
