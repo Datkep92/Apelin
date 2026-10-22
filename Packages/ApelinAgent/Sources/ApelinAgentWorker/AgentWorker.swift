@@ -256,6 +256,7 @@ actor WorkerState {
                     approval: ApprovalPolicy(mode: AgentWorker.approvalMode(open.approvalMode)),
                     dataRoot: dataRoot,
                     thinking: .init(rawValue: open.reasoningEffort?.rawValue ?? "off") ?? .off,
+                    installRoot: context.assignment.installRoot,
                 ),
                 backend: ChannelHostBackend(
                     service: context.host,

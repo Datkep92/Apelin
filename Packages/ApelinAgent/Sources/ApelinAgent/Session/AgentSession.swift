@@ -34,6 +34,8 @@ public actor AgentSession {
     private var resolvedFrom: (provider: ProviderConfiguration, credentials: OAuthCredentials?)
     private var titleTask: Task<Void, Never>?
     private var hasTitle = false
+    /// The project's context went with a message that started a run.
+    private var projectContextGiven = false
     private var aborted = false
     private let workspace: ScopedRoot
     private var submitted: Set<UUID> = []
@@ -191,13 +193,16 @@ public actor AgentSession {
         agent.state.systemPrompt = Self.systemPrompt(configuration, root: workspace, mode: mode, skills: skills.skills)
     }
 
-    /// Skills, memory and the project's instructions are read again each
-    /// time, so a change to any of them applies from the next prompt.
-    private static func systemPrompt(
+    /// Skills, memory, the project's instructions and the environment
+    /// (`EnvironmentPrompt`) are read again each time, so a change to any of
+    /// them applies from the next prompt; unchanged, the prompt is the same.
+    static func systemPrompt(
         _ configuration: AgentSessionConfiguration,
         root: ScopedRoot,
         mode: ApprovalMode,
         skills: [SkillDocument],
+        device: DeviceFacts = .current,
+        date: Date = Date(),
     ) -> String {
         let memory = MemoryStore(root: configuration.dataRoot.url)
         return SystemPrompt.make(
@@ -209,7 +214,22 @@ public actor AgentSession {
             projectInstructions: SystemPrompt.projectInstructions(in: root),
             buildSystem: ProjectBuildSystem.read(in: root),
             memory: MemoryTools.prompt(try? memory.read().forProject(configuration.project.id)),
+            environment: EnvironmentPrompt.section(EnvironmentPrompt.inputs(configuration, root: root, device: device)),
+            date: date,
         )
+    }
+
+    /// The text the model reads for a message that starts a run: with the
+    /// project's context before it when the conversation is still empty
+    /// (`ProjectContext`), once per conversation. A queued or steered
+    /// message joins a run already going, and a reopened conversation has
+    /// its transcript, so neither gets it.
+    private func withProjectContext(_ text: String) -> String {
+        guard !configuration.project.isTemporary, !projectContextGiven, agent.state.messages.isEmpty else {
+            return text
+        }
+        projectContextGiven = true
+        return ProjectContext.make(project: configuration.project, root: workspace) + text
     }
 
     /// A separate, bounded completion uses the conversation's current model and no tools.
@@ -371,9 +391,10 @@ public actor AgentSession {
         }
         aborted = false
         let agent = agent
+        let opening = withProjectContext(prompt)
         runTask = Task { [weak self] in
             do {
-                try await agent.prompt(prompt, images: images)
+                try await agent.prompt(opening, images: images)
             } catch {
                 await self?.recordRunError(error)
             }
@@ -494,9 +515,11 @@ public actor AgentSession {
                     return try? saveAttachment(name: "Image", mimeType: image.mimeType, data: data)
                 },
             )))
-        case let .agentEnd(messages, _):
+        case .agentEnd:
+            // The event carries only this run's messages; the transcript is
+            // the whole conversation, which a reopened session reads back.
             do {
-                try await log.writeTranscript(messages)
+                try await log.writeTranscript(agent.state.messages)
             } catch {
                 await record(.error(message: "Unable to save the conversation history: \(error.localizedDescription)"))
             }

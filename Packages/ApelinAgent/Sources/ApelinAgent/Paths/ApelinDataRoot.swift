@@ -17,6 +17,11 @@ public struct ApelinDataRoot: Sendable, Hashable {
             .appendingPathComponent(Self.bundleIdentifier, isDirectory: true)
     }
 
+    /// The home this folder is in: what `init(home:)` was given.
+    public var home: URL {
+        url.deletingLastPathComponent().deletingLastPathComponent()
+    }
+
     /// The running process's home: mobile's on a device.
     public static var current: ApelinDataRoot {
         ApelinDataRoot(home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))

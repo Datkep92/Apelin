@@ -326,8 +326,7 @@ struct ConversationToolTests {
         let events = try await session.log.records(afterSeq: 0).map(\.event)
         #expect(events.contains(.promptSubmitted(text: "Review Tweak.x", from: "opener-session")), "the app sees the text as sent, marked with the sender")
         let modelText = await seen.text
-        #expect(modelText.hasPrefix(sender.prefix + "\n"), "the model reads one line naming the sender first")
-        #expect(modelText.contains("Review Tweak.x"))
+        #expect(modelText.contains(sender.prefix + "\nReview Tweak.x"), "the model reads one line naming the sender right before the message")
         #expect(sender.prefix.contains("“Plan the tweak” (opener-session)") && sender.prefix.contains("not from the user"))
         #expect(ConversationSender(sessionID: "s").prefix.contains("conversation s,"))
         await session.close()

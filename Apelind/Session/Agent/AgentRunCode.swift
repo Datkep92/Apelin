@@ -141,15 +141,7 @@ enum AgentRunCode {
         }
         let argv = try argv(for: preset.map { .argv($0.argv) } ?? request.spec, installRoot: installRoot)
         let directory = try workingDirectory(request.workingDirectory, project: project.path)
-        let prefix = Self.prefix(for: installRoot)
-        let environment = (preset?.environment ?? []) + [
-            "HOME=\(home)",
-            "PATH=\(searchPath(installRoot: installRoot).joined(separator: ":"))",
-            "LANG=en_US.UTF-8",
-            "TERM=dumb",
-            "TMPDIR=\(prefix)/var/tmp",
-            "APELIN_PROJECT_ROOT=\(project.path)",
-        ]
+        let environment = Self.environment(preset: preset, project: project, installRoot: installRoot, home: home)
         let timeout = request.timeoutSeconds
         let session = request.sessionID
         return try await offThePool {
@@ -162,6 +154,38 @@ enum AgentRunCode {
                 stopsSeen: stopsSeen,
             )
         }
+    }
+
+    /// What a run sees. A preset keeps its own short list and the bare
+    /// search path: it is a read-only command the host chose the words of,
+    /// and needs no compiler. Any other run gets the development environment
+    /// (`DevelopmentEnvironment`): the project's toolchain — else the
+    /// default — first on `PATH`, and `SDKROOT` with
+    /// `IPHONEOS_DEPLOYMENT_TARGET`, the same the terminal gets and the
+    /// agent's system prompt describes. A temporary chat has no project to
+    /// bind one, so it gets the defaults.
+    static func environment(
+        preset: Preset?,
+        project: ResolvedProject,
+        installRoot: String,
+        home: String,
+    ) -> [String] {
+        let base = searchPath(installRoot: installRoot)
+        let common = [
+            "HOME=\(home)",
+            "LANG=en_US.UTF-8",
+            "TERM=dumb",
+            "TMPDIR=\(prefix(for: installRoot))/var/tmp",
+            "APELIN_PROJECT_ROOT=\(project.path)",
+        ]
+        if let preset {
+            return preset.environment + ["PATH=\(base.joined(separator: ":"))"] + common
+        }
+        let development = DevelopmentEnvironment.prepared(
+            home: home,
+            projectDirectory: project.isTemporary ? nil : project.path,
+        )
+        return common + development.entries(basePath: base)
     }
 
     /// Runs `body` — a spawn waited on for up to its timeout — on a Dispatch

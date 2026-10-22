@@ -221,6 +221,14 @@ console now goes on after a restart only past a successful respring.
       WorkBuddy, Z.ai), Kiro's own listener, a key form — each followed by
       an `agentOpen` on that provider. None has run on a device yet.
 - [ ] The UI itself: none of the above touched it.
+- [ ] The agent's prepared environment: in a project's new chat the first
+      message carries `<project-context>` once (its `transcript.json`), the
+      model names the installed toolchain and SDK without a tool call,
+      run_code's `sh -c 'command -v clang; echo $SDKROOT
+      $IPHONEOS_DEPLOYMENT_TARGET'` answers the prepared ones and
+      `clang -arch arm64 hello.c` builds; and the project's terminal, a login
+      shell, keeps the toolchain first on `PATH` through
+      `etc/profile.d/wiki.qaq.apelin.sh` on roothide and on rootless.
 - [ ] Transfer files (`.apetc`, `.apesdk`, `.apeproj`): `transfer` and
       `transfer-project` on both vphones, `transfer-toolchain` by name on a
       roothide one (the export undoes RootHide's runtime brand), then a

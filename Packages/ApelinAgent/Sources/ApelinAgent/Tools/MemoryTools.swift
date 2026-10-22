@@ -49,7 +49,11 @@ struct MemoryTools {
     }
 
     static func prompt(_ snapshot: MemorySnapshot?) -> String {
-        let contents = snapshot.flatMap { try? JSONEncoder().encode($0) }.map { String(decoding: $0, as: UTF8.self) }
+        // Sorted keys: the same memories give the same bytes, so the system
+        // prompt, and the provider's cache of it, stays the same.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let contents = snapshot.flatMap { try? encoder.encode($0) }.map { String(decoding: $0, as: UTF8.self) }
             ?? "Memory storage is unavailable. Do not invent saved memories."
         return """
         # Long-term memory

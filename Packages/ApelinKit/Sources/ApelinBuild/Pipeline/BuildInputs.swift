@@ -3,15 +3,15 @@ import ApelinProject
 import ApelinProtocol
 import Foundation
 
-/// Which layout this device's bootstrap is, from what the session host
-/// assigned: on roothide mobile's home is inside the jbroot (the install
-/// root), on rootless it is the system's `/var/mobile` beside `/var/jb`.
-/// The install root comes from apelind's `hello`; nothing here guesses it.
+/// Which layout this device's bootstrap is (`BuildBootstrap.resolve`, the
+/// rule the agent's system prompt reads too), as the project document
+/// spells it.
 public enum BootstrapResolution {
     public static func bootstrap(installRoot: String, home: String) -> Bootstrap {
-        let root = installRoot.hasSuffix("/") ? String(installRoot.dropLast()) : installRoot
-        guard !root.isEmpty else { return .rootless }
-        return CanonicalPath.isCanonical(home, inside: root) ? .roothide : .rootless
+        switch BuildBootstrap.resolve(installRoot: installRoot, home: home) {
+        case .roothide: .roothide
+        case .rootless: .rootless
+        }
     }
 }
 

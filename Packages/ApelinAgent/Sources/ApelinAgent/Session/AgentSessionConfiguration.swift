@@ -15,6 +15,10 @@ public struct AgentSessionConfiguration: Sendable {
     public var thinking: ThinkingLevel
     /// Hard cap on assistant turns per run; nil for none.
     public var maxTurns: Int?
+    /// The install root the session host derived from its own path, which
+    /// the system prompt names with the bootstrap; nil where there is none
+    /// (the Mac tests).
+    public var installRoot: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -26,6 +30,7 @@ public struct AgentSessionConfiguration: Sendable {
         mcpServers: [MCPServerConfiguration] = [],
         thinking: ThinkingLevel = .off,
         maxTurns: Int? = nil,
+        installRoot: String? = nil,
     ) {
         self.id = id
         self.project = project
@@ -36,5 +41,6 @@ public struct AgentSessionConfiguration: Sendable {
         self.mcpServers = mcpServers
         self.thinking = thinking
         self.maxTurns = maxTurns
+        self.installRoot = installRoot
     }
 }

@@ -48,6 +48,11 @@ worker_resources=(kwwk_KWWKAI.bundle)
 # and iOS 16–18 load this one. Without it apelin-agent dies in dyld there.
 worker_runtime_libraries=(libswiftCompatibilitySpan.dylib)
 packaging_root="$(cd "$(dirname "$control_template")/.." && pwd -P)"
+# Sourced by the bootstrap's /etc/profile after it sets PATH anew: puts the
+# toolchain Apelin's terminal named in APELIN_TOOLCHAIN_BIN back in front.
+login_profile="$packaging_root/profile.d/wiki.qaq.apelin.sh"
+[[ -f "$login_profile" ]] || { echo "error: missing packaging input: $login_profile" >&2; exit 66; }
+/bin/sh -n "$login_profile" || { echo "error: $login_profile is not valid sh" >&2; exit 65; }
 
 [[ -d "$app_bundle" && -f "$app_bundle/Info.plist" ]] || { echo "error: $app_bundle is not a complete app bundle; expected a directory containing Info.plist" >&2; exit 66; }
 [[ -x "$daemon_binary" ]] || { echo "error: daemon binary is missing" >&2; exit 66; }
@@ -179,7 +184,11 @@ installed_app="$installed_root/Applications/Apelin.app"
 installed_daemon="$installed_root/usr/libexec/apelind"
 installed_plist="$installed_root/Library/LaunchDaemons/wiki.qaq.apelind.plist"
 installed_workers="$installed_root/usr/libexec/apelin"
-mkdir -p "$debian" "$(dirname "$installed_app")" "$(dirname "$installed_daemon")" "$(dirname "$installed_plist")" "$installed_workers"
+installed_profile="$installed_root/etc/profile.d/wiki.qaq.apelin.sh"
+mkdir -p "$debian" "$(dirname "$installed_app")" "$(dirname "$installed_daemon")" "$(dirname "$installed_plist")" "$installed_workers" \
+    "$(dirname "$installed_profile")"
+cp "$login_profile" "$installed_profile"
+chmod 0644 "$installed_profile"
 /usr/bin/ditto "$app_bundle" "$installed_app"
 /usr/bin/ditto "$daemon_binary" "$installed_daemon"
 sed -e "s|@PREFIX@|$install_prefix|g" -e "s|@ROOTFS@|$rootfs|g" "$launch_plist" >"$installed_plist"
@@ -412,6 +421,7 @@ for library in "${worker_runtime_libraries[@]}"; do
     grep -F ".$install_prefix/usr/libexec/apelin/$library" <<<"$contents" >/dev/null
 done
 grep -F ".$install_prefix/Library/LaunchDaemons/wiki.qaq.apelind.plist" <<<"$contents" >/dev/null
+grep -F ".$install_prefix/etc/profile.d/wiki.qaq.apelin.sh" <<<"$contents" >/dev/null
 
 mv -f "$temporary_deb" "$output_deb"
 echo "Packaged Apelin ($flavor): $output_deb"

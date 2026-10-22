@@ -37,16 +37,19 @@ actor TerminalHost {
         }
         try Self.checkSize(columns: request.columns, rows: request.rows)
         var directory = home
+        var projectDirectory: String?
         if let project = request.projectID {
             guard case let .directory(path) = try scopes.resolve(project, caller: .app) else {
                 throw ApelinError(.badRequest, "projectID does not name a project")
             }
             directory = path
+            projectDirectory = path
         }
         let launch = try Self.launch(
             installRoot: installRoot,
             home: home,
             directory: directory,
+            project: projectDirectory,
             columns: request.columns,
             rows: request.rows,
         )
@@ -187,11 +190,17 @@ actor TerminalHost {
         SIGSYS,
     ]
 
-    /// The shell, its arguments and the environment `login` would have set.
+    /// The shell, its arguments and the environment `login` would have set,
+    /// with the development environment of `project` (a project folder, or
+    /// nil for none) on top: its toolchain first on `PATH`, `SDKROOT` and
+    /// `IPHONEOS_DEPLOYMENT_TARGET`, as the agent's run_code gets them. A
+    /// login shell's `/etc/profile` replaces `PATH`; the package's profile
+    /// snippet puts the toolchain back from `APELIN_TOOLCHAIN_BIN`.
     static func launch(
         installRoot: String,
         home: String,
         directory: String,
+        project: String? = nil,
         columns: Int,
         rows: Int,
     ) throws -> TerminalSession.Launch {
@@ -209,7 +218,7 @@ actor TerminalHost {
         }
         let name = (shell as NSString).lastPathComponent
         let arguments = name == "sh" ? ["-i"] : ["-il"]
-        let environment = [
+        var environment = [
             "TERM": "xterm-256color",
             "COLORTERM": "truecolor",
             "TERM_PROGRAM": "Apelin",
@@ -222,17 +231,6 @@ actor TerminalHost {
             // dereferences the null it answers: bash crashed before its
             // first prompt and the terminal showed nothing.
             "LC_CTYPE": "UTF-8",
-            "PATH": [
-                "\(root)/usr/local/bin",
-                "\(root)/usr/bin",
-                "\(root)/bin",
-                "\(root)/usr/sbin",
-                "\(root)/sbin",
-                "/usr/bin",
-                "/bin",
-                "/usr/sbin",
-                "/sbin",
-            ].joined(separator: ":"),
             // The agent's file tools refuse to lay out a bare repository,
             // and the user's git here takes none it finds by walking up
             // either: a pager or hook in one would run as mobile. Config
@@ -242,6 +240,19 @@ actor TerminalHost {
             "GIT_CONFIG_KEY_0": "safe.bareRepository",
             "GIT_CONFIG_VALUE_0": "explicit",
         ]
+        let path = [
+            "\(root)/usr/local/bin",
+            "\(root)/usr/bin",
+            "\(root)/bin",
+            "\(root)/usr/sbin",
+            "\(root)/sbin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+        ]
+        let development = DevelopmentEnvironment.prepared(home: home, projectDirectory: project)
+        environment.merge(development.variables(basePath: path)) { _, prepared in prepared }
         return TerminalSession.Launch(
             shell: shell,
             arguments: arguments,

@@ -443,7 +443,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     environment — which also sets `safe.bareRepository=explicit` through
     `GIT_CONFIG_COUNT=1` and `GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0`,
     protected config a repository cannot turn off, so the user's git takes no bare
-    layout it finds by walking up and runs none of its pagers or hooks —;
+    layout it finds by walking up and runs none of its pagers or hooks —, and
+    the development environment of the terminal's project (none: the
+    defaults), the one run_code gets (Agent sessions ▸ `agentRunCode`). A login
+    shell's `/etc/profile` sets `PATH` anew, so the package ships
+    `etc/profile.d/wiki.qaq.apelin.sh` (`Packaging/profile.d/`), which puts
+    `APELIN_TOOLCHAIN_BIN` back in front when it is set and does nothing
+    anywhere else;
     the host then reads the shell's credentials from the kernel
     and kills it unless all six ids are mobile's. Output is numbered into the
     `terminal` task (`started`, `output` {base64, text}, `exit`), so a
@@ -988,7 +994,20 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   streams capped at 256 KiB and read for at most 2 s after it exits or is
   killed — a descendant that left the group (setsid) is neither found nor
   killed, and the pipes it still holds are closed on it, the output marked
-  `truncated` —, so the timeout bounds the call. Under Confirm the host
+  `truncated` —, so the timeout bounds the call. Every run but a preset gets
+  the development environment (`DevelopmentEnvironment` in ApelinProtocol,
+  the one builder the terminal and the system prompt read too): the
+  project's bound toolchain, else the registry's default, first on `PATH`
+  (also `APELIN_TOOLCHAIN_BIN`), and `SDKROOT` — the project's bound SDK,
+  else the newest registered one that toolchain reads, what `projectCreate`
+  binds — with `IPHONEOS_DEPLOYMENT_TARGET` (the project's, else 16.0), so
+  clang targets iOS against the SDK without flags; a temporary chat gets
+  the defaults. The host reads `Environment/Toolchains/registry.json`,
+  `SDKs/.registry/` and `apelin-project.json` as root only inside the data
+  folder or project, by canonical path, without following a link, and checks
+  the opened descriptor's path again; only paths, IDs and a version go into
+  the environment. A preset keeps its own list and the bare search path.
+  Under Confirm the host
   re-decides it: a preset it recognises (read-only argv: ls, cat, head, tail, wc, file, stat,
   `plutil -p`, `git status|diff|log`; `Session/Agent/AgentRunCodePresets.swift`)
   — every path argument and `--option=value` value, read from the working
@@ -2034,6 +2053,32 @@ built-in and user skill (`~/Documents/wiki.qaq.apelin/skills`) by name and
 description only, and `read_skill{name, file?}` reads the body, or a file in a
 user skill's own folder (no link out of it), on demand; it is a read preset.
 Skills, memory and the project instructions are read again for every prompt.
+
+`# Environment` (`Session/EnvironmentPrompt.swift`, one call site in the
+prompt) states the device — `hw.machine`, arm64e, the iOS version and the
+kernel's FEAT_LRCPC, FEAT_SHA3 and FEAT_DotProd —, the bootstrap and install
+root (from the assignment, `BuildBootstrap.resolve`), every registered
+toolchain (ID, CLT release, components with the Swift version, the minimum
+iOS, the newest SDK it reads, its self-test count, default / this project's /
+prepared, its tool directory) and SDK (ID, version, path, the same marks, and
+"too new" for the prepared toolchain), a binding this device lacks, and that
+run_code and the terminal already have the prepared toolchain and SDK, so the
+model neither probes nor sets up again what is installed. It is read again
+with the rest and holds nothing that changes unless the environment does —
+no time, size or duration, everything sorted — so prompt caching survives.
+A project's conversation gets the project once, on the message that starts
+its first run (`Session/ProjectContext.swift`): a `<project-context>` block
+before the user's text, which the model sees and the app's event does not —
+name, ID, kind and language, deployment target, architectures, template,
+build system with its steps and products, package, binding, git in one line
+read from `.git` itself — and a breadth-first tree (`ProjectTree`: at most
+200 entries, 6 levels, 2000 names a folder, 20,000 names in all; `.git`,
+`.DS_Store`, the top-level `Builds`, Apelin's temporary files and what the
+`.gitignore` files name left out; `Attachments` shown, not opened; links
+listed, never followed). It then lives in the transcript, so a reopened
+session neither repeats nor loses it, and it stays out of the system prompt,
+where a changing tree would break the cache. General Chat gets the
+environment only.
 
 ## Long-term agent memory
 

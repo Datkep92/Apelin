@@ -1725,6 +1725,101 @@ do {
           "with the terminal's environment git refuses it: \(refused.output)")
 }
 
+// MARK: - The terminal and run_code get the project's toolchain and SDK
+
+/// A home whose data folder registers a toolchain (installed beside it, as
+/// irisind puts one under the install root) and two SDKs, and a project
+/// bound to the older SDK. The records carry an installation ID and an
+/// origin with a credential in it, neither of which may reach a variable.
+let developmentHome = scratchPath + "/development-home"
+let developmentData = developmentHome + "/Documents/wiki.qaq.apelin"
+let developmentToolchain = scratchPath + "/development-jb/usr/lib/apelin/toolchains/clt-27.0"
+let developmentBin = developmentToolchain + "/usr/bin"
+let developmentNewSDK = developmentData + "/SDKs/iphoneos27.0-1a2b3c4d"
+let developmentOldSDK = developmentData + "/SDKs/iphoneos18.5-5e6f7a8b"
+let developmentProject = developmentData + "/Projects/Env"
+write(developmentBin + "/clang", "#!/bin/sh\n", mode: 0o755)
+for (id, version, path) in [("iphoneos27.0-1a2b3c4d", "27.0", developmentNewSDK), ("iphoneos18.5-5e6f7a8b", "18.5", developmentOldSDK)] {
+    write(path + "/SDKSettings.json", "{}")
+    write(
+        developmentData + "/SDKs/.registry/\(id).json",
+        #"{"id":"\#(id)","canonicalName":"\#(id)","version":"\#(version)","path":"\#(path)","targets":[],"warnings":[],"digest":"1a"}"#,
+    )
+}
+
+write(
+    developmentData + "/Environment/Toolchains/registry.json",
+    #"{"defaultID":"clt-27.0","toolchains":[{"id":"clt-27.0","version":"27.0","components":[{"kind":"c","selfCheckPassed":true}],"path":"\#(developmentToolchain)","contentDigest":"ab","installationID":"inst-secret","origin":"082-1 https://user:tok3n@example.invalid/p"}]}"#,
+)
+write(
+    developmentProject + "/apelin-project.json",
+    #"{"projectID":"p-env","deploymentTarget":"15.0","environment":{"toolchain":{"id":"clt-27.0"},"sdk":{"id":"iphoneos18.5-5e6f7a8b"}}}"#,
+)
+
+do {
+    // Outside a project: the default toolchain and the newest SDK it reads.
+    let launch = try TerminalHost.launch(
+        installRoot: "/",
+        home: developmentHome,
+        directory: developmentHome,
+        columns: 80,
+        rows: 24,
+    )
+    let environment = launch.environment
+    let path = (environment["PATH"] ?? "").split(separator: ":").map(String.init)
+    check(path.first == developmentBin, "the terminal's PATH starts with the default toolchain's tools: \(path)")
+    check(path.dropFirst().first == "/usr/local/bin" && path.contains("/usr/bin"), "then the bootstrap's and the system's directories: \(path)")
+    check(environment["SDKROOT"] == developmentNewSDK, "SDKROOT is the newest SDK it reads: \(String(describing: environment["SDKROOT"]))")
+    check(environment["IPHONEOS_DEPLOYMENT_TARGET"] == "16.0", "outside a project the deployment target is Apelin's default")
+    check(environment["APELIN_TOOLCHAIN_BIN"] == developmentBin, "the toolchain is named for the login profile snippet")
+    check(environment.values.allSatisfy { !$0.contains("tok3n") && !$0.contains("inst-secret") }, "no record field but paths reaches the terminal")
+    check(environment["GIT_CONFIG_KEY_0"] == "safe.bareRepository", "the terminal keeps its protected git config")
+}
+
+do {
+    // In a project: what it binds, the same for the terminal and run_code.
+    let launch = try TerminalHost.launch(
+        installRoot: "/",
+        home: developmentHome,
+        directory: developmentProject,
+        project: developmentProject,
+        columns: 80,
+        rows: 24,
+    )
+    check(launch.environment["SDKROOT"] == developmentOldSDK, "a project's terminal has the SDK the project binds")
+    check(launch.environment["IPHONEOS_DEPLOYMENT_TARGET"] == "15.0", "and its deployment target")
+
+    let project = ResolvedProject(id: "p-env", name: "Env", path: developmentProject)
+    let entries = AgentRunCode.environment(preset: nil, project: project, installRoot: "/var/jb", home: developmentHome)
+    let variables = Dictionary(entries.map { entry in
+        let parts = entry.split(separator: "=", maxSplits: 1).map(String.init)
+        return (parts[0], parts.count > 1 ? parts[1] : "")
+    }) { first, _ in first }
+    check(entries.count == variables.count, "run_code gets each variable once: \(entries)")
+    check(variables["PATH"] == "\(developmentBin):/var/jb/usr/bin:/var/jb/bin:/var/jb/usr/local/bin:/usr/bin:/bin",
+          "run_code's PATH is the toolchain's tools, then its search path: \(String(describing: variables["PATH"]))")
+    check(variables["SDKROOT"] == developmentOldSDK && variables["IPHONEOS_DEPLOYMENT_TARGET"] == "15.0",
+          "run_code has the project's SDK and deployment target, as its terminal does")
+    check(variables["HOME"] == developmentHome && variables["APELIN_PROJECT_ROOT"] == developmentProject && variables["TMPDIR"] == "/var/jb/var/tmp",
+          "and what it had before")
+    check(entries.allSatisfy { !$0.contains("tok3n") && !$0.contains("inst-secret") }, "no record field but paths reaches run_code")
+
+    // A temporary chat binds nothing: the defaults.
+    let temporary = ResolvedProject(id: "temporary:\(UUID().uuidString)", name: "t", path: developmentProject)
+    let general = AgentRunCode.environment(preset: nil, project: temporary, installRoot: "/", home: developmentHome)
+    check(general.contains("SDKROOT=\(developmentNewSDK)") && general.contains("IPHONEOS_DEPLOYMENT_TARGET=16.0"),
+          "a temporary chat's run_code has the default toolchain's SDK: \(general)")
+
+    // A preset is a read-only command the host chose the words of: its own
+    // short list, no compiler on its path.
+    let preset = AgentRunCode.Preset(argv: ["/bin/ls"], environment: ["GIT_PAGER=cat"])
+    let presetEntries = AgentRunCode.environment(preset: preset, project: project, installRoot: "/var/jb", home: developmentHome)
+    check(presetEntries.first == "GIT_PAGER=cat", "a preset's own environment comes first")
+    check(presetEntries.contains("PATH=/var/jb/usr/bin:/var/jb/bin:/var/jb/usr/local/bin:/usr/bin:/bin"), "a preset keeps the bare search path")
+    check(!presetEntries.contains { $0.hasPrefix("SDKROOT=") || $0.hasPrefix("APELIN_TOOLCHAIN_BIN=") || $0.contains(developmentBin) },
+          "and no toolchain or SDK: \(presetEntries)")
+}
+
 // MARK: - Agent approvals are found and spent only when they apply
 
 do {
