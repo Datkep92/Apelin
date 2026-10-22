@@ -1,5 +1,6 @@
 // Copyright (c) 2026 OwnGoal Studio. MIT; see LICENSE beside this file.
-// Copied from Irisin; only app names, localization calls and flow callbacks differ.
+// Copied from Irisin; only app names, localization calls, flow callbacks and the
+// accent before iOS 26 (`AppAccent`) differ.
 //
 //  WelcomeStyle.swift
 //  Irisin
@@ -10,7 +11,11 @@ import UIKit
 /// FlowDown's welcome typography and system colors, kept separate from
 /// Irisin's type ramp so the copied page retains its original appearance.
 enum WelcomeStyle {
-    static let accent = UIColor(light: UIColor(hex: 0x278EFF), dark: UIColor(hex: 0x58A6FF))
+    static let accent = AppAccent.color(
+        glass: UIColor(light: UIColor(hex: 0x278EFF), dark: UIColor(hex: 0x58A6FF)),
+    )
+    /// The title on the filled button, whose ground is `accent`.
+    static let accentForeground = AppAccent.foreground(glass: .white)
     static let horizontalMargin: CGFloat = 24
     static let headingTopMargin: CGFloat = 92
     static var groupedBackground: UIColor {

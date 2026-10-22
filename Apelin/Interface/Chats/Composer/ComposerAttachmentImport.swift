@@ -9,8 +9,9 @@ import ScrubberKit
 import UIKit
 import UniformTypeIdentifiers
 
-/// FlowDown's camera, photo, file and webpage imports. Each instance keeps
-/// the callback for the draft that opened it, including after a chat switch.
+/// FlowDown's camera, photo, file, webpage and drop imports. Each instance
+/// keeps the callback for the draft that opened it, including after a chat
+/// switch.
 final class ComposerAttachmentImport: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate,
     PHPickerViewControllerDelegate, UIDocumentPickerDelegate
 {
@@ -90,31 +91,7 @@ final class ComposerAttachmentImport: NSObject, UIImagePickerControllerDelegate,
                                 url.stopAccessingSecurityScopedResource()
                             }
                         }
-                        guard let path = CanonicalPath.resolve(url.path) else {
-                            throw ApelinError(.badRequest, String(localized: "The selected file could not be read."))
-                        }
-                        let source = URL(fileURLWithPath: path)
-                        let values = try source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-                        guard values.isRegularFile == true, let size = values.fileSize, size <= 32 * 1024 * 1024 else {
-                            throw ApelinError(
-                                .badRequest,
-                                String(localized: "Choose a regular file smaller than 32 MB."),
-                            )
-                        }
-                        let data = try Data(contentsOf: source)
-                        guard data.count <= 32 * 1024 * 1024 else {
-                            throw ApelinError(.badRequest, String(localized: "Choose a file smaller than 32 MB."))
-                        }
-                        let image = UIImage(data: data) != nil
-                        let text = source.pathExtension.lowercased() == "pdf"
-                            ? PDFDocument(data: data)?.string
-                            : String(data: data, encoding: .utf8)
-                        return ComposerAttachment(
-                            name: url.lastPathComponent,
-                            data: data,
-                            text: image ? nil : text,
-                            isImage: image,
-                        )
+                        return try Self.readAttachment(at: url, name: url.lastPathComponent)
                     }.value
                     receive(attachment)
                 } catch {
@@ -122,6 +99,69 @@ final class ComposerAttachmentImport: NSObject, UIImagePickerControllerDelegate,
                 }
             }
         }
+    }
+
+    /// FlowDown's drop: each item's file, read as a pick from Files is,
+    /// except that an image goes in as a photo does (`importImage`), as
+    /// FlowDown's own import treats one. Bound to the draft that took the
+    /// drop, as a picker is.
+    func drop(_ providers: [NSItemProvider]) {
+        for provider in providers {
+            provider.loadFileRepresentation(forTypeIdentifier: UTType.item.identifier) { [self] url, error in
+                // the system deletes its copy once this returns
+                let read = Result { () throws -> ComposerAttachment in
+                    guard let url else {
+                        throw error ?? ApelinError(
+                            .badRequest,
+                            String(localized: "The dropped item could not be read."),
+                        )
+                    }
+                    return try Self.readAttachment(at: url, name: url.lastPathComponent)
+                }
+                Task { @MainActor in
+                    do {
+                        let attachment = try read.get()
+                        if attachment.isImage, let image = UIImage(data: attachment.data) {
+                            importImage(image)
+                        } else {
+                            receive(attachment)
+                        }
+                    } catch {
+                        presenter?.presentNotice(title: "Unable to Import File", message: error.readableMessage)
+                    }
+                }
+            }
+        }
+    }
+
+    /// `url` as an attachment named `name`: a regular file of at most 32 MB,
+    /// read by its canonical path, an image or else text (a PDF's own).
+    nonisolated static func readAttachment(at url: URL, name: String) throws -> ComposerAttachment {
+        guard let path = CanonicalPath.resolve(url.path) else {
+            throw ApelinError(.badRequest, String(localized: "The selected file could not be read."))
+        }
+        let source = URL(fileURLWithPath: path)
+        let values = try source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard values.isRegularFile == true, let size = values.fileSize, size <= 32 * 1024 * 1024 else {
+            throw ApelinError(
+                .badRequest,
+                String(localized: "Choose a regular file smaller than 32 MB."),
+            )
+        }
+        let data = try Data(contentsOf: source)
+        guard data.count <= 32 * 1024 * 1024 else {
+            throw ApelinError(.badRequest, String(localized: "Choose a file smaller than 32 MB."))
+        }
+        let image = UIImage(data: data) != nil
+        let text = source.pathExtension.lowercased() == "pdf"
+            ? PDFDocument(data: data)?.string
+            : String(data: data, encoding: .utf8)
+        return ComposerAttachment(
+            name: name,
+            data: data,
+            text: image ? nil : text,
+            isImage: image,
+        )
     }
 
     func importImage(_ image: UIImage) {

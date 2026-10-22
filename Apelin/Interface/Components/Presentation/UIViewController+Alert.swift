@@ -41,9 +41,9 @@ extension UIViewController {
     }
 
     /// `destructive` paints the alert in the delete colour, the filled
-    /// confirming button and the outlined Cancel. The library has one accent
-    /// for all and reads it while the alert is built, so the swap lasts
-    /// exactly that long.
+    /// confirming button and the outlined Cancel, with white on the fill
+    /// whatever the accent's own is. The library has one accent for all and
+    /// reads it while the alert is built, so the swap lasts exactly that long.
     func presentConfirmation(
         title: String.LocalizationValue,
         message: String.LocalizationValue,
@@ -52,8 +52,10 @@ extension UIViewController {
         onConfirm: @escaping () -> Void,
     ) {
         let accent = AlertControllerConfiguration.accentColor
+        let accentForeground = AlertControllerConfiguration.accentForegroundColor
         if destructive {
             AlertControllerConfiguration.accentColor = .systemRed
+            AlertControllerConfiguration.accentForegroundColor = .white
         }
         let alert = AlertViewController(title: title, message: message) { context in
             context.addAction(title: "Cancel") {
@@ -64,6 +66,7 @@ extension UIViewController {
             }
         }
         AlertControllerConfiguration.accentColor = accent
+        AlertControllerConfiguration.accentForegroundColor = accentForeground
         present(alert, animated: true)
     }
 

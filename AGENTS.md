@@ -1262,7 +1262,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   page's bar. The sidebar reports what is picked through `onSelect`. The sidebar holds the current project's
   conversations (owner, 2026-10-19, 2026-10-21): its bar is the project's
   name as a plain navigation title at the leading edge (`.editor` style),
-  and a plus on the right that opens New Project as a form sheet. Under
+  and a plus on the right whose menu (owner, 2026-10-22) is New Chat, as
+  the toolbar's, and New Project, as a form sheet. Under
   the bar a search field, hidden until the list is pulled down, filters
   chats ("Search chats"). Its toolbar is New Chat on the left, with the
   Projects folder immediately left of Settings (a gear) on the right.
@@ -1271,7 +1272,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   a fixed order: General Chat, a separator, the project names, a separator,
   and All Projects, which opens the management sheet. Menu rows have no icons
   except the system's selected checkmark. The toolbar is
-  glass on iOS 26 and the toolbar's blur before it. With no project open
+  glass on iOS 26 and the toolbar's blur before it. Before iOS 26 the
+  accent is black in the light and white in the dark, the window's tint
+  and AlertController's (`AppAccent`; owner, 2026-10-22); with Liquid Glass
+  it stays the system's blue. With no project open
   the title is "Apelin" alone, with no subtitle (owner, 2026-10-21) and
   no menu, and New Chat starts a temporary
   conversation, as ChatGPT's temporary chat: it belongs to no project and
@@ -1360,7 +1364,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   reply cannot touch the incoming draft. More uses FlowDown's inline
   ControlPanel and GiantButton layout, with its camera, photo, file and web
   artwork; it closes on editing, send and conversation changes. The panel's
-  published state alone drives the plus/close icon. Attachments use its
+  published state alone drives the plus/close icon. Items dropped on the
+  composer's card (FlowDown's drop, tinted while a drag is over it) are
+  read as a pick from Files is, an image as a photo; a folder, a drag from
+  Apelin itself or a drop while a request covers the input is refused
+  (`ComposerDropPolicy`). Attachments use its
   horizontal preview layout, removal and Quick Look; camera, Photos and
   Files use system pickers, and web text uses FlowDown's ScrubberKit at its
   pinned revision. Live assistant text uses `MarkdownStreamView` with a stable message identity and immediate first fill, so only streaming additions fade in. Each turn is followed for at most a page (`TurnFollowing`): from its user message (a local row just sent, a message a run took, or one another conversation sent) the list follows new output only until that message reaches the top of the visible area, under the bar's blur, then holds still while the reply grows below and the downward chevron above the composer shows. The chevron scrolls to the latest content once and does not follow again; a drag ends following for the turn, and reaching the bottom does not bring it back: only the next turn does. A message a running turn will take later is shown once on Send and starts no turn until it is taken. The chat header uses a 1 pt private `variableBlur` CAFilter with an alpha-gradient mask on an owned `CABackdropLayer`, following VariableBlur; the old transcript opacity mask and the system top scroll-edge effect are removed. Drafts persist their attachment bytes; submitted and received files are stored in the chat workspace. User attachments sit above the bubble with the same trailing edge. Image previews, PDF first pages and supported Quick Look thumbnails use the same album layout as assistant images; text and other files use document cards with a filename and up to three lines of text, preserving single line breaks and collapsing consecutive blank lines in at most eight passes over the 220-character preview. Each card is capped at the smallest of its natural content width, its user bubble’s width and 350 pt; size labels are omitted. All user attachment previews stay within the maximum user-bubble width. Each image album and document card is at most 30% of the window height; album fitting preserves tile proportions. Card borders use the user bubble’s background tint. Attachment changes cross-fade, while ordinary reconfiguration does not. Presentation thumbnails are bounded and cached separately from the original attachment, which remains unchanged for sending, persistence and Quick Look. Ordinary blocks share a 16 pt gap. Unordered, ordered and task-list items use MarkdownView’s independent list spacing with no extra item gap, retaining the renderer’s 4 pt wrapped-line spacing; the transcript normalizer preserves this instead of replacing it with 16 pt. An empty body adds neither height nor spacing. Imports are bound to a chat and draft ID, so a late result cannot

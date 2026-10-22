@@ -382,6 +382,11 @@ harness:
 		-o "$$harness_dir/message-image-layout" && \
 	"$$harness_dir/message-image-layout" && \
 	xcrun --sdk macosx swiftc -swift-version 5 \
+		"$(ROOT_DIR)/Apelin/Interface/Chats/Composer/ComposerDropPolicy.swift" \
+		"$(ROOT_DIR)/Tests/ComposerDrop/main.swift" \
+		-o "$$harness_dir/composer-drop" && \
+	"$$harness_dir/composer-drop" && \
+	xcrun --sdk macosx swiftc -swift-version 5 \
 		"$(ROOT_DIR)/Apelin/Application/ExecutableWatch.swift" \
 		"$(ROOT_DIR)/Tests/ExecutableWatch/main.swift" \
 		-o "$$harness_dir/executable-watch" && \

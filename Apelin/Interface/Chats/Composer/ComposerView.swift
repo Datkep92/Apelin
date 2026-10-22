@@ -6,7 +6,8 @@ import UIKit
 
 /// The composer at the foot of a conversation: its bands stacked top to
 /// bottom on one rounded ground, the whole as tall as they want. Attachments
-/// sit above the text band; FlowDown's import panel expands below it.
+/// sit above the text band; FlowDown's import panel expands below it. Files
+/// dropped on the ground are attached (`ComposerView+Drop`).
 class ComposerView: ComposerSectionView {
     required init() {
         super.init()
@@ -26,6 +27,10 @@ class ComposerView: ComposerSectionView {
 
     let shadowContainer = UIView()
     private var glassEffectView: UIVisualEffectView?
+    /// Over the ground and everything on it, taking only drags; its colour
+    /// shows while one is over it.
+    let dropContainer = ComposerDropView()
+    let dropColorView = UIView()
 
     lazy var sectionSubviews: [ComposerSectionView] = [
         approvalSection,
@@ -71,6 +76,16 @@ class ComposerView: ComposerSectionView {
 
         applyShadowStyle()
         approvalSection.horizontalAdjustment = -ChatMarkdownView.blockSpacing
+
+        dropContainer.clipsToBounds = true
+        dropContainer.layer.cornerRadius = shadowContainer.layer.cornerRadius
+        dropContainer.layer.cornerCurve = .continuous
+        addSubview(dropContainer)
+        dropColorView.alpha = 0
+        dropColorView.backgroundColor = tintColor.withAlphaComponent(0.05)
+        dropContainer.addSubview(dropColorView)
+        dropContainer.addInteraction(UIDropInteraction(delegate: self))
+        defer { bringSubviewToFront(dropContainer) }
 
         for subview in sectionSubviews {
             addSubview(subview)
@@ -132,6 +147,8 @@ class ComposerView: ComposerSectionView {
             ? approvalSection.frame.insetBy(dx: approvalSection.horizontalAdjustment, dy: 0)
             : inputFrame
         updateShadowGeometry()
+        dropContainer.frame = shadowContainer.frame
+        dropColorView.frame = dropContainer.bounds
 
         var finalHeight = shadowContainer.frame.maxY
         var y = finalHeight + spacing
@@ -210,6 +227,13 @@ class ComposerView: ComposerSectionView {
         var draft = currentDraft
         draft.text = inputEditor.textView.text ?? ""
         return draft
+    }
+
+    /// The drop's tint, faint: the accent at 5%, the window's once the
+    /// composer is in it.
+    override func tintColorDidChange() {
+        super.tintColorDidChange()
+        dropColorView.backgroundColor = tintColor.withAlphaComponent(0.05)
     }
 
     /// The ground under the composer's bands: glass on iOS 26, a white card
@@ -334,6 +358,7 @@ extension ComposerView: ComposerInputView.Delegate {
     }
 
     func onComposerInputTextChanged(text: String) {
+        dropColorView.alpha = 0
         publishNewEditorStatus()
         if text.isEmpty {
             controlPanel.close()

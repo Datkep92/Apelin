@@ -23,5 +23,7 @@ extension ComposerView {
         /// the text.
         func onComposerPastedLongText(_ text: String)
         func onComposerPastedImage(_ image: UIImage)
+        /// Items dropped on the composer, each with a file to read.
+        func onComposerDropped(_ providers: [NSItemProvider])
     }
 }

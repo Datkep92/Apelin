@@ -584,6 +584,10 @@ extension ChatController: ComposerView.Delegate {
         importer()?.importImage(image)
     }
 
+    func onComposerDropped(_ providers: [NSItemProvider]) {
+        importer()?.drop(providers)
+    }
+
     func onComposerPreviewAttachment(_ attachment: ComposerAttachment) {
         do { try present(ComposerAttachmentPreview(attachment: attachment), animated: true) }
         catch { presentNotice(title: "Unable to Preview Attachment", message: error.readableMessage) }

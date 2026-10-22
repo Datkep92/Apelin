@@ -21,8 +21,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         // the progress card and the alerts carry the app's icon, as Fila's do
         AlertControllerConfiguration.alertImage = UIImage(named: "AppIconMark")
-        // the app's own tint, the system blue; the library's default is red
-        AlertControllerConfiguration.accentColor = .systemBlue
+        // the app's own accent (`AppAccent`); the library's default is red
+        AlertControllerConfiguration.accentColor = AppAccent.color(glass: .systemBlue)
+        AlertControllerConfiguration.accentForegroundColor = AppAccent.foreground(glass: .white)
         ConsoleLaunch.start()
         return true
     }
@@ -78,6 +79,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     ) {
         guard let scene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: scene)
+        window.tintColor = AppAccent.windowTint
         window.rootViewController = RootInterfaceController()
         window.makeKeyAndVisible()
         self.window = window

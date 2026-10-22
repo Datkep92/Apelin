@@ -5,7 +5,8 @@ import UIKit
 /// The sidebar: beside the detail column when the window is wide, a
 /// drawer under it when narrow (`RootInterfaceController`). Its bar: the open project's name as a plain title,
 /// a folder menu that switches projects or opens the picker, and
-/// a plus that makes a new project, with a search field under it that a
+/// a plus whose menu starts a conversation or makes a new project,
+/// with a search field under it that a
 /// pull on the list brings out; the button that hides the sidebar is on
 /// the detail column's bar. With no project open the title is Apelin's,
 /// with no menu, and a new conversation is a temporary one, kept apart from
@@ -144,6 +145,23 @@ final class SidebarController: UIViewController {
         return item
     }()
 
+    /// The plus: a new conversation, as the toolbar's New Chat starts one,
+    /// or a new project.
+    private lazy var newMenuButton: UIBarButtonItem = {
+        let newChat = UIAction(
+            title: String(localized: "New Chat"),
+            image: UIImage(systemName: "square.and.pencil"),
+        ) { [weak self] _ in self?.startNewChat() }
+        let newProject = UIAction(
+            title: String(localized: "New Project"),
+            image: UIImage(systemName: "folder.badge.plus"),
+        ) { [weak self] _ in self?.openNewProject() }
+        let item = UIBarButtonItem(image: UIImage(systemName: "plus"), menu: UIMenu(children: [newChat, newProject]))
+        item.preferredMenuElementOrder = .fixed
+        item.accessibilityLabel = String(localized: "New")
+        return item
+    }()
+
     /// The system's inset grouped list, cells, headers and selection as
     /// they come.
     private let tableView = FirstFillTableView(frame: .zero, style: .insetGrouped).then {
@@ -212,13 +230,8 @@ final class SidebarController: UIViewController {
         // under the bar, hidden until the list is pulled down
         navigationItem.preferredSearchBarPlacement = .stacked
         navigationItem.hidesSearchBarWhenScrolling = true
-        // New Project stays in the top bar; project switching lives below.
-        navigationItem.rightBarButtonItems = [
-            UIBarButtonItem(
-                image: UIImage(systemName: "plus"),
-                primaryAction: UIAction { [weak self] _ in self?.openNewProject() },
-            ).then { $0.accessibilityLabel = String(localized: "New Project") },
-        ]
+        // Making things stays in the top bar; project switching lives below.
+        navigationItem.rightBarButtonItems = [newMenuButton]
         showProject()
         refresh()
         NotificationCenter.default.addObserver(

@@ -1,5 +1,6 @@
 // Copyright (c) 2026 OwnGoal Studio. MIT; see LICENSE beside this file.
-// Copied from Irisin; only app names, localization calls and flow callbacks differ.
+// Copied from Irisin; only app names, localization calls, flow callbacks and the
+// accent before iOS 26 (`AppAccent`) differ.
 //
 //  WelcomeActionBar.swift
 //  Irisin
@@ -82,7 +83,7 @@ final class WelcomeActionBar: UIView {
         var configuration = UIButton.Configuration.filled()
         configuration.cornerStyle = .large
         configuration.baseBackgroundColor = WelcomeStyle.accent
-        configuration.baseForegroundColor = .white
+        configuration.baseForegroundColor = WelcomeStyle.accentForeground
         configuration.title = title
         button.configuration = configuration
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
