@@ -41,6 +41,8 @@ final class ChatMarkdownView: MarkdownStreamView {
         // Inline code is quieter than the text around it: half its colours'
         // opacity. Code blocks have their own background and are left alone.
         theme.colors.codeBackground = Self.halved(theme.colors.codeBackground)
+        // Code blocks and table cells copy this configuration, so text
+        // streamed into them is revealed the same way.
         animator = LTXFadeInAnimator(configuration: Self.reveal)
         contextViewFadeDuration = Self.revealDuration
     }

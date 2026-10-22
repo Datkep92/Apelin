@@ -1,5 +1,5 @@
 {
-  "originHash" : "cda4c7f55e7028f7f2a86273450e7b613f5debdc247325bd139d8089e207baf4",
+  "originHash" : "e0825d83104a5d9dfe69c2f0fe56ce3ffd447fb0fc02f71bb8792cf3247c38b8",
   "pins" : [
     {
       "identity" : "alertcontroller",
@@ -113,8 +113,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Lakr233/Litext",
       "state" : {
-        "revision" : "87b33a002ae3539e8ec7d080abe86649a98e1c79",
-        "version" : "3.6.4"
+        "revision" : "684b4a911be9d0b07ddd0303d22a72f6ae522a03",
+        "version" : "3.6.5"
       }
     },
     {
@@ -131,8 +131,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Lakr233/MarkdownView",
       "state" : {
-        "revision" : "00bcbc12a58601b407f379deb06791fe02fa1e31",
-        "version" : "4.8.3"
+        "revision" : "3941f1857005d648f452fd1bfbdbe01d37961fd2",
+        "version" : "4.8.5"
       }
     },
     {

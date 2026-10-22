@@ -1041,7 +1041,7 @@
 			repositoryURL = "https://github.com/Lakr233/Litext";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 3.6.4;
+				minimumVersion = 3.6.5;
 			};
 		};
 		A20000000000000000000004 /* XCRemoteSwiftPackageReference "MarkdownView" */ = {
@@ -1049,7 +1049,7 @@
 			repositoryURL = "https://github.com/Lakr233/MarkdownView";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.8.3;
+				minimumVersion = 4.8.5;
 			};
 		};
 		A20000000000000000000006 /* XCRemoteSwiftPackageReference "libghostty-spm" */ = {
