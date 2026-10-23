@@ -1600,3 +1600,18 @@ from the right. Japanese and English screens were translated and unclipped,
 a chat 0.1.1 had saved as "New Chat" showed in the current language, and on
 the iPhone a message to the model was answered. No Apelin, apelind or worker
 process left a crash report.
+
+## Agent prompt and skills for imported repositories (2026-10-23, build 23)
+
+The roothide build 23 of `446b337` went onto the iOS 26.4 iPhone vphone over
+0.1.2 build 19 through `irisin-cli install --yes`; the app registered and
+came up as the verified foreground app, and the installed apelin-agent
+carries the project-description skill. No agent session was run on it, and
+`i1-smoke` was not: the guest sits behind its host's NAT, which has no
+Python for `Scripts/device.py`. A probe as mobile checked what the
+environment section now states: git and ldid are on the search path; make,
+cmake, ninja, perl, python3 and xcrun are not; sed is GNU 4.9 and plutil is
+not Apple's. The bootstrap's shell sees the bootstrap as `/` and the real
+root as `/rootfs`: with the working directory at the data folder's real
+path, `pwd -P` and `realpath` printed `/var/mobile/Documents/…`, which names
+the system's folder to Apple's compilers.
