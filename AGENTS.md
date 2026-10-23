@@ -866,10 +866,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   default, model default `claude-sonnet-5.5`), reasoning effort, service
   tier, approval mode, an optional
   first `prompt` and `closeWhenFinished` (the task ends with the first run,
-  for headless runs) ride on it. kwwk's loop puts no tier on a request, so
-  the session runs its agent on a stream of its own (`ServiceTierStream`)
-  that sets the tier last chosen; a stream of its own leaves kwwk's native
-  compaction off unless one is named, so it names kwwk's. Prompt, steer, abort, approve and close go
+  for headless runs) ride on it. The tier last chosen is kwwk's
+  `AgentState.serviceTier` (kwwk 0.1.100), which its loop sends with every
+  turn; the agent keeps kwwk's own stream, so native compaction stays on.
+  Prompt, steer, abort, approve and close go
   to that session's running worker and to no other. Task events: `prompt`, `title` {text},
   `projectNameSuggested` {name} (only a concrete project intent),
   `steer`, `queued` {id, text, attachments} (a message sent while a run

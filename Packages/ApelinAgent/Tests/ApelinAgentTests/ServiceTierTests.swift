@@ -4,8 +4,8 @@ import KWWKAgent
 import KWWKAI
 import Testing
 
-/// kwwk's loop sets no tier on a request, so the session's own stream puts
-/// in the one it was opened with or last configured to.
+/// Every turn's request carries the tier the session was opened with or
+/// last configured to, through kwwk's `AgentState.serviceTier`.
 @Suite("Service tier")
 struct ServiceTierTests {
     @Test(.timeLimit(.minutes(1)))
@@ -44,12 +44,6 @@ struct ServiceTierTests {
         await session.waitForIdle()
         #expect(await seen.all == [.priority, .ultrafast, nil])
         await session.close()
-    }
-
-    @Test
-    func `the session's own stream keeps kwwk's native compaction`() {
-        #expect(ServiceTierStream.autoCompact.config.nativeCompaction != nil)
-        #expect(ServiceTierStream.autoCompact.threshold == AgentAutoCompactOptions().threshold)
     }
 }
 

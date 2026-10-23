@@ -1,6 +1,10 @@
 import ApelinProtocol
 import Foundation
 
+extension Notification.Name {
+    static let enabledModelsChanged = Notification.Name("wiki.qaq.apelin.enabledModelsChanged")
+}
+
 /// A device preference, separate from the provider's credentials and catalog.
 enum EnabledModels {
     private static func key(_ provider: AgentProvider) -> String {
@@ -15,12 +19,14 @@ enum EnabledModels {
         UserDefaults.standard.set(models.sorted(), forKey: key(provider))
         UserDefaults.standard.set(custom.sorted(), forKey: "customModels.\(provider.rawValue)")
         UserDefaults.standard.set(hidden.sorted(), forKey: "hiddenModels.\(provider.rawValue)")
+        NotificationCenter.default.post(name: .enabledModelsChanged, object: nil)
     }
 
     static func remove(for provider: AgentProvider) {
         UserDefaults.standard.removeObject(forKey: key(provider))
         UserDefaults.standard.removeObject(forKey: "customModels.\(provider.rawValue)")
         UserDefaults.standard.removeObject(forKey: "hiddenModels.\(provider.rawValue)")
+        NotificationCenter.default.post(name: .enabledModelsChanged, object: nil)
     }
 
     static func customIDs(for provider: AgentProvider) -> [String] {

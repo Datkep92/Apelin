@@ -126,6 +126,12 @@ final class ChatController: UIViewController {
         )
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(enabledModelsChanged),
+            name: .enabledModelsChanged,
+            object: nil,
+        )
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(withdrawNotifications),
             name: UIApplication.didBecomeActiveNotification,
             object: nil,
@@ -438,6 +444,11 @@ final class ChatController: UIViewController {
         composer.modelBar.setModelName(selection?.model)
         composer.modelBar.setEfforts(selection?.supportedEfforts ?? [], selected: selection?.effort)
         composer.modelBar.setTiers(selection?.supportedTiers ?? [], selected: selection?.tier)
+    }
+
+    /// A model disabled in Settings stops being the one the next message uses.
+    @objc private func enabledModelsChanged() {
+        ensureModelSelection()
     }
 
     /// The list scrolls clear of the composer, and of the keyboard under it.
