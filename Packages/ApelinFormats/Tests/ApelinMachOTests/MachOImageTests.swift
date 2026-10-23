@@ -90,6 +90,27 @@ struct MachOImageTests {
         #expect(inspection.flags.contains("PIE"))
         #expect(inspection.signingIdentifier == nil)
         #expect(inspection.platform == .iOS)
+        #expect(inspection.dyldInfo == nil, "chained fixups")
+    }
+
+    /// The same flat lookup through two linkers: CLT 15.3's threaded binds
+    /// keep each slot's signature, CLT 15.0's plain opcodes bind them unsigned.
+    @Test func `arm 64 e binds that keep or drop pointer signatures`() throws {
+        let threaded = try MachOImage(contentsOfFile: Self.fixture("ios-arm64e-threaded-binds"))
+        let threadedSlice = try #require(threaded.slices.first)
+        let kept = try #require(try threaded.inspect(threadedSlice).dyldInfo)
+        #expect(kept.bindsAreThreaded)
+        #expect(kept.rebaseByteCount == 0)
+        #expect(!kept.dropsPointerSignatures)
+
+        let plain = try MachOImage(contentsOfFile: Self.fixture("ios-arm64e-plain-binds"))
+        let slice = try #require(plain.slices.first)
+        #expect(slice.architecture == "arm64e")
+        let dropped = try #require(try plain.inspect(slice).dyldInfo)
+        #expect(!dropped.bindsAreThreaded)
+        #expect(dropped.rebaseByteCount > 0)
+        #expect(dropped.bindByteCount > 0)
+        #expect(dropped.dropsPointerSignatures)
     }
 
     @Test func `every source reads the same`() throws {

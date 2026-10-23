@@ -342,9 +342,30 @@ public final class BuildPipeline: @unchecked Sendable {
             argv += produced[arch] ?? []
             argv += ["-o", binary]
             try execute(executable, argv, label: "ld")
+            if arch == .arm64e {
+                try requirePointerSignatures(binary, product: product)
+            }
             out[arch] = binary
         }
         slices[product.id] = out
+    }
+
+    /// An arm64e slice linked with plain dyld opcodes — CLT 15.0's linker
+    /// writes one under `-undefined dynamic_lookup` or `suppress` — has every
+    /// signed pointer bound unsigned and dies on the first it uses, a
+    /// constant string's class or an imported call. Refused at its link
+    /// rather than found on the device.
+    private func requirePointerSignatures(_ binary: String, product: ProjectDocument.Product) throws {
+        let image = try MachOImage(contentsOfFile: binary)
+        for slice in image.slices {
+            guard try image.inspect(slice).dyldInfo?.dropsPointerSignatures == true else { continue }
+            throw BuildFailure(
+                "\(product.id): the linker bound the \(slice.architecture) slice without pointer authentication, "
+                    + "so it would crash when it runs. CLT 15.0's linker does this with -undefined dynamic_lookup "
+                    + "or suppress: name each symbol left to load time with -Wl,-U,_symbol instead, or link with "
+                    + "another toolchain.",
+            )
+        }
     }
 
     /// The product's file: `<name>.dylib` for a library, `<name>` otherwise.

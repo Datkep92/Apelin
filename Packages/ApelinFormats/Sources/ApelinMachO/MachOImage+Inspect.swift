@@ -4,7 +4,7 @@
 // and minimum versions, rpaths, entry point, symbol table, encryption) are
 // decoded by hand with the same checks, so the module keeps no dependency and
 // may be linked by a privileged process. The bounds checks and the signing
-// identity reader are Fila's.
+// identity reader are Fila's; the dyld information is Apelin's own.
 
 import Foundation
 
@@ -30,12 +30,37 @@ extension MachOImage {
         public var symbolCount: UInt32?
         public var encryptionMethod: UInt32?
         public var encryptedByteCount: UInt32?
+        /// `LC_DYLD_INFO` or `LC_DYLD_INFO_ONLY`; absent with chained fixups.
+        public var dyldInfo: DyldInfo?
         /// The code directory's identifier (`CFBundleIdentifier` or the file
         /// name for an ad-hoc signature).
         public var signingIdentifier: String?
         public var teamIdentifier: String?
         /// `CS_ADHOC` on the code directory.
         public var isAdHoc: Bool?
+    }
+
+    /// The opcode streams dyld rebases and binds a slice by when it has no
+    /// chained fixups.
+    public struct DyldInfo: Sendable, Hashable {
+        public var rebaseByteCount: UInt32
+        public var bindOffset: UInt32
+        public var bindByteCount: UInt32
+        public var lazyBindByteCount: UInt32
+        /// arm64e's threaded binds: the stream starts with
+        /// `BIND_OPCODE_THREADED`, and every slot keeps the signature the
+        /// linker encoded in it.
+        public var bindsAreThreaded = false
+
+        /// Whether dyld writes a plain pointer over an arm64e slot whose
+        /// signature the linker encoded in it, by a rebase or by a bind that
+        /// is not threaded: a constant string's class, an imported function
+        /// and every other signed pointer then reach the code unsigned. CLT
+        /// 15.0's linker writes such a slice under `-undefined
+        /// dynamic_lookup`. Meaningless for any other architecture.
+        public var dropsPointerSignatures: Bool {
+            rebaseByteCount > 0 || ((bindByteCount > 0 || lazyBindByteCount > 0) && !bindsAreThreaded)
+        }
     }
 
     /// One load command: its `cmd` value, the `LC_*` name when known, and its
@@ -103,8 +128,8 @@ extension MachOImage {
 
     /// Walks the slice's load commands again, decoding the ones a properties
     /// screen or a build check asks about. Only the header and the command
-    /// region are read, plus the code directory's fixed fields; page hashes
-    /// never are.
+    /// region are read, plus the code directory's fixed fields and the first
+    /// bind opcode; page hashes never are.
     public func inspect(_ slice: Slice) throws -> Inspection {
         guard slices.contains(slice) else { throw FormatFailure.damaged("this architecture is not in the file") }
         let big = slice.isBigEndian
@@ -141,6 +166,10 @@ extension MachOImage {
             cursor += size
         }
         guard cursor == data.count else { throw FormatFailure.damaged("its load commands do not match the header") }
+        if let info = result.dyldInfo, info.bindByteCount > 0 {
+            let first = try reader.read(at: slice.offset + Int64(info.bindOffset), count: 1)
+            result.dyldInfo?.bindsAreThreaded = first.first.map { $0 & 0xF0 == 0xD0 } ?? false
+        }
         try readSigningIdentity(slice, into: &result)
         return result
     }
@@ -154,6 +183,7 @@ extension MachOImage {
         0x24: 16, 0x25: 16, 0x2F: 16, 0x30: 16, // legacy minimum versions
         0x32: 24, 0x2A: 16, 0x8000_0028: 24, // build/source versions, entry point
         0x8000_001C: 12, // rpath
+        0x22: 48, 0x8000_0022: 48, // dyld info
     ]
 
     private static func decode(_ command: UInt32, _ bytes: Data, slice: Slice, into result: inout Inspection) throws {
@@ -238,6 +268,22 @@ extension MachOImage {
                 throw FormatFailure.damaged("a runpath entry is invalid")
             }
             try result.runpaths.append(terminatedString(bytes, at: Int(relative)))
+        case 0x22, 0x8000_0022:
+            // Rebase, bind, weak bind, lazy bind and export streams, each an
+            // offset and a size.
+            let limit = UInt64(slice.byteCount)
+            for field in stride(from: 8, to: 48, by: 8) {
+                let offset = try UInt64(u32(field)), size = try UInt64(u32(field + 4))
+                guard offset <= limit, size <= limit - offset else {
+                    throw FormatFailure.damaged("its dyld information is outside this architecture")
+                }
+            }
+            result.dyldInfo = try DyldInfo(
+                rebaseByteCount: u32(12),
+                bindOffset: u32(16),
+                bindByteCount: u32(20),
+                lazyBindByteCount: u32(36),
+            )
         default:
             break
         }

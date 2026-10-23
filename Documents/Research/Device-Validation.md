@@ -1640,3 +1640,27 @@ console scripts dropped in the inbox (the app quit first through vphoned's
 The Strict-mode approval of an agent's workspace build was not exercised on
 the device (no agent session ran); the Mac covers it (the session host's
 checks and `ExternalBuildToolTests`).
+
+## arm64e constant strings and pointer authentication (2026-10-23)
+
+A report said Apelin's arm64e builds left constant strings without their
+pointer authentication. On the iOS 26.4 iPhone vphone (CLT 27.0, SDK 26.4,
+roothide), the pipeline's own products with `@"…"` constants — an agent's
+tweak and the UIKit app template — and a test dylib compiled, linked and
+stripped there with the registered tools all bind each `__cfstring` class
+as `auth-bind … (div=0x6AE1 ad=1 key=DA)`, the same as Xcode's. On the Mac,
+the clang and ld of CLT 14.2, 15.0, 15.3, 16.4 and 27.0 (Apple's packages,
+run as they are) emit the authenticated relocation for every constant
+string and link it signed, with identical fixups section by section for
+classes, categories, blocks, function pointer tables and C++ virtual
+tables, and for weak frameworks and deployment targets 13.0–16.0.
+
+The one exception is CLT 15.0's linker given `-undefined dynamic_lookup`
+or `suppress`, for a dylib, a bundle or an executable alike: it writes
+plain dyld opcodes, so every signed pointer is bound bare. On the vphone,
+a dylib returning a constant string answered `length` when linked
+normally and was killed (signal 9) on that first message when linked with
+`-undefined dynamic_lookup`; CLT 15.3's threaded binds under the same
+flag ran. apelin-build now refuses such a slice at its link; Apelin's
+templates and steps never pass the flag, so only a `linkFlags` entry or a
+workspace's own script can.

@@ -2077,6 +2077,18 @@ adding a dated record beside it.
   and the package's `Package.resolved` both pin 2.103.0. Stay below 2.104.0
   until NIO's noncopyable conformances work on the deployment floor, and
   check again on an iOS 16 or 17 device before raising it.
+- **CLT 15.0's linker bound arm64e without pointer authentication.** Given
+  `-undefined dynamic_lookup` (or `suppress`), its ld writes an arm64e
+  slice's fixups as plain dyld opcodes, not chained fixups: the signature
+  stays encoded in each slot, and dyld overwrites it with a bare pointer.
+  A constant string's class and every import arrive unsigned; on the iOS
+  26.4 iPhone vphone the first message to an `@"…"` constant killed the
+  process. CLT 14.2, 15.3 (threaded binds), 16.4 and 27.0 keep the
+  signatures, none of the five drops one in an ordinary link, and Xcode
+  27's ld switches such a link to chained fixups itself. apelin-build
+  refuses a slice like that at its link (`DyldInfo.dropsPointerSignatures`
+  in ApelinMachO); a symbol left to load time is named with
+  `-Wl,-U,_symbol`, which every release links signed.
 
 
 ## Live chat and project UI (2026-10-21)

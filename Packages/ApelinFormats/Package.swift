@@ -48,7 +48,7 @@ let package = Package(
         .testTarget(
             name: "ApelinMachOTests",
             dependencies: ["ApelinMachO"],
-            exclude: ["Fixtures/build.sh", "Fixtures/fixture.c"],
+            exclude: ["Fixtures/build.sh", "Fixtures/fixture.c", "Fixtures/pointer-auth.c"],
             resources: [.copy("Fixtures/binaries")],
         ),
         .testTarget(

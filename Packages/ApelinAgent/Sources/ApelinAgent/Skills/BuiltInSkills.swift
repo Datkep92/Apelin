@@ -103,6 +103,11 @@ enum BuiltInSkills {
         - The build links the SDK's public frameworks only. Reach a private
           class at run time with `objc_getClass`, and a private function with
           `dlopen` and `dlsym`.
+        - Never link with `-undefined dynamic_lookup` or `suppress`, in
+          `linkFlags` or a build script: CLT 15.0's linker then binds an
+          arm64e slice without pointer authentication, and it crashes on its
+          first constant string or imported call (the build refuses one).
+          Leave a symbol to load time with `-Wl,-U,_symbol`, one per symbol.
         - An imported repository stays a workspace: its Theos Makefile is
           replaced by a build script of its own that compiles the rewritten
           sources with the toolchain (the external-build skill), reading
