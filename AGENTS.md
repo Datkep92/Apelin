@@ -2118,7 +2118,24 @@ approval mode. Skills are pi's progressive disclosure: the prompt lists each
 built-in and user skill (`~/Documents/wiki.qaq.apelin/skills`) by name and
 description only, and `read_skill{name, file?}` reads the body, or a file in a
 user skill's own folder (no link out of it), on demand; it is a read preset.
+A built-in skill may carry files of its own (`SkillDocument.files`):
+`project-description` is every member of `apelin-project.json`, the macros the
+build defines and what asks the user, with the embedded schema as its file
+`apelin-project.schema.json` (`ProjectValidation.schemaText`); a test fails
+when the schema gains a member the guide never names. `tweak-development`
+says how to live beside other tweaks (hooks that chain, `static` names,
+prefixed added methods and classes) and that Theos is not supported (owner,
+2026-10-23): a Theos tweak's Logos is rewritten as plain Objective-C in the
+template's style, never built with Theos, which is never installed.
 Skills, memory and the project instructions are read again for every prompt.
+
+A local tool's empty optional argument — `null`, `""`, `[]` or `{}` — is
+dropped before the tool, the gate or the host sees it (`ToolArguments`), as a
+model fills an optional parameter it means to leave out; a required one is
+left for the tool to refuse, and `git_set_author`'s empty fields, which clear
+them, are kept. run_code refuses two of `argv`, `command` and `script` at
+once, and a memory id the current revision lacks is named as a wrong id,
+not as a change to memory.
 
 `# Environment` (`Session/EnvironmentPrompt.swift`, one call site in the
 prompt) states the device — `hw.machine`, arm64e, the iOS version and the
@@ -2129,7 +2146,12 @@ iOS, the newest SDK it reads, its self-test count, default / this project's /
 prepared, its tool directory) and SDK (ID, version, path, the same marks, and
 "too new" for the prepared toolchain), a binding this device lacks, and that
 run_code and the terminal already have the prepared toolchain and SDK, so the
-model neither probes nor sets up again what is installed. It is read again
+model neither probes nor sets up again what is installed. It also says that
+run_code needs no login shell (whose profile builds `PATH` again), on roothide
+that a `/rootfs/…` path a bootstrap tool prints is no path the toolchain's
+compilers can open, and which of cmake, git, ldid, make, ninja, perl, python3
+and xcrun are on run_code's search path (`DevelopmentEnvironment.searchPath`,
+the host's own list). It is read again
 with the rest and holds nothing that changes unless the environment does —
 no time, size or duration, everything sorted — so prompt caching survives.
 A project's conversation gets the project once, on the message that starts

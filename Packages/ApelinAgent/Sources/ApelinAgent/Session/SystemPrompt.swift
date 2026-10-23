@@ -63,7 +63,7 @@ enum SystemPrompt {
         if buildSystem == .external {
             sections.append("""
             # Workspace
-            This workspace's build system is external: Apelin's build tool has no build description for it. Build with the project's own tools through run_code (make, cmake, swift build, its scripts). Once you know how to build, run and test it, write that into AGENTS.md at the project root; later sessions read it, so finishing the setup is yours. When the user gives a repository URL, import it into this workspace with git_clone. If that fails (authentication, files in the way), say why plainly; when a token is needed, ask the user for one and save it with git_save_credential, or have them add it in Settings ▸ Git.
+            This workspace's build system is external: Apelin's build tool has no build description for it. Build with the project's own tools through run_code (make, cmake, swift build, its scripts). Theos is not available and must not be installed: a Theos tweak is rewritten as plain Objective-C, as the tweak-development skill says. Once you know how to build, run and test it, write that into AGENTS.md at the project root; later sessions read it, so finishing the setup is yours. When the user gives a repository URL, import it into this workspace with git_clone. If that fails (authentication, files in the way), say why plainly; when a token is needed, ask the user for one and save it with git_save_credential, or have them add it in Settings ▸ Git.
             """)
         }
         if !environment.isEmpty {

@@ -13,6 +13,11 @@ import KWWKAI
 /// matches. So `ls; rm -rf ~` is never "an `ls`".
 public enum CommandClassifier {
     public static func classify(_ arguments: JSONValue) throws -> RunCodeInvocation {
+        // Two forms that disagree would run whichever came first here, not
+        // necessarily the one the model meant.
+        if case let .object(fields) = arguments, ["argv", "command", "script"].count(where: { fields[$0] != nil }) > 1 {
+            throw ToolArgumentError("Pass one of argv, command or script, not several.")
+        }
         if let argv = arguments.argStrings("argv") {
             guard let first = argv.first, !first.isEmpty else { throw ToolArgumentError("argv is empty") }
             return .argv(argv)

@@ -89,6 +89,12 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
         }
     }
 
+    /// Optional parameters whose empty value is an instruction, kept by
+    /// `ToolArguments.normalized`: an empty author field clears it.
+    var argumentsWhereEmptyMeansSomething: Set<String> {
+        self == .gitSetAuthor ? ["name", "email"] : []
+    }
+
     /// The conversation tools, which may name another project.
     public var isConversation: Bool {
         switch self {
@@ -497,6 +503,44 @@ enum ToolReason {
         guard case var .object(fields) = arguments else { return arguments }
         fields[key] = nil
         return .object(fields)
+    }
+}
+
+/// Models fill optional parameters with `null`, `""`, `[]` or `{}` when they
+/// mean to leave them out, and a tool that read those as given took the
+/// wrong branch: `read_skill` with `file: ""` read a file instead of the
+/// instructions, `run_code` with `argv: []` refused a command beside it,
+/// `memory_save` with `id: ""` updated a record that does not exist. So an
+/// empty optional argument is dropped before the tool, the gate or the host
+/// sees it. A required one is left for the tool to refuse.
+enum ToolArguments {
+    static func normalized(_ arguments: JSONValue, for tool: AgentToolName) -> JSONValue {
+        guard case var .object(fields) = arguments else { return arguments }
+        let required = requiredKeys(tool.parameters).union(tool.argumentsWhereEmptyMeansSomething)
+        for (key, value) in fields where !required.contains(key) && isEmpty(value) {
+            fields[key] = nil
+        }
+        return .object(fields)
+    }
+
+    private static func requiredKeys(_ schema: JSONValue) -> Set<String> {
+        guard case let .object(fields) = schema, case let .array(keys)? = fields["required"] else { return [] }
+        return Set(keys.compactMap { key in
+            if case let .string(name) = key {
+                return name
+            }
+            return nil
+        })
+    }
+
+    private static func isEmpty(_ value: JSONValue) -> Bool {
+        switch value {
+        case .null: true
+        case let .string(string): string.isEmpty
+        case let .array(values): values.isEmpty
+        case let .object(object): object.isEmpty
+        default: false
+        }
     }
 }
 

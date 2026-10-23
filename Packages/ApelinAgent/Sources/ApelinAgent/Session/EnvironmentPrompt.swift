@@ -68,10 +68,25 @@ enum EnvironmentPrompt {
         var device: DeviceFacts
         var installRoot: String?
         var home: String
+        /// Which of `probedCommands` run_code finds on its search path; nil
+        /// when nobody looked.
+        var commandsFound: Set<String>?
 
         var environment: DevelopmentEnvironment {
             DevelopmentEnvironment.resolve(registered, binding: binding)
         }
+    }
+
+    /// Commands a repository's build scripts reach for, which a model would
+    /// otherwise probe for, or assume from a Mac.
+    static let probedCommands = ["cmake", "git", "ldid", "make", "ninja", "perl", "python3", "xcrun"]
+
+    /// Which of `probedCommands` are executables on run_code's search path.
+    static func commandsFound(installRoot: String) -> Set<String> {
+        let directories = DevelopmentEnvironment.searchPath(installRoot: installRoot)
+        return Set(probedCommands.filter { name in
+            directories.contains { FileManager.default.isExecutableFile(atPath: $0 + "/" + name) }
+        })
     }
 
     /// Read from the registries in the data folder and, in a project, its
@@ -85,6 +100,7 @@ enum EnvironmentPrompt {
             device: device,
             installRoot: configuration.installRoot,
             home: configuration.dataRoot.home.path,
+            commandsFound: configuration.installRoot.map(commandsFound(installRoot:)),
         )
     }
 
@@ -92,14 +108,27 @@ enum EnvironmentPrompt {
         let environment = inputs.environment
         var lines = ["# Environment"]
         lines.append(deviceLine(inputs.device))
-        if let installRoot = inputs.installRoot {
-            let bootstrap = BuildBootstrap.resolve(installRoot: installRoot, home: inputs.home)
+        let bootstrap = inputs.installRoot.map { BuildBootstrap.resolve(installRoot: $0, home: inputs.home) }
+        if let installRoot = inputs.installRoot, let bootstrap {
             lines.append("- Bootstrap: \(bootstrap.rawValue), install root \(installRoot).")
         }
         lines += toolchainLines(inputs, environment: environment)
         lines += sdkLines(inputs, environment: environment)
         lines += bindingLines(inputs, environment: environment)
         lines.append(preparedLine(inputs, environment: environment))
+        lines.append(
+            "- run_code's environment is already set: run a command directly or with `bash -c`, never through a login shell (`bash -l`, `sh -l`), whose profile builds PATH again.",
+        )
+        if bootstrap == .roothide {
+            // The bootstrap's own tools see the real root as /rootfs; the
+            // toolchain's compilers are Apple's and see it as /.
+            lines.append(
+                "- On roothide the bootstrap's shell and tools see the real root as `/rootfs`, so `pwd -P`, `realpath` and the like can print a `/rootfs/…` path the toolchain's compilers cannot open: give the compilers paths relative to the working directory.",
+            )
+        }
+        if let found = inputs.commandsFound {
+            lines.append(commandsLine(found))
+        }
         // The records are files mobile can write: whatever they hold stays
         // on its line.
         return lines.map(ProjectTree.printable).joined(separator: "\n")
@@ -191,6 +220,18 @@ enum EnvironmentPrompt {
             lines.append("- This project binds SDK \(id), which is not registered here: its builds fail until it is imported or the project is bound to a registered one.")
         }
         return lines
+    }
+
+    private static func commandsLine(_ found: Set<String>) -> String {
+        let missing = probedCommands.filter { !found.contains($0) }
+        let listed = found.isEmpty
+            ? "none of " + probedCommands.joined(separator: ", ")
+            : found.sorted().joined(separator: ", ")
+        var line = "- Also on run_code's PATH: \(listed)."
+        if !found.isEmpty, !missing.isEmpty {
+            line += " Not installed: " + missing.joined(separator: ", ") + "."
+        }
+        return line + " The bootstrap's other commands are not macOS's (GNU sed, a different plutil): read a Mac build script's commands before running it, and say what is missing rather than looking for it."
     }
 
     private static func preparedLine(_ inputs: Inputs, environment: DevelopmentEnvironment) -> String {

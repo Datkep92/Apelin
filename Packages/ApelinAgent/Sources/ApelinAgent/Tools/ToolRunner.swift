@@ -108,6 +108,10 @@ actor ToolRunner {
         cancellation: CancellationHandle?,
         mcp: (@Sendable (JSONValue) async throws -> AgentToolResult)?,
     ) async throws -> AgentToolResult {
+        let arguments = switch tool {
+        case let .local(name): ToolArguments.normalized(arguments, for: name)
+        case .mcp: arguments
+        }
         // Before the gate: a workspace has no build description to approve.
         if case .local(.build) = tool, ProjectBuildSystem.read(in: root) == .external {
             throw ToolDeniedError(message: ProjectBuildSystem.externalBuildRefusal)

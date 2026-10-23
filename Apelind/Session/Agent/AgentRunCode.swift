@@ -50,16 +50,6 @@ enum AgentRunCode {
         running.stopAll()
     }
 
-    /// The directories a bare executable name is looked up in, bootstrap first.
-    private static func searchPath(installRoot: String) -> [String] {
-        let prefix = Self.prefix(for: installRoot)
-        var directories = ["\(prefix)/usr/bin", "\(prefix)/bin", "\(prefix)/usr/local/bin"]
-        if !prefix.isEmpty {
-            directories += ["/usr/bin", "/bin"]
-        }
-        return directories
-    }
-
     /// What a bootstrap path is spelled after: nothing when the root is `/`.
     private static func prefix(for installRoot: String) -> String {
         installRoot == "/" ? "" : installRoot
@@ -69,7 +59,7 @@ enum AgentRunCode {
         guard !name.isEmpty, !name.contains("/"), !CanonicalPath.containsNUL(name), name != ".", name != ".." else {
             throw ApelinError(.badRequest, "run_code takes an executable name, not a path")
         }
-        for directory in searchPath(installRoot: installRoot) {
+        for directory in DevelopmentEnvironment.searchPath(installRoot: installRoot) {
             guard let path = CanonicalPath.resolve(directory + "/" + name) else { continue }
             var metadata = stat()
             if stat(path, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFREG, metadata.st_mode & 0o111 != 0 {
@@ -170,7 +160,7 @@ enum AgentRunCode {
         installRoot: String,
         home: String,
     ) -> [String] {
-        let base = searchPath(installRoot: installRoot)
+        let base = DevelopmentEnvironment.searchPath(installRoot: installRoot)
         let common = [
             "HOME=\(home)",
             "LANG=en_US.UTF-8",

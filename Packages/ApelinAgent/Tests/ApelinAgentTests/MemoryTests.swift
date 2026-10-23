@@ -21,7 +21,9 @@ struct MemoryTests {
         #expect(snapshot.records.first?.projectID == home.project.id)
         let other = MemoryTools(store: store, projectID: "another-project")
         #expect(try other.list().records.isEmpty)
-        #expect(throws: MemoryStoreError.changed) { try other.delete(["id": .string(record.id), "revision": .string(snapshot.revision)]) }
+        // Another project's record is not one this project can name: a wrong
+        // id, not a change to memory.
+        #expect(throws: ToolArgumentError.self) { try other.delete(["id": .string(record.id), "revision": .string(snapshot.revision)]) }
         let stale = snapshot
         snapshot = try tools.delete(["id": .string(record.id), "revision": .string(snapshot.revision)])
         #expect(snapshot.records.isEmpty)
@@ -47,6 +49,25 @@ struct MemoryTests {
         _ = try await runner.run(.local(.memoryDelete), toolCallID: "delete", arguments: ["revision": .string(saved.revision), "id": .string(saved.records[0].id)], cancellation: nil, mcp: nil)
         #expect(try store.read().records.isEmpty)
         #expect(await events.events.isEmpty)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `an empty id creates a record, and an unknown id is named as such`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let store = MemoryStore(root: home.dataRoot.url)
+        let runner = try ToolRunner(sessionID: UUID().uuidString, project: home.project, root: ScopedRoot(home.projectURL),
+                                    policy: ApprovalPolicy(mode: .confirm), backend: MockBackend(), digests: MockDigestLedger(),
+                                    gate: ApprovalGate { _ in }, memory: store)
+        let empty = try store.read().revision
+        _ = try await runner.run(.local(.memorySave), toolCallID: "save", arguments: ["revision": .string(empty), "id": "", "title": "Language", "body": "Use Chinese."], cancellation: nil, mcp: nil)
+        let saved = try store.read()
+        #expect(saved.records.map(\.title) == ["Language"])
+        let error = await #expect(throws: ToolArgumentError.self) {
+            try await runner.run(.local(.memorySave), toolCallID: "update", arguments: ["revision": .string(saved.revision), "id": "no-such-id", "title": "Language", "body": "Use English."], cancellation: nil, mcp: nil)
+        }
+        #expect(error?.message.contains("No memory has id no-such-id") == true)
+        #expect(try store.read().records.map(\.body) == ["Use Chinese."])
     }
 
     @Test(.timeLimit(.minutes(1)))

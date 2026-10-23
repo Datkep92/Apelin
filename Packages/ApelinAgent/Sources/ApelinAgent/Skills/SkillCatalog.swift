@@ -11,13 +11,24 @@ public struct SkillDocument: Sendable, Hashable {
     /// The folder a user skill's `SKILL.md` sits in, whose other files
     /// `read_skill` may read; nil for a built-in or a root-level `.md`.
     public var directory: String?
+    /// A built-in skill's files, by name, which `read_skill` serves as a
+    /// user skill's folder is served.
+    public var files: [String: String]
 
-    public init(name: String, description: String, body: String, isUserSkill: Bool = false, directory: String? = nil) {
+    public init(
+        name: String,
+        description: String,
+        body: String,
+        isUserSkill: Bool = false,
+        directory: String? = nil,
+        files: [String: String] = [:],
+    ) {
         self.name = name
         self.description = description
         self.body = body
         self.isUserSkill = isUserSkill
         self.directory = directory
+        self.files = files
     }
 }
 

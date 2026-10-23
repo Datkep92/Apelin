@@ -82,6 +82,48 @@ struct SkillAndPromptTests {
         await #expect(throws: ToolArgumentError.self) { _ = try await call(["name": "missing"]) }
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func `an empty file reads a built-in skill's instructions, and its own files are served`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let runner = try runner(home)
+        func call(_ arguments: JSONValue) async throws -> String {
+            try await text(runner.run(.local(.readSkill), toolCallID: UUID().uuidString, arguments: arguments, cancellation: nil, mcp: nil))
+        }
+        #expect(try await call(["name": "tweak-development", "file": ""]).contains("# Tweak development"))
+        let guide = try await call(["name": "project-description"])
+        #expect(guide.contains("Files in this skill's folder (read_skill with file): apelin-project.schema.json"))
+        let schema = try await call(["name": "project-description", "file": "apelin-project.schema.json"])
+        #expect(schema.contains(#""title": "Apelin project description, version 1""#))
+    }
+
+    @Test
+    func `the project-description skill names every member of the schema`() throws {
+        let body = BuiltInSkills.projectDescription.body
+        let text = try #require(BuiltInSkills.projectDescription.files["apelin-project.schema.json"])
+        let schema = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        let definitions = schema["$defs"] as? [String: Any] ?? [:]
+        func resolved(_ node: Any?) -> [String: Any] {
+            guard var node = node as? [String: Any] else { return [:] }
+            if let reference = node["$ref"] as? String, let name = reference.split(separator: "/").last {
+                node = definitions[String(name)] as? [String: Any] ?? [:]
+            }
+            return node
+        }
+        func members(_ node: [String: Any]) -> [String] {
+            (node["properties"] as? [String: Any] ?? [:]).keys.sorted()
+        }
+        let properties = schema["properties"] as? [String: Any] ?? [:]
+        let product = resolved(resolved(properties["products"])["items"])
+        let package = resolved(properties["package"])
+        let configuration = resolved(resolved(properties["configurations"])["properties"].flatMap { ($0 as? [String: Any])?["Debug"] })
+        let named = members(schema) + members(product) + members(package) + members(configuration)
+        #expect(named.count > 40, "the walk found the schema's members")
+        for member in named {
+            #expect(body.contains(member), "the guide never names \(member)")
+        }
+    }
+
     @Test
     func `read_skill needs no approval in Confirm mode`() throws {
         let home = try TemporaryHome()

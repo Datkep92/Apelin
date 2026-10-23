@@ -17,14 +17,20 @@ struct SkillReader {
         guard let skill = skills.first(where: { $0.name == name }) else {
             throw ToolArgumentError("No skill named \(name). Skills: \(skills.map(\.name).joined(separator: ", ")).")
         }
-        if let file = arguments.argString("file") {
+        if let file = arguments.argNonEmptyString("file") {
+            if let contents = skill.files[file] {
+                return Self.bounded(Data(contents.utf8), Self.maxFileBytes)
+            }
             guard let directory = skill.directory else {
-                throw ToolArgumentError("\(name) has no folder of its own to read files from.")
+                let files = skill.files.keys.sorted()
+                throw ToolArgumentError(files.isEmpty
+                    ? "\(name) has no files; leave file out to read its instructions."
+                    : "\(name) has no file \(file). Its files: \(files.joined(separator: ", ")).")
             }
             return try readFile(file, in: directory)
         }
         var text = Self.bounded(Data(skill.body.utf8), Self.maxBodyBytes)
-        let files = skill.directory.map(Self.files(in:)) ?? []
+        let files = skill.files.keys.sorted() + (skill.directory.map(Self.files(in:)) ?? [])
         if !files.isEmpty {
             text += "\n\nFiles in this skill's folder (read_skill with file): " + files.joined(separator: ", ")
         }

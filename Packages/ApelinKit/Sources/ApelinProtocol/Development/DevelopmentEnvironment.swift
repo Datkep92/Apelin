@@ -123,6 +123,18 @@ public struct DevelopmentEnvironment: Sendable, Equatable {
 
     public static let toolchainBinVariable = "APELIN_TOOLCHAIN_BIN"
 
+    /// The directories run_code looks a bare command name up in, and its
+    /// `PATH` behind the toolchain: the bootstrap's bin directories, then
+    /// the system's. The agent's system prompt names what it finds there.
+    public static func searchPath(installRoot: String) -> [String] {
+        let prefix = installRoot == "/" ? "" : installRoot
+        var directories = ["\(prefix)/usr/bin", "\(prefix)/bin", "\(prefix)/usr/local/bin"]
+        if !prefix.isEmpty {
+            directories += ["/usr/bin", "/bin"]
+        }
+        return directories
+    }
+
     /// A canonical directory that can stand in `PATH` or a variable: no NUL,
     /// no line break, no `:` (which would split `PATH`).
     static func directory(_ path: String) -> String? {

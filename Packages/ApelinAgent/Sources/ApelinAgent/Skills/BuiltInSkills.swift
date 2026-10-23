@@ -1,10 +1,11 @@
+import enum ApelinProject.ProjectValidation
 import Foundation
 
 /// The skills every session has. They are source, not bundle resources: a
 /// resource bundle's accessor would carry the build machine's path into the
 /// binary.
 enum BuiltInSkills {
-    static let all: [SkillDocument] = [tweakDevelopment, packagingAndInstall, crashTriage]
+    static let all: [SkillDocument] = [tweakDevelopment, projectDescription, packagingAndInstall, crashTriage]
 
     static let tweakDevelopment = SkillDocument(
         name: "tweak-development",
@@ -22,7 +23,8 @@ enum BuiltInSkills {
           link flags, frameworks, the deployment target (16.0) and build steps.
           Changing it, or a build script it names, makes the next `build` ask the
           user once (Strict mode); editing sources never does. Change it only
-          when the task needs it, and say why.
+          when the task needs it, and say why. The project-description skill
+          lists every member; read it before you edit the file.
         - Sources are Objective-C by default; write hooks the way the
           project's template does (its hook API comes from the injection
           framework the tweak extension depends on). Swift is available only if
@@ -56,6 +58,57 @@ enum BuiltInSkills {
         - Symbols are hidden by default (`-fvisibility=hidden`); export only
           what the loader needs.
 
+        ## Beside other tweaks
+        Other tweaks load into the same process and often hook the same
+        methods.
+        - Install hooks with `MSHookMessageEx` or `MSHookFunction`, which
+          chain with theirs, and call the original.
+          `method_exchangeImplementations` and `method_setImplementation`
+          can drop another tweak's hook.
+        - Everything you name shares the process with them. Keep hook
+          functions, saved originals and globals `static`. Give any method
+          you add to a system class, and any class you create, your tweak's
+          own prefix: when two tweaks use one name, one of them silently
+          loses. Never override a system method in a category.
+        - Key associated objects by the address of a `static` variable,
+          never by a string.
+
+        ## Theos and Logos
+        Apelin does not build Theos projects: there is no Logos preprocessor
+        and no Theos makefile system, and an Objective-C product compiles
+        only `.m` and `.c` files (no `.x`, `.xm`, `.mm` or C++). Never
+        download or vendor Theos. Rewrite a Theos tweak instead, keeping its
+        logic, in the template's style:
+        - A `%hook Class` method becomes a `static` function taking `id self,
+          SEL _cmd` and the method's arguments, installed in the constructor
+          with `MSHookMessageEx(objc_getClass("Class"), @selector(name:),
+          (IMP)Hooked, (IMP *)&Original)`; `%orig` becomes
+          `Original(self, _cmd, …)`. A class method hooks the metaclass,
+          `object_getClass(objc_getClass("Class"))`.
+        - `%ctor` is `__attribute__((constructor)) static void …(void)`;
+          `%group` and `%init` are that constructor installing each group's
+          hooks when its condition holds.
+        - `%c(Name)` is `objc_getClass("Name")`; `%new` is `class_addMethod`
+          with the method's type encoding; `%property` is a getter and setter
+          on `objc_getAssociatedObject`; `%hookf` is `MSHookFunction`; `%log`
+          is `os_log`.
+        - Logos gave every hook a mangled name unique to the tweak
+          (`_logos_method$…`); a rewrite names them itself, by the rules in
+          Beside other tweaks. A Swift or C++ function is hooked by its
+          mangled symbol, as analyze_framework lists it, looked up with
+          `dlsym` or `MSFindSymbol`: a demangled name finds nothing. Check
+          the symbol on each iOS version the package supports.
+        - A `.x` file becomes `.m`; an `.xm` that uses C++ is rewritten
+          without it.
+        - The build links the SDK's public frameworks only. Reach a private
+          class at run time with `objc_getClass`, and a private function with
+          `dlopen` and `dlsym`.
+        - The Makefile's `TWEAK_NAME`, `_FILES`, `_FRAMEWORKS`, `_LIBRARIES`
+          and `_CFLAGS`, the filter plist and `control` become `products`,
+          `configurations`, `package.tweakFilter` and `package` in
+          `apelin-project.json` (the project-description skill). Keep the
+          package id, version and author the repository already has.
+
         ## The loop
         1. Read the relevant files (`read_file`, `grep`, `find`).
         2. Edit with `patch_file` (exact snippet, one occurrence) or
@@ -66,6 +119,146 @@ enum BuiltInSkills {
         Keep each step its own call: build, install, respring and
         confirm_loaded are approved one by one.
         """,
+    )
+
+    static let projectDescription = SkillDocument(
+        name: "project-description",
+        description: "Every member of apelin-project.json, the build description Apelin's build reads: products, flags, steps, package, layout, tweak filter, the macros the build defines, and what asks the user.",
+        body: """
+        # The project description
+
+        `apelin-project.json` at the project root is the one thing Apelin's
+        build reads. It is checked strictly: an unknown member, a duplicate
+        key or a wrong type is an error naming its field, such as
+        `/products/0/sources`. The complete schema is this skill's file
+        `apelin-project.schema.json` (read_skill with that file).
+
+        ## Members Apelin writes
+        Never invent, copy or change these:
+        - `schemaVersion` (1) and `projectID`, a lowercase UUID approvals are
+          bound to.
+        - `template`: the template the project was made from.
+        - `environment` `{toolchain, sdk}`, each `{id, digest}`: the
+          registered toolchain and SDK. Change them only with
+          project_environment_set; never type a digest.
+        - `displayName` and `autoName`: the name Apelin shows.
+
+        ## What it builds
+        - `kind`: `tweak` (a `dylib` product and `package.tweakFilter`),
+          `app` (an `app` product), `cli` (an `executable`) or `preferences`
+          (a `bundle`).
+        - `language`: `objc` and `c` compile `.m` and `.c` files only;
+          `swift` compiles `.swift` only. A product never mixes them.
+        - `deploymentTarget`: a string, "16.0" or later.
+        - `architectures`: `{"rootless": ["arm64", "arm64e"], "roothide":
+          ["arm64e"]}`. The keys present are the bootstraps it packages for.
+        - `configurations`: `Debug` and `Release`, each `{optimization,
+          debugInfo, defines?, cFlags?, swiftFlags?, linkFlags?}`.
+          `optimization` is "0", "1", "2", "3", "s" or "z". `defines` maps a
+          name to its value; no name starts with `APELIN_`. Each flag is one
+          argument starting with `-`, never shell text: `-framework X` is two
+          items. The member is `linkFlags`, not `linkerFlags`.
+
+        ## products (one to eight)
+        `{id, type, name, sources, …}`:
+        - `id`: lowercase, such as `tweak`. `type`: `dylib`, `app`, `bundle`
+          or `executable`. `name`: the Mach-O file name.
+        - `sources`: project paths that may use `*`, `**` and `?`, such as
+          `Sources/*.m` or `src/**/*.m`.
+        - Optional: `headerSearchPaths`, `frameworks`, `weakFrameworks`,
+          `libraries` (`-l` names, such as `substrate`),
+          `frameworkSearchPaths` and `librarySearchPaths` (project paths),
+          `objcARC`, `installName` (dylib only; default
+          `@rpath/<name>.dylib`), `entitlements` (a project plist), and
+          `infoPlist` and `resources` (app and bundle only).
+        - `extensionSupport`: `[{extension, component}]`, the headers, link
+          stubs and rpaths an installed development extension provides, the
+          build picking each bootstrap's own. A tweak hooking with substrate
+          has `{"extension": "wiki.qaq.apelin.dev.tweak", "component":
+          "substrate"}`, `libraries: ["substrate"]` and depends on
+          `mobilesubstrate`.
+
+        ## build.steps
+        Per product, in this order: `compile`, `link`, `bundle-resources`
+        (app and bundle), `lipo`, `dsym`, `strip`, `sign`. `compile`, `link`,
+        `lipo` and `sign` are required and `sign` comes last, as `{"type":
+        "sign", "product": "tweak", "identity": "adhoc"}`. `compile` and
+        `link` take extra `flags`; `strip` takes `style`, `non-global` or
+        `debug`. A `script` step, `{"type": "script", "id", "interpreter",
+        "file", "arguments"?, "inputs"?, "outputs"?, "requiresApproval":
+        true}`, runs a project script (sh, bash, zsh, python3 or perl) as
+        mobile in the project root, to generate sources; it always asks the
+        user in Strict mode.
+
+        ## package
+        `{id, name, version, description, author, section, layout, …}`:
+        - `id`: the Debian package name. `version`: a Debian version.
+          `section`: Tweaks, Utilities, Development, System, Applications or
+          Addons. Optional: `maintainer`, `longDescription` (a list of lines).
+        - Relations: `depends`, `recommends`, `suggests`, `conflicts`,
+          `breaks`, `replaces` and `provides`, each item like `"name (>=
+          1.0)"`, alternatives joined by ` | `; `dependsByBootstrap`
+          `{rootless?, roothide?}` for one bootstrap only. The packager adds
+          `firmware` and the `Architecture`; never write them.
+        - `layout`: `{path, product}` or `{path, file, mode?,
+          substitutePrefix?}` items. Paths are as the package sees them,
+          rooted at the bootstrap, such as
+          `/Library/MobileSubstrate/DynamicLibraries/X.dylib`; the packager
+          maps them for rootless and roothide. Never write `/var/jb` or a
+          jbroot path.
+        - `tweakFilter` (tweak only): `{dylib: <product id>, bundles?,
+          executables?, classes?}`. The packager writes the filter plist
+          beside the dylib; do not ship one yourself.
+        - `maintainerScripts`: `{preinst?, postinst?, prerm?, postrm?}`, each
+          a project file. Only `@PREFIX@` and `@ROOTFS@` are substituted;
+          `sh -n` must pass. They run as root and the install card shows
+          them in full: add one only when the task needs it.
+
+        ## What the build defines
+        On every C and Objective-C compile: `APELIN_BUILD_ID`,
+        `APELIN_PACKAGE_ID`, `APELIN_VERSION` and `APELIN_PRODUCT_NAME`
+        (string literals); `APELIN_BOOTSTRAP_ROOTLESS` or
+        `APELIN_BOOTSTRAP_ROOTHIDE` (1, for the bootstrap being built); and
+        `APELIN_CONFIGURATION_DEBUG` or `APELIN_CONFIGURATION_RELEASE` (1).
+        Swift gets the bootstrap and configuration as conditions. Code that
+        behaves differently per bootstrap tests these; a repository's own
+        macro is defined from them in a header. The build always passes the
+        SDK, `-arch`, the deployment target, `-fvisibility=hidden` and
+        `-Werror=unguarded-availability-new`, and `-fobjc-arc` with `objcARC`.
+
+        ## What asks the user
+        In Strict mode the next build asks once after a change to `kind`,
+        `language`, `deploymentTarget`, `architectures`, `configurations`,
+        `build`, `products` (except their `sources`, `headerSearchPaths` and
+        `resources`), or an entitlements or script file. The next install
+        asks once after a change to `package` (except `version`), a
+        maintainer script or an installed file. Editing sources and bumping
+        `version` never ask.
+
+        ## A tweak's build members
+        ```json
+        "products": [{
+          "id": "tweak", "type": "dylib", "name": "MyTweak",
+          "sources": ["Sources/*.m"], "objcARC": true,
+          "frameworks": ["Foundation", "UIKit"], "libraries": ["substrate"],
+          "extensionSupport": [{"extension": "wiki.qaq.apelin.dev.tweak", "component": "substrate"}]
+        }],
+        "build": {"steps": [
+          {"type": "compile", "product": "tweak"}, {"type": "link", "product": "tweak"},
+          {"type": "lipo", "product": "tweak"}, {"type": "dsym", "product": "tweak"},
+          {"type": "strip", "product": "tweak", "style": "non-global"},
+          {"type": "sign", "product": "tweak", "identity": "adhoc"}
+        ]},
+        "package": {
+          "id": "com.example.mytweak", "name": "MyTweak", "version": "1.0.0",
+          "description": "What it does.", "author": "Someone", "section": "Tweaks",
+          "depends": ["mobilesubstrate"],
+          "layout": [{"path": "/Library/MobileSubstrate/DynamicLibraries/MyTweak.dylib", "product": "tweak"}],
+          "tweakFilter": {"dylib": "tweak", "bundles": ["com.apple.springboard"]}
+        }
+        ```
+        """,
+        files: ["apelin-project.schema.json": ProjectValidation.schemaText],
     )
 
     static let packagingAndInstall = SkillDocument(

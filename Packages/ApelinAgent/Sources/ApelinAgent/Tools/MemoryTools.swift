@@ -20,7 +20,7 @@ struct MemoryTools {
         guard snapshot.revision == revision else { throw MemoryStoreError.changed }
         let scope: String?
         if let id {
-            guard let existing = snapshot.records.first(where: { $0.id == id }) else { throw MemoryStoreError.changed }
+            guard let existing = snapshot.records.first(where: { $0.id == id }) else { throw Self.unknown(id, creating: true) }
             scope = existing.projectID
         } else {
             switch arguments.argString("scope") ?? "project" {
@@ -42,10 +42,16 @@ struct MemoryTools {
         let id = try arguments.requireString("id")
         let revision = try arguments.requireString("revision")
         let snapshot = try list()
-        guard snapshot.revision == revision, snapshot.records.contains(where: { $0.id == id }) else {
-            throw MemoryStoreError.changed
-        }
+        guard snapshot.revision == revision else { throw MemoryStoreError.changed }
+        guard snapshot.records.contains(where: { $0.id == id }) else { throw Self.unknown(id, creating: false) }
         return try store.delete(id: id, revision: revision).forProject(projectID)
+    }
+
+    /// An id the current revision does not hold. Memory has not changed
+    /// since the model read it, so this is a wrong id, not a conflict.
+    private static func unknown(_ id: String, creating: Bool) -> ToolArgumentError {
+        let hint = creating ? " To add a new record, leave id out." : ""
+        return ToolArgumentError("No memory has id \(id); memory_list shows the ids.\(hint)")
     }
 
     static func prompt(_ snapshot: MemorySnapshot?) -> String {

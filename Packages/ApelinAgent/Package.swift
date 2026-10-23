@@ -51,6 +51,8 @@ let package = Package(
                 .product(name: "ApelinProtocol", package: "ApelinKit"),
                 // CanonicalPath: the path rules the rest of Apelin decides by.
                 .product(name: "ApelinCore", package: "ApelinKit"),
+                // The apelin-project.json schema the project-description skill serves.
+                .product(name: "ApelinProject", package: "ApelinKit"),
             ],
             path: "Sources/ApelinAgent",
         ),

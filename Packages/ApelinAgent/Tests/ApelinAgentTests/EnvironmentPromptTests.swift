@@ -22,6 +22,8 @@ struct EnvironmentPromptTests {
         #expect(prompt.contains("This project binds toolchain gone, which is not installed here"))
         #expect(prompt.contains("This project binds SDK gone-too, which is not registered here"))
         #expect(prompt.contains("run_code has no Apelin compiler until a toolchain is installed"))
+        #expect(prompt.contains("never through a login shell"))
+        #expect(!prompt.contains("`/rootfs`"), "the rootfs note is roothide's")
     }
 
     @Test
@@ -32,6 +34,27 @@ struct EnvironmentPromptTests {
         let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot, installRoot: jbroot)
         let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(home.projectURL), mode: .confirm, skills: [])
         #expect(prompt.contains("- Bootstrap: roothide, install root \(jbroot)."))
+        #expect(prompt.contains("can print a `/rootfs/…` path the toolchain's compilers cannot open"))
+    }
+
+    @Test
+    func `the commands a build script reaches for are named, found or not`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let bin = home.home.appendingPathComponent("jb/usr/bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: bin.appendingPathComponent("ldid").path, contents: Data("#!/bin/sh\n".utf8), attributes: [.posixPermissions: 0o755])
+        FileManager.default.createFile(atPath: bin.appendingPathComponent("ninja").path, contents: Data(), attributes: [.posixPermissions: 0o644])
+        let found = EnvironmentPrompt.commandsFound(installRoot: home.home.path + "/jb")
+        #expect(found.contains("ldid"))
+        #expect(!found.contains("ninja"), "a file that is not executable is not a command")
+
+        let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot, installRoot: home.home.path + "/jb")
+        var inputs = try EnvironmentPrompt.inputs(configuration, root: ScopedRoot(home.projectURL), device: .current)
+        inputs.commandsFound = ["git", "make"]
+        #expect(EnvironmentPrompt.section(inputs).contains("- Also on run_code's PATH: git, make. Not installed: cmake, ldid, ninja, perl, python3, xcrun."))
+        inputs.commandsFound = []
+        #expect(EnvironmentPrompt.section(inputs).contains("- Also on run_code's PATH: none of cmake, git, ldid, make, ninja, perl, python3, xcrun."))
     }
 
     @Test
