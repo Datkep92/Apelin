@@ -258,13 +258,11 @@ public final class BuildWorker: @unchecked Sendable {
         } catch {
             problem = (error as? ApelinError)?.message ?? "\(error)"
         }
-        return ProjectCheckResponse(
-            passed: problem == nil,
-            diagnostics: problem.map {
-                [ProjectDiagnostic(code: "external.build", severity: .error, message: $0, field: "/external")]
-            } ?? [],
-            buildSystem: .external,
-        )
+        var diagnostics: [ProjectDiagnostic] = []
+        if let problem {
+            diagnostics.append(ProjectDiagnostic(code: "external.build", severity: .error, message: problem, field: "/external"))
+        }
+        return ProjectCheckResponse(passed: problem == nil, diagnostics: diagnostics, buildSystem: .external)
     }
 
     // MARK: Builds

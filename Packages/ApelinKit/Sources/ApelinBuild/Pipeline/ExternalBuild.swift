@@ -167,9 +167,8 @@ public enum ExternalBuild {
         let declaration = inputs.declaration
         let base = inputs.installRoot == "/" ? "" : inputs.installRoot
         let interpreter = declaration.interpreter.rawValue
-        guard let executable = [base + "/usr/bin/" + interpreter, base + "/bin/" + interpreter]
-            .first(where: { access($0, X_OK) == 0 })
-        else {
+        let candidates: [String] = ["\(base)/usr/bin/\(interpreter)", "\(base)/bin/\(interpreter)"]
+        guard let executable = candidates.first(where: { access($0, X_OK) == 0 }) else {
             throw BuildFailure("there is no \(interpreter) in the bootstrap to run \(declaration.script)")
         }
         let root = CanonicalPath.resolve(inputs.projectRoot.path) ?? inputs.projectRoot.path
@@ -180,7 +179,7 @@ public enum ExternalBuild {
             environment: environment(inputs, projectRoot: root, packages: packages, temporary: temporary),
         )
         log("$ " + invocation.displayLine)
-        let limit = inputs.timeout >= 120 ? "\(Int(inputs.timeout / 60)) minutes" : "\(Int(inputs.timeout)) seconds"
+        let limit: String = inputs.timeout >= 120 ? "\(Int(inputs.timeout / 60)) minutes" : "\(Int(inputs.timeout)) seconds"
         let overtime = BuildFailure("\(declaration.script) ran past \(limit) and was stopped")
         let timer = Timeout()
         let deadline = DispatchWorkItem {
@@ -245,23 +244,26 @@ public enum ExternalBuild {
     /// rebuild changes. A version bump never asks; a new script, field or
     /// path does.
     static func packagingDigest(control: DebianControlFile, contents: DebArchiveReader.Contents) -> String {
-        let fields = control.fields
+        let fields: [JSONDocument] = control.fields
             .filter { $0.name.caseInsensitiveCompare("Version") != .orderedSame }
-            .map { JSONDocument.array([.string($0.name), .string($0.value)]) }
-        let members = contents.controlFiles
+            .map { field -> JSONDocument in .array([.string(field.name), .string(field.value)]) }
+        let members: [(key: String, value: JSONDocument)] = contents.controlFiles
             .filter { $0.key != "control" }
             .sorted { $0.key < $1.key }
-            .map { (key: $0.key, value: JSONDocument.string(CanonicalJSON.sha256Tag($0.value))) }
-        let files = contents.entries.map { entry in
-            JSONDocument.array([.string(entry.path), .string(kindName(entry.kind)), .integer(Int64(entry.mode))])
+            .map { member -> (key: String, value: JSONDocument) in
+                (key: member.key, value: .string(CanonicalJSON.sha256Tag(member.value)))
+            }
+        let files: [JSONDocument] = contents.entries.map { entry -> JSONDocument in
+            .array([.string(entry.path), .string(kindName(entry.kind)), .integer(Int64(entry.mode))])
         }
-        return CanonicalJSON.digest(.object(JSONObject([
+        let description: [(key: String, value: JSONDocument)] = [
             (key: "description", value: .string("apelin.external-packaging")),
             (key: "version", value: .integer(1)),
             (key: "control", value: .array(fields)),
             (key: "members", value: .object(JSONObject(members))),
             (key: "files", value: .array(files)),
-        ])))
+        ]
+        return CanonicalJSON.digest(.object(JSONObject(description)))
     }
 
     private static func kindName(_ kind: DebArchiveReader.EntryKind) -> String {
@@ -279,7 +281,9 @@ public enum ExternalBuild {
     /// beside it. The marker is the template's, under the package ID.
     static func loadCheck(_ contents: DebArchiveReader.Contents, packageID: String, inputs: Inputs) -> BuildLoadCheck? {
         let folder = inputs.layout.installPrefix + "/Library/MobileSubstrate/DynamicLibraries/"
-        let dylibs = contents.entries.filter { $0.kind == .file && $0.path.hasPrefix(folder) && $0.path.hasSuffix(".dylib") }
+        let dylibs: [DebArchiveReader.Entry] = contents.entries.filter { entry in
+            entry.kind == .file && entry.path.hasPrefix(folder) && entry.path.hasSuffix(".dylib")
+        }
         guard dylibs.count == 1 else { return nil }
         let dylib = dylibs[0].path
         let plistPath = String(dylib.dropLast(".dylib".count)) + ".plist"
@@ -287,8 +291,10 @@ public enum ExternalBuild {
               let filter = (try? PropertyListSerialization.propertyList(from: plist, format: nil)) as? [String: Any],
               let rules = filter["Filter"] as? [String: Any]
         else { return nil }
-        let logical = { (path: String) in String(path.dropFirst(inputs.layout.installPrefix.count)) }
-        let installed = { (path: String) in (inputs.installRoot == "/" ? "" : inputs.installRoot) + logical(path) }
+        let prefixLength = inputs.layout.installPrefix.count
+        let root: String = inputs.installRoot == "/" ? "" : inputs.installRoot
+        let logical = { (path: String) -> String in String(path.dropFirst(prefixLength)) }
+        let installed = { (path: String) -> String in root + logical(path) }
         return BuildLoadCheck(
             buildID: inputs.buildID,
             marker: BuildLoadCheck.marker(buildID: inputs.buildID),
