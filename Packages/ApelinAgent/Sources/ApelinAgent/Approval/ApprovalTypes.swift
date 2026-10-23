@@ -83,6 +83,28 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     case sdkImport(SDKImportApproval)
     /// A conversation call that reaches another project than the session's.
     case otherProject(OtherProjectApproval)
+    /// A build of a workspace, which runs its own script. The host lets
+    /// through only the build it names, once.
+    case externalBuild(ExternalBuildApproval)
+}
+
+/// What a workspace build's card names, and the host matches its build to
+/// (AgentExternalBuildRules): the project, the configuration and the
+/// bootstrap. `script` is shown, from the workspace's declaration.
+public struct ExternalBuildApproval: Sendable, Hashable, Codable {
+    public var projectID: String
+    public var script: String
+    /// `debug` or `release`.
+    public var configuration: String
+    /// `roothide` or `rootless` when the build names one; nil for this
+    /// device's.
+    public var bootstrap: String?
+    public init(projectID: String, script: String, configuration: String, bootstrap: String?) {
+        self.projectID = projectID
+        self.script = script
+        self.configuration = configuration
+        self.bootstrap = bootstrap
+    }
 }
 
 /// What a toolchain_setup card names, and the host matches its setup to.
@@ -190,4 +212,14 @@ public struct DescriptionState: Sendable, Hashable, Codable {
 /// relays the user's decision on a `.descriptionChanged` request.
 public protocol ApprovalDigestStore: Sendable {
     func state(of kind: DescriptionKind, for project: ProjectIdentity) async throws -> DescriptionState
+    /// The packaging state of one built package, by its artifact ID: what a
+    /// workspace's install is judged by, since a workspace has no packaging
+    /// description of its own. Nil when the artifact is not known.
+    func packagingState(ofArtifact artifactID: String, for project: ProjectIdentity) async throws -> DescriptionState?
+}
+
+public extension ApprovalDigestStore {
+    func packagingState(ofArtifact _: String, for _: ProjectIdentity) async throws -> DescriptionState? {
+        nil
+    }
 }

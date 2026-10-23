@@ -22,9 +22,28 @@ extension ToolRunner {
             facts.pathCheck = root.mayReach(cwd) ? .inside : .outside(cwd)
             facts.workingDirectory = cwd
         case .build:
-            facts.description = try? await digests.state(of: .build, for: project)
+            if let script = ProjectBuildSystem.externalScript(in: root) {
+                facts.externalBuild = ExternalBuildApproval(
+                    projectID: project.id,
+                    script: script,
+                    configuration: arguments.argNonEmptyString("configuration") ?? "debug",
+                    bootstrap: arguments.argNonEmptyString("bootstrap"),
+                )
+            } else {
+                facts.description = try? await digests.state(of: .build, for: project)
+            }
         case .install:
-            facts.description = try? await digests.state(of: .packaging, for: project)
+            // A workspace has no packaging description: the package it built
+            // is judged by its own (apelin-build's ExternalBuild).
+            if ProjectBuildSystem.read(in: root) == .external {
+                let artifact = try arguments.requireString("artifact_id")
+                guard let state = try? await digests.packagingState(ofArtifact: artifact, for: project) else {
+                    throw ToolArgumentError("No build of this workspace made a package \(artifact): build again, then install the artifact build answers.")
+                }
+                facts.description = state
+            } else {
+                facts.description = try? await digests.state(of: .packaging, for: project)
+            }
         case .removePackage:
             facts.installationID = try arguments.requireString("installation_id")
         case .gitPush:

@@ -2090,6 +2090,58 @@ do {
     check(readsOwn && !readsForeign && !readsOthers, "a task counts as the session's only when that session started it")
 }
 
+// MARK: - A workspace's build spends the one approval the user gave for it
+
+do {
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-external-build-tasks"))
+    await registry.load()
+    let sessions = AgentSessionTable.shared
+    let entry = await AgentSessionTable.Entry(
+        sessionID: "external-build-strict",
+        task: registry.create(kind: .agent, owner: .agent, ownerKey: "external-build-strict"),
+        project: ResolvedProject(id: "p-workspace", name: "Workspace", path: scratchPath),
+        mode: .confirm,
+        createdAt: Date(),
+    )
+    await sessions.add(entry)
+    // What apelin-agent writes into a workspace build's approvalRequested
+    // `detail` (ApelinAgentWorker's tests hold that shape): no bootstrap
+    // when the build names none.
+    func ask(_ approvalID: String, configuration: String, bootstrap: String? = nil) async {
+        var detail: [String: JSONValue] = [
+            "projectID": .string("p-workspace"), "script": .string("apelin/build.sh"), "configuration": .string(configuration),
+        ]
+        detail["bootstrap"] = bootstrap.map(JSONValue.string)
+        await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(approvalID), "tool": .string("build"),
+            "detail": .object([AgentExternalBuildRules.detailKey: .object(detail)]),
+        ]))
+    }
+    let debug = BuildStartRequest(projectID: "p-workspace", configuration: .debug)
+    let unapproved = await AgentExternalBuildRules.authorize(debug, session: entry.sessionID, registry: registry)
+    check(unapproved?.code == .denied, "a Strict session's workspace build needs the user's approval")
+    await ask("build-1", configuration: "debug")
+    let asked = await AgentExternalBuildRules.authorize(debug, session: entry.sessionID, registry: registry)
+    check(asked != nil, "asking is not approving")
+    await sessions.record(entry.sessionID, approvalID: "build-1", decision: .approve)
+    let release = await AgentExternalBuildRules.authorize(BuildStartRequest(projectID: "p-workspace", configuration: .release), session: entry.sessionID, registry: registry)
+    check(release != nil, "an approval covers the configuration it named only")
+    let rootless = await AgentExternalBuildRules.authorize(BuildStartRequest(projectID: "p-workspace", bootstrap: .rootless), session: entry.sessionID, registry: registry)
+    check(rootless != nil, "and the bootstrap it named only")
+    let elsewhere = await AgentExternalBuildRules.authorize(BuildStartRequest(projectID: "p-other"), session: entry.sessionID, registry: registry)
+    check(elsewhere != nil, "and its project only")
+    let approved = await AgentExternalBuildRules.authorize(debug, session: entry.sessionID, registry: registry)
+    check(approved == nil, "the approved build goes through")
+    let again = await AgentExternalBuildRules.authorize(debug, session: entry.sessionID, registry: registry)
+    check(again != nil, "once: the next build asks again")
+    await ask("build-2", configuration: "release", bootstrap: "rootless")
+    await sessions.record(entry.sessionID, approvalID: "build-2", decision: .approve)
+    let named = await AgentExternalBuildRules.authorize(BuildStartRequest(projectID: "p-workspace", configuration: .release, bootstrap: .rootless), session: entry.sessionID, registry: registry)
+    check(named == nil, "a build naming a bootstrap is covered by an approval naming it")
+    let noSession = await AgentExternalBuildRules.authorize(debug, session: nil, registry: registry)
+    check(noSession != nil, "a worker with no session builds nothing")
+}
+
 // MARK: - Another project's conversations are reached only as the user approved
 
 do {

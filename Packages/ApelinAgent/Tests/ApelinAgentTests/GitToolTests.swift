@@ -205,7 +205,7 @@ struct GitToolTests {
     // MARK: Workspaces
 
     @Test
-    func `a workspace's build says to use the project's own tools, before asking`() async throws {
+    func `a workspace that declares no build is told how to declare one, before asking`() async throws {
         let harness = try DigestApprovalTests.Harness()
         defer { harness.home.remove() }
         try harness.home.write("apelin-project.json", #"{"schemaVersion":1,"projectID":"x","kind":"workspace","displayName":"Hello"}"#)
@@ -213,8 +213,9 @@ struct GitToolTests {
         do {
             _ = try await harness.run(.build, [:])
         } catch let error as ToolDeniedError {
-            #expect(error.message.contains("external"))
-            #expect(error.message.contains("run_code"))
+            #expect(error.message.contains("\"external\""))
+            #expect(error.message.contains("APELIN_PACKAGE_DIR"))
+            #expect(error.message.contains("external-build skill"))
         }
         #expect(await harness.backend.calls.isEmpty)
         #expect(await harness.events.events.isEmpty, "nothing is asked")

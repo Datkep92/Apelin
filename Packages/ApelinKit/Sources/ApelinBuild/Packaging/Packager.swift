@@ -27,12 +27,17 @@ public struct ArtifactRecord: Codable, Sendable, Equatable {
     public var packageID: String
     public var packageVersion: String
     public var architecture: String
-    /// Both description digests as they were when this was built.
-    public var buildDigest: String
+    /// Both description digests as they were when this was built. A
+    /// workspace's build has no build description; its packaging digest is
+    /// cut from the package it made (`ExternalBuild`).
+    public var buildDigest: String?
     public var packagingDigest: String
-    public var toolchain: ProjectDocument.Binding
-    public var sdk: ProjectDocument.Binding
-    public var template: ProjectDocument.TemplateSource
+    /// `external` for a workspace's own build; nil for apelin-build's.
+    public var buildSystem: BuildSystemKind?
+    /// The project's binding and template; nil for a workspace's build.
+    public var toolchain: ProjectDocument.Binding?
+    public var sdk: ProjectDocument.Binding?
+    public var template: ProjectDocument.TemplateSource?
     public var products: [BuildProducts.Product]
     public var dsyms: [BuildProducts.DSYM]
     public var log: String

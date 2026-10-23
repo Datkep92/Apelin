@@ -29,6 +29,19 @@ enum ProjectFolders {
         try find(projectID: projectID, home: home).manifest
     }
 
+    /// What a build recorded for `confirmLoaded` in its artifact record,
+    /// `Builds/artifacts/<buildID>.json`: a workspace's build reads it from
+    /// the package it made (ApelinBuild's `ExternalBuild`). Nil when there
+    /// is none.
+    static func loadCheck(buildID: String, home: String) -> BuildLoadCheck? {
+        guard !buildID.isEmpty, buildID.count <= 128,
+              buildID.utf8.allSatisfy({ (48 ... 57).contains($0) || (65 ... 90).contains($0) || (97 ... 122).contains($0) || $0 == 45 })
+        else { return nil }
+        let path = DataFolder(home: home).root
+            .appendingPathComponent("Builds/artifacts/\(buildID).json").path
+        return read(path)?["loadCheck"].flatMap { try? $0.decode(BuildLoadCheck.self) }
+    }
+
     private static func find(projectID: String, home: String) throws -> (url: URL, manifest: JSONValue) {
         guard !projectID.isEmpty, !CanonicalPath.containsNUL(projectID) else {
             throw ApelinError(.badRequest, "projectID must not be empty or contain NUL.")
@@ -68,6 +81,27 @@ struct LoadPlan: Equatable {
     var subsystem: String?
     var dylibPath: String
     var filterPlist: Data?
+
+    /// From what a workspace's build recorded: the dylib where this device
+    /// installs it, and the filter its package carried.
+    static func from(loadCheck check: BuildLoadCheck) -> LoadPlan {
+        var dictionary: [String: Any] = [:]
+        for (values, name) in [(check.bundles, "Bundles"), (check.executables, "Executables"), (check.classes, "Classes")]
+            where !values.isEmpty
+        {
+            dictionary[name] = values
+        }
+        return LoadPlan(
+            marker: check.marker,
+            subsystem: check.markerSubsystem,
+            dylibPath: check.dylibInstalledPath,
+            filterPlist: dictionary.isEmpty ? nil : try? PropertyListSerialization.data(
+                fromPropertyList: ["Filter": dictionary],
+                format: .xml,
+                options: 0,
+            ),
+        )
+    }
 
     static func from(manifest: JSONValue, buildID: String, installRoot: String) throws -> LoadPlan {
         let package = manifest["package"]

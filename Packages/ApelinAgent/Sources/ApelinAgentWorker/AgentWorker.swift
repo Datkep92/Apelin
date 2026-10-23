@@ -255,7 +255,7 @@ actor WorkerState {
         let keychain = KeychainCredentialSource(accessGroup: AgentWorker.keychainAccessGroup)
         let imported = await CredentialInbox(home: context.assignment.home).importAll(into: keychain)
 
-        let ledger = HostDigestLedger(service: context.host, projectURL: projectURL)
+        let ledger = HostDigestLedger(service: context.host, projectURL: projectURL, dataFolder: dataRoot.url)
         let session: AgentSession
         do {
             session = try await AgentSession(
@@ -569,6 +569,8 @@ actor EventRelay {
             payload["detail"] = .object(["sdkImport": (try? ApelinCore.JSONValue(encoding: sdkImport)) ?? .null])
         case let .otherProject(reach):
             payload["detail"] = .object(["otherProject": (try? ApelinCore.JSONValue(encoding: reach)) ?? .null])
+        case let .externalBuild(build):
+            payload["detail"] = .object(["externalBuild": (try? ApelinCore.JSONValue(encoding: build)) ?? .null])
         }
         return .object(payload)
     }

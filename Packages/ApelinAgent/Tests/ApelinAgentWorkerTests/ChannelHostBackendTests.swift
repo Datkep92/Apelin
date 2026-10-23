@@ -100,6 +100,11 @@ struct Fixture {
     func context(_ approval: ApprovalEvidence = .relaxed) -> HostCallContext {
         HostCallContext(sessionID: backend.sessionID, project: project, toolCallID: "call-1", approval: approval)
     }
+
+    /// Stands in for `~/Documents/wiki.qaq.apelin`: the project's parent.
+    var dataFolder: URL {
+        projectURL.deletingLastPathComponent()
+    }
 }
 
 @Suite("ChannelHostBackend maps every tool onto one host operation")
@@ -415,7 +420,7 @@ struct ChannelHostBackendTests {
             let baseline: ApprovalBaseline = query.digest == template ? .matchesTemplate : .changed
             return (ApprovalDigestStateResponse(baseline: baseline, templateDigest: template, lastApprovedDigest: nil), [])
         }
-        let ledger = HostDigestLedger(service: fixture.backend.service, projectURL: fixture.projectURL)
+        let ledger = HostDigestLedger(service: fixture.backend.service, projectURL: fixture.projectURL, dataFolder: fixture.dataFolder)
         let build = try await ledger.state(of: .build, for: fixture.project)
         #expect(build == DescriptionState(digest: template, baseline: .matchesTemplate))
         let asked = try #require(fixture.host.requests(ApprovalDigestStateRequest.self).first)
@@ -429,10 +434,33 @@ struct ChannelHostBackendTests {
     }
 
     @Test
+    func `a workspace's package is judged by the packaging digest its build recorded`() async throws {
+        let fixture = try Fixture(manifest: #"{"projectID": "x", "kind": "workspace", "buildSystem": "external"}"#)
+        let recorded = "sha256:" + String(repeating: "c", count: 64)
+        fixture.host.on(.approvalDigestState) { request in
+            let query = try request.decode(ApprovalDigestStateRequest.self)
+            return (ApprovalDigestStateResponse(baseline: query.digest == recorded ? .approved : .changed, templateDigest: nil, lastApprovedDigest: nil), [])
+        }
+        let artifacts = fixture.dataFolder.appendingPathComponent("Builds/artifacts", isDirectory: true)
+        try FileManager.default.createDirectory(at: artifacts, withIntermediateDirectories: true)
+        let record = #"{"projectID": "\#(fixture.project.id)", "packagingDigest": "\#(recorded)"}"#
+        try Data(record.utf8).write(to: artifacts.appendingPathComponent("B-1.json"))
+        try Data(#"{"projectID": "other", "packagingDigest": "\#(recorded)"}"#.utf8).write(to: artifacts.appendingPathComponent("B-2.json"))
+        let ledger = HostDigestLedger(service: fixture.backend.service, projectURL: fixture.projectURL, dataFolder: fixture.dataFolder)
+
+        #expect(try await ledger.packagingState(ofArtifact: "B-1", for: fixture.project) == DescriptionState(digest: recorded, baseline: .approved))
+        let asked = try #require(fixture.host.requests(ApprovalDigestStateRequest.self).last)
+        #expect(asked.kind == .packaging && asked.digest == recorded)
+        #expect(try await ledger.packagingState(ofArtifact: "B-2", for: fixture.project) == nil, "another project's package")
+        #expect(try await ledger.packagingState(ofArtifact: "B-3", for: fixture.project) == nil, "no record")
+        #expect(try await ledger.packagingState(ofArtifact: "../B-1", for: fixture.project) == nil, "an id is a name, never a path")
+    }
+
+    @Test
     func `without a digest from apelin-build the agent's own stands in, and asks`() async throws {
         let fixture = try Fixture(manifest: #"{"projectID": "x", "build": {"steps": []}}"#)
         fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: false))
-        let ledger = HostDigestLedger(service: fixture.backend.service, projectURL: fixture.projectURL)
+        let ledger = HostDigestLedger(service: fixture.backend.service, projectURL: fixture.projectURL, dataFolder: fixture.dataFolder)
         let state = try await ledger.state(of: .build, for: fixture.project)
         #expect(try state.digest == (HostDigestLedger.digest(of: .build, projectURL: fixture.projectURL)))
         if case .changed = state.baseline {} else {

@@ -215,6 +215,9 @@ public final class BuildWorker: @unchecked Sendable {
     /// components would get, nothing written; a component that is not
     /// registered is `notFound`.
     public func projectCheck(_ request: ProjectCheckRequest) throws -> ProjectCheckResponse {
+        if let (_, root) = try? store.root(of: request.projectID), let manifest = Workspace.manifest(at: root) {
+            return Self.workspaceCheck(manifest, root: root)
+        }
         let check = ProjectCheck(store: store, catalog: catalog, registry: registry)
         var candidate: ProjectDocument.EnvironmentBinding?
         if let choice = request.environment {
@@ -244,6 +247,26 @@ public final class BuildWorker: @unchecked Sendable {
         )
     }
 
+    /// A workspace has no description to check and no digests: it passes
+    /// when its `external` declaration reads and names a script in it.
+    static func workspaceCheck(_ manifest: JSONDocument, root: URL) -> ProjectCheckResponse {
+        let problem: String?
+        do {
+            problem = try ExternalBuildDeclaration.read(manifest, root: root) == nil
+                ? "This workspace declares no build: add \"external\": {\"script\": \"<a project file>\"} to its apelin-project.json; the script writes one .deb into APELIN_PACKAGE_DIR."
+                : nil
+        } catch {
+            problem = (error as? ApelinError)?.message ?? "\(error)"
+        }
+        return ProjectCheckResponse(
+            passed: problem == nil,
+            diagnostics: problem.map {
+                [ProjectDiagnostic(code: "external.build", severity: .error, message: $0, field: "/external")]
+            } ?? [],
+            buildSystem: .external,
+        )
+    }
+
     // MARK: Builds
 
     public func buildStart(
@@ -256,6 +279,10 @@ public final class BuildWorker: @unchecked Sendable {
             // The lost run may have registered its package before the host
             // heard; this run writes its own.
             try? FileManager.default.removeItem(at: ArtifactStore(store: store).url(of: taskID.rawValue))
+        }
+        if let (_, root) = try? store.root(of: request.projectID), let manifest = Workspace.manifest(at: root) {
+            try externalBuildStart(request, manifest: manifest, root: root, taskID: taskID, emit: emit)
+            return
         }
         var resolved = try BuildInputs.resolve(
             buildID: taskID.rawValue,
@@ -273,11 +300,60 @@ public final class BuildWorker: @unchecked Sendable {
         if resumed {
             try? FileManager.default.removeItem(at: inputs.workDirectory)
         }
+        let store = store
+        run(taskID, emit: emit) { reporter, cancellation in
+            try BuildService.build(inputs: inputs, store: store, reporter: reporter, cancellation: cancellation).record
+        }
+    }
+
+    /// A workspace's build: its own script (`ExternalBuild`). A workspace
+    /// that declares none is refused before the task is accepted. A
+    /// resumed one starts over too: `ExternalBuild` clears the folder.
+    private func externalBuildStart(
+        _ request: BuildStartRequest,
+        manifest: JSONDocument,
+        root: URL,
+        taskID: TaskID,
+        emit: @escaping Emit,
+    ) throws {
+        guard let declaration = try ExternalBuildDeclaration.read(manifest, root: root) else {
+            throw ApelinError(
+                .badRequest,
+                "this workspace declares no build: add \"external\": {\"script\": \"<a project file>\"} to its apelin-project.json; the script writes one .deb into APELIN_PACKAGE_DIR",
+            )
+        }
+        let inputs = ExternalBuild.Inputs(
+            buildID: taskID.rawValue,
+            projectID: request.projectID,
+            projectRoot: root,
+            declaration: declaration,
+            configuration: request.configuration == .debug ? .debug : .release,
+            bootstrap: request.bootstrap.flatMap { Bootstrap(rawValue: $0.rawValue) }
+                ?? BootstrapResolution.bootstrap(installRoot: installRoot, home: home),
+            workDirectory: store.buildsDirectory
+                .appendingPathComponent(request.projectID, isDirectory: true)
+                .appendingPathComponent(taskID.rawValue, isDirectory: true),
+            installRoot: installRoot,
+            home: home,
+        )
+        let store = store
+        run(taskID, emit: emit) { reporter, cancellation in
+            try ExternalBuild.run(inputs: inputs, store: store, reporter: reporter, cancellation: cancellation)
+        }
+    }
+
+    /// Runs one build on a thread of its own as the task `taskID`: its
+    /// artifact and a final `state` that also carries the artifact's ID and
+    /// digest, or the failure or cancel.
+    private func run(
+        _ taskID: TaskID,
+        emit: @escaping Emit,
+        build: @escaping @Sendable (TaskReporter, BuildCancellation) throws -> ArtifactRecord,
+    ) {
         let cancellation = BuildCancellation()
         lock.lock()
         running[taskID] = cancellation
         lock.unlock()
-        let store = store
         let reporter = TaskReporter(taskID: taskID, emit: emit)
         let thread = Thread { [self] in
             defer {
@@ -286,22 +362,17 @@ public final class BuildWorker: @unchecked Sendable {
                 lock.unlock()
             }
             do {
-                let result = try BuildService.build(
-                    inputs: inputs,
-                    store: store,
-                    reporter: reporter,
-                    cancellation: cancellation,
-                )
-                let artifact = result.record.wireArtifact
+                let record = try build(reporter, cancellation)
+                let artifact = record.wireArtifact
                 emit(taskID, "artifact", try? JSONValue(encoding: artifact))
                 emit(taskID, TaskEvent.stateKind, .object([
                     "state": .string(TaskState.succeeded.rawValue),
                     "artifactID": .string(artifact.artifactID),
                     "digest": .string(artifact.digest),
-                    "buildID": .string(inputs.buildID),
+                    "buildID": .string(record.buildID),
                     "packageID": .string(artifact.packageID),
                     "version": .string(artifact.version),
-                    "bootstrap": .string(inputs.bootstrap.rawValue),
+                    "bootstrap": .string(record.bootstrap),
                 ]))
             } catch is BuildCancelled {
                 emit(taskID, TaskEvent.stateKind, .object([

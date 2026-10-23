@@ -217,5 +217,8 @@ struct EnvironmentBackendTests {
         let reach = detail(.otherProject(OtherProjectApproval(action: "send", projectID: "far-id", projectName: "Far", sessionID: "s", text: "go")))
         #expect(reach?["otherProject"]?["action"]?.stringValue == "send" && reach?["otherProject"]?["projectID"]?.stringValue == "far-id")
         #expect(reach?["otherProject"]?["sessionID"]?.stringValue == "s" && reach?["otherProject"]?["text"]?.stringValue == "go")
+        let build = detail(.externalBuild(ExternalBuildApproval(projectID: "w", script: "apelin/build.sh", configuration: "debug", bootstrap: nil)))
+        #expect(build?["externalBuild"]?["projectID"]?.stringValue == "w" && build?["externalBuild"]?["configuration"]?.stringValue == "debug")
+        #expect(build?["externalBuild"]?["bootstrap"] == nil, "no bootstrap named, none written: the host matches it to none")
     }
 }

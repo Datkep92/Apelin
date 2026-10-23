@@ -80,6 +80,9 @@ public struct InvocationFacts: Sendable, Hashable {
     public var otherProject: OtherProjectApproval?
     /// That project, as the backend resolved it, which the call is sent to.
     public var targetProject: ProjectIdentity?
+    /// For build in a workspace: what it builds, which runs the workspace's
+    /// own script.
+    public var externalBuild: ExternalBuildApproval?
 
     public init(
         tool: Tool,
@@ -279,6 +282,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
             }
 
         case .build, .install:
+            // A workspace's build runs its own script, code from the
+            // repository: every build asks, and is never granted for the
+            // session.
+            if tool == .build, let build = facts.externalBuild {
+                return .ask(
+                    reason: "Runs this workspace's own build script, \(build.script), as mobile with the prepared toolchain: it can run any code in the repository. Each build of a workspace needs your approval.",
+                    detail: .externalBuild(build),
+                )
+            }
             let kind: DescriptionKind = tool == .build ? .build : .packaging
             guard let state = facts.description else {
                 return .ask(reason: "The \(kind.rawValue) description could not be checked.", detail: .none)

@@ -112,8 +112,11 @@ actor ToolRunner {
         case let .local(name): ToolArguments.normalized(arguments, for: name)
         case .mcp: arguments
         }
-        // Before the gate: a workspace has no build description to approve.
-        if case .local(.build) = tool, ProjectBuildSystem.read(in: root) == .external {
+        // Before the gate: a workspace that declares no build has nothing to
+        // run or approve.
+        if case .local(.build) = tool, ProjectBuildSystem.read(in: root) == .external,
+           ProjectBuildSystem.externalScript(in: root) == nil
+        {
             throw ToolDeniedError(message: ProjectBuildSystem.externalBuildRefusal)
         }
         let facts = try await gatherFacts(tool, arguments: arguments)
@@ -244,7 +247,7 @@ actor ToolRunner {
             break
         }
         switch detail {
-        case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject:
+        case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -338,14 +341,21 @@ actor ToolRunner {
             )))
 
         case .build:
-            guard let state = facts.description else {
+            // A workspace has no build description: its build runs its own
+            // script, which the host matches to the approval it spends.
+            let digest: String
+            if facts.externalBuild != nil {
+                digest = ""
+            } else if let state = facts.description {
+                digest = state.digest
+            } else {
                 throw ToolDeniedError(message: "the build description could not be checked")
             }
             let configuration = BuildConfiguration(rawValue: arguments.argString("configuration") ?? "debug") ?? .debug
             return try await json(backend.build(BuildRequest(
                 context: context,
                 configuration: configuration,
-                buildDescriptionDigest: state.digest,
+                buildDescriptionDigest: digest,
                 bootstrap: Self.bootstrap(arguments),
             )))
 

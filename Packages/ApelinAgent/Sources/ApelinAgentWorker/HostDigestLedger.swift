@@ -19,6 +19,9 @@ import Foundation
 struct HostDigestLedger: ApprovalDigestStore {
     let service: ApelinService
     let projectURL: URL
+    /// `~/Documents/wiki.qaq.apelin`, whose `Builds/artifacts/` apelin-build
+    /// records each package in.
+    let dataFolder: URL
 
     func state(of kind: DescriptionKind, for project: ApelinAgent.ProjectIdentity) async throws -> DescriptionState {
         let digest = try await hostDigest(kind, projectID: project.id) ?? Self.digest(of: kind, projectURL: projectURL)
@@ -37,6 +40,36 @@ struct HostDigestLedger: ApprovalDigestStore {
                 digest: digest,
                 baseline: .changed(
                     diff: "The \(kind.rawValue) description is \(digest), not \(against); review apelin-project.json.",
+                ),
+            )
+        }
+    }
+
+    /// A workspace's package: the packaging digest apelin-build recorded
+    /// for it (`Builds/artifacts/<id>.json`), then where it stands. The host
+    /// judges the install by the digest it recorded from the build's own
+    /// event, so a record changed since only makes the agent ask.
+    func packagingState(ofArtifact artifactID: String, for project: ApelinAgent.ProjectIdentity) async throws -> DescriptionState? {
+        guard !artifactID.isEmpty, artifactID.count <= 128,
+              artifactID.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") })
+        else { return nil }
+        let url = dataFolder.appendingPathComponent("Builds/artifacts/\(artifactID).json")
+        guard let data = try? Data(contentsOf: url), data.count <= 1 << 20,
+              let record = try? JSONCoding.decode(ApelinCore.JSONValue.self, from: data),
+              record["projectID"]?.stringValue == project.id,
+              let digest = record["packagingDigest"]?.stringValue
+        else { return nil }
+        let answer = try? await service.approvalDigestState(projectID: project.id, kind: .packaging, digest: digest)
+        switch answer?.baseline {
+        case .matchesTemplate?:
+            return DescriptionState(digest: digest, baseline: .matchesTemplate)
+        case .approved?:
+            return DescriptionState(digest: digest, baseline: .approved)
+        case .changed?, nil:
+            return DescriptionState(
+                digest: digest,
+                baseline: .changed(
+                    diff: "This package's control file, maintainer scripts or installed paths are \(digest), which you have not approved for this workspace; review the package before it is installed.",
                 ),
             )
         }

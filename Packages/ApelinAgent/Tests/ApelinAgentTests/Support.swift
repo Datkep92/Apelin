@@ -54,6 +54,22 @@ actor MockDigestLedger: ApprovalDigestStore {
         current[kind] = digest
     }
 
+    /// A workspace's packages by artifact ID, with the packaging digest
+    /// apelin-build recorded for each.
+    var artifacts: [String: String] = [:]
+
+    func addArtifact(_ artifactID: String, packaging digest: String) {
+        artifacts[artifactID] = digest
+    }
+
+    func packagingState(ofArtifact artifactID: String, for project: ProjectIdentity) -> DescriptionState? {
+        guard let digest = artifacts[artifactID] else { return nil }
+        if approved.contains("\(project.id)/packaging/\(digest)") {
+            return DescriptionState(digest: digest, baseline: .approved)
+        }
+        return DescriptionState(digest: digest, baseline: .changed(diff: "a package not approved before"))
+    }
+
     /// What the host does when it relays a user's approval of a
     /// `.descriptionChanged` request.
     func record(_ request: ApprovalRequest, decision: ApprovalDecision) {

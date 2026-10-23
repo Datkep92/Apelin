@@ -577,7 +577,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   An empty workspace's manifest says `"buildSystem": "external"` (one
   without the key is read the same way): Apelin has no build description
   for it, so the agent builds with the project's own tools through
-  `run_code` and writes down how in the project's `AGENTS.md`. New Project
+  `run_code` and writes down how in the project's `AGENTS.md`; a package
+  it installs comes from the workspace's own build script (Workspace
+  builds, below). New Project
   takes an optional repository address for the empty workspace and sends
   it to the project's first conversation, where the agent's `git_clone`
   imports it; the app does nothing more.
@@ -932,8 +934,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the host and user, never the token, and never a session grant), and the
   token is masked in the `toolCall` and `approvalRequested` events
   (`ToolArgumentRedaction`); `GitHandler` skips its project check for
-  these four. On a workspace whose
-  build system is external, build answers with that instead of asking.
+  these four. On a workspace, build runs the script its `external`
+  declares (Workspace builds, below) and asks under Confirm every time,
+  never with a session grant; one that declares none answers how to
+  declare it instead of asking.
   Toolchains and SDKs (2026-10-22, `ChannelHostBackend+Environment.swift`),
   in any chat: toolchain_list → `toolchainStatus` and `toolchainCatalog`
   (the installed ones with their components, newest SDK read and
@@ -1722,6 +1726,42 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `@PREFIX@`/`@ROOTFS@` filled and `sh -n` passing, `control.tar.gz`
   (`controlCompression = .gzip`, which the host reads) and `data.tar.zst`. ApelinDebArchive brings
   `libarchive.xcframework` into apelin-build, reviewed in `Licenses/`.
+- **Workspace builds** (owner, 2026-10-23: an imported repository stays
+  external and keeps its own build; it is never converted to a description).
+  A workspace declares one script in its manifest, `"external": {script,
+  interpreter?, arguments?}` (`ExternalBuildDeclaration` in ApelinProject:
+  a regular file inside the project by canonical path, `sh` by default or
+  bash, zsh, python3, perl, at most 32 one-line arguments, nothing else).
+  `buildStart` on a workspace runs it in apelin-build (`ExternalBuild`): as
+  mobile in the project, the bootstrap's interpreter, stdin closed, its own
+  process group, 30 minutes at most (a cancel or the timeout kills the
+  group), the output the build log; with the development environment
+  run_code gets and `APELIN_BUILD_ID`, `APELIN_BOOTSTRAP`,
+  `APELIN_ARCHITECTURE`, `APELIN_PREFIX`, `APELIN_CONFIGURATION`,
+  `APELIN_PROJECT_ROOT` and `APELIN_PACKAGE_DIR`, a fresh folder in
+  `Builds/<projectID>/<buildID>/`. Exactly one regular `.deb` there, whose
+  control names a Package, a Version and the bootstrap's Architecture,
+  becomes the artifact (`ArtifactRecord` with `buildSystem: external`, no
+  build digest, binding or template), reported by the same `artifact` and
+  `state` events, so installPackage, removal, crash lookup and
+  confirmLoaded work as for any build; Apelin neither compiles, signs nor
+  packages for it. Its packaging digest is cut from the package
+  (`apelin.external-packaging`: the control file but `Version`, every
+  other control member's digest, each data member's path, kind and mode),
+  so an install asks once and again only after one of those changes.
+  confirmLoaded reads a workspace build's load check from its record (one
+  dylib in MobileSubstrate's folder with its filter beside it). A
+  workspace's `projectCheck` answers `buildSystem: external`, no digests,
+  and passes when the declaration reads. Under Confirm the host lets an
+  agent's workspace build through only by spending an approval the app
+  gave that session for exactly it (`detail.externalBuild` {projectID,
+  configuration, bootstrap?}, `AgentExternalBuildRules`): one approval
+  builds once, never for the session, since the script runs whatever the
+  repository holds. ManagedPackagePolicy still refuses installing over a
+  package Apelin did not install. Tested by `ExternalBuildTests` (the
+  declaration, the script's environment, one package, the failures, the
+  timeout), the agent's `ExternalBuildToolTests` and the session host's
+  approval checks.
 - **Tested** by `make harness`: the schema fixtures and the reference
   implementation, `ApelinCodeSign` against ldid's own output
   (`Packages/ApelinFormats/Tests/ApelinCodeSignTests/Fixtures/build.sh`), and
@@ -2126,7 +2166,10 @@ when the schema gains a member the guide never names. `tweak-development`
 says how to live beside other tweaks (hooks that chain, `static` names,
 prefixed added methods and classes) and that Theos is not supported (owner,
 2026-10-23): a Theos tweak's Logos is rewritten as plain Objective-C in the
-template's style, never built with Theos, which is never installed.
+template's style, never built with Theos, which is never installed; an
+imported repository keeps building with a script of its own.
+`external-build` is the workspace build: the declaration, what the script
+gets and must write, and how its package is installed.
 Skills, memory and the project instructions are read again for every prompt.
 Skills are global (owner, 2026-10-23): the built-ins and the skills folder,
 never a project's own `.claude/skills` or `.kwwk/skills`. Settings ▸ Agent ▸
@@ -2165,8 +2208,9 @@ run_code needs no login shell (whose profile builds `PATH` again), on roothide
 that a path a bootstrap tool prints (`/var/mobile/…` with the bootstrap as
 `/`, or `/rootfs/…`) is not the name the toolchain's compilers know, so they
 get relative paths or `$APELIN_PROJECT_ROOT` (on the iPhone vphone, `pwd -P`
-in the data folder printed `/var/mobile/Documents/…`), and which of cmake, git, ldid, make, ninja, perl, python3
-and xcrun are on run_code's search path (`DevelopmentEnvironment.searchPath`,
+in the data folder printed `/var/mobile/Documents/…`), and which of cmake,
+dpkg-deb, git, ldid, make, ninja, perl, python3 and xcrun are on run_code's
+search path (`DevelopmentEnvironment.searchPath`,
 the host's own list). It is read again
 with the rest and holds nothing that changes unless the environment does —
 no time, size or duration, everything sorted — so prompt caching survives.

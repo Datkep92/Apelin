@@ -33,7 +33,7 @@ extension SessionHost {
         }
         // Only the host names the digest it approved.
         build.approvedBuildDigest = nil
-        if await approvals.mode(session: session) == .confirm, let refusal = await approveBuild(&build, request) {
+        if await approvals.mode(session: session) == .confirm, let refusal = await approveBuild(&build, request, session: session) {
             return refusal
         }
         do {
@@ -45,14 +45,26 @@ extension SessionHost {
     }
 
     /// Confirm's build check: the description apelin-build reports now must
-    /// be the template's or approved; `build` then carries its digest.
-    private func approveBuild(_ build: inout BuildStartRequest, _ request: HostRequest) async -> HostReply? {
+    /// be the template's or approved; `build` then carries its digest. A
+    /// workspace has no description: its build spends the one approval the
+    /// user gave for it (AgentExternalBuildRules).
+    private func approveBuild(
+        _ build: inout BuildStartRequest,
+        _ request: HostRequest,
+        session: String?,
+    ) async -> HostReply? {
         let check = HostRequest(
             request: (try? WireRequest(ProjectCheckRequest(projectID: build.projectID))) ?? request.request,
             descriptors: [],
             caller: .app,
         )
         let (reply, _) = await forward(check, to: .build)
+        if case let .success(body) = reply.result,
+           let json = try? JSONCoding.decode(JSONValue.self, from: body),
+           json["buildSystem"]?.stringValue == BuildSystemKind.external.rawValue
+        {
+            return await AgentExternalBuildRules.authorize(build, session: session, registry: registry).map(request.fail)
+        }
         guard case let .success(body) = reply.result,
               let json = try? JSONCoding.decode(JSONValue.self, from: body),
               let digest = json["descriptionDigests"]?["build"]?.stringValue

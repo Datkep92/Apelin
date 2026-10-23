@@ -335,18 +335,31 @@ public struct ProjectCheckResponse: Codable, Sendable, Equatable {
     /// `environment` resolved in the registry. Absent when the project file
     /// did not read.
     public var environment: ProjectEnvironmentBinding?
+    /// `external` for a workspace, which builds with its own script (its
+    /// `external` declaration) and has no description digests; absent for a
+    /// project apelin-build builds from its description.
+    public var buildSystem: BuildSystemKind?
 
     public init(
         passed: Bool,
         diagnostics: [ProjectDiagnostic] = [],
         descriptionDigests: DescriptionDigests? = nil,
         environment: ProjectEnvironmentBinding? = nil,
+        buildSystem: BuildSystemKind? = nil,
     ) {
         self.passed = passed
         self.diagnostics = diagnostics
         self.descriptionDigests = descriptionDigests
         self.environment = environment
+        self.buildSystem = buildSystem
     }
+}
+
+/// Who builds a project: apelin-build from its description, or the
+/// workspace's own script.
+public enum BuildSystemKind: String, Codable, Sendable {
+    case apelin
+    case external
 }
 
 public extension ApelinService {

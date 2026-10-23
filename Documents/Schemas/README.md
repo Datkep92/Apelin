@@ -321,3 +321,20 @@ them does not change the folder, `projectID`, products, package identifiers, or
 Confirm approval digests. Generated placeholder names start with `autoName: true`;
 a manual name or the first accepted automatic replacement sets it to false.
 An empty workspace uses these same optional fields in its minimal manifest.
+
+### Workspace manifest
+
+A workspace's `apelin-project.json` is not a version 1 description: it has
+`schemaVersion`, `projectID`, `kind: workspace`, `buildSystem: external` and
+the display fields above, and may declare the build Apelin runs for it:
+
+| Member | Meaning |
+|---|---|
+| `external.script` | A regular file inside the project (canonical path; no empty component, none starting with `.`). |
+| `external.interpreter` | `sh` (default), `bash`, `zsh`, `python3` or `perl`, the bootstrap's own. |
+| `external.arguments` | At most 32 one-line strings handed to the script after its path. |
+
+No other member goes in `external`. apelin-build reads it
+(`ExternalBuildDeclaration`); what the script gets and must write is in
+AGENTS.md ▸ Workspace builds. No digest covers it: under Confirm every
+build of a workspace asks.

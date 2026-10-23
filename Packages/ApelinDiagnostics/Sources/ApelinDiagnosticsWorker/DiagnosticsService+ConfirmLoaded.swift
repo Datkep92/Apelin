@@ -88,11 +88,14 @@ extension DiagnosticsService {
             filterPlist: nil,
         )
         if let projectID = request.projectID {
-            plan = try LoadPlan.from(
-                manifest: ProjectFolders.manifest(projectID: projectID, home: home),
-                buildID: buildID,
-                installRoot: installRoot,
-            )
+            let manifest = try ProjectFolders.manifest(projectID: projectID, home: home)
+            // A workspace has no package in its manifest: its own build
+            // recorded what the package it made installs.
+            if manifest["package"] == nil, let check = ProjectFolders.loadCheck(buildID: buildID, home: home) {
+                plan = LoadPlan.from(loadCheck: check)
+            } else {
+                plan = try LoadPlan.from(manifest: manifest, buildID: buildID, installRoot: installRoot)
+            }
         }
         let confirmation = LoadConfirmationRequest(
             marker: plan.marker,

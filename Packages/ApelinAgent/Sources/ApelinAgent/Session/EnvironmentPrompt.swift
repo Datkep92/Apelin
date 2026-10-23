@@ -79,7 +79,7 @@ enum EnvironmentPrompt {
 
     /// Commands a repository's build scripts reach for, which a model would
     /// otherwise probe for, or assume from a Mac.
-    static let probedCommands = ["cmake", "git", "ldid", "make", "ninja", "perl", "python3", "xcrun"]
+    static let probedCommands = ["cmake", "dpkg-deb", "git", "ldid", "make", "ninja", "perl", "python3", "xcrun"]
 
     /// Which of `probedCommands` are executables on run_code's search path.
     static func commandsFound(installRoot: String) -> Set<String> {
