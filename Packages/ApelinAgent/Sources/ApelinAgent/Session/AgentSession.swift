@@ -20,6 +20,7 @@ public actor AgentSession {
     public nonisolated let log: SessionEventLog
 
     private let agent: Agent
+    private let stream: ServiceTierStream
     private let gate: ApprovalGate
     private let runner: ToolRunner
     private let mcpManager: MCPManager?
@@ -113,6 +114,7 @@ public actor AgentSession {
             skills: skills.skills,
         )
 
+        let stream = ServiceTierStream(tier: configuration.serviceTier)
         let agent = Agent(options: AgentOptions(
             initialState: AgentInitialState(
                 systemPrompt: systemPrompt,
@@ -121,10 +123,12 @@ public actor AgentSession {
                 tools: runner.agentTools(mcp: mcpTools),
                 messages: transcript,
             ),
+            streamFn: stream.streamFn,
             toolExecution: .sequential,
             sessionId: configuration.id,
             cwd: root.path,
             maxTurns: configuration.maxTurns,
+            autoCompact: ServiceTierStream.autoCompact,
             authResolver: resolved.authResolver,
         ))
 
@@ -133,6 +137,7 @@ public actor AgentSession {
         self.configuration = configuration
         self.log = log
         self.agent = agent
+        self.stream = stream
         self.gate = gate
         self.runner = runner
         self.mcpManager = mcpManager
@@ -158,6 +163,7 @@ public actor AgentSession {
     public func configure(
         provider: ProviderConfiguration,
         thinking: ThinkingLevel,
+        serviceTier: ServiceTier? = nil,
         credentials: any CredentialSource,
     ) async throws {
         guard runTask == nil else { return }
@@ -165,12 +171,14 @@ public actor AgentSession {
         if provider == resolvedFrom.provider, stored == resolvedFrom.credentials {
             guard runTask == nil else { return }
             agent.state.thinkingLevel = thinking
+            stream.tier = serviceTier
             return
         }
         let resolved = try await ProviderResolver.resolve(provider, credentials: credentials)
         guard runTask == nil else { return }
         agent.state.model = resolved.model
         agent.state.thinkingLevel = thinking
+        stream.tier = serviceTier
         agent.authResolver = resolved.authResolver
         resolvedFrom = (provider, resolved.credentials)
     }

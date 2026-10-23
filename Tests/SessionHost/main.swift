@@ -528,7 +528,7 @@ do {
     let opener = await session("c-opener", mode: .confirm)
 
     // Open: always the opener's project and current mode, with a prompt;
-    // nothing of its own beyond prompt, title, provider, model and effort.
+    // nothing of its own beyond prompt, title, provider, model, effort and tier.
     let asked = AgentOpenRequest(
         projectID: "p-other",
         projectName: "Other",
@@ -538,6 +538,7 @@ do {
         model: "claude-sonnet-5-5",
         approvalMode: .relaxed,
         reasoningEffort: .high,
+        serviceTier: .priority,
         prompt: "Write the README",
         closeWhenFinished: true,
         title: "  Docs\nsecond line",
@@ -546,7 +547,11 @@ do {
     check(child.projectID == project.id && child.projectName == project.name, "an opened conversation is in the project the host resolved, not the one the request spelled")
     check(child.temporaryID == nil && child.sessionID == nil && child.closeWhenFinished == nil, "and is new, in no temporary workspace, and not headless")
     check(child.approvalMode == .confirm, "and runs under the opener's mode, never a laxer one it asked for")
-    check(child.provider == .anthropic && child.model == "claude-sonnet-5-5" && child.reasoningEffort == .high, "provider, model and effort go as sent")
+    check(
+        child.provider == .anthropic && child.model == "claude-sonnet-5-5" && child.reasoningEffort == .high
+            && child.serviceTier == .priority,
+        "provider, model, effort and tier go as sent",
+    )
     check(child.prompt == "Write the README" && child.title == "Docs", "the prompt goes as sent, the title on one trimmed line")
     let relaxed = await session("c-relaxed", mode: .relaxed)
     let relaxedChild = try AgentConversationRules.childOpen(
@@ -648,6 +653,7 @@ do {
         provider: .openAI,
         model: "gpt",
         reasoningEffort: .max,
+        serviceTier: .ultrafast,
         approvalMode: .relaxed,
         fromSessionID: "c-forged",
     )
@@ -656,8 +662,9 @@ do {
     check(rewritten.fromSessionID == "c-opener", "and is marked with the sender the host knows, not the one it claimed")
     check(
         rewritten.approvalMode == nil && rewritten.provider == nil && rewritten.model == nil
-            && rewritten.reasoningEffort == nil && rewritten.attachments == nil && rewritten.messageID == nil,
-        "and carries no mode, provider, model, effort, files or message id of the sender's",
+            && rewritten.reasoningEffort == nil && rewritten.serviceTier == nil && rewritten.attachments == nil
+            && rewritten.messageID == nil,
+        "and carries no mode, provider, model, effort, tier, files or message id of the sender's",
     )
     expectError("a message carries no descriptors", code: .badRequest) {
         _ = try AgentConversationRules.childPrompt(sent, sender: opener, target: target, descriptorCount: 1)

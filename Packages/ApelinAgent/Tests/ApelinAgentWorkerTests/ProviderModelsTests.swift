@@ -23,6 +23,18 @@ struct ProviderModelsTests {
     }
 
     @Test
+    func `Codex models offer the tiers kwwk's catalog lists, and other providers none`() {
+        let subscription = OAuthCredentials(access: "test", refresh: "", expires: .max)
+        let tiers = ProviderModels.serviceTiers(.openAICodex, credentials: subscription)
+        #expect(tiers["gpt-6.1-sol"] == [.priority, .ultrafast])
+        #expect(tiers["gpt-6-sol"] == [.priority])
+        let deepSeek = OAuthCredentials(access: "test", refresh: "", expires: .max, extras: [
+            "baseUrl": .string("https://api.deepseek.com/anthropic"),
+        ])
+        #expect(ProviderModels.serviceTiers(.anthropic, credentials: deepSeek).isEmpty)
+    }
+
+    @Test
     func `a similarly named host does not receive DeepSeek's mapping`() {
         let credentials = OAuthCredentials(access: "test", refresh: "", expires: .max, extras: [
             "baseUrl": .string("https://api.deepseek.com.example.org/anthropic"),

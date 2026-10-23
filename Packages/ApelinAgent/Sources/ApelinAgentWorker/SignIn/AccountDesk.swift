@@ -91,6 +91,7 @@ public actor AccountDesk {
                 account.expiresAt = Self.lapses(credentials)
                 account.models = ProviderModels.list(provider, credentials: credentials)
                 account.reasoningEfforts = ProviderModels.reasoningEfforts(provider, credentials: credentials)
+                account.serviceTiers = ProviderModels.serviceTiers(provider, credentials: credentials)
                 account.usesAPIKey = ProviderModels.usesAPIKey(provider, credentials: credentials) ? true : nil
             }
             accounts.append(account)

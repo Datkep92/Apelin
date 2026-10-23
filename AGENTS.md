@@ -861,9 +861,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (canonical `Projects/<name>`, its `apelin-project.json` id), makes the
   `agent` task, spawns `apelin-agent` with the session id as its instance and
   hands it the request with the project filled in; provider (`githubCopilot`
-  default, model default `claude-sonnet-5.5`), approval mode, an optional
+  default, model default `claude-sonnet-5.5`), reasoning effort, service
+  tier, approval mode, an optional
   first `prompt` and `closeWhenFinished` (the task ends with the first run,
-  for headless runs) ride on it. Prompt, steer, abort, approve and close go
+  for headless runs) ride on it. kwwk's loop puts no tier on a request, so
+  the session runs its agent on a stream of its own (`ServiceTierStream`)
+  that sets the tier last chosen; a stream of its own leaves kwwk's native
+  compaction off unless one is named, so it names kwwk's. Prompt, steer, abort, approve and close go
   to that session's running worker and to no other. Task events: `prompt`, `title` {text},
   `projectNameSuggested` {name} (only a concrete project intent),
   `steer`, `queued` {id, text, attachments} (a message sent while a run
@@ -974,7 +978,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `Session/Agent/AgentConversationRules.swift`), in any chat — General
   Chat names a project, its own chat has no others:
   conversation_create {prompt, title?, project?} → `agentOpen` from the
-  agent with this session's provider, model and effort
+  agent with this session's provider, model, effort and tier
   (`SessionModelChoice`: the open request's, then each app prompt's) and
   the title (`AgentOpenRequest.title`), answered without waiting with the
   session's link; the host opens it in the caller's own project, or the
@@ -993,7 +997,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   session by its title, else generates one. conversation_send {project?}
   → `agentPrompt` to another session as the user's message (never a
   temporary chat): the host writes `fromSessionID` (the app's is dropped)
-  and clears the mode, provider, model, effort, message ID and
+  and clears the mode, provider, model, effort, tier, message ID and
   attachments, and refuses descriptors; the worker records it as
   `prompt` {text, from}, the model reading one line before it naming the
   sending conversation (`ConversationSender`), and the app names the
@@ -1525,19 +1529,26 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   reasoning choices from kwwk's supported-thinking-level metadata; High is
   selected by default when supported. The UI offers only supported Low,
   High and Max levels, never Off. Unknown
-  custom models do not get guessed levels. `ComposerModelSelection.current`
-  saves the provider, model, effort and its last supported-level snapshot in
+  custom models do not get guessed levels. Beside it, Speed (a bolt) offers
+  Standard and the faster tiers kwwk's catalog lists for the model
+  (`AgentAccount.serviceTiers`: Codex's `priority`, shown as Fast, and
+  `ultrafast`); a model that lists none shows no Speed, Standard sends no
+  tier, and a changed model keeps the tier only where it is listed. kwwk
+  also drops a Codex tier the model does not list. `ComposerModelSelection.current`
+  saves the provider, model, effort, tier and its last supported-level and
+  tier snapshot in
   `UserDefaults`, shared by every conversation and restored on launch;
   changes notify every open composer. Return and long-paste preferences
-  (`ComposerBehavior`) are also global `UserDefaults` values. Model, effort
-  and Stop blocks fade and reposition on the composer's spring, including
+  (`ComposerBehavior`) are also global `UserDefaults` values. Beginning to
+  type takes the catalog's levels and tiers for the saved model again.
+  Model, effort, Speed and Stop blocks fade and reposition on the composer's spring, including
   when the import panel hides or restores the row; Reduce Motion applies
-  changes immediately. `AgentOpenRequest.reasoningEffort`
-  reaches the worker's session configuration. The stop control's icon, text
+  changes immediately. `AgentOpenRequest.reasoningEffort` and
+  `serviceTier` reach the worker's session configuration. The stop control's icon, text
   and border are red. It takes a
   live output cancellation callback and stays hidden without one. Settings stores a global `AgentPermissions.mode`,
   default relaxed, with confirmation when changing from strict to relaxed.
-  The runtime reads that mode when opening a session, and reads the global model and effort on each send (changes apply between runs). The transport's explicit approval mode and host safeguards remain authoritative. A single summary groups consecutive thinking and tool steps, with body-size labels at 50% label
+  The runtime reads that mode when opening a session, and reads the global model, effort and tier on each send (changes apply between runs). The transport's explicit approval mode and host safeguards remain authoritative. A single summary groups consecutive thinking and tool steps, with body-size labels at 50% label
   colour; an unfinished thought shimmers unless Reduce Motion is on, a
   finished one names seconds and tool count. Tapping opens a live-updating trace form sheet with the thinking, tool calls and approval records, all without icons and aligned to the text margin. Main transcript headers also have no icons. Only provider-supplied reasoning
   belongs in those entries. `ChatMarkdownView` uses a 16 pt block gap shared with the gap between cells,

@@ -87,6 +87,9 @@ public struct AgentAccount: Codable, Sendable, Equatable {
     public var usesAPIKey: Bool?
     /// Known reasoning levels from the provider catalog, keyed by model ID.
     public var reasoningEfforts: [String: [AgentReasoningEffort]]?
+    /// Processing tiers the provider catalog lists, keyed by model ID; a
+    /// model it does not name is offered none.
+    public var serviceTiers: [String: [AgentServiceTier]]?
     public var isAPIKeyAccount: Bool {
         usesAPIKey ?? (method == .apiKey)
     }
@@ -101,6 +104,7 @@ public struct AgentAccount: Codable, Sendable, Equatable {
         models: [String]? = nil,
         usesAPIKey: Bool? = nil,
         reasoningEfforts: [String: [AgentReasoningEffort]]? = nil,
+        serviceTiers: [String: [AgentServiceTier]]? = nil,
     ) {
         self.provider = provider
         self.method = method
@@ -111,6 +115,7 @@ public struct AgentAccount: Codable, Sendable, Equatable {
         self.models = models
         self.usesAPIKey = usesAPIKey
         self.reasoningEfforts = reasoningEfforts
+        self.serviceTiers = serviceTiers
     }
 }
 

@@ -1,5 +1,5 @@
 {
-  "originHash" : "e0825d83104a5d9dfe69c2f0fe56ce3ffd447fb0fc02f71bb8792cf3247c38b8",
+  "originHash" : "6746af138cd925033723efd9f74bf634ed3d6e2f077d9aec0ec4ee4208a81177",
   "pins" : [
     {
       "identity" : "alertcontroller",
@@ -51,7 +51,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/EYHN/kwwk.git",
       "state" : {
-        "revision" : "3dba13c530f02f8e159d842a041885d0db2c431d"
+        "revision" : "15810862000440c564ae1045f0f8d48425fce40a"
       }
     },
     {

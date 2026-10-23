@@ -64,12 +64,14 @@ public enum AgentWorker {
                     try await session.configure(
                         provider: AgentWorker.provider(AgentOpenRequest(provider: provider, model: prompt.model)),
                         thinking: .init(rawValue: prompt.reasoningEffort?.rawValue ?? "off") ?? .off,
+                        serviceTier: AgentWorker.serviceTier(prompt.serviceTier),
                         credentials: KeychainCredentialSource(accessGroup: keychainAccessGroup),
                     )
                     await state.modelChoice.set(
                         provider: provider,
                         model: prompt.model,
                         reasoningEffort: prompt.reasoningEffort,
+                        serviceTier: prompt.serviceTier,
                     )
                 }
                 guard (prompt.attachments?.count ?? 0) <= 8 else {
@@ -185,6 +187,10 @@ public enum AgentWorker {
         wire == .relaxed ? .relaxed : .confirm
     }
 
+    static func serviceTier(_ wire: AgentServiceTier?) -> ServiceTier? {
+        wire.flatMap { ServiceTier(rawValue: $0.rawValue) }
+    }
+
     /// The kwwk provider configuration for an open request. The first four
     /// keep their own cases (and need a model named, as they always have);
     /// every other provider is kwwk's stored provider of its store id, with
@@ -256,6 +262,7 @@ actor WorkerState {
                     approval: ApprovalPolicy(mode: AgentWorker.approvalMode(open.approvalMode)),
                     dataRoot: dataRoot,
                     thinking: .init(rawValue: open.reasoningEffort?.rawValue ?? "off") ?? .off,
+                    serviceTier: AgentWorker.serviceTier(open.serviceTier),
                     installRoot: context.assignment.installRoot,
                 ),
                 backend: ChannelHostBackend(
@@ -285,7 +292,12 @@ actor WorkerState {
         self.taskID = taskID
         self.context = context
         closeWhenFinished = open.closeWhenFinished == true
-        await modelChoice.set(provider: open.provider, model: open.model, reasoningEffort: open.reasoningEffort)
+        await modelChoice.set(
+            provider: open.provider,
+            model: open.model,
+            reasoningEffort: open.reasoningEffort,
+            serviceTier: open.serviceTier,
+        )
 
         let events = try await session.events(afterSeq: 0)
         let relay = EventRelay(context: context, taskID: taskID)

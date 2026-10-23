@@ -27,7 +27,7 @@ enum AgentConversationRules {
     /// The open request the host sends for an agent's `agentOpen`: in
     /// `target` — the opener's own project, or another one the request named
     /// — under the opener's current approval mode, with the prompt, title,
-    /// provider, model and effort it asked for, and nothing else of its own:
+    /// provider, model, effort and tier it asked for, and nothing else of its own:
     /// no session to reopen, no temporary workspace, no headless close.
     static func childOpen(
         _ open: AgentOpenRequest,
@@ -53,6 +53,7 @@ enum AgentConversationRules {
             model: open.model,
             approvalMode: opener.mode,
             reasoningEffort: open.reasoningEffort,
+            serviceTier: open.serviceTier,
             prompt: prompt,
             title: title(open.title),
         )

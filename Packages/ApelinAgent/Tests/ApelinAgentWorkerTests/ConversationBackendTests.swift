@@ -41,9 +41,14 @@ struct ConversationBackendTests {
     }
 
     @Test
-    func `create opens in the session's project with the session's provider, model and effort, and does not wait`() async throws {
+    func `create opens in the session's project with the session's provider, model, effort and tier, and does not wait`() async throws {
         let fixture = try Fixture()
-        await fixture.backend.modelChoice.set(provider: .anthropic, model: "claude-opus-5-5", reasoningEffort: .high)
+        await fixture.backend.modelChoice.set(
+            provider: .openAICodex,
+            model: "gpt-6.1-sol",
+            reasoningEffort: .high,
+            serviceTier: .ultrafast,
+        )
         fixture.host.on(.agentOpen, reply: AgentOpenResponse(sessionID: Self.child, task: Self.childTask))
         let opened = try await fixture.backend.conversationCreate(ConversationCreateToolRequest(
             context: fixture.context(),
@@ -53,7 +58,8 @@ struct ConversationBackendTests {
         #expect(fixture.host.requests.map(\.operation) == [.agentOpen], "nothing is read: it answers at once")
         let sent = try #require(fixture.host.requests(AgentOpenRequest.self).first)
         #expect(sent.projectID == fixture.project.id && sent.projectName == "Hello")
-        #expect(sent.provider == .anthropic && sent.model == "claude-opus-5-5" && sent.reasoningEffort == .high)
+        #expect(sent.provider == .openAICodex && sent.model == "gpt-6.1-sol" && sent.reasoningEffort == .high)
+        #expect(sent.serviceTier == .ultrafast)
         #expect(sent.prompt == "Write the README" && sent.title == "Docs")
         #expect(sent.sessionID == nil && sent.temporaryID == nil && sent.closeWhenFinished == nil)
         #expect(opened == ConversationCreateToolResponse(sessionID: Self.child, taskID: "child-task"))
@@ -71,6 +77,7 @@ struct ConversationBackendTests {
         let sent = try #require(fixture.host.requests(AgentPromptRequest.self).first)
         #expect(sent.sessionID == Self.child && sent.text == "Also the changelog")
         #expect(sent.approvalMode == nil && sent.provider == nil && sent.model == nil && sent.reasoningEffort == nil)
+        #expect(sent.serviceTier == nil)
         #expect(sent.attachments == nil && sent.messageID == nil && sent.fromSessionID == nil, "the host writes the sender")
         #expect(response.done == "sent")
     }
@@ -257,7 +264,7 @@ struct ConversationBackendTests {
     func `the model choice follows the open request and the app's prompts`() async {
         let choice = SessionModelChoice(provider: .githubCopilot, model: "claude-sonnet-5.5")
         #expect(await choice.current == SessionModelChoice.Choice(provider: .githubCopilot, model: "claude-sonnet-5.5", reasoningEffort: nil))
-        await choice.set(provider: .openAI, model: "gpt", reasoningEffort: .low)
+        await choice.set(provider: .openAI, model: "gpt", reasoningEffort: .low, serviceTier: nil)
         let current = await choice.current
         #expect(current.provider == .openAI && current.reasoningEffort == .low)
     }

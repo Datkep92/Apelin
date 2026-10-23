@@ -113,6 +113,11 @@ final class ChatController: UIViewController {
             selection.effort = effort
             ComposerModelSelection.current = selection
         }
+        composer.modelBar.onTierChanged = { tier in
+            guard var selection = ComposerModelSelection.current else { return }
+            selection.tier = tier
+            ComposerModelSelection.current = selection
+        }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateModelSelection),
@@ -432,6 +437,7 @@ final class ChatController: UIViewController {
         let selection = ComposerModelSelection.current
         composer.modelBar.setModelName(selection?.model)
         composer.modelBar.setEfforts(selection?.supportedEfforts ?? [], selected: selection?.effort)
+        composer.modelBar.setTiers(selection?.supportedTiers ?? [], selected: selection?.tier)
     }
 
     /// The list scrolls clear of the composer, and of the keyboard under it.
@@ -500,21 +506,26 @@ final class ChatController: UIViewController {
 
 extension ChatController {
     /// `model` of `account` as the selection, keeping the chosen effort
-    /// where the model offers it, else High, else its strongest.
+    /// where the model offers it, else High, else its strongest; and the
+    /// chosen tier where the model offers it, else the standard one.
     private static func selection(of model: String, in account: AgentAccount) -> ComposerModelSelection {
         let efforts = (account.reasoningEfforts?[model] ?? []).filter { [.low, .high, .max].contains($0) }
         let effort = ComposerModelSelection.current?.effort.flatMap { efforts.contains($0) ? $0 : nil }
             ?? (efforts.contains(.high) ? .high : efforts.last)
+        let tiers = account.serviceTiers?[model] ?? []
         return ComposerModelSelection(
             provider: account.provider,
             model: model,
             supportedEfforts: efforts,
             effort: effort,
+            supportedTiers: tiers,
+            tier: ComposerModelSelection.current?.tier.flatMap { tiers.contains($0) ? $0 : nil },
         )
     }
 
     /// With no model picked, or one no longer enabled, the first enabled
-    /// model is picked; with none enabled the bar keeps asking.
+    /// model is picked; with none enabled the bar keeps asking. A model
+    /// still enabled takes the catalog's efforts and tiers again.
     func ensureModelSelection() {
         selectionCheck?.cancel()
         selectionCheck = Task {
@@ -522,11 +533,16 @@ extension ChatController {
                   !Task.isCancelled
             else { return }
             let accounts = EnabledModels.accounts(from: listed)
-            let current = ComposerModelSelection.current
-            let valid = accounts.contains { account in
-                account.provider == current?.provider && (account.models ?? []).contains { $0 == current?.model }
+            if let current = ComposerModelSelection.current, let account = accounts.first(where: { account in
+                account.provider == current.provider && (account.models ?? []).contains(current.model)
+            }) {
+                let refreshed = Self.selection(of: current.model, in: account)
+                if refreshed != current {
+                    ComposerModelSelection.current = refreshed
+                }
+                return
             }
-            guard !valid, let account = accounts.first, let model = account.models?.first else { return }
+            guard let account = accounts.first, let model = account.models?.first else { return }
             ComposerModelSelection.current = Self.selection(of: model, in: account)
         }
     }

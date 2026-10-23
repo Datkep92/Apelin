@@ -1,5 +1,6 @@
 import Foundation
 import KWWKAgent
+import KWWKAI
 
 /// How a session is opened. The host fills it from the app's settings and
 /// the project record; the agent cannot change any of it.
@@ -13,6 +14,8 @@ public struct AgentSessionConfiguration: Sendable {
     public var dataRoot: ApelinDataRoot
     public var mcpServers: [MCPServerConfiguration]
     public var thinking: ThinkingLevel
+    /// The processing tier its requests ask for; nil is the provider's default.
+    public var serviceTier: ServiceTier?
     /// Hard cap on assistant turns per run; nil for none.
     public var maxTurns: Int?
     /// The install root the session host derived from its own path, which
@@ -29,6 +32,7 @@ public struct AgentSessionConfiguration: Sendable {
         dataRoot: ApelinDataRoot = .current,
         mcpServers: [MCPServerConfiguration] = [],
         thinking: ThinkingLevel = .off,
+        serviceTier: ServiceTier? = nil,
         maxTurns: Int? = nil,
         installRoot: String? = nil,
     ) {
@@ -40,6 +44,7 @@ public struct AgentSessionConfiguration: Sendable {
         self.dataRoot = dataRoot
         self.mcpServers = mcpServers
         self.thinking = thinking
+        self.serviceTier = serviceTier
         self.maxTurns = maxTurns
         self.installRoot = installRoot
     }

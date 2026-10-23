@@ -166,6 +166,14 @@ public enum AgentReasoningEffort: String, Codable, Sendable, CaseIterable {
     case off, minimal, low, medium, high, xhigh, max
 }
 
+/// The processing tiers Apelin offers above the provider's standard one,
+/// by kwwk's `ServiceTier` names: `priority` (Codex's Fast) and
+/// `ultrafast`. A model is offered only those its provider's catalog lists
+/// for it (`AgentAccount.serviceTiers`); absent is the standard tier.
+public enum AgentServiceTier: String, Codable, Sendable, CaseIterable {
+    case priority, ultrafast
+}
+
 public struct AgentOpenRequest: OperationRequest {
     public typealias Response = AgentOpenResponse
     public static let operation = AppOperation.agentOpen
@@ -183,6 +191,7 @@ public struct AgentOpenRequest: OperationRequest {
     public var model: String?
     public var approvalMode: ApprovalMode
     public var reasoningEffort: AgentReasoningEffort?
+    public var serviceTier: AgentServiceTier?
     /// A first prompt, submitted as soon as the session is open.
     public var prompt: String?
     /// End the session (its task) when the first run finishes: `succeeded`
@@ -203,6 +212,7 @@ public struct AgentOpenRequest: OperationRequest {
         model: String? = nil,
         approvalMode: ApprovalMode = .confirm,
         reasoningEffort: AgentReasoningEffort? = nil,
+        serviceTier: AgentServiceTier? = nil,
         prompt: String? = nil,
         closeWhenFinished: Bool? = nil,
         title: String? = nil,
@@ -215,6 +225,7 @@ public struct AgentOpenRequest: OperationRequest {
         self.model = model
         self.approvalMode = approvalMode
         self.reasoningEffort = reasoningEffort
+        self.serviceTier = serviceTier
         self.prompt = prompt
         self.closeWhenFinished = closeWhenFinished
         self.title = title
@@ -264,6 +275,7 @@ public struct AgentPromptRequest: OperationRequest {
     public var provider: AgentProvider?
     public var model: String?
     public var reasoningEffort: AgentReasoningEffort?
+    public var serviceTier: AgentServiceTier?
     public var attachments: [AgentInputAttachment]?
     public var approvalMode: ApprovalMode?
     /// The session whose agent sent this, written by the host for an
@@ -279,6 +291,7 @@ public struct AgentPromptRequest: OperationRequest {
         provider: AgentProvider? = nil,
         model: String? = nil,
         reasoningEffort: AgentReasoningEffort? = nil,
+        serviceTier: AgentServiceTier? = nil,
         approvalMode: ApprovalMode? = nil,
         fromSessionID: String? = nil,
     ) {
@@ -288,6 +301,7 @@ public struct AgentPromptRequest: OperationRequest {
         self.provider = provider
         self.model = model
         self.reasoningEffort = reasoningEffort
+        self.serviceTier = serviceTier
         self.attachments = attachments
         self.approvalMode = approvalMode
         self.fromSessionID = fromSessionID

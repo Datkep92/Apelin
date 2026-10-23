@@ -45,6 +45,20 @@ enum ProviderModels {
         })
     }
 
+    /// The tiers Apelin offers that the catalog lists for each of the
+    /// provider's models (only ChatGPT Codex's, today); a model with none is
+    /// left out.
+    static func serviceTiers(
+        _ provider: AgentProvider,
+        credentials: OAuthCredentials,
+    ) -> [String: [AgentServiceTier]] {
+        guard let catalog = catalogKey(provider, credentials: credentials) else { return [:] }
+        return Dictionary(uniqueKeysWithValues: ModelsCatalog.models(for: catalog).compactMap { model in
+            let tiers = (model.compat?.serviceTiers ?? []).compactMap { AgentServiceTier(rawValue: $0.rawValue) }
+            return tiers.isEmpty ? nil : (model.id, tiers)
+        })
+    }
+
     static func fetch(_ provider: AgentProvider, credentials: OAuthCredentials) async throws -> [String] {
         guard usesAPIKey(provider, credentials: credentials),
               let request = modelRequest(provider, credentials: credentials)
