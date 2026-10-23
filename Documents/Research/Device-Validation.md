@@ -1615,3 +1615,28 @@ not Apple's. The bootstrap's shell sees the bootstrap as `/` and the real
 root as `/rootfs`: with the working directory at the data folder's real
 path, `pwd -P` and `realpath` printed `/var/mobile/Documents/…`, which names
 the system's folder to Apple's compilers.
+
+## Workspace builds (2026-10-23, `7b3cb5d`)
+
+The roothide build of `7b3cb5d` went onto the iOS 26.4 iPhone vphone through
+`irisin-cli install --yes`. Two workspaces were written by hand as mobile,
+each declaring `"external": {"script": "apelin/build.sh"}`, and driven by
+console scripts dropped in the inbox (the app quit first through vphoned's
+`apps.terminate`, since a foreground app does not read the inbox again):
+- A script that only packaged a text file with the bootstrap's `dpkg-deb`:
+  `projectCheck` answered `buildSystem: external` and passed; the build ran
+  the script as mobile with `APELIN_BOOTSTRAP=roothide`,
+  `APELIN_ARCHITECTURE=iphoneos-arm64e`, an empty `APELIN_PREFIX` and the
+  registered toolchain's clang on `PATH`, and registered its package;
+  `installPackage` and `removePackage` went through Irisin, and the
+  package was gone afterwards.
+- A script that compiled a tweak with that clang (`SDKROOT` the registered
+  26.4 SDK, deployment target 16.0), signed it with `ldid -S` and
+  packaged it: installed through Irisin, `confirmLoaded` with
+  `trigger: respring` found the marker logged by SpringBoard and the
+  filter selecting it (the load check read from the build's record), and
+  the removal went through.
+
+The Strict-mode approval of an agent's workspace build was not exercised on
+the device (no agent session ran); the Mac covers it (the session host's
+checks and `ExternalBuildToolTests`).
