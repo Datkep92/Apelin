@@ -214,7 +214,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `crashOpen`, `crashSymbolicate`; `confirmLoaded`, `confirmLoadedAttach`, `captureScreen`,
   `readUITree`, `uiAction`; `agentOpen`, `agentPrompt`, `agentSteer`,
   `agentAbort`, `agentApprove`, `agentAttach`, `agentList`, `agentClose`,
-  `agentRunCode`, `agentCredentialImport`, `agentAccountList`, `agentAPIConfiguration`, `agentModelList`, `agentModelActivate`, `agentSignIn`,
+  `agentRunCode`, `agentCredentialImport`, `agentAccountList`, `agentSkillList`, `agentAPIConfiguration`, `agentModelList`, `agentModelActivate`, `agentSignIn`,
   `agentSignInRespond`, `agentSignInCancel`, `agentSignOut`; `toolHostOpen`, `toolHostClose`,
   `toolHostCall`;
   `gitStatus`, `gitDiff`, `gitStage`, `gitUnstage`, `gitCommit`, `gitClone`,
@@ -2128,6 +2128,20 @@ prefixed added methods and classes) and that Theos is not supported (owner,
 2026-10-23): a Theos tweak's Logos is rewritten as plain Objective-C in the
 template's style, never built with Theos, which is never installed.
 Skills, memory and the project instructions are read again for every prompt.
+Skills are global (owner, 2026-10-23): the built-ins and the skills folder,
+never a project's own `.claude/skills` or `.kwwk/skills`. Settings ▸ Agent ▸
+Skills (`Apelin/Interface/Settings/Skills/`) lists them from `agentSkillList`,
+which the credential worker answers with `SkillCatalog.listing` — the
+catalogue a session reads, each skill's body and files as `read_skill` serves
+them, its place in the folder (`location`) and every problem kwwk or a taken
+built-in name raises. A row opens the instructions; the plus copies in a folder
+with a `SKILL.md` at its top, or one Markdown file as the `SKILL.md` of a folder
+named for it (`SkillFolder`: links and hidden entries left behind, at most
+2,000 files and 32 MB, staged under a hidden name and moved in whole, an
+existing one replaced only after asking); a swipe removes a folder skill or a
+problem's place, after asking, never through a link out of the folder. The app
+writes the folder itself, as mobile; nothing tells a session, which reads it
+again for its next message.
 
 A local tool's empty optional argument — `null`, `""`, `[]` or `{}` — is
 dropped before the tool, the gate or the host sees it (`ToolArguments`), as a

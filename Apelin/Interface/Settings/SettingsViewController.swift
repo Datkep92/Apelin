@@ -22,6 +22,7 @@ final class SettingsViewController: TableController {
         case modelProviders
         case permissionMode
         case memories
+        case skills
         case toolchain
         case sdks
         case templates
@@ -109,7 +110,7 @@ final class SettingsViewController: TableController {
 
     private func rows(in section: Section) -> [Row] {
         switch section {
-        case .agent: [.modelProviders, .permissionMode, .memories]
+        case .agent: [.modelProviders, .permissionMode, .memories, .skills]
         case .environment: [.toolchain, .sdks, .templates]
         case .git: [.git]
         case .about: [.version, .licenses, .logs]
@@ -211,6 +212,8 @@ final class SettingsViewController: TableController {
             content.text = String(localized: "Permission Mode")
         case .memories:
             content.text = String(localized: "Memories")
+        case .skills:
+            content.text = String(localized: "Skills")
         case .toolchain:
             content.text = String(localized: "Toolchains")
         case .sdks:
@@ -251,6 +254,7 @@ final class SettingsViewController: TableController {
         case .modelProviders: page = ModelProvidersController()
         case .permissionMode: page = PermissionModeController()
         case .memories: page = MemoriesController()
+        case .skills: page = SkillsController()
         case .toolchain: page = ToolchainController()
         case .sdks: page = SDKListController()
         case .templates: page = TemplatesController()

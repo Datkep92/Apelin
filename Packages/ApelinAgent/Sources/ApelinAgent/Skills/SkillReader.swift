@@ -54,14 +54,14 @@ struct SkillReader {
         return Self.bounded(data, Self.maxFileBytes)
     }
 
-    private static func bounded(_ data: Data, _ limit: Int) -> String {
+    static func bounded(_ data: Data, _ limit: Int) -> String {
         guard data.count > limit else { return String(decoding: data, as: UTF8.self) }
         return String(decoding: data.prefix(limit), as: UTF8.self) + "\n… (truncated)"
     }
 
     /// Regular files below the folder, without following links, hidden
     /// entries or the `SKILL.md` already read.
-    private static func files(in directory: String) -> [String] {
+    static func files(in directory: String) -> [String] {
         guard let walker = FileManager.default.enumerator(atPath: directory) else { return [] }
         var files: [String] = []
         while let relative = walker.nextObject() as? String {

@@ -11,7 +11,7 @@ import KWWKAI
 /// executable, spawned as the `credential-import` instance, serves
 /// `agentCredentialImport` and the accounts: `agentAccountList`,
 /// `agentSignIn` (a `signIn` task), `agentSignInRespond`, its cancel and
-/// `agentSignOut` (`AccountDesk`).
+/// `agentSignOut` (`AccountDesk`), and Settings ▸ Skills' `agentSkillList`.
 ///
 /// The session's events go to the host as the events of its `agent` task.
 public enum AgentWorker {
@@ -135,6 +135,11 @@ public enum AgentWorker {
         case .agentAccountList:
             await WorkerMain.serve(AgentAccountListRequest.self, request) { _ in
                 await accounts.list()
+            }
+        case .agentSkillList:
+            await WorkerMain.serve(AgentSkillListRequest.self, request) { _ in
+                let home = URL(fileURLWithPath: context.assignment.home, isDirectory: true)
+                return SkillCatalog.listing(userDirectory: ApelinDataRoot(home: home).skills)
             }
         case .agentAPIConfiguration:
             await WorkerMain.serve(AgentAPIConfigurationRequest.self, request) { query in

@@ -3,6 +3,7 @@
   "steps": [
     {"op": "hello"},
     {"op": "agentCredentialImport", "label": "credentials"},
+    {"op": "agentSkillList", "label": "skills"},
     {"op": "agentList", "label": "before"},
     {"op": "projectCreate", "label": "project", "allowError": true,
      "request": {"templateID": "wiki.qaq.apelin.dev.tweak/objc-hook", "name": "Hello", "values": {}}},

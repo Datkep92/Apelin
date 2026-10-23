@@ -68,6 +68,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case agentRunCode
     case agentCredentialImport
     case agentAccountList
+    case agentSkillList
     case agentAPIConfiguration
     case agentModelList
     case agentModelActivate
@@ -115,7 +116,8 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .logStream, .crashList, .crashOpen, .crashSymbolicate: .logs
         case .confirmLoaded, .confirmLoadedAttach, .captureScreen, .readUITree, .uiAction: .diagnostics
         case .agentOpen, .agentPrompt, .agentSteer, .agentAbort, .agentApprove, .agentAttach, .agentList, .agentClose,
-             .agentRunCode, .agentCredentialImport, .agentAccountList, .agentAPIConfiguration, .agentModelList,
+             .agentRunCode, .agentCredentialImport, .agentAccountList, .agentSkillList, .agentAPIConfiguration,
+             .agentModelList,
              .agentModelActivate, .agentSignIn, .agentSignInRespond, .agentSignInCancel, .agentSignOut:
             .agent
         case .toolHostOpen, .toolHostClose, .toolHostCall: .toolHost
@@ -178,6 +180,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .agentRunCode: AgentRunCodeRequest.self
         case .agentCredentialImport: AgentCredentialImportRequest.self
         case .agentAccountList: AgentAccountListRequest.self
+        case .agentSkillList: AgentSkillListRequest.self
         case .agentAPIConfiguration: AgentAPIConfigurationRequest.self
         case .agentModelList: AgentModelListRequest.self
         case .agentModelActivate: AgentModelActivateRequest.self
