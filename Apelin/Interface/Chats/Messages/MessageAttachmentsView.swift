@@ -43,31 +43,37 @@ final class MessageAttachmentsView: UIView {
         fatalError("Use init(frame:)")
     }
 
-    func show(_ attachments: [ComposerAttachment], trailing: Bool) {
+    /// `animated` is the row's to say: a message gaining attachments
+    /// cross-fades, a row taking another message out of the pool does not.
+    func show(_ attachments: [ComposerAttachment], trailing: Bool, animated: Bool) {
         guard self.attachments != attachments || self.trailing != trailing else { return }
         if self.attachments.map(\.id) != attachments.map(\.id) {
             requested.removeAll()
         }
         self.attachments = attachments
         self.trailing = trailing
-        refresh()
+        refresh(animated: animated)
         for item in attachments where requested.insert(item.id).inserted {
             MessageAttachmentPreviews.shared.prepare(item) { [weak self] in
                 guard let self, self.attachments.contains(where: { $0.id == item.id }) else { return }
-                refresh()
+                refresh(animated: true)
                 onSizeChange?()
             }
         }
     }
 
-    private func refresh() {
-        if window != nil, !UIAccessibility.isReduceMotionEnabled {
+    private func refresh(animated: Bool) {
+        if animated, window != nil, !UIAccessibility.isReduceMotionEnabled {
             UIView.transition(with: self, duration: 0.18, options: [.transitionCrossDissolve, .allowAnimatedContent]) {
-                self.updateContent()
-                self.layoutIfNeeded()
+                // Only the cross-fade: new tiles and cards start at their
+                // places rather than growing out of the corner.
+                UIView.performWithoutAnimation {
+                    self.updateContent()
+                    self.layoutIfNeeded()
+                }
             }
         } else {
-            updateContent()
+            UIView.performWithoutAnimation(updateContent)
         }
     }
 

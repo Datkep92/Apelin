@@ -14,7 +14,7 @@ final class MessageImageGrid: UIView {
     private var attachments: [ComposerAttachment] = []
     private var tiles: [UIButton] = []
     private var aspectRatios: [CGFloat] = []
-    private let backgroundGradient = CAGradientLayer()
+    private let background = MessageAccentGradientView()
     private let content = UIView()
     private static let contentInset: CGFloat = 1
 
@@ -23,14 +23,11 @@ final class MessageImageGrid: UIView {
         layer.cornerRadius = 12
         layer.cornerCurve = .continuous
         clipsToBounds = true
-        backgroundGradient.startPoint = CGPoint(x: 0.6, y: 0)
-        backgroundGradient.endPoint = CGPoint(x: 0.4, y: 1)
-        layer.addSublayer(backgroundGradient)
+        addSubview(background)
         content.layer.cornerRadius = layer.cornerRadius - Self.contentInset
         content.layer.cornerCurve = .continuous
         content.clipsToBounds = true
         addSubview(content)
-        updateBackground()
     }
 
     @available(*, unavailable)
@@ -66,7 +63,7 @@ final class MessageImageGrid: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        backgroundGradient.frame = bounds
+        background.frame = bounds
         content.frame = CGRect(
             x: Self.contentInset,
             y: Self.contentInset,
@@ -104,20 +101,5 @@ final class MessageImageGrid: UIView {
             width: max(0, min(540, width) - contentInset * 2),
             maximumHeight: max(0, maximumHeight - contentInset * 2),
         )
-    }
-
-    override func tintColorDidChange() {
-        super.tintColorDidChange()
-        updateBackground()
-    }
-
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        updateBackground()
-    }
-
-    private func updateBackground() {
-        let accent = tintColor.resolvedColor(with: traitCollection)
-        backgroundGradient.colors = [accent.withAlphaComponent(0.10).cgColor, accent.withAlphaComponent(0.15).cgColor]
     }
 }

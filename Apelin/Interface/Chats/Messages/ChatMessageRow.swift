@@ -31,12 +31,13 @@ final class ChatMessageRow: ListRowView {
     /// Between the sender line and what it is over.
     private static let senderSpacing: CGFloat = 4
 
-    private let bubble = UIView()
+    private let bubble = MessageAccentGradientView()
     /// Over a message another conversation's agent sent: which one. A
     /// label, so VoiceOver reads it before the message.
     private let senderLabel = UILabel()
+    /// The message this row shows: only a change to it animates, never the
+    /// row taking another message out of the pool.
     private var shownID: UUID?
-    private let bubbleGradient = CAGradientLayer()
     private let label = TextLabelView()
     private let markdownView = ChatMarkdownView()
     private var markdownText: String?
@@ -68,11 +69,7 @@ final class ChatMessageRow: ListRowView {
         bubble.layer.cornerCurve = .continuous
         bubble.clipsToBounds = true
         bubble.isHidden = true
-        bubbleGradient.startPoint = CGPoint(x: 0.6, y: 0)
-        bubbleGradient.endPoint = CGPoint(x: 0.4, y: 1)
-        bubble.layer.addSublayer(bubbleGradient)
         addSubview(bubble)
-        updateBubbleColor()
         senderLabel.font = Self.senderFont
         senderLabel.adjustsFontForContentSizeCategory = true
         senderLabel.textColor = .secondaryLabel
@@ -125,19 +122,21 @@ final class ChatMessageRow: ListRowView {
         bubble.isHidden = true
         senderLabel.text = nil
         senderLabel.isHidden = true
+        shownID = nil
         finishesStreamWhenStill = false
         markdownView.reset()
         markdownView.isStreaming = false
         markdownView.streamIdentity = nil
         markdownText = nil
         attachments = []
-        attachmentsView.show([], trailing: false)
+        attachmentsView.show([], trailing: false, animated: false)
         onAttachmentLayoutChanged = nil
         onPreview = nil
         onPreviewImages = nil
     }
 
     func show(_ message: ChatMessage, isStreaming: Bool = false) {
+        let isSameMessage = shownID == message.id
         isUser = message.role == .user
         label.attributedText = Self.attributedText(message.text)
         label.accessibilityLabel = message.text
@@ -150,7 +149,7 @@ final class ChatMessageRow: ListRowView {
                 bubble.alpha = alpha
                 label.alpha = alpha
             }
-            if shownID == message.id, window != nil, !UIAccessibility.isReduceMotionEnabled {
+            if isSameMessage, window != nil, !UIAccessibility.isReduceMotionEnabled {
                 UIView.animate(withDuration: 0.25, animations: fade)
             } else {
                 fade()
@@ -193,7 +192,7 @@ final class ChatMessageRow: ListRowView {
             }
         }
         attachments = message.attachments
-        attachmentsView.show(attachments, trailing: isUser)
+        attachmentsView.show(attachments, trailing: isUser, animated: isSameMessage)
         setNeedsLayout()
     }
 
@@ -245,7 +244,6 @@ final class ChatMessageRow: ListRowView {
                 width: width,
                 height: textHeight,
             ))
-            bubbleGradient.frame = bubble.bounds
             label.frame = bubble.frame.insetBy(dx: Self.textPadding, dy: Self.textPadding)
         } else {
             let textHeight = hasText ? max(0, content.height - attachmentHeight - gap) : 0
@@ -319,21 +317,6 @@ final class ChatMessageRow: ListRowView {
 
     private static func attributedText(_ text: String) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: UIColor.label])
-    }
-
-    override func tintColorDidChange() {
-        super.tintColorDidChange()
-        updateBubbleColor()
-    }
-
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        updateBubbleColor()
-    }
-
-    private func updateBubbleColor() {
-        let accent = tintColor.resolvedColor(with: traitCollection)
-        bubbleGradient.colors = [accent.withAlphaComponent(0.10).cgColor, accent.withAlphaComponent(0.15).cgColor]
     }
 
     private static var font: UIFont {
