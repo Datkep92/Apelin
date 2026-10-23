@@ -120,10 +120,13 @@ enum EnvironmentPrompt {
             "- run_code's environment is already set: run a command directly or with `bash -c`, never through a login shell (`bash -l`, `sh -l`), whose profile builds PATH again.",
         )
         if bootstrap == .roothide {
-            // The bootstrap's own tools see the real root as /rootfs; the
-            // toolchain's compilers are Apple's and see it as /.
+            // The bootstrap's own tools see the bootstrap as / and the real
+            // root as /rootfs; the toolchain's compilers are Apple's and see
+            // the real filesystem. On a roothide vphone, `pwd -P` in the data
+            // folder printed /var/mobile/Documents/…, the system's folder to
+            // clang.
             lines.append(
-                "- On roothide the bootstrap's shell and tools see the real root as `/rootfs`, so `pwd -P`, `realpath` and the like can print a `/rootfs/…` path the toolchain's compilers cannot open: give the compilers paths relative to the working directory.",
+                "- On roothide the bootstrap's shell and tools see the bootstrap as `/` and the real root as `/rootfs`, so `pwd -P`, `realpath` and the like print `/var/mobile/…` or `/rootfs/…` for a path the toolchain's compilers know by another name: give the compilers paths relative to the working directory, or under `$APELIN_PROJECT_ROOT`, the project's real path.",
             )
         }
         if let found = inputs.commandsFound {

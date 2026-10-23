@@ -34,7 +34,7 @@ struct EnvironmentPromptTests {
         let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot, installRoot: jbroot)
         let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(home.projectURL), mode: .confirm, skills: [])
         #expect(prompt.contains("- Bootstrap: roothide, install root \(jbroot)."))
-        #expect(prompt.contains("can print a `/rootfs/…` path the toolchain's compilers cannot open"))
+        #expect(prompt.contains("print `/var/mobile/…` or `/rootfs/…` for a path the toolchain's compilers know by another name"))
     }
 
     @Test

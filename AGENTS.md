@@ -2148,8 +2148,10 @@ prepared, its tool directory) and SDK (ID, version, path, the same marks, and
 run_code and the terminal already have the prepared toolchain and SDK, so the
 model neither probes nor sets up again what is installed. It also says that
 run_code needs no login shell (whose profile builds `PATH` again), on roothide
-that a `/rootfs/…` path a bootstrap tool prints is no path the toolchain's
-compilers can open, and which of cmake, git, ldid, make, ninja, perl, python3
+that a path a bootstrap tool prints (`/var/mobile/…` with the bootstrap as
+`/`, or `/rootfs/…`) is not the name the toolchain's compilers know, so they
+get relative paths or `$APELIN_PROJECT_ROOT` (on the iPhone vphone, `pwd -P`
+in the data folder printed `/var/mobile/Documents/…`), and which of cmake, git, ldid, make, ninja, perl, python3
 and xcrun are on run_code's search path (`DevelopmentEnvironment.searchPath`,
 the host's own list). It is read again
 with the rest and holds nothing that changes unless the environment does —
