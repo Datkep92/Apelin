@@ -27,7 +27,7 @@ enum ChatActions {
             return
         }
         // Distribute… is read off the project's own manifest each time: one
-        // with no build description has nothing to package
+        // with no build description or script has nothing to package
         Task { [weak presenter, weak anchor] in
             let project = try? await ProjectSummary.load().first { $0.name == projectName }
             guard let presenter, let anchor else {
@@ -38,7 +38,7 @@ enum ChatActions {
                 projectName: projectName,
                 from: presenter,
                 anchor: anchor,
-                canDistribute: project?.hasBuildDescription == true,
+                distributionBlocker: (project?.buildMethod ?? .missingDescription).shortBlocker,
                 renameChat: rename,
                 onPrepareDistribution: onPrepareDistribution,
             ).children)

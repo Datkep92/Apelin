@@ -136,6 +136,31 @@ struct ChannelHostBackendTests {
     }
 
     @Test
+    func `check_distribution counts what stops the build, and says a workspace's package is checked by its build`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(
+            passed: false,
+            diagnostics: [ProjectDiagnostic(code: "external.build", severity: .error, message: "/external/script is not a regular file", field: "/external")],
+            buildSystem: .external,
+        ))
+        let broken = try await fixture.backend.checkDistribution(DistributionCheckRequest(project: fixture.project, bootstrap: "rootless"))
+        #expect(fixture.host.requests(ProjectCheckRequest.self).last?.purpose == .distribution)
+        #expect(!broken.ready && broken.issues.map(\.message) == ["/external/script is not a regular file"])
+        #expect(broken.note != nil, "a workspace's package is checked when it is built")
+
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: true, buildSystem: .external))
+        let declared = try await fixture.backend.checkDistribution(DistributionCheckRequest(project: fixture.project))
+        #expect(declared.ready && declared.issues.isEmpty && declared.note != nil)
+
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: true, diagnostics: [
+            ProjectDiagnostic(code: "project.flag.unusual", severity: .warning, message: "unusual flag"),
+            ProjectDiagnostic(code: "distribution.package.id.local", severity: .warning, message: "local identifier"),
+        ]))
+        let described = try await fixture.backend.checkDistribution(DistributionCheckRequest(project: fixture.project))
+        #expect(!described.ready && described.issues.map(\.message) == ["local identifier"] && described.note == nil)
+    }
+
+    @Test
     func `a build that names its APELIN_BUILD_ID reports that id`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.buildStart, reply: TaskHandle(taskID: TaskID("build-task"), kind: .build))

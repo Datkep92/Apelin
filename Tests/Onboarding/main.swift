@@ -48,30 +48,41 @@ import Foundation
         print("ok: onboarding pairing and project naming behavior")
 
         // Distribute… and the distribution page's targets need a build
-        // description apelin-build can package.
+        // description apelin-build can package, or a workspace's own script.
         let build: JSONValue = .object(["steps": .array([.object(["type": .string("compile")])])])
         let tweak: JSONValue = .object(["projectID": .string("p"), "kind": .string("tweak"), "build": build])
-        precondition(ProjectBuildDescription.isPresent(in: tweak), "A template project has one")
+        precondition(ProjectBuildMethod(manifest: tweak) == .description, "A template project has one")
         for kind in ["app", "cli", "preferences"] {
-            precondition(ProjectBuildDescription.isPresent(in: .object(["kind": .string(kind), "build": build])))
+            precondition(ProjectBuildMethod(manifest: .object(["kind": .string(kind), "build": build])) == .description)
         }
+        let script: JSONValue = .object(["script": .string("apelin/build.sh")])
         let workspace: JSONValue = .object([
             "projectID": .string("w"), "kind": .string("workspace"), "buildSystem": .string("external"),
         ])
-        precondition(!ProjectBuildDescription.isPresent(in: workspace), "An empty workspace has none")
-        precondition(!ProjectBuildDescription.isPresent(in: .object(["kind": .string("workspace")])),
+        precondition(ProjectBuildMethod(manifest: workspace) == .missingScript, "An empty workspace has none")
+        precondition(ProjectBuildMethod(manifest: .object([
+            "kind": .string("workspace"), "buildSystem": .string("external"), "external": script,
+        ])) == .script, "A workspace that declares its script is built by it")
+        precondition(ProjectBuildMethod(manifest: .object(["kind": .string("workspace"), "external": script])) == .script,
+                     "A workspace from before buildSystem with a script")
+        precondition(ProjectBuildMethod(manifest: .object(["kind": .string("workspace")])) == .missingScript,
                      "A workspace from before buildSystem has none")
-        precondition(!ProjectBuildDescription.isPresent(in: .object([
+        precondition(ProjectBuildMethod(manifest: .object([
             "kind": .string("workspace"), "build": build,
-        ])), "A workspace is built by its own tools, whatever it holds")
-        precondition(!ProjectBuildDescription.isPresent(in: .object([
+        ])) == .missingScript, "A workspace is built by its own tools, whatever it holds")
+        precondition(ProjectBuildMethod(manifest: .object([
             "kind": .string("tweak"), "buildSystem": .string("external"), "build": build,
-        ])), "An external build system is not apelin-build's")
-        precondition(!ProjectBuildDescription.isPresent(in: .object(["kind": .string("tweak")])),
+        ])) == .missingScript, "An external build system is not apelin-build's")
+        precondition(ProjectBuildMethod(manifest: .object([
+            "kind": .string("workspace"), "external": .object(["script": .string("")]),
+        ])) == .missingScript, "An empty script names nothing")
+        precondition(ProjectBuildMethod(manifest: .object(["kind": .string("tweak")])) == .missingDescription,
                      "A manifest without a build has nothing to build")
-        precondition(!ProjectBuildDescription.isPresent(in: .object(["kind": .string("tweak"), "build": .null])))
-        precondition(!ProjectBuildDescription.isPresent(in: .object(["build": build])), "No kind, no build")
-        precondition(!ProjectBuildDescription.isPresent(in: .array([])))
-        print("ok: distribution needs a build description")
+        precondition(ProjectBuildMethod(manifest: .object(["kind": .string("tweak"), "build": .null])) == .missingDescription)
+        precondition(ProjectBuildMethod(manifest: .object(["build": build])) == .missingDescription, "No kind, no build")
+        precondition(ProjectBuildMethod(manifest: .array([])) == .missingDescription)
+        precondition(ProjectBuildMethod.script.canBuild && ProjectBuildMethod.description.blocker == nil)
+        precondition(!ProjectBuildMethod.missingScript.canBuild && ProjectBuildMethod.missingScript.shortBlocker != nil)
+        print("ok: distribution needs a build description or a workspace's script")
     }
 }

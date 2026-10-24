@@ -130,9 +130,10 @@ public struct ChannelHostBackend: AgentHostBackend {
         let configuration: ApelinProtocol.BuildConfiguration = request.configuration == .release ? .release : .debug
         let bootstrap = try Self.bootstrap(request.bootstrap)
         // A distribution build reports what the package should not carry yet.
-        let warnings = await configuration == .release && bootstrap != nil
-            ? (try? distributionIssues(bootstrap: bootstrap)) ?? []
-            : []
+        let check = await configuration == .release && bootstrap != nil
+            ? (try? distributionCheck(bootstrap: bootstrap))
+            : nil
+        let warnings = (check?.diagnostics ?? []).filter(Self.isDistributionWarning).map(Self.diagnostic)
         let handle = try await service.buildStart(
             projectID: project.id,
             configuration: configuration,
@@ -191,9 +192,21 @@ public struct ChannelHostBackend: AgentHostBackend {
 
     // MARK: distribution
 
+    /// What stops the build counts as well as what the package should not
+    /// carry: a project whose check fails is not ready either. A workspace
+    /// has no description to read before its script runs, so its release
+    /// build checks the package instead, as the note says.
     public func checkDistribution(_ request: DistributionCheckRequest) async throws -> DistributionCheckResponse {
-        let issues = try await distributionIssues(bootstrap: Self.bootstrap(request.bootstrap))
-        return DistributionCheckResponse(ready: issues.isEmpty, issues: issues)
+        let check = try await distributionCheck(bootstrap: Self.bootstrap(request.bootstrap))
+        let issues = check.diagnostics.filter { $0.severity == .error || Self.isDistributionWarning($0) }
+            .map(Self.diagnostic)
+        return DistributionCheckResponse(
+            ready: issues.isEmpty,
+            issues: issues,
+            note: check.buildSystem == .external
+                ? "This workspace's package is checked when its build script writes it: a release build lists what it finds among its diagnostics."
+                : nil,
+        )
     }
 
     /// The bootstrap a request names, or nil when it names none.
@@ -253,11 +266,15 @@ public struct ChannelHostBackend: AgentHostBackend {
         }
     }
 
-    private func distributionIssues(bootstrap: ApelinProtocol.BuildBootstrap?) async throws -> [BuildDiagnostic] {
-        try await service.projectCheck(projectID: project.id, purpose: .distribution, bootstrap: bootstrap)
-            .diagnostics
-            .filter { $0.code.hasPrefix("distribution.") }
-            .map(Self.diagnostic)
+    private func distributionCheck(
+        bootstrap: ApelinProtocol.BuildBootstrap?,
+    ) async throws -> (diagnostics: [ProjectDiagnostic], buildSystem: BuildSystemKind?) {
+        let response = try await service.projectCheck(projectID: project.id, purpose: .distribution, bootstrap: bootstrap)
+        return (response.diagnostics, response.buildSystem)
+    }
+
+    private static func isDistributionWarning(_ diagnostic: ProjectDiagnostic) -> Bool {
+        diagnostic.code.hasPrefix("distribution.") && diagnostic.severity != .error
     }
 
     static func diagnostic(_ diagnostic: ProjectDiagnostic) -> BuildDiagnostic {

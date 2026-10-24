@@ -348,6 +348,17 @@ enum BuiltInSkills {
         installed on this device without Apelin is never replaced: never
         rename the package to get past that, tell the user. Write how the
         project builds into `AGENTS.md` once it works.
+
+        ## Distribution
+        A workspace is distributed like any project: build
+        `configuration: release` once per bootstrap, and the script builds
+        for `APELIN_BOOTSTRAP` whatever this device runs. check_distribution
+        before it only says whether the script is declared; the release build
+        checks the package it writes and lists, among its diagnostics, an
+        identifier starting `local.apelin.`, a version this project already
+        packaged for that target, and a package other than the other
+        target's latest release. Fix those in the script or the repository,
+        never by renaming one target's package to pass as the other.
         """,
     )
 

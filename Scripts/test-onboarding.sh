@@ -19,6 +19,6 @@ xcrun --sdk macosx swiftc -swift-version 5 -parse-as-library -target arm64-apple
     -I "$root/Shared/XPCShim" -I "$modules" "${objects[@]}" \
     "$root/Apelin/Interface/Onboarding/WelcomeEnvironmentRecommendation.swift" \
     "$root/Apelin/Interface/Projects/ProjectCreationDraft.swift" \
-    "$root/Apelin/Interface/Projects/ProjectBuildDescription.swift" \
+    "$root/Apelin/Interface/Projects/ProjectBuildMethod.swift" \
     "$root/Tests/Onboarding/main.swift" -o "$work/onboarding"
 "$work/onboarding"

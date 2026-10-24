@@ -8,15 +8,16 @@ import UIKit
 @MainActor
 enum ProjectActions {
     /// `renameChat` leads the first group, above Rename Project…;
-    /// `canDistribute` is false for a project with no build description
-    /// (`ProjectBuildDescription`), which has nothing to package.
+    /// `distributionBlocker` says why a project with no build description
+    /// or script (`ProjectBuildMethod`), which has nothing to package,
+    /// cannot be distributed.
     /// `onPrepareDistribution` sends the distribution page's request to the
     /// project's conversation.
     static func menu(
         projectName: String,
         from presenter: UIViewController,
         anchor: UIBarButtonItem,
-        canDistribute: Bool = true,
+        distributionBlocker: String? = nil,
         renameChat: UIKit.UIAction? = nil,
         onPrepareDistribution: ((String) -> Void)? = nil,
     ) -> UIMenu {
@@ -45,9 +46,9 @@ enum ProjectActions {
         }
         let distribute = UIAction(
             title: String(localized: "Distribute…"),
-            subtitle: canDistribute ? nil : String(localized: "Needs a build description"),
+            subtitle: distributionBlocker,
             image: UIImage(systemName: "shippingbox"),
-            attributes: canDistribute ? [] : .disabled,
+            attributes: distributionBlocker == nil ? [] : .disabled,
         ) { [weak presenter] _ in
             presenter?.presentPageAsFormSheet(
                 ProjectDistributionController(projectName: projectName, onPrepare: onPrepareDistribution),

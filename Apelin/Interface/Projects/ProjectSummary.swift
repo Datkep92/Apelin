@@ -36,7 +36,7 @@ struct ProjectSummary: Hashable, Sendable {
                     displayName: document["displayName"]?.stringValue,
                     projectID: document["projectID"]?.stringValue,
                     automaticallyNamed: document["autoName"]?.boolValue == true,
-                    hasBuildDescription: ProjectBuildDescription.isPresent(in: document),
+                    buildMethod: ProjectBuildMethod(manifest: document),
                 )
             }
         }.value
@@ -47,9 +47,8 @@ struct ProjectSummary: Hashable, Sendable {
     var displayName: String?
     var projectID: String?
     var automaticallyNamed = false
-    /// Whether apelin-build can build and package it: false for a workspace
-    /// (`ProjectBuildDescription`).
-    var hasBuildDescription = false
+    /// How its package is built, if it can be yet (`ProjectBuildMethod`).
+    var buildMethod = ProjectBuildMethod.missingDescription
 
     var displayTitle: String {
         displayName.flatMap { ProjectDisplayName.isValid($0) ? $0 : nil } ?? name

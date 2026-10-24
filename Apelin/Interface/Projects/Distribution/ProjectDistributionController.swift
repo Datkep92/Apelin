@@ -6,9 +6,12 @@ import UIKit
 /// package should not carry yet, then build on its own page
 /// (`DistributionBuildController`). What the check finds is advice: Build
 /// still goes ahead after a confirmation, and Ask Agent to Prepare hands
-/// the work to the project's conversation. A project with no build
-/// description (`ProjectBuildDescription`) has nothing to package: the page
-/// says so and offers no target.
+/// the work to the project's conversation. What stops the build — an error
+/// the check finds, such as a workspace script that is not in the project —
+/// is listed and Build waits for it to be fixed. A workspace is built by
+/// its own script, whose package is checked once it is written. A project
+/// with no build description or script (`ProjectBuildMethod`) has nothing
+/// to package: the page says so and offers no target.
 @MainActor
 final class ProjectDistributionController: TableController {
     private enum Section: Hashable {
@@ -16,7 +19,7 @@ final class ProjectDistributionController: TableController {
     }
 
     private enum Row: Hashable {
-        case project, target(BuildBootstrap), checking, ready, issue(Int), prepare, unavailable
+        case project, target(BuildBootstrap), checking, ready, blocker(Int), issue(Int), prepare, unavailable
     }
 
     private struct RowContent: Equatable {
@@ -32,8 +35,11 @@ final class ProjectDistributionController: TableController {
     private let onPrepare: ((String) -> Void)?
     private var displayName: String?
     private var selectedTarget: BuildBootstrap?
-    /// False once the check finds no build description; the targets go.
-    private var hasBuildDescription = true
+    /// Nil until the manifest is read; one that cannot build takes the
+    /// targets away.
+    private var method: ProjectBuildMethod?
+    /// The check's errors: the build would stop at them.
+    private var blockers: [ProjectDiagnostic] = []
     private var issues: [ProjectDiagnostic] = []
     private var checking = false
     private var checkFailure: String?
@@ -79,7 +85,9 @@ final class ProjectDistributionController: TableController {
             switch section {
             case .target: String(localized: "Choose one target, then tap Build. To build the other target, come back and build again.")
             case .readiness:
-                self?.issues.isEmpty == false
+                self?.blockers.isEmpty == false
+                    ? String(localized: "Fix these before building.")
+                    : self?.issues.isEmpty == false
                     ? String(localized: "These are suggestions. You can still build the package.")
                     : nil
             case .project: nil
@@ -144,6 +152,10 @@ final class ProjectDistributionController: TableController {
         case .ready:
             content.image = UIImage(systemName: "checkmark.seal.fill")
             content.imageProperties.tintColor = .systemGreen
+        case .blocker:
+            content.image = UIImage(systemName: "xmark.octagon.fill")
+            content.imageProperties.tintColor = .systemRed
+            content.textProperties.numberOfLines = 0
         case .issue:
             content.image = UIImage(systemName: "exclamationmark.triangle.fill")
             content.imageProperties.tintColor = .systemOrange
@@ -162,21 +174,31 @@ final class ProjectDistributionController: TableController {
     }
 
     private func updateRows() {
+        let canBuild = method?.canBuild ?? true
         var readiness: [RowContent]
-        if !hasBuildDescription {
-            readiness = [RowContent(row: .unavailable, text: DistributionProject.missingBuildDescription)]
+        if let blocker = method?.blocker {
+            readiness = [RowContent(row: .unavailable, text: blocker)]
         } else if checking {
             readiness = [RowContent(row: .checking, text: String(localized: "Checking…"))]
         } else if let checkFailure {
             readiness = [RowContent(row: .unavailable, text: checkFailure)]
-        } else if issues.isEmpty {
-            readiness = [RowContent(row: .ready, text: String(localized: "Ready to distribute"))]
+        } else if blockers.isEmpty, issues.isEmpty {
+            readiness = [RowContent(
+                row: .ready,
+                text: String(localized: "Ready to distribute"),
+                secondaryText: method == .script
+                    ? String(localized: "The package is checked after the build script writes it.")
+                    : nil,
+            )]
         } else {
-            readiness = issues.indices.map { index in
+            readiness = blockers.indices.map { index in
+                RowContent(row: .blocker(index), text: blockers[index].message)
+            }
+            readiness += issues.indices.map { index in
                 RowContent(
                     row: .issue(index),
-                    text: Self.title(of: issues[index]),
-                    secondaryText: Self.advice(for: issues[index]),
+                    text: DistributionAdvice.title(of: issues[index]),
+                    secondaryText: DistributionAdvice.advice(for: issues[index]),
                 )
             }
             if onPrepare != nil {
@@ -186,14 +208,15 @@ final class ProjectDistributionController: TableController {
         var sections: [(Section, [RowContent])] = [
             (.project, [RowContent(row: .project, text: displayName ?? projectName)]),
         ]
-        if hasBuildDescription {
+        if canBuild {
             sections.append((.target, BuildBootstrap.allCases.map { target in
                 RowContent(row: .target(target), text: target.rawValue, selected: target == selectedTarget)
             }))
         }
         sections.append((.readiness, readiness))
         dataSource.update(sections, reconfigure: true)
-        navigationItem.rightBarButtonItem?.isEnabled = hasBuildDescription && selectedTarget != nil
+        navigationItem.rightBarButtonItem?.isEnabled = canBuild && blockers.isEmpty && !checking
+            && checkFailure == nil && selectedTarget != nil
     }
 
     // MARK: - The check
@@ -210,27 +233,30 @@ final class ProjectDistributionController: TableController {
         check = Task { [weak self] in
             guard let self else { return }
             do {
-                guard let id = try await DistributionProject.buildableID(named: projectName) else {
-                    guard !Task.isCancelled else { return }
-                    hasBuildDescription = false
+                let project = try await DistributionProject.resolve(named: projectName)
+                guard !Task.isCancelled else { return }
+                method = project.method
+                guard project.method.canBuild else {
                     selectedTarget = nil
+                    blockers = []
                     issues = []
                     checking = false
                     updateRows()
                     return
                 }
-                hasBuildDescription = true
                 let response = try await ApelinService.app.projectCheck(
-                    projectID: id,
+                    projectID: project.id,
                     purpose: .distribution,
                     bootstrap: target,
                 )
                 guard !Task.isCancelled else { return }
-                issues = response.diagnostics.filter { $0.code.hasPrefix("distribution.") }
+                blockers = response.diagnostics.filter { $0.severity == .error }
+                issues = response.diagnostics.filter { $0.code.hasPrefix("distribution.") && $0.severity != .error }
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
+                blockers = []
                 issues = []
                 checkFailure = error.readableMessage
             }
@@ -239,48 +265,14 @@ final class ProjectDistributionController: TableController {
         }
     }
 
-    /// What the finding is, in the reader's words.
-    private static func title(of issue: ProjectDiagnostic) -> String {
-        switch issue.code {
-        case "distribution.package.name.template": String(localized: "The package still uses the template's name")
-        case "distribution.package.description.template":
-            String(localized: "The package still uses the template's description")
-        case "distribution.package.author.template": String(localized: "The package still uses the template's author")
-        case "distribution.package.version.template":
-            String(localized: "The package still uses the template's initial version")
-        case "distribution.package.id.local": String(localized: "The package uses a placeholder identifier")
-        case "distribution.bundleID.local": String(localized: "The app uses a placeholder bundle identifier")
-        case "distribution.icon.missing": String(localized: "The app has no icon")
-        case "distribution.version.packaged": String(localized: "This version was already packaged")
-        default: issue.message
-        }
-    }
-
-    /// What to change; nil for a finding the app does not know, whose
-    /// message is already its title.
-    private static func advice(for issue: ProjectDiagnostic) -> String? {
-        switch issue.code {
-        case "distribution.package.name.template":
-            String(localized: "Give it the name people will see in their package manager.")
-        case "distribution.package.description.template": String(localized: "Describe what the package does.")
-        case "distribution.package.author.template": String(localized: "Add the author's name.")
-        case "distribution.package.version.template": String(localized: "Give the first release its own version.")
-        case "distribution.package.id.local", "distribution.bundleID.local":
-            String(localized: "Use a reverse-DNS identifier you own.")
-        case "distribution.icon.missing": String(localized: "The Home Screen and package managers show a blank icon.")
-        case "distribution.version.packaged": String(localized: "Raise the version if anything changed, or package managers will not offer the new build as an update.")
-        default: nil
-        }
-    }
-
     // MARK: - Actions
 
     private func build() {
-        guard let target = selectedTarget else { return }
+        guard let target = selectedTarget, let method, method.canBuild, blockers.isEmpty else { return }
         let open = { [weak self] in
             guard let self else { return }
             navigationController?.pushViewController(
-                DistributionBuildController(projectName: projectName, target: target),
+                DistributionBuildController(projectName: projectName, target: target, method: method),
                 animated: true,
             )
         }
@@ -298,7 +290,9 @@ final class ProjectDistributionController: TableController {
 
     private func prepare() {
         guard let onPrepare else { return }
-        let prompt = if let target = selectedTarget {
+        let prompt = if method == .script {
+            String(localized: "Prepare this workspace for distribution: run check_distribution and fix everything it lists, and make sure its build script writes a release package for each target when APELIN_CONFIGURATION is release, with the package's real name, identifier, author and a new version. Then tell me what you changed. Do not build yet.")
+        } else if let target = selectedTarget {
             String(localized: "Prepare this project for distribution to \(target.rawValue): run check_distribution, fix everything it lists (the package's name, description, author and version, its identifiers, and the app's icon if it has one), then tell me what you changed. Do not build yet.")
         } else {
             String(localized: "Prepare this project for distribution: run check_distribution, fix everything it lists (the package's name, description, author and version, its identifiers, and the app's icon if it has one), then tell me what you changed. Do not build yet.")
@@ -310,22 +304,19 @@ final class ProjectDistributionController: TableController {
 /// The project folder's identity, read from its own manifest after the
 /// folder is resolved inside `Projects/`.
 enum DistributionProject {
-    static var missingBuildDescription: String {
-        String(localized: "This project needs a build description before it can be distributed. Ask your agent to add one.")
-    }
-
-    /// The project's ID; throws for one with no build description.
+    /// The project's ID; throws for one with nothing to build its package
+    /// from, saying what it needs.
     static func id(named name: String) async throws -> String {
-        guard let id = try await buildableID(named: name) else {
-            throw ApelinError(.badRequest, missingBuildDescription)
+        let project = try await resolve(named: name)
+        if let blocker = project.method.blocker {
+            throw ApelinError(.badRequest, blocker)
         }
-        return id
+        return project.id
     }
 
-    /// The project's ID, or nil when it has no build description
-    /// (`ProjectBuildDescription`) and so nothing to distribute.
-    static func buildableID(named name: String) async throws -> String? {
-        try await Task.detached { () throws -> String? in
+    /// The project's ID and how its package is built (`ProjectBuildMethod`).
+    static func resolve(named name: String) async throws -> (id: String, method: ProjectBuildMethod) {
+        try await Task.detached { () throws -> (id: String, method: ProjectBuildMethod) in
             guard let root = DataFolder.app.project(named: name), let canonical = CanonicalPath.resolve(root.path),
                   let projects = CanonicalPath.resolve(DataFolder.app.projects.path),
                   canonical == projects + "/" + name,
@@ -335,11 +326,10 @@ enum DistributionProject {
                 throw ApelinError(.notFound, String(localized: "This project is no longer available."))
             }
             let value = try JSONCoding.decode(JSONValue.self, from: Data(contentsOf: URL(fileURLWithPath: manifest)))
-            guard ProjectBuildDescription.isPresent(in: value) else { return nil }
             guard let id = value["projectID"]?.stringValue else {
                 throw ApelinError(.notFound, String(localized: "This project is no longer available."))
             }
-            return id
+            return (id, ProjectBuildMethod(manifest: value))
         }.value
     }
 }

@@ -98,12 +98,17 @@ public struct DistributionCheckRequest: Sendable, Hashable, Codable {
 }
 
 public struct DistributionCheckResponse: Sendable, Hashable, Codable {
-    /// Nothing left to change before packaging for other people.
+    /// Nothing left to change before packaging for other people: no error
+    /// that stops the build, and no warning about what the package carries.
     public var ready: Bool
     /// Each names the field or file to change.
     public var issues: [BuildDiagnostic]
-    public init(ready: Bool, issues: [BuildDiagnostic] = []) {
+    /// What this check could not look at yet, such as a workspace's package,
+    /// which its release build checks.
+    public var note: String?
+    public init(ready: Bool, issues: [BuildDiagnostic] = [], note: String? = nil) {
         self.ready = ready
         self.issues = issues
+        self.note = note
     }
 }

@@ -6,16 +6,26 @@ import UIKit
 
 /// One release build for one distribution target, started as the page
 /// opens: its stages while it runs, then Export Package for the one
-/// `.deb` it made, or Retry. The `…` menu holds the build's whole log.
+/// `.deb` it made, or Retry. A workspace's build runs its own script, and
+/// what the build finds in the package it wrote (a placeholder identifier,
+/// a version packaged before, another package for the other target) is
+/// listed under the outcome. The `…` menu holds the build's whole log.
 @MainActor
 final class DistributionBuildController: TableController {
-    private enum Stage: Int, CaseIterable {
-        case preparing, compiling, packaging, verifying
+    private enum Stage: Int {
+        case preparing, compiling, running, packaging, verifying
+
+        /// apelin-build's own stages, or a workspace's script's
+        /// (`ExternalBuild`: `script`, then `verify`).
+        static func stages(for method: ProjectBuildMethod) -> [Stage] {
+            method == .script ? [.preparing, .running, .verifying] : [.preparing, .compiling, .packaging, .verifying]
+        }
 
         var title: String {
             switch self {
             case .preparing: String(localized: "Preparing")
             case .compiling: String(localized: "Compiling")
+            case .running: String(localized: "Running Build Script")
             case .packaging: String(localized: "Packaging")
             case .verifying: String(localized: "Verifying")
             }
@@ -24,6 +34,7 @@ final class DistributionBuildController: TableController {
         init(event: String) {
             switch event {
             case "check": self = .preparing
+            case "script": self = .running
             case "package": self = .packaging
             case "verify": self = .verifying
             default: self = .compiling
@@ -36,20 +47,24 @@ final class DistributionBuildController: TableController {
     }
 
     private enum Row: Hashable {
-        case stage(Stage), outcome
+        case stage(Stage), outcome, finding(Int)
     }
 
     private struct RowContent: Equatable {
         var row: Row
         var text: String?
+        var secondaryText: String?
         var complete = false
         var active = false
     }
 
     private let projectName: String
     private let target: BuildBootstrap
+    private let method: ProjectBuildMethod
     private var stage = Stage.preparing
     private var artifact: BuildArtifact?
+    /// The build's `distribution.*` warnings about the package it wrote.
+    private var findings: [ProjectDiagnostic] = []
     private var work: Task<Void, Never>?
     private var outcome: String?
     private var logLines: [String] = []
@@ -71,15 +86,16 @@ final class DistributionBuildController: TableController {
         ]),
     ).then { $0.accessibilityLabel = String(localized: "More") }
 
-    init(projectName: String, target: BuildBootstrap) {
+    init(projectName: String, target: BuildBootstrap, method: ProjectBuildMethod) {
         self.projectName = projectName
         self.target = target
+        self.method = method
         super.init(style: .insetGrouped)
     }
 
     @available(*, unavailable)
     required init?(coder _: NSCoder) {
-        fatalError("Use init(projectName:target:)")
+        fatalError("Use init(projectName:target:method:)")
     }
 
     override func viewDidLoad() {
@@ -104,8 +120,10 @@ final class DistributionBuildController: TableController {
     // MARK: - Rows
 
     private func configure(_ cell: UITableViewCell, value: RowContent) {
-        var content = UIListContentConfiguration.cell()
+        var content = UIListContentConfiguration.subtitleCell()
         content.text = value.text
+        content.secondaryText = value.secondaryText
+        content.secondaryTextProperties.color = .secondaryLabel
         cell.accessoryView = nil
         cell.selectionStyle = .none
         cell.isAccessibilityElement = true
@@ -125,14 +143,19 @@ final class DistributionBuildController: TableController {
                 : value.active ? String(localized: "In Progress") : String(localized: "Waiting")
         case .outcome:
             content.textProperties.numberOfLines = 0
+        case .finding:
+            content.image = UIImage(systemName: "exclamationmark.triangle.fill")
+            content.imageProperties.tintColor = .systemOrange
+            content.textProperties.numberOfLines = 0
+            content.secondaryTextProperties.numberOfLines = 0
         }
         cell.contentConfiguration = content
-        cell.accessibilityLabel = content.text
+        cell.accessibilityLabel = [value.text, value.secondaryText].compactMap(\.self).joined(separator: ", ")
     }
 
     private func updateRows() {
         var sections: [(Section, [RowContent])] = [
-            (.progress, Stage.allCases.map { item in
+            (.progress, Stage.stages(for: method).map { item in
                 RowContent(
                     row: .stage(item),
                     text: item.title,
@@ -142,7 +165,13 @@ final class DistributionBuildController: TableController {
             }),
         ]
         if let outcome {
-            sections.append((.outcome, [RowContent(row: .outcome, text: outcome)]))
+            sections.append((.outcome, [RowContent(row: .outcome, text: outcome)] + findings.indices.map { index in
+                RowContent(
+                    row: .finding(index),
+                    text: DistributionAdvice.title(of: findings[index]),
+                    secondaryText: DistributionAdvice.advice(for: findings[index]),
+                )
+            }))
         }
         dataSource.update(sections, reconfigure: true)
     }
@@ -176,6 +205,7 @@ final class DistributionBuildController: TableController {
         guard work == nil else { return }
         artifact = nil
         outcome = nil
+        findings = []
         stage = .preparing
         logLines = []
         logPage?.update(logLines)
@@ -220,6 +250,11 @@ final class DistributionBuildController: TableController {
                     }
                 } else if event.kind == "artifact" {
                     artifact = try event.payload?.decode(BuildArtifact.self)
+                } else if event.kind == "diagnostic",
+                          let finding = try? event.payload?.decode(ProjectDiagnostic.self),
+                          finding.code.hasPrefix("distribution.")
+                {
+                    findings.append(finding)
                 } else if event.kind == TaskEvent.stateKind {
                     succeeded = event.payload?["state"]?.stringValue == TaskState.succeeded.rawValue
                     failure = event.payload?["message"]?.stringValue
@@ -229,7 +264,9 @@ final class DistributionBuildController: TableController {
             guard succeeded, let artifact, artifact.bootstrap == target.rawValue else {
                 throw ApelinError(
                     .internal,
-                    failure ?? String(localized: "The package could not be built. Check the project's build description and try again."),
+                    failure ?? (method == .script
+                        ? String(localized: "The package could not be built. Check the build script's log and try again.")
+                        : String(localized: "The package could not be built. Check the project's build description and try again.")),
                 )
             }
             return artifact

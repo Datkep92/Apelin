@@ -60574,6 +60574,753 @@
           }
         }
       }
+    },
+    "Needs a build script" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يلزم سكربت للبناء"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benötigt ein Build-Skript"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs a build script"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requiere un script de compilación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script de compilation requis"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serve uno script di build"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビルドスクリプトが必要です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빌드 스크립트 필요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requer um script de compilação"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужен скрипт сборки"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cần tập lệnh bản dựng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要构建脚本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要建置指令碼"
+          }
+        }
+      }
+    },
+    "This workspace needs a build script before it can be distributed. Ask your agent to declare one that writes a package." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحتاج مساحة العمل هذه إلى سكربت للبناء قبل توزيعها. اطلب من الوكيل تعريف سكربت يكتب حزمة."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Arbeitsbereich benötigt ein Build-Skript, bevor er verteilt werden kann. Bitte deinen Agenten, eines anzugeben, das ein Paket schreibt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This workspace needs a build script before it can be distributed. Ask your agent to declare one that writes a package."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este espacio de trabajo necesita un script de compilación para poder distribuirse. Pide a tu agente que declare uno que genere un paquete."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet espace de travail a besoin d’un script de compilation avant de pouvoir être distribué. Demandez à votre agent d’en déclarer un qui produit un paquet."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo spazio di lavoro ha bisogno di uno script di build prima di poter essere distribuito. Chiedi all’agente di dichiararne uno che produca un pacchetto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このワークスペースを配布するには、ビルドスクリプトが必要です。パッケージを書き出すスクリプトを宣言するようエージェントに依頼してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 작업 공간을 배포하려면 빌드 스크립트가 필요합니다. 패키지를 만드는 스크립트를 선언하도록 에이전트에게 요청하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este espaço de trabalho precisa de um script de compilação para ser distribuído. Peça ao seu agente para declarar um que gere um pacote."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чтобы распространять это рабочее пространство, нужен скрипт сборки. Попросите агента объявить скрипт, который создаёт пакет."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không gian làm việc này cần có tập lệnh bản dựng trước khi phân phối. Hãy nhờ tác nhân khai báo một tập lệnh tạo ra gói."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此工作区需要构建脚本才能分发。请让智能体声明一个会写出安装包的脚本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此工作區需要建置指令碼才能發佈。請讓代理程式宣告一個會寫出套件的指令碼。"
+          }
+        }
+      }
+    },
+    "Fix these before building." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أصلح هذه قبل البناء."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behebe diese Punkte vor dem Bauen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fix these before building."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrige esto antes de compilar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigez ces points avant de compiler."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correggi questi punti prima di compilare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビルドする前に修正してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빌드하기 전에 수정하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrija estes itens antes de compilar."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправьте это перед сборкой."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hãy sửa các mục này trước khi xây dựng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "构建前请先修正这些问题。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建置前請先修正這些問題。"
+          }
+        }
+      }
+    },
+    "The package is checked after the build script writes it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تُفحص الحزمة بعد أن يكتبها سكربت البناء."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Paket wird geprüft, nachdem das Build-Skript es geschrieben hat."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The package is checked after the build script writes it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El paquete se comprueba después de que el script de compilación lo genere."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le paquet est vérifié une fois que le script de compilation l’a produit."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il pacchetto viene controllato dopo che lo script di build lo ha prodotto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パッケージは、ビルドスクリプトが書き出した後に確認されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패키지는 빌드 스크립트가 만든 후에 확인됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pacote é verificado depois que o script de compilação o gera."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пакет проверяется после того, как скрипт сборки его создаст."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gói được kiểm tra sau khi tập lệnh bản dựng tạo ra nó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "构建脚本写出安装包后会再检查它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建置指令碼寫出套件後會再檢查它。"
+          }
+        }
+      }
+    },
+    "Prepare this workspace for distribution: run check_distribution and fix everything it lists, and make sure its build script writes a release package for each target when APELIN_CONFIGURATION is release, with the package's real name, identifier, author and a new version. Then tell me what you changed. Do not build yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جهّز مساحة العمل هذه للتوزيع: شغّل check_distribution وأصلح كل ما يذكره، وتأكد من أن سكربت البناء يكتب حزمة إصدار لكل هدف عندما تكون قيمة APELIN_CONFIGURATION هي release، باسم الحزمة الحقيقي ومعرّفها ومؤلفها وإصدار جديد. ثم أخبرني بما غيّرته. لا تبنِ بعد."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereite diesen Arbeitsbereich für die Verteilung vor: Führe check_distribution aus, behebe alles, was es auflistet, und stelle sicher, dass sein Build-Skript für jedes Ziel ein Release-Paket schreibt, wenn APELIN_CONFIGURATION release ist – mit dem echten Namen, Bezeichner und Autor des Pakets und einer neuen Version. Sag mir dann, was du geändert hast. Baue noch nicht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prepare this workspace for distribution: run check_distribution and fix everything it lists, and make sure its build script writes a release package for each target when APELIN_CONFIGURATION is release, with the package's real name, identifier, author and a new version. Then tell me what you changed. Do not build yet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prepara este espacio de trabajo para distribuirlo: ejecuta check_distribution, corrige todo lo que indique y asegúrate de que su script de compilación genere un paquete de publicación para cada destino cuando APELIN_CONFIGURATION sea release, con el nombre, el identificador y el autor reales del paquete y una versión nueva. Luego dime qué cambiaste. No compiles todavía."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préparez cet espace de travail pour la distribution : exécutez check_distribution, corrigez tout ce qu’il signale et assurez-vous que son script de compilation produit un paquet de publication pour chaque cible lorsque APELIN_CONFIGURATION vaut release, avec le vrai nom, l’identifiant et l’auteur du paquet et une nouvelle version. Puis dites-moi ce que vous avez modifié. Ne compilez pas encore."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prepara questo spazio di lavoro per la distribuzione: esegui check_distribution, correggi tutto ciò che segnala e assicurati che il suo script di build produca un pacchetto di release per ogni destinazione quando APELIN_CONFIGURATION è release, con il nome, l’identificatore e l’autore reali del pacchetto e una nuova versione. Poi dimmi cosa hai modificato. Non compilare ancora."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配布できるよう、このワークスペースを準備してください。check_distribution を実行して表示された項目をすべて修正し、APELIN_CONFIGURATION が release のときにビルドスクリプトが各ターゲット向けのリリースパッケージを書き出すようにしてください。パッケージには実際の名前、識別子、作者と新しいバージョンを使ってください。その後、変更内容を教えてください。まだビルドはしないでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "배포할 수 있도록 이 작업 공간을 준비해 주세요. check_distribution을 실행해 표시된 항목을 모두 수정하고, APELIN_CONFIGURATION이 release일 때 빌드 스크립트가 각 대상용 릴리스 패키지를 만들도록 해 주세요. 패키지에는 실제 이름, 식별자, 작성자와 새 버전을 사용해 주세요. 그런 다음 무엇을 변경했는지 알려 주세요. 아직 빌드하지 마세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prepare este espaço de trabalho para distribuição: execute check_distribution, corrija tudo o que ele listar e garanta que o script de compilação gere um pacote de release para cada destino quando APELIN_CONFIGURATION for release, com o nome, o identificador e o autor reais do pacote e uma nova versão. Depois me diga o que você alterou. Não compile ainda."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготовьте это рабочее пространство к распространению: запустите check_distribution, исправьте всё, что он перечислит, и убедитесь, что скрипт сборки создаёт релизный пакет для каждой цели, когда APELIN_CONFIGURATION равно release, — с настоящими названием, идентификатором и автором пакета и новой версией. Затем расскажите, что изменили. Пока не собирайте."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hãy chuẩn bị không gian làm việc này để phân phối: chạy check_distribution, sửa mọi mục mà nó liệt kê và bảo đảm tập lệnh bản dựng tạo gói phát hành cho từng đích khi APELIN_CONFIGURATION là release, với tên, định danh, tác giả thật của gói và một phiên bản mới. Rồi cho tôi biết bạn đã thay đổi những gì. Chưa xây dựng vội."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为分发准备这个工作区：运行 check_distribution，修正它列出的所有问题，并确保在 APELIN_CONFIGURATION 为 release 时，构建脚本会为每个目标写出发布版安装包，使用安装包真实的名称、标识符、作者和新的版本号。然后告诉我你改了什么。先不要构建。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為發佈準備這個工作區：執行 check_distribution，修正它列出的所有問題，並確保在 APELIN_CONFIGURATION 為 release 時，建置指令碼會為每個目標寫出發行版套件，使用套件真實的名稱、識別碼、作者和新的版本號。然後告訴我你改了什麼。先不要建置。"
+          }
+        }
+      }
+    },
+    "Running Build Script" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جارٍ تشغيل سكربت البناء"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build-Skript wird ausgeführt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running Build Script"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejecutando el script de compilación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exécution du script de compilation"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esecuzione dello script di build"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビルドスクリプトを実行中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빌드 스크립트 실행 중"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executando o script de compilação"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполнение скрипта сборки"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang chạy tập lệnh bản dựng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在运行构建脚本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在執行建置指令碼"
+          }
+        }
+      }
+    },
+    "The package could not be built. Check the build script's log and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّر بناء الحزمة. تحقق من سجل سكربت البناء وحاول مرة أخرى."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Paket konnte nicht gebaut werden. Prüfe das Protokoll des Build-Skripts und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The package could not be built. Check the build script's log and try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se ha podido compilar el paquete. Revisa el registro del script de compilación e inténtalo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de compiler le paquet. Vérifiez le journal du script de compilation et réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile compilare il pacchetto. Controlla il log dello script di build e riprova."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パッケージをビルドできませんでした。ビルドスクリプトのログを確認して、もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패키지를 빌드할 수 없습니다. 빌드 스크립트의 로그를 확인한 후 다시 시도하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível compilar o pacote. Verifique o registro do script de compilação e tente novamente."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось собрать пакет. Проверьте журнал скрипта сборки и повторите попытку."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể xây dựng gói. Hãy kiểm tra nhật ký của tập lệnh bản dựng rồi thử lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法构建安装包。请检查构建脚本的日志后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法建置套件。請檢查建置指令碼的日誌後再試一次。"
+          }
+        }
+      }
+    },
+    "The other target's package is different" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حزمة الهدف الآخر مختلفة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das andere Ziel hat ein anderes Paket"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The other target's package is different"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El paquete del otro destino es distinto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le paquet de l’autre cible est différent"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il pacchetto dell’altra destinazione è diverso"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一方のターゲットのパッケージが異なります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 대상의 패키지가 다릅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pacote do outro destino é diferente"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У другой цели другой пакет"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gói của đích còn lại khác"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一个目标的安装包不同"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一個目標的套件不同"
+          }
+        }
+      }
+    },
+    "Both targets should ship the same package." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ينبغي أن يوزّع الهدفان الحزمة نفسها."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beide Ziele sollten dasselbe Paket ausliefern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Both targets should ship the same package."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ambos destinos deberían distribuir el mismo paquete."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les deux cibles devraient distribuer le même paquet."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrambe le destinazioni dovrebbero distribuire lo stesso pacchetto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "両方のターゲットで同じパッケージを配布してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두 대상 모두 같은 패키지를 배포해야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os dois destinos devem distribuir o mesmo pacote."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обе цели должны распространять один и тот же пакет."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cả hai đích nên phân phối cùng một gói."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "两个目标应发布同一个安装包。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩個目標應發佈同一個套件。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

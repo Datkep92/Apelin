@@ -1765,10 +1765,18 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   configuration, bootstrap?}, `AgentExternalBuildRules`): one approval
   builds once, never for the session, since the script runs whatever the
   repository holds. ManagedPackagePolicy still refuses installing over a
-  package Apelin did not install. Tested by `ExternalBuildTests` (the
-  declaration, the script's environment, one package, the failures, the
-  timeout), the agent's `ExternalBuildToolTests` and the session host's
-  approval checks.
+  package Apelin did not install. A workspace is distributed like any
+  project (owner, 2026-10-24): a release build per bootstrap, its package
+  exported from the distribution page. Having no description to check
+  before, the release build reads the package it wrote
+  (`DistributionCheck.packageFindings`) and reports `distribution.*`
+  warnings: a `local.apelin.` identifier, a version already packaged for
+  the target, a package other than the other target's latest release.
+  check_distribution counts any check error as not ready and, for a
+  workspace, notes that the build checks the package. Tested by
+  `ExternalBuildTests` (the declaration, the script's environment, one
+  package, the failures, the timeout, the release findings), the agent's
+  `ExternalBuildToolTests` and the session host's approval checks.
 - **Tested** by `make harness`: the schema fixtures and the reference
   implementation, `ApelinCodeSign` against ldid's own output
   (`Packages/ApelinFormats/Tests/ApelinCodeSignTests/Fixtures/build.sh`), and
@@ -2143,10 +2151,12 @@ the two Open items for the conversation's own `Temporary/<conversation>/`,
 made if missing (`ProjectActions.temporaryDirectory`). A conversation the reader
 renamed keeps that name (`ChatSummary.isNamedByReader`, saved with the chat):
 the agent's `title` events and the first message's opening no longer replace
-it, and a name of only spaces changes nothing. Distribute… is disabled, saying
-it needs a build description, for a project apelin-build cannot package
-(`ProjectBuildDescription`: a workspace, `buildSystem: external`, or no
-`build`); the distribution page checks again and then offers no target.
+it, and a name of only spaces changes nothing. Distribute… builds a project
+from its description or a workspace from its own script (`ProjectBuildMethod`;
+owner, 2026-10-24); it is disabled, saying what is missing, for a manifest
+with no `build` and for a workspace with no `external` script, and the
+distribution page checks again, lists the check's errors (a script that is
+not in the project, say) and keeps Build off until they are fixed.
 Fila opens the canonical folder with `fila://open?path=…&tab=new`;
 iGhostVT 1.6.19 or later opens `ighostvt://new?directory=…`, a directory-only URL
 that cannot carry a shell command. Both apps are package dependencies. Project

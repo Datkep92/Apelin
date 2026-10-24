@@ -47,11 +47,12 @@ final class ExternalBuildTests: XCTestCase {
     /// A tweak package, written outside the project for a script to copy.
     private func package(
         _ layout: PackageLayout,
+        id: String = "com.example.imported",
         version: String = "1.0.1",
         depends: String = "mobilesubstrate",
         name: String = "sample.deb",
     ) throws -> URL {
-        var control = DebianControlFile(package: "com.example.imported", version: version, architecture: layout.architecture, description: "Imported")
+        var control = DebianControlFile(package: id, version: version, architecture: layout.architecture, description: "Imported")
         control["Depends"] = depends
         var writer = DebPackageWriter(control: control)
         writer.entries = try [
@@ -63,10 +64,14 @@ final class ExternalBuildTests: XCTestCase {
         return url
     }
 
-    private func build(_ projectID: String, bootstrap: BuildBootstrap = .roothide) throws -> (TaskID, Events) {
+    private func build(
+        _ projectID: String,
+        configuration: BuildConfiguration = .debug,
+        bootstrap: BuildBootstrap = .roothide,
+    ) throws -> (TaskID, Events) {
         let events = Events()
         let taskID = TaskID.make()
-        try worker.buildStart(BuildStartRequest(projectID: projectID, configuration: .debug, bootstrap: bootstrap), taskID: taskID) {
+        try worker.buildStart(BuildStartRequest(projectID: projectID, configuration: configuration, bootstrap: bootstrap), taskID: taskID) {
             events.append($0, $1, $2)
         }
         XCTAssertEqual(events.finished.wait(timeout: .now() + 60), .success)
@@ -169,6 +174,32 @@ final class ExternalBuildTests: XCTestCase {
         ] {
             XCTAssertTrue(environment.split(separator: "\n").contains(Substring(line)), "\(line) in\n\(environment)")
         }
+    }
+
+    /// A workspace has no description for the distribution check to read,
+    /// so its release build reads the package: a made-up identifier, a
+    /// version already packaged for the target, and a package other than
+    /// the other target's latest release. A debug build says nothing.
+    func testReleaseBuildReportsWhatThePackageShouldNotCarry() throws {
+        let local = try package(.roothide, id: "local.apelin.imported")
+        let rootless = try package(.rootless, id: "com.example.other")
+        let project = try workspace(
+            script: "if [ \"$APELIN_BOOTSTRAP\" = rootless ]; then cp \"$2\" \"$APELIN_PACKAGE_DIR/\"; else cp \"$1\" \"$APELIN_PACKAGE_DIR/\"; fi\n",
+            external: #"{"script": "apelin/build.sh", "arguments": ["\#(local.path)", "\#(rootless.path)"]}"#,
+        )
+        func findings(_ events: Events) -> [String] {
+            XCTAssertEqual(events.last?["state"]?.stringValue, "succeeded", "\(events.payloads("log"))")
+            return events.payloads("diagnostic").compactMap { $0["code"]?.stringValue }.filter { $0.hasPrefix("distribution.") }
+        }
+        XCTAssertEqual(try findings(build(project.id).1), [], "a debug build is not for distribution")
+        XCTAssertEqual(try findings(build(project.id, configuration: .release).1), ["distribution.package.id.local"])
+        XCTAssertEqual(
+            try findings(build(project.id, configuration: .release).1),
+            ["distribution.package.id.local", "distribution.version.packaged"],
+        )
+        let other = try build(project.id, configuration: .release, bootstrap: .rootless).1
+        XCTAssertEqual(findings(other), ["distribution.package.id.differs"])
+        XCTAssertEqual(other.payloads("diagnostic").first?["severity"]?.stringValue, "warning", "never stops the build")
     }
 
     func testPackagingDigestIgnoresTheVersionButNotTheControlOrPaths() throws {

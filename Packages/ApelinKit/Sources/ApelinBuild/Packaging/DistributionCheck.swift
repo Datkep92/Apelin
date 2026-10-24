@@ -109,6 +109,53 @@ public struct DistributionCheck: Sendable {
         return out
     }
 
+    /// What a workspace's release package carries that a package for other
+    /// people should not, read off the package its script wrote
+    /// (`ExternalBuild`), since a workspace has no description to read
+    /// before it is built: the identifier Apelin makes up, a version this
+    /// project already packaged for the target, and a package other than
+    /// the one the other target's latest release carried. `record` is the
+    /// new package's, before it is saved.
+    public static func packageFindings(_ record: ArtifactRecord, store: ProjectStore) -> [ProjectDiagnostic] {
+        var out: [ProjectDiagnostic] = []
+        func warn(_ code: String, _ message: String) {
+            out.append(ProjectDiagnostic(code: code, severity: .warning, message: message))
+        }
+        if record.packageID.hasPrefix(localPrefix) {
+            warn(
+                "distribution.package.id.local",
+                "the package's identifier \(record.packageID) is the local one Apelin makes up; have the build script use a reverse-DNS identifier you own",
+            )
+        }
+        let releases = ArtifactStore(store: store).all().filter {
+            $0.projectID == record.projectID && $0.configuration == ConfigurationName.release.rawValue
+                && $0.artifactID != record.artifactID
+        }
+        let packaged = releases
+            .filter {
+                $0.bootstrap == record.bootstrap && $0.packageID == record.packageID
+                    && $0.packageVersion == record.packageVersion
+            }
+            .max { $0.createdAt < $1.createdAt }
+        if let packaged {
+            let date = packaged.createdAt.formatted(.iso8601.year().month().day())
+            warn(
+                "distribution.version.packaged",
+                "version \(record.packageVersion) was already packaged for \(record.bootstrap) on \(date); raise the version the build script writes "
+                    + "if anything changed, or package managers will not offer the new build as an update",
+            )
+        }
+        let other = releases.filter { $0.bootstrap != record.bootstrap }.max { $0.createdAt < $1.createdAt }
+        if let other, other.packageID != record.packageID {
+            warn(
+                "distribution.package.id.differs",
+                "this \(record.bootstrap) package is \(record.packageID), but the latest \(other.bootstrap) release was \(other.packageID); "
+                    + "both targets should ship the same package",
+            )
+        }
+        return out
+    }
+
     /// The template's string parameter defaults and the version its project
     /// file starts with; nothing when the template is no longer installed.
     private func templateDefaults(

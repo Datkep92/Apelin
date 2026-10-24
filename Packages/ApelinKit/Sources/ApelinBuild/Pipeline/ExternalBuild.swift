@@ -22,6 +22,11 @@ import Foundation
 /// `APELIN_PROJECT_ROOT` and `APELIN_PACKAGE_DIR`, a fresh folder in
 /// `Builds/<projectID>/<buildID>/`, outside the project, so no package
 /// already in the repository is taken for the build's.
+///
+/// A release build also reports, as `distribution.*` warnings, what the
+/// package carries that one for other people should not
+/// (`DistributionCheck.packageFindings`): a workspace has no description
+/// for `projectCheck` to read before.
 public enum ExternalBuild {
     public struct Inputs: Sendable {
         public var buildID: String
@@ -151,6 +156,9 @@ public enum ExternalBuild {
             createdAt: Date(timeIntervalSince1970: TimeInterval(inputs.timestamp)),
         )
         log("packaged \(packageID) \(version) (\(expected)), \(record.digest)")
+        if inputs.configuration == .release {
+            DistributionCheck.packageFindings(record, store: store).forEach(reporter.diagnostic)
+        }
         try ArtifactStore(store: store).save(record)
         return record
     }
