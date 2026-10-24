@@ -5,12 +5,13 @@ import Foundation
 /// `SKILL.md` at its top, or of one Markdown file, which becomes the
 /// `SKILL.md` of a folder named for it; it goes out by its place in the
 /// folder (`AgentSkill.location`). Sessions read the folder again for every
-/// message, so nothing else is told.
-struct SkillFolder {
-    static let maximumBytes = 32 << 20
-    static let maximumEntries = 2000
+/// message, so nothing else is told. Settings ▸ Skills and the agent's skill
+/// tools both write it through this, as mobile.
+public struct SkillFolder {
+    public static let maximumBytes = 32 << 20
+    public static let maximumEntries = 2000
 
-    enum Failure: Error, Equatable {
+    public enum Failure: Error, Equatable {
         /// Neither a folder with a `SKILL.md` at its top nor a Markdown
         /// file a folder can be named for.
         case notASkill
@@ -21,11 +22,15 @@ struct SkillFolder {
         case invalidLocation
     }
 
-    let root: URL
+    public let root: URL
+
+    public init(root: URL) {
+        self.root = root
+    }
 
     /// Where `source` goes: a folder keeps its name, a Markdown file gives
     /// its name without the extension.
-    func location(for source: URL) throws -> String {
+    public func location(for source: URL) throws -> String {
         let name = source.lastPathComponent
         if Self.isDirectory(source) {
             guard Self.isRegularFile(source.appendingPathComponent("SKILL.md")) else { throw Failure.notASkill }
@@ -44,7 +49,7 @@ struct SkillFolder {
     /// `maximumBytes` in all. The copy is made beside the folder's skills
     /// under a hidden name and moved into place whole.
     @discardableResult
-    func add(_ source: URL, replacing: Bool) throws -> String {
+    public func add(_ source: URL, replacing: Bool) throws -> String {
         let location = try location(for: source)
         let manager = FileManager.default
         try? manager.createDirectory(at: root, withIntermediateDirectories: false)
@@ -74,7 +79,7 @@ struct SkillFolder {
     /// Removes what sits at `location`, a link itself rather than what it
     /// names, and only inside the folder: no part of the way there may be a
     /// link that leads out of it.
-    func remove(_ location: String) throws {
+    public func remove(_ location: String) throws {
         let parts = location.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
         guard !parts.isEmpty, parts.allSatisfy({ (try? Self.checked($0)) != nil }) else {
             throw Failure.invalidLocation

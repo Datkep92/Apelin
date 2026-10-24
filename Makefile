@@ -409,7 +409,7 @@ harness:
 		-o "$$harness_dir/journal" && \
 	"$$harness_dir/journal" && \
 	xcrun --sdk macosx swiftc -swift-version 5 \
-		"$(ROOT_DIR)/Apelin/Interface/Settings/Skills/SkillFolder.swift" \
+		"$(ROOT_DIR)/Packages/ApelinKit/Sources/ApelinCore/SkillFolder.swift" \
 		"$(ROOT_DIR)/Tests/SkillFolder/main.swift" \
 		-o "$$harness_dir/skill-folder" && \
 	"$$harness_dir/skill-folder" && \
