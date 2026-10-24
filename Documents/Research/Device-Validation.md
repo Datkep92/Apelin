@@ -253,13 +253,12 @@ console now goes on after a restart only past a successful respring.
       opening it; apelin_conversation_read of it; a send without approval refused
       by the host.
 - [ ] The agent's apelin_notification_send (notify_user until the rename;
-      2026-10-24, none has run on a device):
-      under Strict, with Apelin on the home screen, a chat asked to build
-      and then notify posts one banner with Apelin's icon, the
-      conversation's title, the notice's title as its subtitle and its body,
-      without an approval card; a tap opens that conversation, opening it
-      removes the banner, nothing shows while the chat is in front, and a
-      fourth in one turn and a reopened session's replay post nothing.
+      2026-10-24): the banner, its tap, nothing in front and the third
+      notice's "0 more" ran as notify_user on build 37, in Relaxed (▸ Turn
+      display and notices). Still to run, under the new name: under Strict,
+      the banner with no approval card; opening the conversation removes its
+      banner; a fourth call in one turn refused by the tool and the host;
+      a reopened session's replay posts nothing.
 - [ ] The renamed tools (2026-10-24, none has run on a device): a
       conversation recorded before the rename, reopened, takes a message
       through GitHub Copilot with a Claude model and with a GPT model, and
@@ -281,13 +280,13 @@ console now goes on after a restart only past a successful respring.
       sidebar follows, renames another only after a card that names both
       names, and `automatic: true` after the user's own rename changes
       nothing.
-- [ ] The running summary's count and the quiet stand-in (2026-10-24,
-      none has run on a device): a streaming turn's summary counts the
-      tokens received after its title, at once under Reduce Motion; a reply
-      followed by 1.5 s with nothing gets Thinking… under it, which the
-      next thought or call replaces with no flash; with two chats
-      streaming, the page keeps pace and Stop and the approval card do not
-      move on every batch.
+- [ ] The running summary's count and the quiet stand-in (2026-10-24):
+      the count, and a stand-in forced by pausing the agent worker, ran on
+      build 37 (▸ Turn display and notices). Still to run: the count under
+      Reduce Motion; a stand-in after a real pause in a provider's stream;
+      two chats streaming at once, with Stop and the approval card holding
+      still on every batch; the newest call's line under the summary, back
+      in `80fb07a`.
 
 ## SDK and toolchain matrix (2026-10-19)
 
@@ -1759,3 +1758,65 @@ On the iPad, which has no model account, the app launches and Compact… is
 greyed out for a chat with no session. The native ChatGPT Codex path
 (`compaction_trigger` on `/codex/responses`) was not run on a vphone: no
 Codex account is signed in there.
+
+## Turn display and notices (2026-10-24, CI build 37 of `25d59a1`)
+
+The roothide package CI built for `25d59a1` (build 37, SHA-256 checked
+against its `SHA256SUMS`) went onto the iOS 26.4 iPhone vphone and the
+iPadOS 26.4 iPad vphone through `irisin-cli install --yes`, over 0.1.8
+(build 35). On the iPhone the first install stopped mid-unpack with
+`irisin-journal/<transaction>/183` missing, as once before under Irisin
+4.7.5; the same install again went through. The smoke suite ran on both by
+the shell stand-in and every script ended `ok` (`files` skipped on the
+iPad, which has no tweak extension, toolchain or SDK).
+
+On the iPhone, with its deepseek-v4-pro account in Relaxed, driven through
+vphoned (taps, `input.type`, `input.button` home, the accessibility tree
+about five times a second, screenshots):
+
+- The running summary has no line under it: neither the thinking preview
+  nor, in this build, the newest call's line, which came back in `80fb07a`
+  and has not run on a device. Its title is followed by the arrow and the
+  grouped count from the turn's first `received`: 112, 1,947, 4,244, 6,349
+  … 13,831 through 100 s of thinking and a 200-line write (4,352 bytes).
+  The tree reads it as the title's value, `Thinking… = 13,831 tokens
+  received`; a finished summary has none.
+- The trace sheet shows the thinking, the call's arguments (its JSON as
+  sent, escapes and all) and its result, `Created lines.c (4352 bytes, +200
+  -0)`, as plain body text. A long press selects a word and offers Copy,
+  Select All and Look Up.
+- The quiet stand-in never came up by itself: a 900-word reply streamed for
+  15 s with no two-second gap in its log, and text gave way to a call in
+  under 0.5 s. Stopping the agent workers with `SIGSTOP` for 4–9 s forced
+  it: about a second after the last chunk, `Thinking… ⬇482` stood under
+  the reply and went when the text came back; stopped before a `run_code`
+  call, `Thinking… ⬇142` under the paragraph became `Executing 1 tool…
+  ⬇270` in the same place, with no gap or flash at two frames a second.
+- notify_user, with Apelin on the home screen: asked for four notices 31 s
+  apart, three banners came, each headed by the conversation's title, then
+  the notice's title as subtitle and its body; after the third the tool
+  said `0 more may go this turn` and the model sent no fourth. Notification
+  Center stacked them with the turn's own end banner. A notice while Apelin
+  was in front showed nothing. A banner tapped while Apelin had another
+  conversation open opened Apelin on the notice's conversation. The lock
+  screen's Live Activity still said 1 working after the turn had ended:
+  only the app updates it, and it was suspended.
+- Streaming the 900-word reply took 23–27 % of a core in Apelin
+  (`cpu_seconds` from vphoned's `processes.list`), its footprint 39–72 MB,
+  then 0 % at 46 MB once it ended; scrolling that conversation (13 turns,
+  six of them essays) drew no blank row at 9–16 %. No 0.1.8 figure from
+  this vphone stands beside it.
+- Replies: a greeting got one line, and a reply asked for in one sentence
+  was one. "What is a tweak on a jailbroken iPhone, and how would I make
+  one with Apelin?" got 279 words, no tool call, and described the tweak
+  template as Logos (`Tweak.x`, `%hook`); the template is plain
+  Objective-C (`objc-hook/Sources/Tweak.m`) and Logos is not built. The
+  model did not read tweak-development.
+- Settings ▸ Agent ▸ Skills lists bootstrap-paths, tweak-runtime,
+  preference-bundle and package-dependencies among the nine built-ins, and
+  bootstrap-paths opens its body.
+
+On the iPad, which has no model account, Apelin launches and Skills lists
+the same nine with none of the user's. It has no conversation with a trace
+or a run, and no replay is linked into the app, so neither the summary nor
+the trace was seen there.
