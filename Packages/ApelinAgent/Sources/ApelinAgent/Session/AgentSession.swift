@@ -105,6 +105,7 @@ public actor AgentSession {
             gate: gate,
             memory: memory,
             skills: configuration.dataRoot.skills,
+            record: { _ = try await log.append($0) },
         )
         let (mcpManager, mcpTools) = await MCPBridge.connect(configuration.mcpServers)
         let skills = SkillCatalog.load(userDirectory: configuration.dataRoot.skills)
@@ -651,6 +652,7 @@ public actor AgentSession {
         // queued, never drained it: the next run would read it first.
         agent.clearSteeringQueue()
         await dropQueued()
+        await runner.turnEnded()
         await record(.finished(reason: reason))
         runTask = nil
         runEnding = false

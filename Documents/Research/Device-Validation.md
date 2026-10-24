@@ -252,6 +252,13 @@ console now goes on after a restart only past a successful respring.
       that project without the selection moving, its `apelin://` link
       opening it; conversation_read of it; a send without approval refused
       by the host.
+- [ ] The agent's notify_user (2026-10-24, none has run on a device):
+      under Strict, with Apelin on the home screen, a chat asked to build
+      and then notify posts one banner with Apelin's icon, the
+      conversation's title, the notice's title as its subtitle and its body,
+      without an approval card; a tap opens that conversation, opening it
+      removes the banner, nothing shows while the chat is in front, and a
+      fourth in one turn and a reopened session's replay post nothing.
 
 ## SDK and toolchain matrix (2026-10-19)
 

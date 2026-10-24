@@ -3,7 +3,8 @@ import ApelinProtocol
 import Foundation
 
 /// A banner the session host posts as the app (`NoticePoster`): a turn of an
-/// agent session ended, or the session waits for the reader's decision.
+/// agent session ended, the session waits for the reader's decision, or its
+/// agent asked to tell the reader something (`notify_user`).
 struct AgentNotice: Equatable, Sendable {
     /// The same for the same event however often the session's events are
     /// relayed again, so posting it twice replaces it instead of doubling it.
@@ -31,14 +32,30 @@ struct AgentNotice: Equatable, Sendable {
     }
 }
 
-/// How many turns ended and how many approvals were asked in a session, in
-/// the order its event log holds them.
+/// How many turns ended, approvals were asked and notices the agent sent in
+/// a session, in the order its event log holds them.
 struct AgentNoticeMarks: Codable, Equatable, Sendable {
     var turns = 0
     var approvals = 0
+    var notices = 0
 
     func union(_ other: AgentNoticeMarks) -> AgentNoticeMarks {
-        AgentNoticeMarks(turns: max(turns, other.turns), approvals: max(approvals, other.approvals))
+        AgentNoticeMarks(
+            turns: max(turns, other.turns),
+            approvals: max(approvals, other.approvals),
+            notices: max(notices, other.notices),
+        )
+    }
+}
+
+extension AgentNoticeMarks {
+    /// A count `notices.json` does not hold is none: marks written before
+    /// agents could send notices keep their turns and approvals.
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        turns = try values.decodeIfPresent(Int.self, forKey: .turns) ?? 0
+        approvals = try values.decodeIfPresent(Int.self, forKey: .approvals) ?? 0
+        notices = try values.decodeIfPresent(Int.self, forKey: .notices) ?? 0
     }
 }
 
@@ -58,6 +75,10 @@ struct AgentNoticeTrack: Sendable {
     private var lastError: String?
     /// Each call's `reason`, by tool call ID, until its turn ends.
     private var reasons: [String: String] = [:]
+    /// The agent's notices since the last prompt or turn end. Every run
+    /// starts with a prompt, so this never counts more than the agent's own
+    /// count for its run (`UserNotices`): what the agent was told went, goes.
+    private var turnNotices = 0
 
     init(sessionID: String, headless: Bool = false) {
         self.sessionID = sessionID
@@ -65,13 +86,16 @@ struct AgentNoticeTrack: Sendable {
     }
 
     /// The event kinds a track reads; the host skips the rest unread.
-    static let kinds: Set<String> = ["prompt", "message", "error", "toolCall", "approvalRequested", "finished"]
+    static let kinds: Set<String> = [
+        "prompt", "message", "error", "toolCall", "approvalRequested", "finished", AgentNoticeRules.eventKind,
+    ]
 
     /// Takes the task's next event and answers the banner it makes: an
-    /// `approvalRequested`, or a `finished` turn that completed or failed.
-    /// None for a turn the reader stopped, for a headless session, or for an
-    /// event `posted` already counts. `title`: the session's own, from its
-    /// latest `title` event.
+    /// `approvalRequested`, a `finished` turn that completed or failed, or
+    /// the agent's `notice`. None for a turn the reader stopped, for a
+    /// notice past `AgentNoticeRules.maximumPerTurn` or with no text, for a
+    /// headless session, or for an event `posted` already counts. `title`:
+    /// the session's own, from its latest `title` event.
     mutating func take(
         _ kind: String,
         payload: JSONValue?,
@@ -80,6 +104,7 @@ struct AgentNoticeTrack: Sendable {
     ) -> AgentNotice? {
         switch kind {
         case "prompt":
+            turnNotices = 0
             if firstPrompt == nil {
                 firstPrompt = AgentConversationRules.title(payload?["text"]?.stringValue)
             }
@@ -116,6 +141,7 @@ struct AgentNoticeTrack: Sendable {
                 lastMessage = nil
                 lastError = nil
                 reasons = [:]
+                turnNotices = 0
             }
             guard !headless, marks.turns > posted.turns else { return nil }
             let excerpt = lastMessage.flatMap { AgentNoticeText.excerpt($0) }
@@ -140,6 +166,28 @@ struct AgentNoticeTrack: Sendable {
                 // `aborted`: the reader stopped it, and knows.
                 return nil
             }
+        case AgentNoticeRules.eventKind:
+            marks.notices += 1
+            turnNotices += 1
+            // Plain and bounded again here: the event is the worker's, and
+            // its text the model's.
+            guard !headless, marks.notices > posted.notices, turnNotices <= AgentNoticeRules.maximumPerTurn,
+                  let body = AgentNoticeRules.bounded(
+                      payload?["body"]?.stringValue,
+                      limit: AgentNoticeRules.maximumBodyLength,
+                  )
+            else { return nil }
+            let headline = AgentNoticeRules.bounded(
+                payload?["title"]?.stringValue,
+                limit: AgentNoticeRules.maximumTitleLength,
+            )
+            return AgentNotice(
+                identifier: "\(sessionID).notice.\(marks.notices)",
+                sessionID: sessionID,
+                title: conversation(title),
+                subtitle: headline.map(AgentNotice.Text.verbatim),
+                body: .verbatim(body),
+            )
         default:
             break
         }

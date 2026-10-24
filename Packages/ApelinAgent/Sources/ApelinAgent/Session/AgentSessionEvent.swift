@@ -36,6 +36,10 @@ public enum AgentSessionEvent: Sendable, Hashable, Codable {
     /// app that is not connected leaves it waiting.
     case approvalRequested(ApprovalRequest)
     case approvalResolved(requestID: String, decision: ApprovalDecision)
+    /// The agent asked Apelin to tell the user something while they are
+    /// away (`notify_user`): plain text within `AgentNoticeRules`' lengths,
+    /// which the session host posts as a banner by its own rules.
+    case notice(title: String?, body: String)
     case error(message: String)
     /// A run ended.
     case finished(reason: FinishReason)

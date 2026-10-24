@@ -118,6 +118,65 @@ func agentNoticeChecks() async {
     let consoleApproval = headless.take("approvalRequested", payload: object(["approvalID": .string("a")]), title: nil, posted: none)
     check(console == nil && consoleApproval == nil && headless.marks == AgentNoticeMarks(turns: 1, approvals: 1), "a headless session posts nothing")
 
+    // MARK: The agent's own notices (notify_user)
+
+    check(AgentNoticeRules.plain("  Build\n\tfailed:\u{202E}  see\u{0007} log ") == "Build failed: see log", "a notice is one plain line")
+    check(AgentNoticeRules.plain(" \n\u{200F} ") == nil && AgentNoticeRules.plain(nil) == nil, "nothing left is no notice")
+    let wordy = AgentNoticeRules.bounded(String(repeating: "word ", count: 60), limit: AgentNoticeRules.maximumBodyLength) ?? ""
+    check(wordy.count <= AgentNoticeRules.maximumBodyLength && wordy.hasSuffix("word…"), "a long notice is cut at a word: \(wordy)")
+    check(AgentNoticeRules.bounded("Short.", limit: 40) == "Short.", "a short one stays as it is")
+
+    var notifying = AgentNoticeTrack(sessionID: session)
+    _ = notifying.take("prompt", payload: object(["text": .string("Set up the toolchain")]), title: nil, posted: none)
+    let notice = notifying.take("notice", payload: object([
+        "title": .string("Toolchain ready"),
+        "body": .string("CLT 16.4 is set up.\nUnlock the phone so I can test it."),
+    ]), title: "Toolchain", posted: none)
+    check(
+        notice == AgentNotice(
+            identifier: "\(session).notice.1",
+            sessionID: session,
+            title: .verbatim("Toolchain"),
+            subtitle: .verbatim("Toolchain ready"),
+            body: .verbatim("CLT 16.4 is set up. Unlock the phone so I can test it."),
+        ),
+        "a notice is headed by the conversation, its title the subtitle, its body one plain line: \(String(describing: notice))",
+    )
+    check(notice?.link == "apelin://conversation/\(session)", "a notice's tap opens the conversation")
+    let untitledNotice = notifying.take("notice", payload: object(["body": .string(String(repeating: "x", count: 400))]), title: nil, posted: none)
+    check(
+        untitledNotice?.subtitle == nil && untitledNotice?.title == .verbatim("Set up the toolchain")
+            && untitledNotice?.body == .verbatim(String(repeating: "x", count: AgentNoticeRules.maximumBodyLength - 1) + "…"),
+        "one without a title has no subtitle, and a body past the limit is cut",
+    )
+    let blank = notifying.take("notice", payload: object(["body": .string(" \n ")]), title: nil, posted: none)
+    let fourth = notifying.take("notice", payload: object(["body": .string("One too many.")]), title: nil, posted: none)
+    check(blank == nil && fourth == nil && notifying.marks.notices == 4, "an empty notice and one past the turn's \(AgentNoticeRules.maximumPerTurn) post nothing, and still count")
+    _ = notifying.take("prompt", payload: object(["text": .string("Go on")]), title: nil, posted: none)
+    let afterPrompt = notifying.take("notice", payload: object(["body": .string("Built.")]), title: nil, posted: none)
+    check(afterPrompt?.identifier == "\(session).notice.5", "a prompt starts the count again")
+    for _ in 1 ..< AgentNoticeRules.maximumPerTurn {
+        _ = notifying.take("notice", payload: object(["body": .string("More.")]), title: nil, posted: none)
+    }
+    _ = notifying.take("finished", payload: object(["reason": .string("completed")]), title: nil, posted: none)
+    let afterTurn = notifying.take("notice", payload: object(["body": .string("Installed.")]), title: nil, posted: none)
+    check(afterTurn?.identifier == "\(session).notice.\(5 + AgentNoticeRules.maximumPerTurn)", "so does a turn's end")
+    let counted = notifying.take(
+        "notice",
+        payload: object(["body": .string("Seen.")]),
+        title: nil,
+        posted: AgentNoticeMarks(notices: 100),
+    )
+    check(counted == nil, "a notice the marks already count posts nothing")
+    var headlessNotices = AgentNoticeTrack(sessionID: session, headless: true)
+    check(
+        headlessNotices.take("notice", payload: object(["body": .string("Done.")]), title: nil, posted: none) == nil
+            && headlessNotices.marks.notices == 1,
+        "a headless session posts no notice",
+    )
+    let older = try? JSONDecoder().decode(AgentNoticeMarks.self, from: Data(#"{"turns":2,"approvals":1}"#.utf8))
+    check(older == AgentNoticeMarks(turns: 2, approvals: 1, notices: 0), "marks saved before notices still read: \(String(describing: older))")
+
     // MARK: A session opened again does not announce its old turns
 
     let folder = scratch.appendingPathComponent("notices")
@@ -189,4 +248,31 @@ func agentNoticeChecks() async {
         saved()?[session] == nil && saved()?[other] == AgentNoticeMarks(turns: 1, approvals: 0) && posted.all.count == 3,
         "a gone session's marks are dropped: \(String(describing: saved()))",
     )
+
+    // A notice the agent sent is not sent again when the session reopens.
+    let notifier = "9a7e3b1c-2d4f-4a6b-8c0e-1f3a5b7d9e2c"
+    try? FileManager.default.createDirectory(at: sessions.appendingPathComponent(notifier), withIntermediateDirectories: true)
+    let sent = Posted()
+    let noticeTurn: [(String, JSONValue?)] = [
+        ("prompt", object(["text": .string("Build and install it")])),
+        ("notice", object(["body": .string("The build failed: a header is missing.")])),
+        ("finished", object(["reason": .string("completed")])),
+    ]
+    let live = TaskID.make()
+    var notifierNotices = AgentNotices(file: file, sessions: sessions) { sent.append($0) }
+    await notifierNotices.opened(session: notifier, task: live, headless: false)
+    for (kind, payload) in noticeTurn {
+        await notifierNotices.relayed(record(live, session: notifier), kind: kind, payload: payload)
+    }
+    let reopened = TaskID.make()
+    notifierNotices = AgentNotices(file: file, sessions: sessions) { sent.append($0) }
+    await notifierNotices.opened(session: notifier, task: reopened, headless: false)
+    for (kind, payload) in noticeTurn + [("prompt", object(["text": .string("Again")])), ("notice", object(["body": .string("Installed.")]))] {
+        await notifierNotices.relayed(record(reopened, session: notifier), kind: kind, payload: payload)
+    }
+    check(
+        sent.all.map(\.identifier) == ["\(notifier).notice.1", "\(notifier).turn.1", "\(notifier).notice.2"],
+        "the replayed notice posts nothing, the new one does: \(sent.all.map(\.identifier))",
+    )
+    check(saved()?[notifier] == AgentNoticeMarks(turns: 1, approvals: 0, notices: 2), "a session's notices are on disk: \(String(describing: saved()))")
 }

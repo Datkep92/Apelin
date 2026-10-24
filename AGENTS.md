@@ -474,15 +474,23 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     the gate's) or `finished` with `completed` (body the turn's last
     `message` with text, its first paragraph as plain text in at most 180
     characters, else "Done") or `failed` (subtitle "Failed", body the last
-    `error`). Never for `aborted`, nor for a session opened with
-    `closeWhenFinished`. The title is the session's latest `title`, else its
-    first message's opening, else "New Chat"; keys are
-    `localizedUserNotificationString` keys the app also spells.
+    `error`), and for the agent's own `notice` {title?, body} (2026-10-24:
+    its `notify_user` tool, for something the reader would want to know
+    while away — a long build, install or setup that ended, something to
+    do on the device —; subtitle its title, body its body, each one plain
+    line, cut to 40 and 180 characters; at most three between two of the
+    session's prompts or turn ends, an empty one none; no operation
+    carries it, the event is data the host reads by these rules,
+    `AgentNoticeRules` in ApelinProtocol). Never for `aborted`, nor for a
+    session opened with `closeWhenFinished`. The title is the session's
+    latest `title`, else its first message's opening, else "New Chat"; keys
+    are `localizedUserNotificationString` keys the app also spells.
     `AgentNoticeTrack` (tested in `Tests/SessionHost/`) decides; a reopened
-    session relays its whole log again, so turns and approvals are counted
-    per session and their counts kept in `notices.json`, and one already
-    counted posts nothing. Identifiers are `<session>.turn.<n>` and
-    `<session>.approval.<n>`, the thread is the session, and `userInfo`
+    session relays its whole log again, so turns, approvals and notices are
+    counted per session and their counts kept in `notices.json` (a count it
+    lacks is none), and one already counted posts nothing. Identifiers are
+    `<session>.turn.<n>`, `<session>.approval.<n>` and
+    `<session>.notice.<n>`, the thread is the session, and `userInfo`
     `link` is `apelin://conversation/<session>`, which a tap hands to
     `UIApplication.open` (`ConversationNotices`). Banners are for a reader
     elsewhere: `willPresent` shows nothing while the app is active, opening
@@ -889,7 +897,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `approvalRequested` {approvalID, toolCallID, tool, arguments,
   workingDirectory, projectID, fingerprint, reason, allowsSessionScope,
   detail} followed by `state` `waitingForApproval`, `approvalResolved`
-  followed by `state` `running` when none is left, `error`, `finished`
+  followed by `state` `running` when none is left, `notice` {title?, body}
+  (`notify_user`, between its `toolCall` and `toolResult`; the host posts
+  it, Notifications above; the transcript shows only the call), `error`, `finished`
   {reason}, `compactionStarted` and `compactionFinished` {outcome:
   compacted, tooShort, cancelled or failed, messagesCompacted?, message?}
   (`AgentCompactionResult`). An app that is not attached leaves an approval waiting; nothing
@@ -1038,6 +1048,18 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the system prompt tells the model to hand the user a markdown link
   whenever it opens or points to another conversation or project.
   `agentApprove` and `agentSteer` stay the app's.
+  Notices (2026-10-24, `Tools/UserNotices.swift`), in any chat:
+  notify_user {title?, body} → no host request: the tool writes a `notice`
+  event, which the host posts as a banner by its own rules (Notifications
+  above). It never asks, in either mode, and is no preset the user could
+  take away (`ApprovalPolicy`): it reads, writes and runs nothing, and the
+  reader it is for is away. Its description keeps it to what the user
+  would want to know while away, never routine progress, the reply or the
+  turn's end, which the host announces itself. The tool refuses, so the
+  model hears it, what the host would not post — a body past 180
+  characters or empty, a title past 40, a fourth in one run — and one
+  sent within 30 s of the session's last; the host cuts and counts again
+  (`AgentNoticeRules`).
   `agentRunCode` is a closed request — `argv` (an executable name looked up
   in the bootstrap's bin directories, then `/usr/bin`, `/bin`) or `script`
   (sh, bash, zsh, python3, perl with `-c`/`-e`) — that the host runs itself,

@@ -1,4 +1,5 @@
 import struct ApelinCore.MemoryStore
+import enum ApelinProtocol.AgentNoticeRules
 import enum ApelinProtocol.BuildBootstrap
 import Foundation
 import KWWKAI
@@ -7,7 +8,8 @@ import KWWKAI
 public enum ToolRisk: String, Sendable, Hashable, Codable {
     /// Reads inside the project, a registered SDK, or a bounded host view.
     case readOnly
-    /// Writes project content or the agent's bounded memory library.
+    /// Writes project content or the agent's bounded memory library, or
+    /// tells the user something through a bounded notice.
     case writeProject
     /// Runs something, changes the system, or acts on the UI.
     case system
@@ -41,6 +43,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case memorySave = "memory_save"
     case memoryDelete = "memory_delete"
     case readSkill = "read_skill"
+    case notifyUser = "notify_user"
     case checkDistribution = "check_distribution"
     case projectTemplateList = "project_template_list"
     case projectCreate = "project_create"
@@ -111,9 +114,10 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
         // mode, so its own risky steps still ask the user. The project's
         // toolchain and SDK are a field of its apelin-project.json, which
         // the file tools edit too; only registered, compatible ones go in.
+        // A notice is a few words to the user, which the host bounds.
         case .writeFile, .patchFile, .createFile, .memorySave, .memoryDelete, .projectCreate,
              .gitStage, .gitUnstage, .gitCommit, .gitFetch, .gitPull, .gitClone,
-             .conversationCreate, .conversationSend, .conversationStop, .projectEnvironmentSet:
+             .conversationCreate, .conversationSend, .conversationStop, .projectEnvironmentSet, .notifyUser:
             .writeProject
         case .readFile, .list, .grep, .find, .analyzeFramework, .frameworkHeader,
              .confirmLoaded, .readLogs, .listCrashes, .readCrash, .symbolicateCrash,
@@ -166,6 +170,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
         case .memorySave: "Create or update a concise durable memory. Read memory_list first and supply its revision; never overwrite a user's correction or recreate a deleted memory from older context."
         case .memoryDelete: "Delete a memory that is outdated or that the user asks to forget. Read memory_list first and supply its revision."
         case .readSkill: "Read a skill's full instructions by name, or one file from its folder."
+        case .notifyUser: "Show the user a notification from Apelin about something they would want to know while away from this chat: a long build, install, toolchain setup or device check you are waiting on finished or failed, or they must do something on the device (unlock it, open an app) before you can go on. Never for routine progress, never instead of your reply, and not to say you are done: Apelin already notifies them when your turn ends and when an approval waits. Plain text, no Markdown. At most \(AgentNoticeRules.maximumPerTurn) per turn, \(Int(AgentNoticeRules.minimumInterval)) seconds apart; it shows only while the user is not looking at this chat, and nothing tells you whether they saw it."
         case .projectTemplateList: "List the templates a new project can start from, with each template's id, kind and the parameters it asks for."
         case .projectCreate: "Create a new project from a template id from project_template_list. Apelin fills the identifiers, toolchain and SDK; pass values only for parameters the user cares about. The project appears in the Projects menu with its link; this chat stays General Chat and its file tools do not reach it, so hand the work on with conversation_create naming the project."
         case .gitStatus: "Show the project repository's branch, HEAD commit and changed files."
@@ -323,6 +328,11 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
                     "description": "The distribution target; omit to compare the version with both.",
                 ]),
             ], required: [])
+        case .notifyUser:
+            Schema.object([
+                "title": Schema.string("A few words heading the notification, at most \(AgentNoticeRules.maximumTitleLength) characters, e.g. \"Build failed\"; the chat's title is shown above it. Optional."),
+                "body": Schema.string("What happened or what the user must do, in one or two plain sentences in the user's language, at most \(AgentNoticeRules.maximumBodyLength) characters."),
+            ], required: ["body"])
         case .readSkill:
             Schema.object([
                 "name": Schema.string("Skill name from the skills list."),

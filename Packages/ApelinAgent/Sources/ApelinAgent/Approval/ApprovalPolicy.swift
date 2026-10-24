@@ -169,6 +169,14 @@ public struct ApprovalPolicy: Sendable, Hashable {
         case .writeFile, .patchFile, .createFile, .memorySave, .memoryDelete:
             return .allow(.notRequired)
 
+        // A banner from Apelin to the user, never a preset to edit away:
+        // it reads, writes and runs nothing, and the host posts it only
+        // while the reader is away, plain, bounded and a few per turn
+        // (`AgentNoticeRules`). Asking first would defeat it: the user it
+        // is for is not looking.
+        case .notifyUser:
+            return .allow(.notRequired)
+
         // A field of the project's own apelin-project.json, which the file
         // tools edit as well: only a registered, checked, compatible
         // toolchain or SDK goes in. The binding is not part of the build

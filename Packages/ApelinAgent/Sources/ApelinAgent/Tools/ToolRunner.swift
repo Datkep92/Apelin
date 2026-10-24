@@ -24,6 +24,9 @@ actor ToolRunner {
     let gate: ApprovalGate
     let memory: MemoryStore?
     let skills: URL?
+    /// Writes an event to the session's log: notify_user's `notice`.
+    let record: (@Sendable (AgentSessionEvent) async throws -> Void)?
+    private var notices = UserNotices()
 
     init(
         sessionID: String,
@@ -35,6 +38,7 @@ actor ToolRunner {
         gate: ApprovalGate,
         memory: MemoryStore? = nil,
         skills: URL? = nil,
+        record: (@Sendable (AgentSessionEvent) async throws -> Void)? = nil,
     ) {
         self.sessionID = sessionID
         self.project = project
@@ -45,6 +49,7 @@ actor ToolRunner {
         self.gate = gate
         self.memory = memory
         self.skills = skills
+        self.record = record
     }
 
     @discardableResult
@@ -56,6 +61,11 @@ actor ToolRunner {
 
     var approvalMode: ApprovalMode {
         policy.mode
+    }
+
+    /// A run ended: the next one may send its own notices.
+    func turnEnded() {
+        notices.turnEnded()
     }
 
     static let maxImageBytes = 4 * 1024 * 1024
@@ -285,6 +295,14 @@ actor ToolRunner {
         case .readSkill:
             guard let skills else { throw ToolDeniedError(message: "Skills are unavailable.") }
             return try text(SkillReader(userDirectory: skills).read(arguments))
+
+        case .notifyUser:
+            // No host request: the `notice` event is relayed with the rest,
+            // and the host posts it by its own rules (AgentNoticeTrack).
+            guard let record else { throw ToolDeniedError(message: "Notifications are unavailable.") }
+            let notice = try notices.take(arguments, now: Date())
+            try await record(.notice(title: notice.title, body: notice.body))
+            return text(notices.sentMessage)
 
         case .writeFile: return try text(files.writeFile(arguments))
 

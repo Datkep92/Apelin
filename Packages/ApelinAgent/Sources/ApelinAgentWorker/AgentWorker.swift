@@ -526,6 +526,12 @@ actor EventRelay {
                 resolved.append((TaskEvent.stateKind, .object(["state": .string(TaskState.running.rawValue)])))
             }
             return resolved
+        case let .notice(title, body):
+            var payload: [String: ApelinCore.JSONValue] = ["body": .string(body)]
+            if let title {
+                payload["title"] = .string(title)
+            }
+            return [(AgentNoticeRules.eventKind, .object(payload))]
         case let .error(message):
             return [("error", .object(["message": .string(message)]))]
         case let .finished(reason):
