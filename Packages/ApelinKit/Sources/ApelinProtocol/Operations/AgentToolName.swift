@@ -10,35 +10,35 @@
 /// `shell_run` and the repository's `git_*`. MCP tools keep kwwk's
 /// `mcp__<server>__<tool>`.
 public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
-    case writeFile = "file_write"
-    case patchFile = "file_edit"
-    case createFile = "file_create"
-    case readFile = "file_read"
-    case list = "file_list"
-    case grep = "file_grep"
-    case find = "file_find"
-    case runCode = "shell_run"
-    case analyzeFramework = "apelin_sdk_analyze_framework"
-    case frameworkHeader = "apelin_sdk_read_header"
-    case build = "apelin_project_build"
-    case install = "apelin_package_install"
-    case removePackage = "apelin_package_remove"
-    case respring = "apelin_device_respring"
-    case confirmLoaded = "apelin_package_confirm_loaded"
-    case readLogs = "apelin_log_read"
-    case listCrashes = "apelin_crash_list"
-    case readCrash = "apelin_crash_read"
-    case symbolicateCrash = "apelin_crash_symbolicate"
-    case captureScreen = "apelin_screen_capture"
-    case readUITree = "apelin_screen_read_tree"
-    case uiAction = "apelin_screen_interact"
+    case fileWrite = "file_write"
+    case fileEdit = "file_edit"
+    case fileCreate = "file_create"
+    case fileRead = "file_read"
+    case fileList = "file_list"
+    case fileGrep = "file_grep"
+    case fileFind = "file_find"
+    case shellRun = "shell_run"
+    case sdkAnalyzeFramework = "apelin_sdk_analyze_framework"
+    case sdkReadHeader = "apelin_sdk_read_header"
+    case projectBuild = "apelin_project_build"
+    case packageInstall = "apelin_package_install"
+    case packageRemove = "apelin_package_remove"
+    case deviceRespring = "apelin_device_respring"
+    case packageConfirmLoaded = "apelin_package_confirm_loaded"
+    case logRead = "apelin_log_read"
+    case crashList = "apelin_crash_list"
+    case crashRead = "apelin_crash_read"
+    case crashSymbolicate = "apelin_crash_symbolicate"
+    case screenCapture = "apelin_screen_capture"
+    case screenReadTree = "apelin_screen_read_tree"
+    case screenInteract = "apelin_screen_interact"
     case memoryList = "apelin_memory_list"
     case memorySave = "apelin_memory_save"
     case memoryDelete = "apelin_memory_delete"
-    case readSkill = "apelin_skill_read"
-    case notifyUser = "apelin_notification_send"
-    case checkDistribution = "apelin_project_check_distribution"
-    case projectTemplateList = "apelin_template_list"
+    case skillRead = "apelin_skill_read"
+    case notificationSend = "apelin_notification_send"
+    case projectCheckDistribution = "apelin_project_check_distribution"
+    case templateList = "apelin_template_list"
     case projectCreate = "apelin_project_create"
     case gitStatus = "git_status"
     case gitDiff = "git_diff"
@@ -49,7 +49,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case gitPull = "git_pull"
     case gitPush = "git_push"
     case gitClone = "git_clone"
-    case gitSettings = "apelin_git_read_settings"
+    case gitReadSettings = "apelin_git_read_settings"
     case gitSetAuthor = "apelin_git_set_author"
     case gitSaveCredential = "apelin_git_save_credential"
     case gitRemoveCredential = "apelin_git_remove_credential"
@@ -63,7 +63,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case toolchainSetup = "apelin_toolchain_setup"
     case sdkImport = "apelin_sdk_import"
     case toolchainSelfTest = "apelin_toolchain_self_test"
-    case projectEnvironmentSet = "apelin_project_set_environment"
+    case projectSetEnvironment = "apelin_project_set_environment"
 }
 
 public extension AgentToolName {
@@ -71,37 +71,37 @@ public extension AgentToolName {
     /// `notify_user` after it), for the events and transcripts recorded
     /// then. None of them is a current name.
     static let legacyNames: [String: AgentToolName] = [
-        "write_file": .writeFile,
-        "patch_file": .patchFile,
-        "create_file": .createFile,
-        "read_file": .readFile,
-        "list": .list,
-        "grep": .grep,
-        "find": .find,
-        "run_code": .runCode,
-        "analyze_framework": .analyzeFramework,
-        "framework_header": .frameworkHeader,
-        "build": .build,
-        "install": .install,
-        "remove_package": .removePackage,
-        "respring": .respring,
-        "confirm_loaded": .confirmLoaded,
-        "read_logs": .readLogs,
-        "list_crashes": .listCrashes,
-        "read_crash": .readCrash,
-        "symbolicate_crash": .symbolicateCrash,
-        "capture_screen": .captureScreen,
-        "read_ui_tree": .readUITree,
-        "ui_action": .uiAction,
+        "write_file": .fileWrite,
+        "patch_file": .fileEdit,
+        "create_file": .fileCreate,
+        "read_file": .fileRead,
+        "list": .fileList,
+        "grep": .fileGrep,
+        "find": .fileFind,
+        "run_code": .shellRun,
+        "analyze_framework": .sdkAnalyzeFramework,
+        "framework_header": .sdkReadHeader,
+        "build": .projectBuild,
+        "install": .packageInstall,
+        "remove_package": .packageRemove,
+        "respring": .deviceRespring,
+        "confirm_loaded": .packageConfirmLoaded,
+        "read_logs": .logRead,
+        "list_crashes": .crashList,
+        "read_crash": .crashRead,
+        "symbolicate_crash": .crashSymbolicate,
+        "capture_screen": .screenCapture,
+        "read_ui_tree": .screenReadTree,
+        "ui_action": .screenInteract,
         "memory_list": .memoryList,
         "memory_save": .memorySave,
         "memory_delete": .memoryDelete,
-        "read_skill": .readSkill,
-        "notify_user": .notifyUser,
-        "check_distribution": .checkDistribution,
-        "project_template_list": .projectTemplateList,
+        "read_skill": .skillRead,
+        "notify_user": .notificationSend,
+        "check_distribution": .projectCheckDistribution,
+        "project_template_list": .templateList,
         "project_create": .projectCreate,
-        "git_settings": .gitSettings,
+        "git_settings": .gitReadSettings,
         "git_set_author": .gitSetAuthor,
         "git_save_credential": .gitSaveCredential,
         "git_remove_credential": .gitRemoveCredential,
@@ -115,7 +115,7 @@ public extension AgentToolName {
         "toolchain_setup": .toolchainSetup,
         "sdk_import": .sdkImport,
         "toolchain_self_test": .toolchainSelfTest,
-        "project_environment_set": .projectEnvironmentSet,
+        "project_environment_set": .projectSetEnvironment,
     ]
 
     /// The tool a recorded name means: a current name or one an earlier

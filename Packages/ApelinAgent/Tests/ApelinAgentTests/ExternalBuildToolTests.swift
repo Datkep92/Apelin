@@ -17,11 +17,11 @@ struct ExternalBuildToolTests {
         try harness.home.write("apelin-project.json", Self.manifest)
         let asked = ExternalBuildApproval(projectID: harness.home.project.id, script: "apelin/build.sh", configuration: "debug", bootstrap: nil)
 
-        let (_, first) = try await harness.run(.build, [:], answering: .approve(.session))
+        let (_, first) = try await harness.run(.projectBuild, [:], answering: .approve(.session))
         #expect(first.count == 1)
         #expect(first.first?.detail == .externalBuild(asked))
         #expect(first.first?.allowsSessionScope == false)
-        let (_, second) = try await harness.run(.build, ["configuration": "release", "bootstrap": "rootless"])
+        let (_, second) = try await harness.run(.projectBuild, ["configuration": "release", "bootstrap": "rootless"])
         #expect(second.first?.detail == .externalBuild(ExternalBuildApproval(
             projectID: harness.home.project.id,
             script: "apelin/build.sh",
@@ -41,7 +41,7 @@ struct ExternalBuildToolTests {
         let harness = try DigestApprovalTests.Harness(mode: .relaxed)
         defer { harness.home.remove() }
         try harness.home.write("apelin-project.json", Self.manifest)
-        let (_, asked) = try await harness.run(.build, [:])
+        let (_, asked) = try await harness.run(.projectBuild, [:])
         #expect(asked.isEmpty)
         #expect(await harness.backend.calls == [.build(digest: "", evidence: .relaxed)])
     }
@@ -53,17 +53,17 @@ struct ExternalBuildToolTests {
         try harness.home.write("apelin-project.json", Self.manifest)
         await harness.ledger.addArtifact("a1", packaging: "sha256:package-1")
 
-        let (_, first) = try await harness.run(.install, ["artifact_id": "a1", "artifact_digest": "d1"])
+        let (_, first) = try await harness.run(.packageInstall, ["artifact_id": "a1", "artifact_digest": "d1"])
         guard case let .descriptionChanged(kind, digest, _)? = first.first?.detail else {
             Issue.record("the first install asks about the package: \(first)")
             return
         }
         #expect(kind == .packaging && digest == "sha256:package-1")
-        let (_, again) = try await harness.run(.install, ["artifact_id": "a1", "artifact_digest": "d1"])
+        let (_, again) = try await harness.run(.packageInstall, ["artifact_id": "a1", "artifact_digest": "d1"])
         #expect(again.isEmpty, "an approved package installs again without asking")
 
         await #expect(throws: ToolArgumentError.self) {
-            _ = try await harness.run(.install, ["artifact_id": "unknown", "artifact_digest": "d"])
+            _ = try await harness.run(.packageInstall, ["artifact_id": "unknown", "artifact_digest": "d"])
         }
     }
 }

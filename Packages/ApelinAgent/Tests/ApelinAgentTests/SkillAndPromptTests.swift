@@ -65,7 +65,7 @@ struct SkillAndPromptTests {
         )
         let runner = try runner(home)
         func call(_ arguments: JSONValue) async throws -> String {
-            try await text(runner.run(.local(.readSkill), toolCallID: UUID().uuidString, arguments: arguments, cancellation: nil, mcp: nil))
+            try await text(runner.run(.local(.skillRead), toolCallID: UUID().uuidString, arguments: arguments, cancellation: nil, mcp: nil))
         }
 
         let body = try await call(["name": "theme-colours"])
@@ -88,7 +88,7 @@ struct SkillAndPromptTests {
         defer { home.remove() }
         let runner = try runner(home)
         func call(_ arguments: JSONValue) async throws -> String {
-            try await text(runner.run(.local(.readSkill), toolCallID: UUID().uuidString, arguments: arguments, cancellation: nil, mcp: nil))
+            try await text(runner.run(.local(.skillRead), toolCallID: UUID().uuidString, arguments: arguments, cancellation: nil, mcp: nil))
         }
         #expect(try await call(["name": "tweak-development", "file": ""]).contains("# Tweak development"))
         let guide = try await call(["name": "project-description"])
@@ -142,7 +142,7 @@ struct SkillAndPromptTests {
         }
         let runner = try runner(home)
         for skill in skills {
-            let body = try await text(runner.run(.local(.readSkill), toolCallID: UUID().uuidString,
+            let body = try await text(runner.run(.local(.skillRead), toolCallID: UUID().uuidString,
                                                  arguments: ["name": .string(skill.name)], cancellation: nil, mcp: nil))
             #expect(body.contains(skill.body.prefix(32)), "apelin_skill_read did not serve \(skill.name)")
             #expect(!prompt.contains(skill.body), "the prompt leaked \(skill.name)'s body")
@@ -163,7 +163,7 @@ struct SkillAndPromptTests {
         #expect(header.contains(".jbroot-"))
         #expect(header.contains("@\"/var/jb\""))
         let runner = try runner(home)
-        let served = try await text(runner.run(.local(.readSkill), toolCallID: UUID().uuidString,
+        let served = try await text(runner.run(.local(.skillRead), toolCallID: UUID().uuidString,
                                                arguments: ["name": "bootstrap-paths", "file": "ApelinBootstrap.h"],
                                                cancellation: nil, mcp: nil))
         #expect(served == header)
@@ -199,7 +199,7 @@ struct SkillAndPromptTests {
         let home = try TemporaryHome()
         defer { home.remove() }
         let verdict = try ApprovalPolicy(mode: .confirm)
-            .evaluate(InvocationFacts(tool: .local(.readSkill)), root: ScopedRoot(home.projectURL))
+            .evaluate(InvocationFacts(tool: .local(.skillRead)), root: ScopedRoot(home.projectURL))
         #expect(verdict == .allow(.preset("apelin_skill_read")))
     }
 

@@ -46,7 +46,7 @@ struct ApprovalMatrixTests {
         for tool in AgentToolName.allCases {
             let facts = InvocationFacts(
                 tool: .local(tool),
-                command: tool == .runCode ? .shell("rm -rf build; make") : nil,
+                command: tool == .shellRun ? .shell("rm -rf build; make") : nil,
                 description: DescriptionState(digest: "x", baseline: .changed(diff: "")),
             )
             #expect(verdict(.relaxed, facts) == .allow(.relaxed), "\(tool.rawValue)")
@@ -58,7 +58,7 @@ struct ApprovalMatrixTests {
     func `Leaving the project is refused in both modes`() {
         defer { home.remove() }
         for mode in [ApprovalMode.relaxed, .confirm] {
-            for tool in [AgentToolName.writeFile, .readFile, .runCode] {
+            for tool in [AgentToolName.fileWrite, .fileRead, .shellRun] {
                 #expect(isDeny(verdict(mode, InvocationFacts(tool: .local(tool), pathCheck: .outside("../x")))))
             }
         }
@@ -68,7 +68,7 @@ struct ApprovalMatrixTests {
     func `Confirm: the table of §7`() {
         defer { home.remove() }
         // Project edits run.
-        for tool in [AgentToolName.writeFile, .patchFile, .createFile] {
+        for tool in [AgentToolName.fileWrite, .fileEdit, .fileCreate] {
             #expect(verdict(.confirm, InvocationFacts(tool: .local(tool), pathCheck: .inside)) == .allow(.notRequired))
         }
         // Preset reads run, sensitive reads ask.
@@ -81,9 +81,9 @@ struct ApprovalMatrixTests {
             }
         }
         // respring is preset; apelin_screen_interact and apelin_package_remove ask.
-        #expect(verdict(.confirm, InvocationFacts(tool: .local(.respring))) == .allow(.preset("apelin_device_respring")))
-        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.uiAction)))))
-        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.removePackage)))))
+        #expect(verdict(.confirm, InvocationFacts(tool: .local(.deviceRespring))) == .allow(.preset("apelin_device_respring")))
+        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.screenInteract)))))
+        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.packageRemove)))))
         // MCP tools ask.
         #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .mcp("mcp__docs__search")))))
     }
@@ -92,18 +92,18 @@ struct ApprovalMatrixTests {
     func `Confirm: presets are edited by the user and only presettable tools count`() throws {
         defer { home.remove() }
         var presets = ApprovalPresets.default
-        presets.readTools.insert(.captureScreen)
-        presets.systemTools.insert(.uiAction)
-        presets.systemTools.remove(.respring)
+        presets.readTools.insert(.screenCapture)
+        presets.systemTools.insert(.screenInteract)
+        presets.systemTools.remove(.deviceRespring)
         // Not presettable: these must still ask / follow their own rule.
-        presets.systemTools.formUnion([.removePackage, .runCode])
-        presets.readTools.insert(.removePackage)
+        presets.systemTools.formUnion([.packageRemove, .shellRun])
+        presets.readTools.insert(.packageRemove)
 
-        #expect(verdict(.confirm, InvocationFacts(tool: .local(.captureScreen)), presets: presets) == .allow(.preset("apelin_screen_capture")))
-        #expect(verdict(.confirm, InvocationFacts(tool: .local(.uiAction)), presets: presets) == .allow(.preset("apelin_screen_interact")))
-        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.respring)), presets: presets)))
-        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.removePackage)), presets: presets)))
-        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.runCode), command: .shell("x | y")), presets: presets)))
+        #expect(verdict(.confirm, InvocationFacts(tool: .local(.screenCapture)), presets: presets) == .allow(.preset("apelin_screen_capture")))
+        #expect(verdict(.confirm, InvocationFacts(tool: .local(.screenInteract)), presets: presets) == .allow(.preset("apelin_screen_interact")))
+        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.deviceRespring)), presets: presets)))
+        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.packageRemove)), presets: presets)))
+        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.shellRun), command: .shell("x | y")), presets: presets)))
 
         // Presets round-trip through settings storage.
         let data = try JSONEncoder().encode(presets)
@@ -117,7 +117,7 @@ struct ApprovalMatrixTests {
             try CommandClassifier.classify(.object(["command": .string(command)]))
         }
         func runVerdict(_ invocation: RunCodeInvocation) -> GateVerdict {
-            verdict(.confirm, InvocationFacts(tool: .local(.runCode), pathCheck: .inside, command: invocation))
+            verdict(.confirm, InvocationFacts(tool: .local(.shellRun), pathCheck: .inside, command: invocation))
         }
 
         #expect(try classify("ls -la Sources") == .argv(["ls", "-la", "Sources"]))
@@ -184,7 +184,7 @@ struct ApprovalMatrixTests {
         defer { home.remove() }
         func runVerdict(_ argv: [String], in directory: String) -> GateVerdict {
             verdict(.confirm, InvocationFacts(
-                tool: .local(.runCode),
+                tool: .local(.shellRun),
                 pathCheck: .inside,
                 command: .argv(argv),
                 workingDirectory: directory,
@@ -202,7 +202,7 @@ struct ApprovalMatrixTests {
         let outside = home.home.appendingPathComponent("outside", isDirectory: true)
         try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(atPath: home.projectURL.appendingPathComponent("escape").path, withDestinationPath: outside.path)
-        let facts = InvocationFacts(tool: .local(.runCode), pathCheck: .inside, command: .argv(["cat", "escape/secret"]))
+        let facts = InvocationFacts(tool: .local(.shellRun), pathCheck: .inside, command: .argv(["cat", "escape/secret"]))
         #expect(isAsk(verdict(.confirm, facts)))
     }
 
@@ -212,14 +212,14 @@ struct ApprovalMatrixTests {
         let template = DescriptionState(digest: "t", baseline: .matchesTemplate)
         let approved = DescriptionState(digest: "a", baseline: .approved)
         let changed = DescriptionState(digest: "c", baseline: .changed(diff: "+flag"))
-        #expect(verdict(.confirm, InvocationFacts(tool: .local(.build), description: template)) == .allow(.templateMatch(digest: "t")))
-        #expect(verdict(.confirm, InvocationFacts(tool: .local(.install), description: approved)) == .allow(.digestApproved(digest: "a")))
-        guard case .ask(_, .descriptionChanged(.packaging, "c", "+flag")) = verdict(.confirm, InvocationFacts(tool: .local(.install), description: changed)) else {
+        #expect(verdict(.confirm, InvocationFacts(tool: .local(.projectBuild), description: template)) == .allow(.templateMatch(digest: "t")))
+        #expect(verdict(.confirm, InvocationFacts(tool: .local(.packageInstall), description: approved)) == .allow(.digestApproved(digest: "a")))
+        guard case .ask(_, .descriptionChanged(.packaging, "c", "+flag")) = verdict(.confirm, InvocationFacts(tool: .local(.packageInstall), description: changed)) else {
             Issue.record("a changed packaging description must ask, bound to its digest")
             return
         }
         // Unknown state asks rather than runs.
-        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.build)))))
+        #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.projectBuild)))))
     }
 
     @Test

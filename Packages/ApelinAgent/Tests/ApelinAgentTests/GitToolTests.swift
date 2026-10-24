@@ -210,9 +210,9 @@ struct GitToolTests {
         let harness = try DigestApprovalTests.Harness()
         defer { harness.home.remove() }
         try harness.home.write("apelin-project.json", #"{"schemaVersion":1,"projectID":"x","kind":"workspace","displayName":"Hello"}"#)
-        await #expect(throws: ToolDeniedError.self) { _ = try await harness.run(.build, [:]) }
+        await #expect(throws: ToolDeniedError.self) { _ = try await harness.run(.projectBuild, [:]) }
         do {
-            _ = try await harness.run(.build, [:])
+            _ = try await harness.run(.projectBuild, [:])
         } catch let error as ToolDeniedError {
             #expect(error.message.contains("\"external\""))
             #expect(error.message.contains("APELIN_PACKAGE_DIR"))
@@ -267,7 +267,7 @@ struct GitToolTests {
 
     @Test
     func `the settings tools read freely and ask for every change`() {
-        #expect(AgentToolName.gitSettings.risk == .readOnly)
+        #expect(AgentToolName.gitReadSettings.risk == .readOnly)
         for tool in [AgentToolName.gitSetAuthor, .gitSaveCredential, .gitRemoveCredential] {
             #expect(tool.risk == .system, "\(tool.rawValue)")
             #expect(!tool.isProjectOnly, "\(tool.rawValue)")

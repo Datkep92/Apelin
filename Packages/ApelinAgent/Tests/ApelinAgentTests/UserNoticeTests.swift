@@ -29,7 +29,7 @@ struct UserNoticeTests {
 
     private static func notify(_ runner: ToolRunner, _ arguments: JSONValue) async throws -> String {
         let result = try await runner.run(
-            .local(.notifyUser),
+            .local(.notificationSend),
             toolCallID: UUID().uuidString,
             arguments: arguments,
             cancellation: nil,
@@ -55,15 +55,15 @@ struct UserNoticeTests {
             let offered = try Self.runner(home, project: project).agentTools(mcp: []).map(\.name)
             #expect(offered.contains("apelin_notification_send"), "\(project.id)")
         }
-        let schema = ToolReason.adding(to: AgentToolName.notifyUser.parameters)
+        let schema = ToolReason.adding(to: AgentToolName.notificationSend.parameters)
         #expect(schema["required"] == .array(["body", "reason"]))
-        #expect(AgentToolName.notifyUser.summary.contains("Never for routine progress"))
+        #expect(AgentToolName.notificationSend.summary.contains("Never for routine progress"))
         let root = try ScopedRoot(home.projectURL)
-        let facts = InvocationFacts(tool: .local(.notifyUser))
+        let facts = InvocationFacts(tool: .local(.notificationSend))
         #expect(ApprovalPolicy(mode: .confirm).evaluate(facts, root: root) == .allow(.notRequired))
         #expect(ApprovalPolicy(mode: .relaxed).evaluate(facts, root: root) == .allow(.relaxed))
         // Not a preset the user could take away: no read preset names it.
-        #expect(!ApprovalPresets.default.readTools.contains(.notifyUser))
+        #expect(!ApprovalPresets.default.readTools.contains(.notificationSend))
         #expect(ApprovalPolicy(mode: .confirm, presets: ApprovalPresets(readTools: [], systemTools: [], commands: []))
             .evaluate(facts, root: root) == .allow(.notRequired))
     }

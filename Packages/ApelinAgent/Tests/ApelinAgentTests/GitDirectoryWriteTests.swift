@@ -299,14 +299,14 @@ struct GitDirectoryWalkTests {
         defer { harness.home.remove() }
         try harness.home.write("Sources/Tweak.m", "int a = 1;\n")
 
-        _ = try await harness.run(.writeFile, ["path": "Sources/Tweak.m", "content": "int a = 2;\n"])
+        _ = try await harness.run(.fileWrite, ["path": "Sources/Tweak.m", "content": "int a = 2;\n"])
         #expect(walks.value == 1)
         _ = try await harness.run(
-            .patchFile,
+            .fileEdit,
             ["path": "Sources/Tweak.m", "old_text": "a = 2", "new_text": "a = 3"],
         )
         #expect(walks.value == 2)
-        _ = try await harness.run(.createFile, ["path": "Sources/New.m", "content": "int b;\n"])
+        _ = try await harness.run(.fileCreate, ["path": "Sources/New.m", "content": "int b;\n"])
         #expect(walks.value == 3)
         #expect(try harness.home.read("Sources/Tweak.m") == "int a = 3;\n")
     }

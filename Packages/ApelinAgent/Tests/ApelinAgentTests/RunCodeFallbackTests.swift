@@ -13,7 +13,7 @@ struct RunCodeFallbackTests {
         try harness.home.write("Sources/Tweak.m", "// tweak\n")
         await harness.backend.setRefusesPresets(true)
 
-        let (result, asked) = try await harness.run(.runCode, ["argv": ["cat", "Sources/Tweak.m"]])
+        let (result, asked) = try await harness.run(.shellRun, ["argv": ["cat", "Sources/Tweak.m"]])
         #expect(asked.count == 1)
         guard case .command(.argv(["cat", "Sources/Tweak.m"])) = asked.first?.detail else {
             Issue.record("the card shows the command: \(String(describing: asked.first?.detail))"); return
@@ -38,13 +38,13 @@ struct RunCodeFallbackTests {
         await harness.backend.setRefusesPresets(true)
         let call: JSONValue = ["argv": ["cat", "Sources/Tweak.m"]]
 
-        let (_, first) = try await harness.run(.runCode, call)
+        let (_, first) = try await harness.run(.shellRun, call)
         #expect(first.count == 1)
 
         // The repository changed (a `git init`, a clone): the host now
         // counts the same call as a preset, and nobody is asked.
         await harness.backend.setRefusesPresets(false)
-        let (_, second) = try await harness.run(.runCode, call)
+        let (_, second) = try await harness.run(.shellRun, call)
         #expect(second.isEmpty, "the user is not asked again: \(second)")
         let evidence = await harness.backend.runCodeEvidence
         #expect(evidence.count == 3, "refused preset, user's approval, then a preset: \(evidence)")
@@ -59,7 +59,7 @@ struct RunCodeFallbackTests {
         await harness.backend.setRefusesPresets(true)
 
         await #expect(throws: ToolDeniedError.self) {
-            _ = try await harness.run(.runCode, ["argv": ["cat", "Sources/Tweak.m"]], answering: .deny(reason: nil))
+            _ = try await harness.run(.shellRun, ["argv": ["cat", "Sources/Tweak.m"]], answering: .deny(reason: nil))
         }
         #expect(await harness.backend.runCodeEvidence == [.preset("cat")])
         #expect(await harness.backend.calls.isEmpty)

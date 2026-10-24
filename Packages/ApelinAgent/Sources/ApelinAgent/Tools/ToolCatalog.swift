@@ -22,7 +22,7 @@ public extension AgentToolName {
     /// Only General Chat starts projects: it belongs to none, and a project's
     /// own chat has no reason to make another.
     var isGeneralChatOnly: Bool {
-        self == .projectTemplateList || self == .projectCreate
+        self == .templateList || self == .projectCreate
     }
 
     /// The git tools act on the session's project, which General Chat does
@@ -32,7 +32,7 @@ public extension AgentToolName {
     var isProjectOnly: Bool {
         switch self {
         case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit,
-             .gitFetch, .gitPull, .gitPush, .gitClone, .projectEnvironmentSet:
+             .gitFetch, .gitPull, .gitPush, .gitClone, .projectSetEnvironment:
             true
         default:
             false
@@ -62,21 +62,21 @@ public extension AgentToolName {
         // toolchain and SDK are a field of its apelin-project.json, which
         // the file tools edit too; only registered, compatible ones go in.
         // A notice is a few words to the user, which the host bounds.
-        case .writeFile, .patchFile, .createFile, .memorySave, .memoryDelete, .projectCreate,
+        case .fileWrite, .fileEdit, .fileCreate, .memorySave, .memoryDelete, .projectCreate,
              .gitStage, .gitUnstage, .gitCommit, .gitFetch, .gitPull, .gitClone,
-             .conversationCreate, .conversationSend, .conversationStop, .projectEnvironmentSet, .notifyUser:
+             .conversationCreate, .conversationSend, .conversationStop, .projectSetEnvironment, .notificationSend:
             .writeProject
-        case .readFile, .list, .grep, .find, .analyzeFramework, .frameworkHeader,
-             .confirmLoaded, .readLogs, .listCrashes, .readCrash, .symbolicateCrash,
-             .captureScreen, .readUITree, .memoryList, .readSkill, .checkDistribution,
-             .projectTemplateList, .gitStatus, .gitDiff, .gitSettings,
+        case .fileRead, .fileList, .fileGrep, .fileFind, .sdkAnalyzeFramework, .sdkReadHeader,
+             .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
+             .screenCapture, .screenReadTree, .memoryList, .skillRead, .projectCheckDistribution,
+             .templateList, .gitStatus, .gitDiff, .gitReadSettings,
              .conversationList, .conversationRead, .toolchainList, .sdkList:
             .readOnly
         // A push publishes commits with the user's credential; the author and
         // the credentials are the device's, for every project. A toolchain
         // or an SDK is installed on the device for every project, and the
         // self-test runs the toolchain's compilers and their output.
-        case .runCode, .build, .install, .removePackage, .respring, .uiAction, .gitPush,
+        case .shellRun, .projectBuild, .packageInstall, .packageRemove, .deviceRespring, .screenInteract, .gitPush,
              .gitSetAuthor, .gitSaveCredential, .gitRemoveCredential,
              .toolchainSetup, .sdkImport, .toolchainSelfTest:
             .system
@@ -86,39 +86,39 @@ public extension AgentToolName {
     /// Read tools whose output is sensitive (the screen, the UI tree): read
     /// only, but not let through by default — §7 configures them apart.
     var isSensitiveRead: Bool {
-        self == .captureScreen || self == .readUITree
+        self == .screenCapture || self == .screenReadTree
     }
 
     var summary: String {
         switch self {
-        case .writeFile: "Create a file or replace its whole content, inside the project."
-        case .patchFile: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set."
-        case .createFile: "Create a new project file; fails if it already exists."
-        case .readFile: "Read a project file, optionally a range of lines."
-        case .list: "List a project folder."
-        case .grep: "Search project files with a regular expression."
-        case .find: "Find project files whose names match a glob."
-        case .runCode: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter."
-        case .analyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
-        case .frameworkHeader: "Read one header of a framework in the registered SDK."
-        case .build: "Build the project; returns structured diagnostics and artifacts with their digests."
-        case .install: "Install a built package artifact through the system installer; returns the transaction and installation record."
-        case .removePackage: "Remove a package Apelin built and installed, by its installation record id."
-        case .respring: "Restart SpringBoard."
-        case .confirmLoaded: "Check that a build is loaded in its target process by its marker log line, and whether its filter selects the target. Pass respring: true for a SpringBoard tweak: the marker is logged once at launch and only seen while listening."
-        case .readLogs: "Listen to the live system log for up to \(ReadLogsRequest.maximumListenSeconds) seconds and answer the lines logged meanwhile, for a process or subsystem. iOS keeps no log history: a line logged before the call is never seen. A tweak's line logged once at launch is apelin_package_confirm_loaded's to hear (with respring: true for SpringBoard)."
-        case .listCrashes: "List crash report ids, newest first."
-        case .readCrash: "Read a crash report by id."
-        case .symbolicateCrash: "Symbolicate a crash report against the project's matching dSYM and rank suspects."
-        case .captureScreen: "Take a screenshot of the device or a target."
-        case .readUITree: "Read the UI element tree of the foreground app or a target."
-        case .uiAction: "Perform one UI action: tap, tap an element, type text, swipe, or press a button."
+        case .fileWrite: "Create a file or replace its whole content, inside the project."
+        case .fileEdit: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set."
+        case .fileCreate: "Create a new project file; fails if it already exists."
+        case .fileRead: "Read a project file, optionally a range of lines."
+        case .fileList: "List a project folder."
+        case .fileGrep: "Search project files with a regular expression."
+        case .fileFind: "Find project files whose names match a glob."
+        case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter."
+        case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
+        case .sdkReadHeader: "Read one header of a framework in the registered SDK."
+        case .projectBuild: "Build the project; returns structured diagnostics and artifacts with their digests."
+        case .packageInstall: "Install a built package artifact through the system installer; returns the transaction and installation record."
+        case .packageRemove: "Remove a package Apelin built and installed, by its installation record id."
+        case .deviceRespring: "Restart SpringBoard."
+        case .packageConfirmLoaded: "Check that a build is loaded in its target process by its marker log line, and whether its filter selects the target. Pass respring: true for a SpringBoard tweak: the marker is logged once at launch and only seen while listening."
+        case .logRead: "Listen to the live system log for up to \(ReadLogsRequest.maximumListenSeconds) seconds and answer the lines logged meanwhile, for a process or subsystem. iOS keeps no log history: a line logged before the call is never seen. A tweak's line logged once at launch is apelin_package_confirm_loaded's to hear (with respring: true for SpringBoard)."
+        case .crashList: "List crash report ids, newest first."
+        case .crashRead: "Read a crash report by id."
+        case .crashSymbolicate: "Symbolicate a crash report against the project's matching dSYM and rank suspects."
+        case .screenCapture: "Take a screenshot of the device or a target."
+        case .screenReadTree: "Read the UI element tree of the foreground app or a target."
+        case .screenInteract: "Perform one UI action: tap, tap an element, type text, swipe, or press a button."
         case .memoryList: "Read saved user preferences and facts for all chats and this project, with their current revision."
         case .memorySave: "Create or update a concise durable memory. Read apelin_memory_list first and supply its revision; never overwrite a user's correction or recreate a deleted memory from older context."
         case .memoryDelete: "Delete a memory that is outdated or that the user asks to forget. Read apelin_memory_list first and supply its revision."
-        case .readSkill: "Read a skill's full instructions by name, or one file from its folder."
-        case .notifyUser: "Show the user a notification from Apelin about something they would want to know while away from this chat: a long build, install, toolchain setup or device check you are waiting on finished or failed, or they must do something on the device (unlock it, open an app) before you can go on. Never for routine progress, never instead of your reply, and not to say you are done: Apelin already notifies them when your turn ends and when an approval waits. Plain text, no Markdown. At most \(AgentNoticeRules.maximumPerTurn) per turn, \(Int(AgentNoticeRules.minimumInterval)) seconds apart; it shows only while Apelin is not in front, and nothing tells you whether they saw it."
-        case .projectTemplateList: "List the templates a new project can start from, with each template's id, kind and the parameters it asks for."
+        case .skillRead: "Read a skill's full instructions by name, or one file from its folder."
+        case .notificationSend: "Show the user a notification from Apelin about something they would want to know while away from this chat: a long build, install, toolchain setup or device check you are waiting on finished or failed, or they must do something on the device (unlock it, open an app) before you can go on. Never for routine progress, never instead of your reply, and not to say you are done: Apelin already notifies them when your turn ends and when an approval waits. Plain text, no Markdown. At most \(AgentNoticeRules.maximumPerTurn) per turn, \(Int(AgentNoticeRules.minimumInterval)) seconds apart; it shows only while Apelin is not in front, and nothing tells you whether they saw it."
+        case .templateList: "List the templates a new project can start from, with each template's id, kind and the parameters it asks for."
         case .projectCreate: "Create a new project from a template id from apelin_template_list. Apelin fills the identifiers, toolchain and SDK; pass values only for parameters the user cares about. The project appears in the Projects menu with its link; this chat stays General Chat and its file tools do not reach it, so hand the work on with apelin_conversation_create naming the project."
         case .gitStatus: "Show the project repository's branch, HEAD commit and changed files."
         case .gitDiff: "Show a unified diff of the worktree against the index, or with staged: true of the index against HEAD; optionally one path."
@@ -129,11 +129,11 @@ public extension AgentToolName {
         case .gitPull: "Fetch, then fast-forward the checked-out branch to its upstream. Never merges or rebases; a diverged branch or a local change in the way fails and changes nothing."
         case .gitPush: "Push a branch (default the checked-out one) to the branch of the same name on a remote (default origin). Never forced; a rejected update fails."
         case .gitClone: "Import a repository into this workspace over HTTPS: origin is set to url, and branch (default the remote's) checked out without overwriting files already there."
-        case .gitSettings: "Read Apelin's git settings: the commit author, and the hosts with a saved HTTPS credential and their usernames. Tokens are never shown."
+        case .gitReadSettings: "Read Apelin's git settings: the commit author, and the hosts with a saved HTTPS credential and their usernames. Tokens are never shown."
         case .gitSetAuthor: "Set the commit author Apelin uses for every project; an empty field is cleared."
         case .gitSaveCredential: "Save the HTTPS credential for one host, replacing any it had: a username and a personal access token the user gave you. It is kept in the device's keychain and offered only to remotes on exactly that host."
         case .gitRemoveCredential: "Remove the saved HTTPS credential for one host."
-        case .checkDistribution: "Before a distribution build, list what the package should not carry yet: the template's name, description, author or first version, a local identifier, an app without an icon, a version already packaged for the target, and any error that would stop the build. A workspace's package is checked by its release build instead."
+        case .projectCheckDistribution: "Before a distribution build, list what the package should not carry yet: the template's name, description, author or first version, a local identifier, an app without an icon, a version already packaged for the target, and any error that would stop the build. A workspace's package is checked by its release build instead."
         case .conversationCreate: "Open another conversation, in this project or the one project names, with a first message, and return at once with its session id and link. Another agent works on it in parallel, under the same approval mode, and the user sees it in the sidebar. Collect its answer with apelin_conversation_read."
         case .conversationSend: "Send a message to another conversation, as if the user typed it; it waits there if that conversation is busy. Name its project with project when it is not this one. Read the answer with apelin_conversation_read."
         case .conversationList: "List the conversations of this project, or of the one project names: session id, link, title, state (open, waitingForApproval or ended), the conversation that opened each, and when it was last active."
@@ -144,13 +144,13 @@ public extension AgentToolName {
         case .toolchainSetup: "Set up a Command Line Tools release from apelin_toolchain_list on this device: Apple's package is downloaded, adapted, installed as a package and self-tested, importing a compatible SDK first if none is registered. Long; asks the user in Strict mode. Then bind it with apelin_project_set_environment."
         case .sdkImport: "Import an iPhoneOS SDK an enabled source offers (apelin_sdk_list's available) onto this device: one branch is fetched, checked and registered. Asks the user in Strict mode. Then bind it with apelin_project_set_environment."
         case .toolchainSelfTest: "Run a registered toolchain's self-test again: small programs are compiled, signed and run for each language and architecture, and the results recorded. A failure is reported, never unregistered."
-        case .projectEnvironmentSet: "Switch this project to a registered toolchain and/or SDK (ids from apelin_toolchain_list and apelin_sdk_list). The switch is checked first as projectCheck checks a project, and an incompatible pair, such as an SDK newer than the toolchain reads, is refused with that reason; then apelin-project.json is rewritten with the registry's digests."
+        case .projectSetEnvironment: "Switch this project to a registered toolchain and/or SDK (ids from apelin_toolchain_list and apelin_sdk_list). The switch is checked first as projectCheck checks a project, and an incompatible pair, such as an SDK newer than the toolchain reads, is refused with that reason; then apelin-project.json is rewritten with the registry's digests."
         }
     }
 
     var parameters: JSONValue {
         switch self {
-        case .memoryList, .projectTemplateList, .gitStatus, .gitSettings, .toolchainList, .sdkList:
+        case .memoryList, .templateList, .gitStatus, .gitReadSettings, .toolchainList, .sdkList:
             Schema.object([:], required: [])
         case .conversationList:
             Schema.object([
@@ -190,7 +190,7 @@ public extension AgentToolName {
             Schema.object([
                 "toolchain_id": Schema.string("A registered toolchain's id from apelin_toolchain_list."),
             ], required: ["toolchain_id"])
-        case .projectEnvironmentSet:
+        case .projectSetEnvironment:
             Schema.object([
                 "toolchain_id": Schema.string("A registered toolchain's id; omit to keep the project's."),
                 "sdk_id": Schema.string("A registered SDK's id; omit to keep the project's."),
@@ -267,7 +267,7 @@ public extension AgentToolName {
                     "description": "For new records: global for user preferences, project for this project's facts (default). Existing scope is preserved.",
                 ]),
             ], required: ["revision", "title", "body"])
-        case .checkDistribution:
+        case .projectCheckDistribution:
             Schema.object([
                 "bootstrap": .object([
                     "type": "string",
@@ -275,12 +275,12 @@ public extension AgentToolName {
                     "description": "The distribution target; omit to compare the version with both.",
                 ]),
             ], required: [])
-        case .notifyUser:
+        case .notificationSend:
             Schema.object([
                 "title": Schema.string("A few words heading the notification, at most \(AgentNoticeRules.maximumTitleLength) characters, e.g. \"Build failed\"; the chat's title is shown above it. Optional."),
                 "body": Schema.string("What happened or what the user must do, in one or two plain sentences in the user's language, at most \(AgentNoticeRules.maximumBodyLength) characters."),
             ], required: ["body"])
-        case .readSkill:
+        case .skillRead:
             Schema.object([
                 "name": Schema.string("Skill name from the skills list."),
                 "file": Schema.string("A file in the skill's folder, relative to it; omit for the instructions."),
@@ -290,35 +290,35 @@ public extension AgentToolName {
                 "revision": Schema.string("Exact current revision from apelin_memory_list."),
                 "id": Schema.string("Record id to delete."),
             ], required: ["revision", "id"])
-        case .writeFile:
+        case .fileWrite:
             Schema.object([
                 "path": Schema.string("Path relative to the project root."),
                 "content": Schema.string("The whole new content."),
             ], required: ["path", "content"])
-        case .patchFile:
+        case .fileEdit:
             Schema.object([
                 "path": Schema.string("Path relative to the project root."),
                 "old_text": Schema.string("Exact text to replace."),
                 "new_text": Schema.string("Replacement text."),
                 "replace_all": Schema.boolean("Replace every occurrence instead of exactly one."),
             ], required: ["path", "old_text", "new_text"])
-        case .createFile:
+        case .fileCreate:
             Schema.object([
                 "path": Schema.string("Path relative to the project root."),
                 "content": Schema.string("Content of the new file."),
             ], required: ["path", "content"])
-        case .readFile:
+        case .fileRead:
             Schema.object([
                 "path": Schema.string("Path relative to the project root."),
                 "offset": Schema.integer("First line to return, 1-based."),
                 "limit": Schema.integer("Number of lines to return."),
             ], required: ["path"])
-        case .list:
+        case .fileList:
             Schema.object([
                 "path": Schema.string("Folder relative to the project root; omit for the root."),
                 "depth": Schema.integer("How many levels to descend, 1 to 4. Default 1."),
             ], required: [])
-        case .grep:
+        case .fileGrep:
             Schema.object([
                 "pattern": Schema.string("Regular expression (ICU syntax)."),
                 "path": Schema.string("Folder or file to search, relative to the project root."),
@@ -326,13 +326,13 @@ public extension AgentToolName {
                 "ignore_case": Schema.boolean("Case-insensitive match."),
                 "max_results": Schema.integer("Maximum matching lines. Default 100."),
             ], required: ["pattern"])
-        case .find:
+        case .fileFind:
             Schema.object([
                 "pattern": Schema.string("Glob matched against file names, e.g. *.plist"),
                 "path": Schema.string("Folder to search, relative to the project root."),
                 "max_results": Schema.integer("Maximum paths. Default 200."),
             ], required: ["pattern"])
-        case .runCode:
+        case .shellRun:
             Schema.object([
                 "argv": .object([
                     "type": "array",
@@ -345,21 +345,21 @@ public extension AgentToolName {
                 "cwd": Schema.string("Working directory relative to the project root."),
                 "timeout_seconds": Schema.integer("Timeout, default 120."),
             ], required: [])
-        case .analyzeFramework:
+        case .sdkAnalyzeFramework:
             Schema.object([
                 "framework": Schema.string("Framework name without extension, e.g. UIKit or SpringBoardServices."),
                 "private": Schema.boolean("Look in PrivateFrameworks."),
                 "sdk_id": Schema.string("Registered SDK id; omit for the project's SDK."),
                 "symbol_filter": Schema.string("Only symbols containing this text."),
             ], required: ["framework"])
-        case .frameworkHeader:
+        case .sdkReadHeader:
             Schema.object([
                 "framework": Schema.string("Framework name without extension."),
                 "header": Schema.string("Header file name, e.g. UIView.h; omit to list headers."),
                 "private": Schema.boolean("Look in PrivateFrameworks."),
                 "sdk_id": Schema.string("Registered SDK id; omit for the project's SDK."),
             ], required: ["framework"])
-        case .build:
+        case .projectBuild:
             Schema.object([
                 "configuration": .object([
                     "type": "string",
@@ -372,50 +372,50 @@ public extension AgentToolName {
                     "description": "Explicit distribution target; omit for the current device. Build both targets separately for distribution.",
                 ]),
             ], required: [])
-        case .install:
+        case .packageInstall:
             Schema.object([
                 "artifact_id": Schema.string("Package artifact id from apelin_project_build."),
                 "artifact_digest": Schema.string("The artifact's digest from apelin_project_build."),
             ], required: ["artifact_id", "artifact_digest"])
-        case .removePackage:
+        case .packageRemove:
             Schema.object([
                 "installation_id": Schema.string("Installation record id from apelin_package_install."),
             ], required: ["installation_id"])
-        case .respring:
+        case .deviceRespring:
             Schema.object([:], required: [])
-        case .confirmLoaded:
+        case .packageConfirmLoaded:
             Schema.object([
                 "build_id": Schema.string("Build id from apelin_project_build."),
                 "target": Schema.string("Process name or bundle id the tweak should load into, e.g. SpringBoard."),
                 "respring": Schema.boolean("Start listening, then respring, then wait for the marker. Approved like apelin_device_respring."),
             ], required: ["build_id", "target"])
-        case .readLogs:
+        case .logRead:
             Schema.object([
                 "process": Schema.string("Process name."),
                 "subsystem": Schema.string("Log subsystem."),
                 "listen_seconds": Schema.integer("How long to listen, 1 to \(ReadLogsRequest.maximumListenSeconds) seconds. Default \(ReadLogsRequest.maximumListenSeconds)."),
                 "limit": Schema.integer("Maximum lines, default 200, at most 1000."),
             ], required: [])
-        case .listCrashes:
+        case .crashList:
             Schema.object([
                 "process": Schema.string("Only this process."),
                 "limit": Schema.integer("Maximum reports, default 20."),
             ], required: [])
-        case .readCrash:
+        case .crashRead:
             Schema.object(["report_id": Schema.string("Report id from apelin_crash_list.")], required: ["report_id"])
-        case .symbolicateCrash:
+        case .crashSymbolicate:
             Schema.object([
                 "report_id": Schema.string("Report id from apelin_crash_list."),
                 "build_id": Schema.string("Build whose dSYM to use; omit to match by image UUID."),
             ], required: ["report_id"])
-        case .captureScreen:
+        case .screenCapture:
             Schema.object(["target_id": Schema.string("Target; omit for the whole screen.")], required: [])
-        case .readUITree:
+        case .screenReadTree:
             Schema.object([
                 "target_id": Schema.string("Target; omit for the foreground app."),
                 "max_depth": Schema.integer("Default 12."),
             ], required: [])
-        case .uiAction:
+        case .screenInteract:
             Schema.object([
                 "target_id": Schema.string("Target; omit for the foreground app."),
                 "action": .object([

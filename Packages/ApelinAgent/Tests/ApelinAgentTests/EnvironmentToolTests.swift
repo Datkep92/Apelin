@@ -8,7 +8,7 @@ import Testing
 @Suite("toolchain and SDK tools")
 struct EnvironmentToolTests {
     static let tools: [AgentToolName] = [
-        .toolchainList, .sdkList, .toolchainSetup, .sdkImport, .toolchainSelfTest, .projectEnvironmentSet,
+        .toolchainList, .sdkList, .toolchainSetup, .sdkImport, .toolchainSelfTest, .projectSetEnvironment,
     ]
 
     func text(_ result: AgentToolResult) -> String {
@@ -32,8 +32,8 @@ struct EnvironmentToolTests {
         for tool in [AgentToolName.toolchainSetup, .sdkImport, .toolchainSelfTest] {
             #expect(tool.risk == .system, "\(tool.rawValue)")
         }
-        #expect(AgentToolName.projectEnvironmentSet.risk == .writeProject)
-        #expect(AgentToolName.projectEnvironmentSet.isProjectOnly)
+        #expect(AgentToolName.projectSetEnvironment.risk == .writeProject)
+        #expect(AgentToolName.projectSetEnvironment.isProjectOnly)
         for tool in Self.tools {
             #expect(!tool.summary.isEmpty)
             #expect(!tool.isGeneralChatOnly, "\(tool.rawValue)")
@@ -81,7 +81,7 @@ struct EnvironmentToolTests {
         for tool in [AgentToolName.toolchainList, .sdkList] {
             #expect(policy.evaluate(InvocationFacts(tool: .local(tool)), root: root) == .allow(.preset(tool.rawValue)))
         }
-        #expect(policy.evaluate(InvocationFacts(tool: .local(.projectEnvironmentSet), pathCheck: .inside), root: root) == .allow(.notRequired))
+        #expect(policy.evaluate(InvocationFacts(tool: .local(.projectSetEnvironment), pathCheck: .inside), root: root) == .allow(.notRequired))
         let setup = ToolchainSetupApproval(productID: "082-16", version: "16.4", components: ["c", "swift"], sizeBytes: 812_000_000)
         guard case let .ask(reason, detail) = policy.evaluate(InvocationFacts(tool: .local(.toolchainSetup), toolchainSetup: setup), root: root) else {
             Issue.record("a setup asks")
@@ -222,7 +222,7 @@ struct EnvironmentToolTests {
         let harness = try DigestApprovalTests.Harness()
         defer { harness.home.remove() }
         try harness.home.write("apelin-project.json", Self.manifest)
-        let (result, asked) = try await harness.run(.projectEnvironmentSet, ["sdk_id": "iPhoneOS17.5-bbbbbbbb"])
+        let (result, asked) = try await harness.run(.projectSetEnvironment, ["sdk_id": "iPhoneOS17.5-bbbbbbbb"])
         #expect(asked.isEmpty, "a switch is a project edit")
         #expect(await harness.backend.calls == [.checkEnvironment(toolchainID: nil, sdkID: "iPhoneOS17.5-bbbbbbbb")])
         let written = try harness.home.read("apelin-project.json")
@@ -243,13 +243,13 @@ struct EnvironmentToolTests {
             EnvironmentDiagnostic(code: "environment.sdk.tooNewForToolchain", severity: "error", message: reason),
         ], forSDK: "iPhoneOS27.0-cccccccc")
         do {
-            _ = try await harness.run(.projectEnvironmentSet, ["sdk_id": "iPhoneOS27.0-cccccccc"])
+            _ = try await harness.run(.projectSetEnvironment, ["sdk_id": "iPhoneOS27.0-cccccccc"])
             Issue.record("the switch is refused")
         } catch let refusal as ToolDeniedError {
             #expect(refusal.message.contains(reason))
         }
         #expect(try harness.home.read("apelin-project.json") == Self.manifest)
-        await #expect(throws: ToolArgumentError.self) { _ = try await harness.run(.projectEnvironmentSet, [:]) }
+        await #expect(throws: ToolArgumentError.self) { _ = try await harness.run(.projectSetEnvironment, [:]) }
     }
 
     @Test

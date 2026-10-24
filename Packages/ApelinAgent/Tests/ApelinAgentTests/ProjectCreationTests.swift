@@ -47,7 +47,7 @@ struct ProjectCreationTests {
         defer { home.remove() }
         let backend = MockBackend()
         let runner = try runner(home, project: generalChat(), backend: backend)
-        let list = try await runner.run(.local(.projectTemplateList), toolCallID: "call-1", arguments: .object([:]), cancellation: nil, mcp: nil)
+        let list = try await runner.run(.local(.templateList), toolCallID: "call-1", arguments: .object([:]), cancellation: nil, mcp: nil)
         #expect(text(list).contains("wiki.qaq.apelin.dev.tweak/tweak"))
         let arguments: JSONValue = .object([
             "template": "wiki.qaq.apelin.dev.tweak/tweak",

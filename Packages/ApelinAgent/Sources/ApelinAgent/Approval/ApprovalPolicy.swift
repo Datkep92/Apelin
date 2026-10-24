@@ -26,7 +26,7 @@ public struct ApprovalPresets: Sendable, Hashable, Codable {
     /// read-only commands that stay inside the project.
     public static let `default` = ApprovalPresets(
         readTools: Set(AgentToolName.allCases.filter { $0.risk == .readOnly && !$0.isSensitiveRead }),
-        systemTools: [.respring],
+        systemTools: [.deviceRespring],
         commands: [
             CommandPreset(name: "ls", executable: "ls"),
             CommandPreset(name: "cat", executable: "cat"),
@@ -167,7 +167,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
             return .ask(reason: Self.otherProjectReason(reach), detail: .otherProject(reach))
         }
         switch tool {
-        case .writeFile, .patchFile, .createFile, .memorySave, .memoryDelete:
+        case .fileWrite, .fileEdit, .fileCreate, .memorySave, .memoryDelete:
             return .allow(.notRequired)
 
         // A banner from Apelin to the user, never a preset to edit away:
@@ -175,14 +175,14 @@ public struct ApprovalPolicy: Sendable, Hashable {
         // is not in front, plain, bounded and a few per turn
         // (`AgentNoticeRules`). Asking first would defeat it: the user it
         // is for is not looking.
-        case .notifyUser:
+        case .notificationSend:
             return .allow(.notRequired)
 
         // A field of the project's own apelin-project.json, which the file
         // tools edit as well: only a registered, checked, compatible
         // toolchain or SDK goes in. The binding is not part of the build
         // description digest, so the next build does not ask for it.
-        case .projectEnvironmentSet:
+        case .projectSetEnvironment:
             return .allow(.notRequired)
 
         // Installed on the device for every project, a toolchain through
@@ -249,23 +249,23 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 detail: .gitSettings(summary: summary),
             )
 
-        case .readFile, .list, .grep, .find, .analyzeFramework, .frameworkHeader,
-             .confirmLoaded, .readLogs, .listCrashes, .readCrash, .symbolicateCrash,
-             .captureScreen, .readUITree, .memoryList, .readSkill, .checkDistribution,
-             .projectTemplateList, .gitStatus, .gitDiff, .gitSettings,
+        case .fileRead, .fileList, .fileGrep, .fileFind, .sdkAnalyzeFramework, .sdkReadHeader,
+             .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
+             .screenCapture, .screenReadTree, .memoryList, .skillRead, .projectCheckDistribution,
+             .templateList, .gitStatus, .gitDiff, .gitReadSettings,
              .conversationList, .conversationRead, .toolchainList, .sdkList:
             if presets.readTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
             }
             return .ask(reason: "This action is not in your approved presets. Review it before running.", detail: .none)
 
-        case .respring, .uiAction:
+        case .deviceRespring, .screenInteract:
             if presets.systemTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
             }
             return .ask(reason: "This action changes this device. Review it before running.", detail: .none)
 
-        case .runCode:
+        case .shellRun:
             guard let command = facts.command else {
                 return .ask(reason: "Apelin could not read this command. Review it before running.", detail: .none)
             }
@@ -290,17 +290,17 @@ public struct ApprovalPolicy: Sendable, Hashable {
             case .script: return .ask(reason: "Scripts require approval each time they run.", detail: .command(command))
             }
 
-        case .build, .install:
+        case .projectBuild, .packageInstall:
             // A workspace's build runs its own script, code from the
             // repository: every build asks, and is never granted for the
             // session.
-            if tool == .build, let build = facts.externalBuild {
+            if tool == .projectBuild, let build = facts.externalBuild {
                 return .ask(
                     reason: "Runs this workspace's own build script, \(build.script), as mobile with the prepared toolchain: it can run any code in the repository. Each build of a workspace needs your approval.",
                     detail: .externalBuild(build),
                 )
             }
-            let kind: DescriptionKind = tool == .build ? .build : .packaging
+            let kind: DescriptionKind = tool == .projectBuild ? .build : .packaging
             guard let state = facts.description else {
                 return .ask(reason: "The \(kind.rawValue) description could not be checked.", detail: .none)
             }
@@ -314,7 +314,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 )
             }
 
-        case .removePackage:
+        case .packageRemove:
             // The session host grants the removal from this detail alone
             // (`allowRemoval`), so a request without it could never be spent.
             guard let installationID = facts.installationID else {

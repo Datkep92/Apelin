@@ -125,7 +125,7 @@ actor ToolRunner {
         }
         // Before the gate: a workspace that declares no build has nothing to
         // run or approve.
-        if case .local(.build) = tool, ProjectBuildSystem.read(in: root) == .external,
+        if case .local(.projectBuild) = tool, ProjectBuildSystem.read(in: root) == .external,
            ProjectBuildSystem.externalScript(in: root) == nil
         {
             throw ToolDeniedError(message: ProjectBuildSystem.externalBuildRefusal)
@@ -252,7 +252,7 @@ actor ToolRunner {
     /// project, nor for a call that reaches another project.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
-        case .local(.removePackage), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport):
+        case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport):
             return false
         default:
             break
@@ -293,11 +293,11 @@ actor ToolRunner {
                 throw ToolArgumentError("Memory is full (\(MemoryStore.maximumRecords) records or \(MemoryStore.maximumContentBytes) content bytes). Consolidate outdated records before adding more.")
             }
 
-        case .readSkill:
+        case .skillRead:
             guard let skills else { throw ToolDeniedError(message: "Skills are unavailable.") }
             return try text(SkillReader(userDirectory: skills).read(arguments))
 
-        case .notifyUser:
+        case .notificationSend:
             // No host request: the `notice` event is relayed with the rest,
             // and the host posts it by its own rules (AgentNoticeTrack).
             guard let record else { throw ToolDeniedError(message: "Notifications are unavailable.") }
@@ -305,28 +305,28 @@ actor ToolRunner {
             try await record(.notice(title: notice.title, body: notice.body))
             return text(notices.sentMessage)
 
-        case .writeFile: return try text(files.writeFile(arguments))
+        case .fileWrite: return try text(files.writeFile(arguments))
 
-        case .patchFile: return try text(files.patchFile(arguments))
+        case .fileEdit: return try text(files.patchFile(arguments))
 
-        case .createFile: return try text(files.createFile(arguments))
+        case .fileCreate: return try text(files.createFile(arguments))
 
-        case .readFile: return try text(files.readFile(arguments))
+        case .fileRead: return try text(files.readFile(arguments))
 
-        case .list: return try text(files.list(arguments))
+        case .fileList: return try text(files.list(arguments))
 
-        case .grep: return try text(files.grep(arguments))
+        case .fileGrep: return try text(files.grep(arguments))
 
-        case .find: return try text(files.find(arguments))
+        case .fileFind: return try text(files.find(arguments))
 
-        case .checkDistribution:
+        case .projectCheckDistribution:
             let bootstrap = try Self.bootstrap(arguments)
             return try await json(backend.checkDistribution(DistributionCheckRequest(
                 project: project,
                 bootstrap: bootstrap,
             )))
 
-        case .projectTemplateList:
+        case .templateList:
             return try await json(backend.projectTemplates())
 
         case .projectCreate:
@@ -338,16 +338,16 @@ actor ToolRunner {
                 values: Self.templateValues(arguments),
             )))
 
-        case .analyzeFramework, .frameworkHeader:
+        case .sdkAnalyzeFramework, .sdkReadHeader:
             let sdk = try await backend.registeredSDK(RegisteredSDKRequest(
                 sdkID: arguments.argString("sdk_id"),
                 project: project,
             ))
             let tools = try FrameworkTools(sdk: ScopedRoot(URL(fileURLWithPath: sdk.rootPath, isDirectory: true)))
-            let output = name == .analyzeFramework ? try tools.analyze(arguments) : try tools.header(arguments)
+            let output = name == .sdkAnalyzeFramework ? try tools.analyze(arguments) : try tools.header(arguments)
             return text("SDK \(sdk.sdkID) (\(sdk.platform) \(sdk.version))\n\(output)")
 
-        case .runCode:
+        case .shellRun:
             guard let invocation = facts.command else {
                 throw ToolArgumentError("shell_run needs argv, command or script")
             }
@@ -359,7 +359,7 @@ actor ToolRunner {
                 timeoutSeconds: timeout,
             )))
 
-        case .build:
+        case .projectBuild:
             // A workspace has no build description: its build runs its own
             // script, which the host matches to the approval it spends.
             let digest: String
@@ -378,7 +378,7 @@ actor ToolRunner {
                 bootstrap: Self.bootstrap(arguments),
             )))
 
-        case .install:
+        case .packageInstall:
             guard let state = facts.description else {
                 throw ToolDeniedError(message: "the packaging description could not be checked")
             }
@@ -389,16 +389,16 @@ actor ToolRunner {
                 packagingDescriptionDigest: state.digest,
             )))
 
-        case .removePackage:
+        case .packageRemove:
             return try await json(backend.removePackage(RemovePackageRequest(
                 context: context,
                 installationID: arguments.requireString("installation_id"),
             )))
 
-        case .respring:
+        case .deviceRespring:
             return try await json(backend.respring(RespringRequest(context: context)))
 
-        case .confirmLoaded:
+        case .packageConfirmLoaded:
             return try await json(backend.confirmLoaded(ConfirmLoadedRequest(
                 context: context,
                 buildID: arguments.requireString("build_id"),
@@ -406,7 +406,7 @@ actor ToolRunner {
                 respring: arguments.argBool("respring") ?? false,
             )))
 
-        case .readLogs:
+        case .logRead:
             return try await json(backend.readLogs(ReadLogsRequest(
                 context: context,
                 process: arguments.argString("process"),
@@ -418,28 +418,28 @@ actor ToolRunner {
                 limit: min(1000, max(1, arguments.argInt("limit") ?? 200)),
             )))
 
-        case .listCrashes:
+        case .crashList:
             return try await json(backend.listCrashes(ListCrashesRequest(
                 context: context,
                 process: arguments.argString("process"),
                 limit: min(200, max(1, arguments.argInt("limit") ?? 20)),
             )))
 
-        case .readCrash:
+        case .crashRead:
             return try await json(backend.readCrash(ReadCrashRequest(
                 context: context,
                 reportID: arguments.requireString("report_id"),
                 maxBytes: 256 * 1024,
             )))
 
-        case .symbolicateCrash:
+        case .crashSymbolicate:
             return try await json(backend.symbolicateCrash(SymbolicateCrashRequest(
                 context: context,
                 reportID: arguments.requireString("report_id"),
                 buildID: arguments.argString("build_id"),
             )))
 
-        case .captureScreen:
+        case .screenCapture:
             var response = try await backend.captureScreen(CaptureScreenRequest(
                 context: context,
                 targetID: arguments.argString("target_id"),
@@ -455,14 +455,14 @@ actor ToolRunner {
             }
             return result
 
-        case .readUITree:
+        case .screenReadTree:
             return try await json(backend.readUITree(ReadUITreeRequest(
                 context: context,
                 targetID: arguments.argString("target_id"),
                 maxDepth: min(40, max(1, arguments.argInt("max_depth") ?? 12)),
             )))
 
-        case .uiAction:
+        case .screenInteract:
             return try await json(backend.uiAction(UIActionRequest(
                 context: context,
                 targetID: arguments.argString("target_id"),
@@ -512,7 +512,7 @@ actor ToolRunner {
                 branch: arguments.argNonEmptyString("branch"),
             )))
 
-        case .gitSettings:
+        case .gitReadSettings:
             return try await json(backend.gitSettings(context: context))
 
         case .gitSetAuthor:
@@ -621,7 +621,7 @@ actor ToolRunner {
                 toolchainID: arguments.requireString("toolchain_id"),
             )))
 
-        case .projectEnvironmentSet:
+        case .projectSetEnvironment:
             return try await json(setEnvironment(arguments, context: context))
         }
     }

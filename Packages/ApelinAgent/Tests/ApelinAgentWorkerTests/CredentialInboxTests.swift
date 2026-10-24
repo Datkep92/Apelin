@@ -165,7 +165,7 @@ struct EventRelayMappingTests {
     func `a package removal request carries its installation in the shape the host reads`() throws {
         let root = try ScopedRoot(URL(fileURLWithPath: NSTemporaryDirectory()))
         let verdict = ApprovalPolicy(mode: .confirm).evaluate(
-            InvocationFacts(tool: .local(.removePackage), installationID: "inst-1"),
+            InvocationFacts(tool: .local(.packageRemove), installationID: "inst-1"),
             root: root,
         )
         guard case let .ask(reason, detail) = verdict else {

@@ -19,7 +19,7 @@ struct ToolCallBanner: Hashable {
     /// The tools that write a file; the first line of their result ends
     /// with the lines added and removed, as `+a -b`. A call recorded under
     /// an earlier name counts too (`AgentToolName.canonical`).
-    static let fileTools: Set<AgentToolName> = [.writeFile, .createFile, .patchFile]
+    static let fileTools: Set<AgentToolName> = [.fileWrite, .fileCreate, .fileEdit]
 }
 
 extension ToolCallBanner {

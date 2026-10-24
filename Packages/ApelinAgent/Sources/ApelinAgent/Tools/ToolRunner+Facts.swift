@@ -6,23 +6,23 @@ extension ToolRunner {
         guard case let .local(name) = tool else { return InvocationFacts(tool: tool) }
         var facts = InvocationFacts(tool: tool)
         switch name {
-        case .writeFile, .patchFile, .createFile:
+        case .fileWrite, .fileEdit, .fileCreate:
             let path = try arguments.requireString("path")
             // No project walk for .git files here: a git directory does not
             // change the gate's answer, and the tool's own resolution walks.
             facts.pathCheck = check { _ = try root.resolveForWrite(path, findingGitPointers: false) }
-        case .readFile:
+        case .fileRead:
             let path = try arguments.requireString("path")
             facts.pathCheck = check { _ = try root.resolveExisting(path) }
-        case .list, .grep, .find:
+        case .fileList, .fileGrep, .fileFind:
             let path = arguments.argString("path") ?? "."
             facts.pathCheck = check { _ = try root.resolveExisting(path) }
-        case .runCode:
+        case .shellRun:
             facts.command = try CommandClassifier.classify(arguments)
             let cwd = arguments.argString("cwd") ?? "."
             facts.pathCheck = root.mayReach(cwd) ? .inside : .outside(cwd)
             facts.workingDirectory = cwd
-        case .build:
+        case .projectBuild:
             if let script = ProjectBuildSystem.externalScript(in: root) {
                 facts.externalBuild = ExternalBuildApproval(
                     projectID: project.id,
@@ -33,7 +33,7 @@ extension ToolRunner {
             } else {
                 facts.description = try? await digests.state(of: .build, for: project)
             }
-        case .install:
+        case .packageInstall:
             // A workspace has no packaging description: the package it built
             // is judged by its own (apelin-build's ExternalBuild).
             if ProjectBuildSystem.read(in: root) == .external {
@@ -45,7 +45,7 @@ extension ToolRunner {
             } else {
                 facts.description = try? await digests.state(of: .packaging, for: project)
             }
-        case .removePackage:
+        case .packageRemove:
             facts.installationID = try arguments.requireString("installation_id")
         case .gitPush:
             // The branch the card names is the one pushed: an omitted one is
@@ -69,16 +69,16 @@ extension ToolRunner {
             facts.gitSettings = "the credential for \(host) (user \(username))"
         case .gitRemoveCredential:
             facts.gitSettings = "the credential for \(arguments.argString("host") ?? "")"
-        case .confirmLoaded where arguments.argBool("respring") == true:
+        case .packageConfirmLoaded where arguments.argBool("respring") == true:
             // It resprings the device, so it is gated as respring is.
-            facts.tool = .local(.respring)
+            facts.tool = .local(.deviceRespring)
         case .conversationCreate, .conversationSend, .conversationList, .conversationRead:
             try await gatherProjectReach(name, arguments: arguments, into: &facts)
         case .toolchainSetup:
             facts.toolchainSetup = try await setupToAsk(arguments)
         case .sdkImport:
             facts.sdkImport = try await importToAsk(arguments)
-        case .projectEnvironmentSet:
+        case .projectSetEnvironment:
             facts.pathCheck = check { _ = try root.resolveForWrite(ProjectEnvironmentEdit.fileName, findingGitPointers: false) }
         default:
             break

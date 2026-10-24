@@ -11,13 +11,13 @@ struct DigestApprovalTests {
     func `changing the mode updates an existing runner in both directions`() async throws {
         let harness = try Harness()
         defer { harness.home.remove() }
-        let (_, strict) = try await harness.run(.removePackage, ["installation_id": "test"])
+        let (_, strict) = try await harness.run(.packageRemove, ["installation_id": "test"])
         #expect(strict.count == 1)
         await harness.runner.setMode(.relaxed)
-        let (_, relaxed) = try await harness.run(.removePackage, ["installation_id": "test"])
+        let (_, relaxed) = try await harness.run(.packageRemove, ["installation_id": "test"])
         #expect(relaxed.isEmpty)
         await harness.runner.setMode(.confirm)
-        let (_, strictAgain) = try await harness.run(.removePackage, ["installation_id": "test"])
+        let (_, strictAgain) = try await harness.run(.packageRemove, ["installation_id": "test"])
         #expect(strictAgain.count == 1)
     }
 
@@ -83,11 +83,11 @@ struct DigestApprovalTests {
         let harness = try Harness()
         defer { harness.home.remove() }
 
-        var (_, asked) = try await harness.run(.build, [:])
+        var (_, asked) = try await harness.run(.projectBuild, [:])
         #expect(asked.isEmpty)
 
         await harness.ledger.change(.build, to: "build-changed-1")
-        (_, asked) = try await harness.run(.build, [:])
+        (_, asked) = try await harness.run(.projectBuild, [:])
         #expect(asked.count == 1)
         guard case .descriptionChanged(.build, "build-changed-1", _) = asked.first?.detail else {
             Issue.record("expected a digest-bound card"); return
@@ -95,12 +95,12 @@ struct DigestApprovalTests {
         #expect(asked.first?.allowsSessionScope == false)
 
         // Same digest: the host's ledger has it, no question.
-        (_, asked) = try await harness.run(.build, [:])
+        (_, asked) = try await harness.run(.projectBuild, [:])
         #expect(asked.isEmpty)
 
         // Changed again: asks again.
         await harness.ledger.change(.build, to: "build-changed-2")
-        (_, asked) = try await harness.run(.build, [:])
+        (_, asked) = try await harness.run(.projectBuild, [:])
         #expect(asked.count == 1)
 
         let calls = await harness.backend.calls.map { call -> String in
@@ -123,11 +123,11 @@ struct DigestApprovalTests {
         let arguments: JSONValue = ["artifact_id": "artifact-1", "artifact_digest": "deb-digest-1"]
 
         await #expect(throws: ToolDeniedError.self) {
-            _ = try await harness.run(.install, arguments, answering: .deny(reason: "not now"))
+            _ = try await harness.run(.packageInstall, arguments, answering: .deny(reason: "not now"))
         }
         #expect(await harness.backend.calls.isEmpty)
 
-        let (_, asked) = try await harness.run(.install, arguments)
+        let (_, asked) = try await harness.run(.packageInstall, arguments)
         #expect(asked.count == 1)
         let calls = await harness.backend.calls
         guard case .install("artifact-1", "deb-digest-1", "packaging-changed", .user)? = calls.first else {
@@ -140,7 +140,7 @@ struct DigestApprovalTests {
         let harness = try Harness(mode: .relaxed)
         defer { harness.home.remove() }
         await harness.ledger.change(.build, to: "anything")
-        let (_, asked) = try await harness.run(.build, [:])
+        let (_, asked) = try await harness.run(.projectBuild, [:])
         #expect(asked.isEmpty)
         #expect(await harness.backend.calls == [.build(digest: "anything", evidence: .relaxed)])
     }
@@ -149,18 +149,18 @@ struct DigestApprovalTests {
     func `session-scoped approval covers the identical call only; removal is never remembered`() async throws {
         let harness = try Harness()
         defer { harness.home.remove() }
-        var (_, asked) = try await harness.run(.runCode, ["argv": ["make", "all"]], answering: .approve(.session))
+        var (_, asked) = try await harness.run(.shellRun, ["argv": ["make", "all"]], answering: .approve(.session))
         #expect(asked.count == 1)
-        (_, asked) = try await harness.run(.runCode, ["argv": ["make", "all"]], answering: .approve(.session))
+        (_, asked) = try await harness.run(.shellRun, ["argv": ["make", "all"]], answering: .approve(.session))
         #expect(asked.isEmpty)
-        (_, asked) = try await harness.run(.runCode, ["argv": ["make", "clean"]], answering: .approve(.once))
+        (_, asked) = try await harness.run(.shellRun, ["argv": ["make", "clean"]], answering: .approve(.once))
         #expect(asked.count == 1)
-        (_, asked) = try await harness.run(.runCode, ["argv": ["make", "all"], "cwd": "Sources"], answering: .approve(.once))
+        (_, asked) = try await harness.run(.shellRun, ["argv": ["make", "all"], "cwd": "Sources"], answering: .approve(.once))
         #expect(asked.count == 1)
 
-        (_, asked) = try await harness.run(.removePackage, ["installation_id": "inst-1"], answering: .approve(.session))
+        (_, asked) = try await harness.run(.packageRemove, ["installation_id": "inst-1"], answering: .approve(.session))
         #expect(asked.count == 1 && asked.first?.allowsSessionScope == false)
-        (_, asked) = try await harness.run(.removePackage, ["installation_id": "inst-1"], answering: .approve(.once))
+        (_, asked) = try await harness.run(.packageRemove, ["installation_id": "inst-1"], answering: .approve(.once))
         #expect(asked.count == 1)
     }
 
@@ -171,7 +171,7 @@ struct DigestApprovalTests {
     func `a package removal asks with the installation it removes`() async throws {
         let harness = try Harness()
         defer { harness.home.remove() }
-        let (_, asked) = try await harness.run(.removePackage, ["installation_id": "inst-1"])
+        let (_, asked) = try await harness.run(.packageRemove, ["installation_id": "inst-1"])
         #expect(asked.count == 1)
         #expect(asked.first?.detail == .packageRemoval(installationID: "inst-1"))
     }
@@ -182,7 +182,7 @@ struct DigestApprovalTests {
         defer { harness.home.remove() }
         let cancellation = CancellationHandle()
         let task = Task {
-            try await harness.runner.run(.local(.uiAction), toolCallID: "t", arguments: ["action": "tap", "x": 1, "y": 2], cancellation: cancellation, mcp: nil)
+            try await harness.runner.run(.local(.screenInteract), toolCallID: "t", arguments: ["action": "tap", "x": 1, "y": 2], cancellation: cancellation, mcp: nil)
         }
         while await harness.gate.pending.isEmpty {
             try await Task.sleep(nanoseconds: 1_000_000)
@@ -200,9 +200,9 @@ struct ConfirmLoadedGateTests {
     func `is gated as respring; without respring it is a read`() async throws {
         let harness = try DigestApprovalTests.Harness()
         defer { harness.home.remove() }
-        let resprings = try await harness.runner.gatherFacts(.local(.confirmLoaded), arguments: ["build_id": "B-1", "target": "SpringBoard", "respring": true])
-        #expect(resprings.tool == .local(.respring))
-        let reads = try await harness.runner.gatherFacts(.local(.confirmLoaded), arguments: ["build_id": "B-1", "target": "SpringBoard"])
-        #expect(reads.tool == .local(.confirmLoaded))
+        let resprings = try await harness.runner.gatherFacts(.local(.packageConfirmLoaded), arguments: ["build_id": "B-1", "target": "SpringBoard", "respring": true])
+        #expect(resprings.tool == .local(.deviceRespring))
+        let reads = try await harness.runner.gatherFacts(.local(.packageConfirmLoaded), arguments: ["build_id": "B-1", "target": "SpringBoard"])
+        #expect(reads.tool == .local(.packageConfirmLoaded))
     }
 }
