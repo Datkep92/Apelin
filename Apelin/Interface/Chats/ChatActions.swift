@@ -1,9 +1,11 @@
 import AlertController
+import ApelinProtocol
+import SPIndicator
 import UIKit
 
-/// The chat page's `…` menu: Rename… for the conversation, then its
-/// project's actions (`ProjectActions`). General Chat has no project, so
-/// after Rename… come Open in iGhostVT and Open in Fila for the
+/// The chat page's `…` menu: Rename… and Compact… for the conversation,
+/// then its project's actions (`ProjectActions`). General Chat has no
+/// project, so after them come Open in iGhostVT and Open in Fila for the
 /// conversation's own working folder, `Temporary/<conversation>/`.
 @MainActor
 enum ChatActions {
@@ -15,13 +17,16 @@ enum ChatActions {
         onPrepareDistribution: @escaping (String) -> Void,
         completion: @escaping ([UIMenuElement]) -> Void,
     ) {
-        let rename = renameAction(for: chat.id, runtime: runtime, from: presenter)
+        let chatActions = [
+            renameAction(for: chat.id, runtime: runtime, from: presenter),
+            compactAction(for: chat.id, runtime: runtime, from: presenter),
+        ]
         guard let projectName = chat.projectName else {
             let folders = ProjectActions.folderActions(from: presenter, failureTitle: "Unable to Open Folder") {
                 try ProjectActions.temporaryDirectory(of: chat.id)
             }
             completion([
-                UIMenu(options: .displayInline, children: [rename]),
+                UIMenu(options: .displayInline, children: chatActions),
                 UIMenu(options: .displayInline, children: folders),
             ])
             return
@@ -39,7 +44,7 @@ enum ChatActions {
                 from: presenter,
                 anchor: anchor,
                 distributionBlocker: (project?.buildMethod ?? .missingDescription).shortBlocker,
-                renameChat: rename,
+                chatActions: chatActions,
                 onPrepareDistribution: onPrepareDistribution,
             ).children)
         }
@@ -52,8 +57,8 @@ enum ChatActions {
         for id: UUID,
         runtime: ChatRuntime,
         from presenter: UIViewController,
-    ) -> UIAction {
-        UIAction(
+    ) -> UIKit.UIAction {
+        UIKit.UIAction(
             title: String(localized: "Rename…"),
             image: UIImage(systemName: "character.cursor.ibeam"),
         ) { [weak presenter, weak runtime] _ in
@@ -66,6 +71,66 @@ enum ChatActions {
                 doneButtonText: "Rename",
                 onConfirm: { [weak runtime] name in runtime?.rename(id, to: name) },
             ), animated: true)
+        }
+    }
+
+    /// The agent reads a summary of the earlier messages from then on; the
+    /// chat still shows them all. Only between runs (`ChatRuntime.canCompact`).
+    private static func compactAction(
+        for id: UUID,
+        runtime: ChatRuntime,
+        from presenter: UIViewController,
+    ) -> UIKit.UIAction {
+        UIKit.UIAction(
+            title: String(localized: "Compact…"),
+            image: UIImage(systemName: "arrow.down.right.and.arrow.up.left"),
+            attributes: runtime.canCompact(id) ? [] : .disabled,
+        ) { [weak presenter, weak runtime] _ in
+            guard let presenter else { return }
+            presenter.presentConfirmation(
+                title: "Compact Chat?",
+                message: """
+                Your agent will continue from a summary of the earlier messages, which frees room for new work. \
+                The messages stay in this chat.
+                """,
+                confirmTitle: "Compact",
+            ) { [weak presenter, weak runtime] in
+                guard let presenter, let runtime else { return }
+                Task { await compact(id, runtime: runtime, from: presenter) }
+            }
+        }
+    }
+
+    private static func compact(_ id: UUID, runtime: ChatRuntime, from presenter: UIViewController) async {
+        let result: AgentCompactionResult
+        do {
+            result = try await ProgressCard.run(
+                title: String(localized: "Compacting Chat"),
+                message: String(localized: "Summarizing the earlier messages…"),
+                cancellable: true,
+                from: presenter,
+            ) { _ in try await runtime.compact(id) }
+        } catch is CancellationError {
+            return
+        } catch {
+            presenter.presentNotice(title: "Unable to Compact Chat", message: error.readableMessage)
+            return
+        }
+        switch result.outcome {
+        case .compacted:
+            SPIndicator.present(title: String(localized: "Compacted"), preset: .done, haptic: .success)
+        case .tooShort:
+            presenter.presentNotice(
+                title: "Nothing to Compact",
+                message: "This chat is still short enough for your agent to read in full.",
+            )
+        case .failed:
+            presenter.presentNotice(
+                title: "Unable to Compact Chat",
+                message: result.message ?? String(localized: "Something went wrong. Try again."),
+            )
+        case .cancelled:
+            break
         }
     }
 }

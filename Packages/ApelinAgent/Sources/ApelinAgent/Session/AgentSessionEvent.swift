@@ -39,6 +39,10 @@ public enum AgentSessionEvent: Sendable, Hashable, Codable {
     case error(message: String)
     /// A run ended.
     case finished(reason: FinishReason)
+    /// The app asked to compact the conversation, between runs.
+    case compactionStarted
+    /// The compaction ended; a message sent meanwhile starts its run now.
+    case compactionFinished(AgentCompactionResult)
 }
 
 public enum FinishReason: String, Sendable, Hashable, Codable {

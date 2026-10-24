@@ -12,8 +12,8 @@ import Foundation
 /// `AgentConversationRules`): it opens one in its own project or another
 /// under its own mode, sends one a message as the user's, lists and reads a
 /// project's, and aborts or closes the ones it opened. Another project is
-/// reached under Confirm only with the user's approval. Approving and
-/// steering stay the app's.
+/// reached under Confirm only with the user's approval. Approving,
+/// steering and compacting stay the app's.
 enum AgentHandler: DomainHandler {
     /// The instance key of the agent worker that imports credentials, runs
     /// sign-ins, lists and forgets accounts; it serves no session. One
@@ -35,6 +35,8 @@ enum AgentHandler: DomainHandler {
                 AgentRunCode.stop(session: abort.sessionID)
             }
             return reply
+        case .agentCompact:
+            return await forward(request, AgentCompactRequest.self, host: host) { $0.sessionID }
         case .agentApprove:
             return await approve(request, host: host)
         case .agentAttach:

@@ -1,5 +1,5 @@
 {
-  "name": "agent: needs the tweak extension (makes the Hello project if missing) and, for the prompt to get an answer, a Copilot credential in console/inbox/credentials/; opens a Confirm session, prompts, steers, aborts and closes it, and checks the app may neither approve an unknown request nor run code itself",
+  "name": "agent: needs the tweak extension (makes the Hello project if missing) and, for the prompt to get an answer, a Copilot credential in console/inbox/credentials/; opens a Confirm session, prompts, steers, aborts, compacts and closes it, and checks the app may neither approve an unknown request nor run code itself",
   "steps": [
     {"op": "hello"},
     {"op": "agentCredentialImport", "label": "credentials"},
@@ -19,6 +19,9 @@
     {"op": "agentSteer", "request": {"sessionID": "${agent.response.sessionID}", "text": "Only the top level, please."}},
     {"op": "wait", "request": {"seconds": 5}},
     {"op": "agentAbort", "request": {"sessionID": "${agent.response.sessionID}"}},
+    {"op": "wait", "request": {"seconds": 2}},
+    {"op": "agentCompact", "label": "compact", "allowError": true,
+     "request": {"sessionID": "${agent.response.sessionID}"}},
 
     {"op": "agentApprove", "label": "unknown-approval", "allowError": true,
      "request": {"sessionID": "${agent.response.sessionID}", "approvalID": "no-such-approval", "decision": "deny"}},

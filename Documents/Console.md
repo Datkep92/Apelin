@@ -391,7 +391,8 @@ error, or on `ok: false` where the exact refusal is the worker's to choose.
 - `agent.json` — needs the tweak extension; a Copilot credential in
   `inbox/credentials/` for the prompt to be answered.
   `agentCredentialImport`, `agentList`, a Confirm `agentOpen` unfollowed,
-  `agentAttach`, `agentPrompt`, `agentSteer`, `agentAbort`, `agentClose`;
+  `agentAttach`, `agentPrompt`, `agentSteer`, `agentAbort`, `agentCompact`
+  (allowed to fail: a run still ending refuses it), `agentClose`;
   `agentApprove` of an unknown approval is refused and `agentRunCode` from
   the app is `denied` (it is the session worker's alone).
 - `accounts.json` — needs the network (github.com, cursor's poll).

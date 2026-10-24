@@ -8,6 +8,8 @@ import Foundation
 struct ChatTranscript {
     var messages: [ChatMessage] = []
     var isWorking = false
+    /// Compacting between runs, as the app asked (`agentCompact`).
+    var isCompacting = false
     var approvalIDs: [UUID: String] = [:]
     private var thinking: Int?
     private var thinkingStarted: Date?
@@ -170,10 +172,15 @@ struct ChatTranscript {
                 finishThinking(at: event.time)
                 assistant = nil
                 isWorking = false
+            case "compactionStarted":
+                isCompacting = true
+            case "compactionFinished":
+                isCompacting = false
             case TaskEvent.stateKind:
                 if let state = payload?["state"]?.stringValue.flatMap(TaskState.init(rawValue:)), state.isTerminal {
                     finishThinking(at: event.time)
                     isWorking = false
+                    isCompacting = false
                 }
             default: break
             }

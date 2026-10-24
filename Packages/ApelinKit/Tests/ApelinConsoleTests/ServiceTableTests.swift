@@ -129,6 +129,8 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: ack) { try await $0.agentSteer(sessionID: "s", text: "stop") }
         case .agentAbort:
             return Row(reply: ack) { try await $0.agentAbort(sessionID: "s") }
+        case .agentCompact:
+            return Row(reply: ack) { try await $0.agentCompact(sessionID: "s") }
         case .agentApprove:
             return Row(reply: ack) { try await $0.agentApprove(sessionID: "s", approvalID: "a", decision: .deny) }
         case .agentAttach:

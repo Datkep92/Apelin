@@ -29,6 +29,8 @@ final class ChatRuntime {
     private var attachmentCache: [String: ComposerAttachment] = [:]
     /// Conversations whose latest state is in memory only.
     private var unsaved: Set<UUID> = []
+    /// Who waits for a conversation's compaction to end, by conversation.
+    private var compactions: [UUID: CheckedContinuation<AgentCompactionResult, Error>] = [:]
 
     var summaries: [ChatSummary] {
         records.values.map(\.summary)
@@ -328,6 +330,48 @@ final class ChatRuntime {
         try await ApelinService.app.agentAbort(sessionID: sessionID)
     }
 
+    /// Between runs only: a session to compact, nothing running, waiting
+    /// for an approval or on its way to the host.
+    func canCompact(_ id: UUID) -> Bool {
+        guard let record = records[id] else { return false }
+        return record.sessionID != nil && !record.summary.isWorking && (record.sending ?? []).isEmpty
+            && opening[id] == nil && compactions[id] == nil
+    }
+
+    /// Compacts the conversation, and returns how it went once the session
+    /// says so. Cancelled, it stops the compaction.
+    func compact(_ id: UUID) async throws -> AgentCompactionResult {
+        let opened = try await open(id)
+        // what the reader takes from here on, which may answer before the request does
+        let seen = records[id]?.events.count ?? 0
+        try await ApelinService.app.agentCompact(sessionID: opened.sessionID)
+        if let event = records[id]?.events.dropFirst(seen).last(where: { $0.kind == "compactionFinished" }) {
+            return Self.compactionResult(event)
+        }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                compactions[id] = continuation
+            }
+        } onCancel: {
+            Task { @MainActor in
+                self.endCompaction(id, with: .failure(CancellationError()))
+                try? await ApelinService.app.agentAbort(sessionID: opened.sessionID)
+            }
+        }
+    }
+
+    private func endCompaction(_ id: UUID, with result: Result<AgentCompactionResult, Error>) {
+        compactions.removeValue(forKey: id)?.resume(with: result)
+    }
+
+    private static func compactionResult(_ event: TaskEvent) -> AgentCompactionResult {
+        (try? event.payload?.decode(AgentCompactionResult.self)) ?? AgentCompactionResult(outcome: .failed)
+    }
+
     private func open(_ id: UUID) async throws -> AgentOpenResponse {
         if let pending = opening[id] {
             return try await pending.value
@@ -369,7 +413,13 @@ final class ChatRuntime {
     private func follow(_ id: UUID, task: TaskHandle) {
         guard readers[id] == nil else { return }
         readers[id] = Task { [weak self] in
-            defer { self?.readers[id] = nil }
+            defer {
+                self?.readers[id] = nil
+                self?.endCompaction(id, with: .failure(ApelinError(
+                    .notFound,
+                    String(localized: "This chat is no longer running."),
+                )))
+            }
             while !Task.isCancelled {
                 guard let self, let record = records[id], record.task == task else { return }
                 do {
@@ -407,8 +457,11 @@ final class ChatRuntime {
                             }
                         }
                     }
-                    let isWorking = transcript(id).isWorking
-                    records[id]?.summary.isWorking = isWorking
+                    if let finished = fresh.last(where: { $0.kind == "compactionFinished" }) {
+                        endCompaction(id, with: .success(Self.compactionResult(finished)))
+                    }
+                    let current = transcript(id)
+                    records[id]?.summary.isWorking = current.isWorking || current.isCompacting
                     if let last = batch.events.last {
                         records[id]?.summary.updated = last.time
                     }

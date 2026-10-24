@@ -55,7 +55,7 @@ enum CallerPolicy {
         .agentRunCode,
         // The project's other conversations (AgentConversations): AgentHandler
         // keeps an agent to its own project, and to the sessions it opened
-        // for abort and close. Approving and steering stay the app's.
+        // for abort and close. Approving, steering and compacting stay the app's.
         .agentOpen, .agentPrompt, .agentList, .agentAttach, .agentAbort, .agentClose,
     ]
 

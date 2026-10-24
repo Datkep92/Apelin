@@ -28,6 +28,8 @@ public actor AgentSession {
     /// From the moment a run's loop returns until its end is recorded: a
     /// message steered into it or followed up now would never be taken.
     private var runEnding = false
+    /// A compaction the app asked for; no run starts until it ends.
+    private var compaction: Task<Void, Never>?
     /// What the model was last resolved from. The same provider and stored
     /// sign-in keep that resolution: resolving again exchanges some
     /// providers' tokens over the network, before the message is recorded.
@@ -390,6 +392,10 @@ public actor AgentSession {
             await record(.userMessage(id: messageID, text: text, attachments: attachments))
             await waitForEndingRun()
         }
+        // the last wait: nothing below suspends before the run is started
+        while let compaction {
+            await compaction.value
+        }
         if runTask != nil {
             agent.followUp(message)
             return
@@ -423,6 +429,66 @@ public actor AgentSession {
         agent.steer(text)
     }
 
+    /// Compacts the conversation now, as kwwk does on its own when the
+    /// context fills: the earlier messages become a summary — the
+    /// provider's own where it has one — and the recent ones stay. Only
+    /// between runs. It returns once started; `compactionFinished` says how
+    /// it went, `abort` stops it, and a message sent meanwhile waits for it.
+    public func compact() throws {
+        guard runTask == nil, compaction == nil else {
+            throw ApelinError(.conflict, "Wait for the current reply to finish, then compact the chat.")
+        }
+        aborted = false
+        let agent = agent
+        let sessionID = id
+        compaction = Task { [weak self] in
+            await self?.record(.compactionStarted)
+            let outcome = await Self.runCompaction(agent, sessionID: sessionID)
+            await self?.compactionEnded(outcome)
+        }
+    }
+
+    private static func runCompaction(_ agent: Agent, sessionID: String) async -> AgentContextCompactionOutcome {
+        do {
+            return try await agent.withMaintenance { cancellation in
+                await AgentContextCompactor.compactAgent(
+                    agent: agent,
+                    backgroundManager: agent.autoCompact?.backgroundManager,
+                    sessionId: sessionID,
+                    config: agent.autoCompact?.config ?? AgentContextCompactionConfig(),
+                    // the maintenance window is what keeps a run out
+                    ignoreStreaming: true,
+                    cancellation: cancellation,
+                )
+            }
+        } catch {
+            return .refusedAgentBusy
+        }
+    }
+
+    private func compactionEnded(_ outcome: AgentContextCompactionOutcome) async {
+        let result = switch outcome {
+        case let .compacted(messagesCompacted, _):
+            AgentCompactionResult(outcome: .compacted, messagesCompacted: messagesCompacted)
+        case .refusedTooFewMessages:
+            AgentCompactionResult(outcome: .tooShort)
+        case .refusedAgentBusy:
+            AgentCompactionResult(outcome: .failed, message: "The chat was busy. Try again when the reply has finished.")
+        case let .failed(reason):
+            aborted ? AgentCompactionResult(outcome: .cancelled) : AgentCompactionResult(outcome: .failed, message: reason)
+        }
+        if result.outcome == .compacted {
+            // a reopened session reads the compacted conversation back
+            do {
+                try await log.writeTranscript(agent.state.messages)
+            } catch {
+                await record(.error(message: "Unable to save the conversation history: \(error.localizedDescription)"))
+            }
+        }
+        await record(.compactionFinished(result))
+        compaction = nil
+    }
+
     /// Stops the run. Waiting approvals resolve as denied.
     public func abort() async {
         aborted = true
@@ -448,9 +514,9 @@ public actor AgentSession {
         try await log.attach(afterSeq: afterSeq)
     }
 
-    /// Returns when no run is going.
+    /// Returns when no run or compaction is going.
     public func waitForIdle() async {
-        while let task = runTask {
+        while let task = runTask ?? compaction {
             await task.value
         }
     }

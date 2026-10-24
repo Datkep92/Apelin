@@ -7,7 +7,7 @@ import UIKit
 /// identities; links are made from their canonical path, never an install prefix.
 @MainActor
 enum ProjectActions {
-    /// `renameChat` leads the first group, above Rename Project…;
+    /// `chatActions` lead the first group, above Rename Project…;
     /// `distributionBlocker` says why a project with no build description
     /// or script (`ProjectBuildMethod`), which has nothing to package,
     /// cannot be distributed.
@@ -18,7 +18,7 @@ enum ProjectActions {
         from presenter: UIViewController,
         anchor: UIBarButtonItem,
         distributionBlocker: String? = nil,
-        renameChat: UIKit.UIAction? = nil,
+        chatActions: [UIKit.UIAction] = [],
         onPrepareDistribution: ((String) -> Void)? = nil,
     ) -> UIMenu {
         let folders = folderActions(from: presenter, failureTitle: "Unable to Open Project") {
@@ -55,7 +55,7 @@ enum ProjectActions {
             )
         }
         return UIMenu(children: [
-            UIMenu(options: .displayInline, children: [renameChat, renameAction].compactMap(\.self)),
+            UIMenu(options: .displayInline, children: chatActions + [renameAction]),
             UIMenu(options: .displayInline, children: folders),
             UIMenu(options: .displayInline, children: [export, distribute]),
         ])

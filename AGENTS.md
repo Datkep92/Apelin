@@ -213,7 +213,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `ptyAttach`, `ptyResize`, `ptyClose`; `logStream`, `crashList`,
   `crashOpen`, `crashSymbolicate`; `confirmLoaded`, `confirmLoadedAttach`, `captureScreen`,
   `readUITree`, `uiAction`; `agentOpen`, `agentPrompt`, `agentSteer`,
-  `agentAbort`, `agentApprove`, `agentAttach`, `agentList`, `agentClose`,
+  `agentAbort`, `agentCompact`, `agentApprove`, `agentAttach`, `agentList`, `agentClose`,
   `agentRunCode`, `agentCredentialImport`, `agentAccountList`, `agentSkillList`, `agentAPIConfiguration`, `agentModelList`, `agentModelActivate`, `agentSignIn`,
   `agentSignInRespond`, `agentSignInCancel`, `agentSignOut`; `toolHostOpen`, `toolHostClose`,
   `toolHostCall`;
@@ -869,8 +869,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   for headless runs) ride on it. The tier last chosen is kwwk's
   `AgentState.serviceTier` (kwwk 0.1.100), which its loop sends with every
   turn; the agent keeps kwwk's own stream, so native compaction stays on.
-  Prompt, steer, abort, approve and close go
-  to that session's running worker and to no other. Task events: `prompt`, `title` {text},
+  Prompt, steer, abort, compact, approve and close go
+  to that session's running worker and to no other. `agentCompact` (the
+  app's alone, 2026-10-24) compacts the conversation between runs with
+  kwwk's own compactor, as it does when the context fills — natively where
+  the provider can —, answers once begun (`conflict` while a run or
+  another compaction goes), writes the transcript when done, holds back a
+  message sent meanwhile until it ends, and stops on `agentAbort`. Task events: `prompt`, `title` {text},
   `projectNameSuggested` {name} (only a concrete project intent),
   `steer`, `queued` {id, text, attachments} (a message sent while a run
   goes, handed to the run as a steer and recorded as its `prompt` of the
@@ -885,7 +890,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   workingDirectory, projectID, fingerprint, reason, allowsSessionScope,
   detail} followed by `state` `waitingForApproval`, `approvalResolved`
   followed by `state` `running` when none is left, `error`, `finished`
-  {reason}. An app that is not attached leaves an approval waiting; nothing
+  {reason}, `compactionStarted` and `compactionFinished` {outcome:
+  compacted, tooShort, cancelled or failed, messagesCompacted?, message?}
+  (`AgentCompactionResult`). An app that is not attached leaves an approval waiting; nothing
   approves by default. The file tools (write, create, patch; there is no
   rename, delete or mkdir) never write a git directory: a `.git` entry at
   any depth, compared without case, and what a `.git` file or link names
@@ -2145,13 +2152,19 @@ project metadata without changing the selected folder or chat. All Projects
 uses type section headers and single-line display names.
 
 The chat's More menu (`ChatActions`) acts on its conversation and its current
-project, in three groups: Rename… (the conversation) and Rename Project…; Open in
-iGhostVT and Open in Fila; Export… and Distribute…. General Chat has Rename… and
-the two Open items for the conversation's own `Temporary/<conversation>/`,
+project, in three groups: Rename… and Compact… (the conversation) and Rename
+Project…; Open in iGhostVT and Open in Fila; Export… and Distribute…. General
+Chat has Rename…, Compact… and the two Open items for the conversation's own `Temporary/<conversation>/`,
 made if missing (`ProjectActions.temporaryDirectory`). A conversation the reader
 renamed keeps that name (`ChatSummary.isNamedByReader`, saved with the chat):
 the agent's `title` events and the first message's opening no longer replace
-it, and a name of only spaces changes nothing. Distribute… builds a project
+it, and a name of only spaces changes nothing. Compact… is enabled only
+between runs (`ChatRuntime.canCompact`: a session, nothing working, waiting
+or being sent); it asks first, then shows a cancellable progress card while
+`agentCompact` runs and follows the task to `compactionFinished`, which also
+marks the conversation working meanwhile (Stop stops it). Compacted says so
+in an `SPIndicator`; too short and failed say so in a notice, the failure
+in the provider's words. Distribute… builds a project
 from its description or a workspace from its own script (`ProjectBuildMethod`;
 owner, 2026-10-24); it is disabled, saying what is missing, for a manifest
 with no `build` and for a workspace with no `external` script, and the

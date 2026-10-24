@@ -76,9 +76,10 @@ public struct AgentSessionSummary: Codable, Sendable, Equatable {
 /// only a session's of a project the caller may reach. Under Confirm,
 /// reaching another project takes the user's approval: an open or a prompt
 /// one the app gave for exactly it, a list or an attach one the app gave
-/// this session for that project. `agentApprove` and `agentSteer` stay the
-/// app's. At most `maximumOpenChildren` sessions an agent opened run in a
-/// project at once, and a chain of openings is at most `maximumDepth` deep.
+/// this session for that project. `agentApprove`, `agentSteer` and
+/// `agentCompact` stay the app's. At most `maximumOpenChildren` sessions an
+/// agent opened run in a project at once, and a chain of openings is at
+/// most `maximumDepth` deep.
 public enum AgentConversations {
     public static let maximumOpenChildren = 6
     /// A conversation the app opened is depth 0; one it opens is 1.
@@ -329,6 +330,47 @@ public struct AgentAbortRequest: OperationRequest {
     }
 }
 
+/// Compacts the conversation now, as the session does on its own when its
+/// context fills: the earlier messages become a summary the model reads,
+/// natively where the provider can, and the recent ones stay as they are.
+/// The app's alone, between runs: refused `conflict` while a run goes or
+/// another compaction does. The answer comes once it has started; the
+/// session's task says how it went, `compactionStarted` then
+/// `compactionFinished` {outcome, messagesCompacted?, message?}, and
+/// `agentAbort` stops it.
+public struct AgentCompactRequest: OperationRequest {
+    public typealias Response = Acknowledged
+    public static let operation = AppOperation.agentCompact
+    public var sessionID: String
+    public init(sessionID: String) {
+        self.sessionID = sessionID
+    }
+}
+
+/// How a compaction ended: the payload of `compactionFinished`.
+public struct AgentCompactionResult: Codable, Sendable, Hashable {
+    public enum Outcome: String, Codable, Sendable, Hashable {
+        /// The earlier messages are a summary now.
+        case compacted
+        /// Everything is still recent enough to be kept as it is.
+        case tooShort
+        case cancelled
+        case failed
+    }
+
+    public var outcome: Outcome
+    /// How many messages the summary took the place of, when compacted.
+    public var messagesCompacted: Int?
+    /// Why it failed, in the provider's words where it gave any.
+    public var message: String?
+
+    public init(outcome: Outcome, messagesCompacted: Int? = nil, message: String? = nil) {
+        self.outcome = outcome
+        self.messagesCompacted = messagesCompacted
+        self.message = message
+    }
+}
+
 public struct AgentApproveRequest: OperationRequest {
     public typealias Response = Acknowledged
     public static let operation = AppOperation.agentApprove
@@ -404,6 +446,10 @@ public extension ApelinService {
 
     func agentAbort(sessionID: String) async throws {
         _ = try await send(AgentAbortRequest(sessionID: sessionID))
+    }
+
+    func agentCompact(sessionID: String) async throws {
+        _ = try await send(AgentCompactRequest(sessionID: sessionID))
     }
 
     func agentApprove(

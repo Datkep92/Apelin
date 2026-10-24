@@ -453,7 +453,7 @@ do {
     check(CallerPolicy.allows(.worker(.agent, instance: "s"), .confirmLoaded) && CallerPolicy.allows(.worker(.agent, instance: "s"), .confirmLoadedAttach), "the agent starts and reads a load check")
     // Accounts are the app's alone: a session's agent never starts, answers
     // or reads a sign-in, and never lists or forgets an account.
-    for operation: AppOperation in [.protectedEditOpen, .protectedEditCommit, .ptyOpen, .ptyAttach, .agentApprove, .agentSteer,
+    for operation: AppOperation in [.protectedEditOpen, .protectedEditCommit, .ptyOpen, .ptyAttach, .agentApprove, .agentSteer, .agentCompact,
                                     .toolchainRemove, .sdkRemove, .environmentCancel,
                                     .agentAccountList, .agentAPIConfiguration, .agentModelList, .agentModelActivate, .agentSignIn, .agentSignInRespond, .agentSignInCancel, .agentSignOut,
                                     .agentCredentialImport, .transferExport, .transferInspect, .transferImport, .projectRename]

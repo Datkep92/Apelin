@@ -116,6 +116,11 @@ public enum AgentWorker {
                 try await (state.session(abort.sessionID)).abort()
                 return Acknowledged()
             }
+        case .agentCompact:
+            await WorkerMain.serve(AgentCompactRequest.self, request) { compact in
+                try await state.session(compact.sessionID).compact()
+                return Acknowledged()
+            }
         case .agentApprove:
             await WorkerMain.serve(AgentApproveRequest.self, request) { approve in
                 try await state.approve(approve)
@@ -525,6 +530,10 @@ actor EventRelay {
             return [("error", .object(["message": .string(message)]))]
         case let .finished(reason):
             return [("finished", .object(["reason": .string(reason.rawValue)]))]
+        case .compactionStarted:
+            return [("compactionStarted", nil)]
+        case let .compactionFinished(result):
+            return [("compactionFinished", (try? ApelinCore.JSONValue(encoding: result)) ?? .null)]
         }
     }
 
