@@ -635,12 +635,18 @@ do {
     var titles = ["s1": "Docs"]
     var cache = ChatTranscriptCache()
     var chat = ChatRecord(summary: ChatSummary(title: "Cached", updated: Date()), events: senderTurn)
-    func cached(_ record: ChatRecord, followed: Set<UUID> = []) -> ChatTranscript {
-        cache.transcript(of: record, isFollowed: { followed.contains($0) }, conversationTitle: { titles[$0] }) { _ in nil }
+    // before any of these turns has gone quiet
+    let early = Date(timeIntervalSince1970: 0)
+    func cached(_ record: ChatRecord, followed: Set<UUID> = [], now: Date = early) -> ChatTranscript {
+        cache.transcript(of: record, now: now, isFollowed: { followed.contains($0) }, conversationTitle: { titles[$0] }) {
+            _ in nil
+        }
     }
     func fresh(_ record: ChatRecord) -> [ChatMessage] {
-        ChatTranscript(events: record.events, sending: record.sending ?? [], conversationTitle: { titles[$0] }) { _ in nil }
-            .messages
+        ChatTranscript(events: record.events, sending: record.sending ?? [], conversationTitle: { titles[$0] }, now: early) {
+            _ in nil
+        }
+        .messages
     }
     let first = cached(chat)
     precondition(sameStorage(first.messages, cached(chat).messages), "nothing changed: the transcript built before")
@@ -686,5 +692,20 @@ do {
     precondition(reused == rows && rows.contains { !$0.trace.isEmpty })
     precondition(!zip(rebuilt, rows).contains { !$0.trace.isEmpty && sameStorage($0.trace, $1.trace) })
     precondition(zip(reused, rows).allSatisfy { sameStorage($0.trace, $1.trace) }, "unchanged rows share their storage")
-    print("ok: a transcript is built again only when its events, its messages on their way or a sender's title change")
+
+    // a turn gone quiet is built again once its deadline has passed, when
+    // the page's wake asks, with the running summary standing in
+    let quietChat = ChatRecord(summary: ChatSummary(title: "Quiet", updated: Date()), events: replied)
+    let beforeQuiet = cached(quietChat, now: replyAt.addingTimeInterval(1))
+    let quietAt = replyAt.addingTimeInterval(ChatTranscript.quietInterval)
+    precondition(beforeQuiet.messages.last?.role == .assistant && beforeQuiet.quietDeadline == quietAt)
+    precondition(sameStorage(beforeQuiet.messages, cached(quietChat, now: quietAt.addingTimeInterval(-0.1)).messages),
+                 "before the deadline, the transcript built before")
+    let wentQuiet = cached(quietChat, now: quietAt.addingTimeInterval(0.05))
+    precondition(wentQuiet.messages.last?.role == .thinking(seconds: nil, tools: 0) && wentQuiet.quietDeadline == nil,
+                 "past it, built again with the stand-in")
+    precondition(Array(wentQuiet.messages.dropLast()) == beforeQuiet.messages)
+    precondition(sameStorage(wentQuiet.messages, cached(quietChat, now: quietAt.addingTimeInterval(5)).messages),
+                 "and then held")
+    print("ok: a transcript is built again only when its events, its messages on their way, a sender's title or the turn's quiet change")
 }

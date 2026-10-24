@@ -205,6 +205,7 @@ final class ChatRuntime {
         }
         return transcripts.transcript(
             of: record,
+            now: Date(),
             isFollowed: { readers[$0] != nil },
             conversationTitle: { title(ofSession: $0) },
         ) { [self] item in attachment(item, in: id) }

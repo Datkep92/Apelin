@@ -15,16 +15,18 @@ struct ChatTranscriptCache {
 
     /// `record`'s transcript: the one built before while it still holds,
     /// else a new one. `isFollowed` says which conversations a reader
-    /// follows; `conversationTitle` and `attachment` are the transcript's.
+    /// follows; `now`, `conversationTitle` and `attachment` are the
+    /// transcript's.
     mutating func transcript(
         of record: ChatRecord,
+        now: Date,
         isFollowed: (UUID) -> Bool,
         conversationTitle: (String) -> String?,
         attachment: (AgentAttachment) -> ComposerAttachment?,
     ) -> ChatTranscript {
         let id = record.summary.id
         let sending = (record.sending ?? []).map(Entry.Sent.init)
-        if let entry = entries[id], entry.holds(record, sending: sending, conversationTitle: conversationTitle) {
+        if let entry = entries[id], entry.holds(record, sending: sending, now: now, conversationTitle: conversationTitle) {
             return entry.transcript
         }
         var senderTitles: [String: String?] = [:]
@@ -36,6 +38,7 @@ struct ChatTranscriptCache {
                 senderTitles.updateValue(title, forKey: sessionID)
                 return title
             },
+            now: now,
             attachment: attachment,
         )
         if let shown = entries[id]?.transcript.messages {
@@ -47,6 +50,7 @@ struct ChatTranscriptCache {
         entries = entries.filter { isFollowed($0.key) || $0.key == unfollowed }
         entries[id] = Entry(
             transcript: transcript,
+            builtAt: now,
             eventCount: record.events.count,
             sending: sending,
             senderTitles: senderTitles,
@@ -86,6 +90,8 @@ struct ChatTranscriptCache {
         }
 
         var transcript: ChatTranscript
+        /// The time it judged the turn's quiet by.
+        var builtAt: Date
         /// How many of the record's events it shows; they are only ever
         /// appended to (`ChatRecord.take`).
         var eventCount: Int
@@ -95,9 +101,17 @@ struct ChatTranscriptCache {
         var senderTitles: [String: String?]
 
         /// Whether it still shows `record`, whose messages on their way are
-        /// `sending`, as a transcript built now would.
-        func holds(_ record: ChatRecord, sending: [Sent], conversationTitle: (String) -> String?) -> Bool {
-            eventCount == record.events.count && self.sending == sending
+        /// `sending`, as a transcript built at `now` would: the same events,
+        /// messages and sender titles, and no quiet deadline passed since it
+        /// was built, which a running summary would now stand in for.
+        func holds(
+            _ record: ChatRecord,
+            sending: [Sent],
+            now: Date,
+            conversationTitle: (String) -> String?,
+        ) -> Bool {
+            let wentQuiet = transcript.quietDeadline.map { builtAt < $0 && $0 <= now } ?? false
+            return eventCount == record.events.count && self.sending == sending && !wentQuiet
                 && senderTitles.allSatisfy { conversationTitle($0.key) == $0.value }
         }
     }

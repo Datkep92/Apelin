@@ -182,6 +182,19 @@ struct SkillAndPromptTests {
     }
 
     @Test
+    func `the prompt keeps notify_user for what the user would want to know while away`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .relaxed,
+                                       skills: [], mcpServers: [])
+        let working = try #require(prompt.range(of: "# Working")?.upperBound)
+        let device = try #require(prompt.range(of: "# This device")?.lowerBound)
+        let section = prompt[working ..< device]
+        #expect(section.contains("tell them with notify_user"))
+        #expect(section.contains("never for routine progress, instead of your reply, or to say you are done"))
+    }
+
+    @Test
     func `read_skill needs no approval in Confirm mode`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
