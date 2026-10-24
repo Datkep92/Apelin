@@ -249,7 +249,8 @@ actor ToolRunner {
     /// request bound to a description digest: the host's ledger keeps those.
     /// Nor for a push: each one publishes, so each one is asked. Nor for a
     /// toolchain or SDK install, which changes the device for every
-    /// project, nor for a call that reaches another project.
+    /// project, nor for a call that reaches another project, nor for a
+    /// command as root.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
@@ -260,7 +261,7 @@ actor ToolRunner {
         }
         switch detail {
         case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
-             .projectRename:
+             .projectRename, .rootCommand:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -386,6 +387,7 @@ actor ToolRunner {
                 invocation: invocation,
                 workingDirectory: facts.workingDirectory,
                 timeoutSeconds: timeout,
+                asRoot: facts.runsAsRoot,
             )))
 
         case .projectBuild:

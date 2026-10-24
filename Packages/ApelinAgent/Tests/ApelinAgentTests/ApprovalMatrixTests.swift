@@ -223,6 +223,37 @@ struct ApprovalMatrixTests {
     }
 
     @Test
+    func `shell_run as root asks in Strict and Relaxed, runs in Full, never as a preset`() {
+        defer { home.remove() }
+        func rootVerdict(_ mode: ApprovalMode, _ invocation: RunCodeInvocation) -> GateVerdict {
+            verdict(mode, InvocationFacts(
+                tool: .local(.shellRun),
+                pathCheck: .inside,
+                command: invocation,
+                runsAsRoot: true,
+            ))
+        }
+        let install = RunCodeInvocation.argv(["irisin-cli", "install", "--yes", "mobilesubstrate"])
+        // Full runs it without asking; Relaxed and Strict ask, with the
+        // command on a rootCommand card (never a preset, even for a read).
+        #expect(rootVerdict(.full, install) == .allow(.relaxed))
+        for mode in [ApprovalMode.relaxed, .confirm] {
+            guard case let .ask(_, detail) = rootVerdict(mode, install) else {
+                Issue.record("root asks in \(mode)"); continue
+            }
+            guard case .rootCommand(install) = detail else {
+                Issue.record("a root card carries rootCommand: \(detail)"); continue
+            }
+        }
+        #expect(isAsk(rootVerdict(.confirm, .argv(["cat", "Sources/Tweak.m"]))))
+        // Leaving the project is still refused, root or not.
+        #expect(isDeny(verdict(.confirm, InvocationFacts(tool: .local(.shellRun), pathCheck: .outside("x"), runsAsRoot: true))))
+        // "For this session" is never offered for a root request.
+        #expect(ToolRunner.allowsSessionScope(.local(.shellRun), detail: .rootCommand(install)) == false)
+        #expect(ToolRunner.allowsSessionScope(.local(.shellRun), detail: .command(install)) == true)
+    }
+
+    @Test
     func `Fingerprints bind tool, arguments, cwd, project and digest`() {
         defer { home.remove() }
         let base = ApprovalFingerprint.make(tool: "shell_run", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "p", digest: nil)

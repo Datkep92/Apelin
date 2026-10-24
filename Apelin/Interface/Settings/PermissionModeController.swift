@@ -2,7 +2,7 @@ import ApelinProtocol
 import UIKit
 
 final class PermissionModeController: TableController {
-    private let modes: [ApprovalMode] = [.confirm, .relaxed]
+    private let modes: [ApprovalMode] = [.confirm, .relaxed, .full]
 
     private struct Row: Equatable {
         let mode: ApprovalMode
@@ -52,14 +52,32 @@ final class PermissionModeController: TableController {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         guard let mode = dataSource.value(at: indexPath)?.mode else { return }
-        guard mode != AgentPermissions.mode else { return }
-        if mode == .relaxed {
+        let current = AgentPermissions.mode
+        guard mode != current else { return }
+        switch mode {
+        // Root without asking: confirmed in words, then by the device owner.
+        // Leaving Full never asks.
+        case .full:
+            presentConfirmation(
+                title: "Enable Full Mode?",
+                message: "The agent can run commands as root without asking, with full control of this device. Each chat switches when you send its next message.",
+                confirmTitle: "Enable Full Mode",
+                destructive: true,
+            ) { [weak self] in
+                Task { @MainActor in
+                    guard await DeviceOwnerCheck.confirm(
+                        reason: String(localized: "Let the agent run commands as root without asking."),
+                    ) else { return }
+                    self?.save(mode)
+                }
+            }
+        case .relaxed where current == .confirm:
             presentConfirmation(
                 title: "Enable Relaxed Mode?",
                 message: "The agent can run commands and make changes without asking, within the app’s permissions. Each chat switches when you send its next message.",
                 confirmTitle: "Enable Relaxed Mode",
             ) { [weak self] in self?.save(mode) }
-        } else {
+        default:
             save(mode)
         }
     }

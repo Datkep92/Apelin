@@ -22,9 +22,12 @@ final class ChatApprovalRow: ListRowView {
     func show(_ message: ChatMessage) {
         label.text = message.approvalTitle
         if case let .approval(decision) = message.role {
-            label.accessibilityValue = decision == nil
-                ? String(localized: "Approval Required")
-                : decision == .approve ? String(localized: "Allowed Once") : String(localized: "Denied")
+            label.accessibilityValue = switch decision {
+            case nil:
+                message.runsAsRoot ? String(localized: "Root Approval Required") : String(localized: "Approval Required")
+            case .approve: String(localized: "Allowed Once")
+            case .deny: String(localized: "Denied")
+            }
         }
         setNeedsLayout()
     }

@@ -12,12 +12,22 @@ private func spawnAddChdir(
 ) -> Int32
 
 /// `agentRunCode`: the agent's `shell_run`, run by the session host as
-/// mobile (uid, gid and groups 501 set before exec), in the session's
-/// project, with stdin from /dev/null, every other descriptor closed, its
-/// own process group (killed whole when time runs out) and both output
-/// streams capped and read for at most `drainSeconds` after it exits.
-/// Never root, never outside `Projects/<name>`.
+/// mobile (uid, gid and groups 501 set before exec) — or as root, only when
+/// `AgentApprovals.authorize` answered `.root` —, in the session's project,
+/// with stdin from /dev/null, every other descriptor closed, its own
+/// process group (killed whole when time runs out) and both output streams
+/// capped and read for at most `drainSeconds` after it exits. Never outside
+/// `Projects/<name>` or the chat's temporary folder.
 enum AgentRunCode {
+    /// Who a call runs as, as the host decided it.
+    enum Identity: Equatable {
+        /// The request's own command, or under Confirm the preset the host
+        /// read in its place.
+        case mobile(preset: Preset?)
+        /// The request's own command, never a preset.
+        case root
+    }
+
     private static let outputCap = 256 * 1024
     /// How long the pipes are read after the process has exited or been
     /// killed: what a descendant still holding them writes later is cut.
@@ -113,11 +123,11 @@ enum AgentRunCode {
         return path
     }
 
-    /// Runs the request, or, when Confirm let it through as a preset, the
-    /// preset as the host reads it (`AgentApprovals.authorize`).
+    /// Runs the request as `identity` (`AgentApprovals.authorize`): when
+    /// Confirm let it through as a preset, the preset as the host reads it.
     static func run(
         _ request: AgentRunCodeRequest,
-        preset: Preset?,
+        as identity: Identity,
         project: ResolvedProject,
         installRoot: String,
         home: String,
@@ -129,9 +139,21 @@ enum AgentRunCode {
                 "timeoutSeconds must be \(timeoutRange.lowerBound)–\(timeoutRange.upperBound)",
             )
         }
+        let preset: Preset? = if case let .mobile(preset) = identity {
+            preset
+        } else {
+            nil
+        }
+        let asRoot = identity == .root
         let argv = try argv(for: preset.map { .argv($0.argv) } ?? request.spec, installRoot: installRoot)
         let directory = try workingDirectory(request.workingDirectory, project: project.path)
-        let environment = Self.environment(preset: preset, project: project, installRoot: installRoot, home: home)
+        let environment = Self.environment(
+            preset: preset,
+            project: project,
+            installRoot: installRoot,
+            home: home,
+            asRoot: asRoot,
+        )
         let timeout = request.timeoutSeconds
         let session = request.sessionID
         return try await offThePool {
@@ -140,10 +162,16 @@ enum AgentRunCode {
                 environment: environment,
                 directory: directory,
                 timeoutSeconds: timeout,
+                asMobile: !asRoot,
                 session: session,
                 stopsSeen: stopsSeen,
             )
         }
+    }
+
+    /// Root's own home, so a run as root leaves nothing of root's in mobile's.
+    static var rootHome: String {
+        getpwuid(0).flatMap { $0.pointee.pw_dir.map { String(cString: $0) } } ?? "/var/root"
     }
 
     /// What a run sees. A preset keeps its own short list and the bare
@@ -153,16 +181,18 @@ enum AgentRunCode {
     /// default — first on `PATH`, and `SDKROOT` with
     /// `IPHONEOS_DEPLOYMENT_TARGET`, the same the terminal gets and the
     /// agent's system prompt describes. A temporary chat has no project to
-    /// bind one, so it gets the defaults.
+    /// bind one, so it gets the defaults. A run as root has root's own
+    /// `HOME`; `home` still names mobile's, where the registries are read.
     static func environment(
         preset: Preset?,
         project: ResolvedProject,
         installRoot: String,
         home: String,
+        asRoot: Bool = false,
     ) -> [String] {
         let base = DevelopmentEnvironment.searchPath(installRoot: installRoot)
         let common = [
-            "HOME=\(home)",
+            "HOME=\(asRoot ? rootHome : home)",
             "LANG=en_US.UTF-8",
             "TERM=dumb",
             "TMPDIR=\(prefix(for: installRoot))/var/tmp",
@@ -222,7 +252,7 @@ enum AgentRunCode {
         environment: [String],
         directory: String,
         timeoutSeconds: Int,
-        asMobile: Bool = true,
+        asMobile: Bool,
         session: String?,
         stopsSeen: Int,
     ) throws -> AgentRunCodeResponse {

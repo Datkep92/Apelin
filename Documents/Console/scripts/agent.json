@@ -33,6 +33,12 @@
     }},
     {"op": "expect", "request": {"step": "run-code", "errorCode": "denied"}},
 
+    {"op": "agentRunCode", "label": "run-root", "allowError": true, "request": {
+      "sessionID": "${agent.response.sessionID}", "spec": {"argv": {"_0": ["true"]}},
+      "workingDirectory": ".", "timeoutSeconds": 10, "approval": {"relaxed": {}}, "asRoot": true
+    }},
+    {"op": "expect", "request": {"step": "run-root", "errorCode": "denied"}},
+
     {"op": "agentList", "label": "listed"},
     {"op": "agentAttach", "label": "events", "follow": false,
      "request": {"taskID": "${agent.response.task.taskID}", "afterSeq": 0, "waitMilliseconds": 1000}},

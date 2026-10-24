@@ -20,6 +20,7 @@ extension ToolRunner {
             facts.pathCheck = check { _ = try root.resolveExisting(path) }
         case .shellRun:
             facts.command = try CommandClassifier.classify(arguments)
+            facts.runsAsRoot = arguments.argBool("root") ?? false
             let cwd = arguments.argString("cwd") ?? "."
             facts.pathCheck = root.mayReach(cwd) ? .inside : .outside(cwd)
             facts.workingDirectory = cwd

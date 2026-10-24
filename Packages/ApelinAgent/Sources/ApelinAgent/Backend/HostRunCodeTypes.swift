@@ -19,17 +19,21 @@ public struct RunCodeRequest: Sendable, Hashable, Codable {
     /// Relative to the project root; the host re-canonicalises it.
     public var workingDirectory: String
     public var timeoutSeconds: Int
+    /// As root instead of mobile; the host decides again whether it may.
+    public var asRoot: Bool
 
     public init(
         context: HostCallContext,
         invocation: RunCodeInvocation,
         workingDirectory: String,
         timeoutSeconds: Int,
+        asRoot: Bool = false,
     ) {
         self.context = context
         self.invocation = invocation
         self.workingDirectory = workingDirectory
         self.timeoutSeconds = timeoutSeconds
+        self.asRoot = asRoot
     }
 }
 

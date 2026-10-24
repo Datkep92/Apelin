@@ -96,7 +96,7 @@ public extension AgentToolName {
         case .fileList: "List a project folder."
         case .fileGrep: "Search project files with a regular expression."
         case .fileFind: "Find project files whose names match a glob."
-        case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter."
+        case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, only for a step that truly needs uid 0, such as irisin-cli install for a dependency (package-dependencies skill); it asks every time unless the mode is Full, and what it writes is root's."
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
         case .sdkReadHeader: "Read one header of a framework in the registered SDK."
         case .projectBuild: "Build the project; returns structured diagnostics and artifacts with their digests."
@@ -364,6 +364,7 @@ public extension AgentToolName {
                 "interpreter": Schema.string("Interpreter for script: sh, bash, zsh, python3, perl."),
                 "cwd": Schema.string("Working directory relative to the project root."),
                 "timeout_seconds": Schema.integer("Timeout, default 120."),
+                "root": Schema.boolean("Run as root instead of mobile. Never for the project's own build or install, never apt or dpkg."),
             ], required: [])
         case .sdkAnalyzeFramework:
             Schema.object([

@@ -71,6 +71,8 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For shell_run: its working directory, relative to the project root,
     /// which a preset's path arguments are read from.
     public var workingDirectory: String
+    /// For shell_run: run as root (`root: true`).
+    public var runsAsRoot: Bool
     /// For apelin_toolchain_setup: the release, resolved in Apple's catalog before
     /// asking, and sent by product ID.
     public var toolchainSetup: ToolchainSetupApproval?
@@ -105,6 +107,7 @@ public struct InvocationFacts: Sendable, Hashable {
         toolchainSetup: ToolchainSetupApproval? = nil,
         sdkImport: SDKImportApproval? = nil,
         otherProject: OtherProjectApproval? = nil,
+        runsAsRoot: Bool = false,
     ) {
         self.tool = tool
         self.pathCheck = pathCheck
@@ -117,6 +120,7 @@ public struct InvocationFacts: Sendable, Hashable {
         self.toolchainSetup = toolchainSetup
         self.sdkImport = sdkImport
         self.otherProject = otherProject
+        self.runsAsRoot = runsAsRoot
     }
 }
 
@@ -151,12 +155,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
     }
 
     public func evaluate(_ facts: InvocationFacts, root: ScopedRoot) -> GateVerdict {
-        // Leaving the project is refused in both modes: it is outside every
+        // Leaving the project is refused in every mode: it is outside every
         // tool's capability, not a matter of asking.
         if case let .outside(path)? = facts.pathCheck {
             return .deny("\(path) is outside the project")
         }
-        if mode == .relaxed {
+        if case .local(.shellRun) = facts.tool, facts.runsAsRoot {
+            return evaluateRoot(facts)
+        }
+        if mode != .confirm {
             return .allow(.relaxed)
         }
 
@@ -166,6 +173,22 @@ public struct ApprovalPolicy: Sendable, Hashable {
         case let .local(tool):
             return evaluateConfirm(tool, facts: facts, root: root)
         }
+    }
+
+    /// A command as root runs without asking only in Full; in Strict and
+    /// Relaxed it asks every time, never as a preset, and the host
+    /// decides again.
+    private func evaluateRoot(_ facts: InvocationFacts) -> GateVerdict {
+        if mode == .full {
+            return .allow(.relaxed)
+        }
+        guard let command = facts.command else {
+            return .ask(reason: "Apelin could not read this command. Review it before running.", detail: .none)
+        }
+        return .ask(
+            reason: "Runs as root, with full control of this device. Each command that runs as root needs your approval.",
+            detail: .rootCommand(command),
+        )
     }
 
     private func evaluateConfirm(_ tool: AgentToolName, facts: InvocationFacts, root: ScopedRoot) -> GateVerdict {

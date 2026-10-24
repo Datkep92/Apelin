@@ -8,10 +8,18 @@ import Foundation
 // Served by apelin-agent (Workers/Agent; Packages/ApelinAgent) through the host.
 
 public enum ApprovalMode: String, Codable, Sendable {
-    /// Everything runs.
+    /// Everything runs, except a shell_run as root, which asks every time.
     case relaxed
     /// Project edits and the preset list run; anything else is confirmed.
     case confirm
+    /// Everything Relaxed runs, and shell_run as root too, without asking.
+    case full
+
+    /// Whether the session asks before the risky steps Relaxed and Full
+    /// let through: only Strict (`confirm`) does.
+    public var asks: Bool {
+        self == .confirm
+    }
 }
 
 public enum ApprovalDecision: String, Codable, Sendable {
@@ -379,12 +387,24 @@ public struct AgentApproveRequest: OperationRequest {
     public var decision: ApprovalDecision
     /// Absent is `.once`.
     public var scope: ApprovalScope?
+    /// The app checked the device owner for this decision (Face ID, Touch
+    /// ID or the passcode, or the device has no passcode). The host takes
+    /// an approval of a shell_run as root only with it; the console never
+    /// sends it, so a script file cannot approve one.
+    public var ownerVerified: Bool?
 
-    public init(sessionID: String, approvalID: String, decision: ApprovalDecision, scope: ApprovalScope? = nil) {
+    public init(
+        sessionID: String,
+        approvalID: String,
+        decision: ApprovalDecision,
+        scope: ApprovalScope? = nil,
+        ownerVerified: Bool? = nil,
+    ) {
         self.sessionID = sessionID
         self.approvalID = approvalID
         self.decision = decision
         self.scope = scope
+        self.ownerVerified = ownerVerified
     }
 }
 
@@ -457,12 +477,14 @@ public extension ApelinService {
         approvalID: String,
         decision: ApprovalDecision,
         scope: ApprovalScope? = nil,
+        ownerVerified: Bool? = nil,
     ) async throws {
         _ = try await send(AgentApproveRequest(
             sessionID: sessionID,
             approvalID: approvalID,
             decision: decision,
             scope: scope,
+            ownerVerified: ownerVerified,
         ))
     }
 

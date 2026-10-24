@@ -1,13 +1,15 @@
 import Foundation
 
-/// The two approval modes (§7).
+/// The approval modes (§7).
 public enum ApprovalMode: String, Sendable, Hashable, Codable {
-    /// Everything runs.
+    /// Everything runs, except shell_run as root, which asks every time.
     case relaxed
     /// Project edits run; preset reads and commands run; build and install
     /// run while their descriptions match the template or an approved
     /// digest; everything else asks, every time.
     case confirm
+    /// Everything runs, shell_run as root too.
+    case full
 }
 
 /// A request for the user's decision. The session is suspended on it until
@@ -67,6 +69,10 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     case descriptionChanged(kind: DescriptionKind, digest: String, diff: String)
     /// A command the presets did not cover, as classified.
     case command(RunCodeInvocation)
+    /// A command that runs as root: asked in Strict and Relaxed alike,
+    /// never granted for the session, and approved in the app only with
+    /// the device owner checked. The host binds the approval to it.
+    case rootCommand(RunCodeInvocation)
     /// A managed package removal.
     case packageRemoval(installationID: String)
     /// A push: the remote and the local branch it sends, resolved before

@@ -1,3 +1,4 @@
+"NSFaceIDUsageDescription" = "Подтвердите, что это вы, прежде чем агент выполнит команду от имени root.";
 "NSCameraUsageDescription" = "Делайте фото, чтобы прикреплять их к чату.";
 "Apelin Toolchain" = "Набор инструментов Apelin";
 "Apelin SDK" = "Apelin SDK";

@@ -174,7 +174,7 @@ enum AgentHandler: DomainHandler {
                     ? opener.project
                     : try AgentProjects.resolve(home: host.home, projectID: asked.projectID, projectName: asked.projectName)
                 open = try AgentConversationRules.childOpen(asked, opener: opener, target: target)
-                if target != opener.project, opener.mode != .relaxed {
+                if target != opener.project, opener.mode.asks {
                     let approved = await AgentApprovals.spend(entry: opener, registry: host.registry) {
                         AgentConversationRules.coversOpen(open, target: target, asked: $0)
                     }
@@ -320,7 +320,7 @@ enum AgentHandler: DomainHandler {
                 )
                 // Another project's conversation: under Confirm, the user's
                 // approval of exactly this message, spent here.
-                if let target, target.project != sender.project, sender.mode != .relaxed {
+                if let target, target.project != sender.project, sender.mode.asks {
                     let approved = await AgentApprovals.spend(entry: sender, registry: host.registry) {
                         AgentConversationRules.coversSend(prompt, target: target, asked: $0)
                     }
@@ -438,9 +438,10 @@ enum AgentHandler: DomainHandler {
         }
     }
 
-    /// Only the session's own worker may run code, only in its project, and
+    /// Only the session's own worker may run code, only in its project,
     /// under Confirm only with a preset the host recognises or an approval
-    /// the app gave for a `shell_run` call of this session.
+    /// the app gave for a `shell_run` call of this session, and as root only
+    /// in Full mode or with the app's approval of that root request.
     private static func runCode(_ request: HostRequest, host: SessionHost) async -> HostReply {
         await request.serve(AgentRunCodeRequest.self) { run in
             guard case let .worker(.agent, instance) = request.caller, instance == run.sessionID else {
@@ -452,15 +453,16 @@ enum AgentHandler: DomainHandler {
             guard let entry = await AgentSessionTable.shared.entry(run.sessionID) else {
                 throw ApelinError(.notFound, "no agent session \(run.sessionID)")
             }
-            let preset = try await AgentApprovals.authorize(
+            let identity = try await AgentApprovals.authorize(
                 run,
                 entry: entry,
                 registry: host.registry,
+                ledger: host.approvals,
                 installRoot: host.installRoot,
             )
             return try await AgentRunCode.run(
                 run,
-                preset: preset,
+                as: identity,
                 project: entry.project,
                 installRoot: host.installRoot,
                 home: host.home,

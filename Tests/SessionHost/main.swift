@@ -1081,6 +1081,10 @@ do {
 
 await agentNoticeChecks()
 
+// MARK: - shell_run as root (RootRunChecks.swift)
+
+await rootRunChecks(scratch: scratch, scratchPath: scratchPath)
+
 // MARK: - Install bridge against a fake irisind
 
 final class FakeIrisin: InstallService, @unchecked Sendable {
@@ -1900,13 +1904,13 @@ do {
     await sessions.record(long.sessionID, approvalID: "late-run", decision: .approve)
     var lateRunPassed = true
     do {
-        try await AgentApprovals.authorize(runCode(long, "late-run"), entry: long, registry: registry, installRoot: "/")
+        try await AgentApprovals.authorize(runCode(long, "late-run"), entry: long, registry: registry, ledger: ledger, installRoot: "/")
     } catch {
         lateRunPassed = false
     }
     check(lateRunPassed, "a shell_run approval asked after the first thousand events lets the call through")
     await expectErrorAsync("a shell_run approval is used once", code: .denied) {
-        try await AgentApprovals.authorize(runCode(long, "late-run"), entry: long, registry: registry, installRoot: "/")
+        try await AgentApprovals.authorize(runCode(long, "late-run"), entry: long, registry: registry, ledger: ledger, installRoot: "/")
     }
 
     // An approval that does not apply is refused and left as the app gave it.
@@ -1918,6 +1922,7 @@ do {
             runCode(short, "for-build"),
             entry: short,
             registry: registry,
+            ledger: ledger,
             installRoot: "/",
         )
     }
@@ -1929,6 +1934,7 @@ do {
             runCode(short, "never-asked"),
             entry: short,
             registry: registry,
+            ledger: ledger,
             installRoot: "/",
         )
     }
@@ -1940,7 +1946,7 @@ do {
     let bound = await session("agent-bound")
     func authorized(_ run: AgentRunCodeRequest) async -> Bool {
         do {
-            try await AgentApprovals.authorize(run, entry: bound, registry: registry, installRoot: "/")
+            try await AgentApprovals.authorize(run, entry: bound, registry: registry, ledger: ledger, installRoot: "/")
             return true
         } catch {
             return false
@@ -2505,7 +2511,7 @@ do {
             approval: approval,
         )
         do {
-            try await AgentApprovals.authorize(run, entry: entry, registry: registry, installRoot: "/")
+            try await AgentApprovals.authorize(run, entry: entry, registry: registry, ledger: ledger, installRoot: "/")
             return true
         } catch {
             return false
@@ -2556,6 +2562,7 @@ do {
 do {
     let registry = TaskRegistry(directory: scratch.appendingPathComponent("preset-tasks"))
     await registry.load()
+    let ledger = ApprovalLedger(directory: scratch.appendingPathComponent("preset-approvals"))
     let project = scratchPath + "/preset-project"
     write(project + "/Sources/main.m", "int main(void) { return 0; }\n")
     write(project + "/Info.plist", "<plist version=\"1.0\"><dict/></plist>\n")
@@ -2578,7 +2585,7 @@ do {
             approval: .preset(argv[0]),
         )
         do {
-            try await AgentApprovals.authorize(request, entry: entry, registry: registry, installRoot: "/")
+            try await AgentApprovals.authorize(request, entry: entry, registry: registry, ledger: ledger, installRoot: "/")
             return true
         } catch {
             return false

@@ -38,6 +38,18 @@ enum AgentApprovals {
         accepted: (Reply) -> Bool,
     ) async throws -> Reply {
         let sessions = AgentSessionTable.shared
+        // A command as root is approved only where the app checked the
+        // device owner first; the console, which runs script files, never
+        // says it did.
+        if approve.decision == .approve, approve.ownerVerified != true,
+           let entry = await sessions.entry(approve.sessionID),
+           await isRootRequest(requested(approve.approvalID, entry: entry, registry: registry))
+        {
+            throw ApelinError(
+                .denied,
+                "a command that runs as root is approved only in the conversation, with Face ID, Touch ID or the passcode",
+            )
+        }
         let previous = await sessions.entry(approve.sessionID)?.approvals[approve.approvalID]
         await sessions.record(approve.sessionID, approvalID: approve.approvalID, decision: approve.decision)
         var grant: LedgerGrant?
@@ -90,7 +102,7 @@ enum AgentApprovals {
         guard approve.scope == .session,
               let asked = await requested(approve.approvalID, entry: entry, registry: registry),
               asked["tool"]?.stringValue == AgentToolName.shellRun.rawValue, asked["allowsSessionScope"] == .bool(true),
-              let spec = approvedSpec(asked)
+              !isRootRequest(asked), let spec = approvedSpec(asked)
         else { return nil }
         let grant = RunCodeGrant(spec: spec, directory: directoryName(asked["workingDirectory"]?.stringValue))
         return await AgentSessionTable.shared.addGrant(entry.sessionID, grant) ? grant : nil
@@ -165,17 +177,23 @@ enum AgentApprovals {
         return nil
     }
 
-    /// Whether the session may run `run`; under Confirm as a preset, the
-    /// preset to run in its place (`AgentRunCode.preset`), nil otherwise.
+    /// Whether the session may run `run`, and as whom: as root only for a
+    /// root request (`authorizeRoot`); as mobile otherwise, under Confirm as
+    /// a preset with the preset to run in its place (`AgentRunCode.preset`).
     @discardableResult
     static func authorize(
         _ run: AgentRunCodeRequest,
         entry: AgentSessionTable.Entry,
         registry: TaskRegistry,
+        ledger: ApprovalLedger,
         installRoot: String,
-    ) async throws -> AgentRunCode.Preset? {
-        if entry.mode == .relaxed {
-            return nil
+    ) async throws -> AgentRunCode.Identity {
+        if run.asRoot == true {
+            try await authorizeRoot(run, entry: entry, registry: registry, ledger: ledger)
+            return .root
+        }
+        if !entry.mode.asks {
+            return .mobile(preset: nil)
         }
         switch run.approval {
         case .relaxed:
@@ -191,7 +209,7 @@ enum AgentApprovals {
             ) else {
                 throw RunCodeApproval.presetRefusal
             }
-            return preset
+            return .mobile(preset: preset)
         case let .user(approvalID):
             // The approval must be one this session asked for shell_run, for
             // this command in this directory, checked before it is spent so
@@ -208,7 +226,7 @@ enum AgentApprovals {
             guard await AgentSessionTable.shared.consume(run.sessionID, approvalID: approvalID) else {
                 throw ApelinError(.denied, "the app has not approved \(approvalID)")
             }
-            return nil
+            return .mobile(preset: nil)
         case .session:
             // Good for the rest of the session, never spent, and only for a
             // command and directory the app approved for the session.
@@ -216,17 +234,59 @@ enum AgentApprovals {
             guard await AgentSessionTable.shared.hasGrant(run.sessionID, grant) else {
                 throw ApelinError(.denied, "the app has not approved this command in this directory for the session")
             }
-            return nil
+            return .mobile(preset: nil)
         }
+    }
+
+    /// A root request runs only while the session's task is live, and then
+    /// in Full mode — as both the session table and the ledger record it,
+    /// the ledger holding an unknown session to Confirm — or with one
+    /// approval the app gave this session for a root request
+    /// (`rootCommandDetail`) of exactly this command in this directory,
+    /// spent here. Never as a preset, never under a session grant, and an
+    /// approval of an ordinary request is no approval for it.
+    private static func authorizeRoot(
+        _ run: AgentRunCodeRequest,
+        entry: AgentSessionTable.Entry,
+        registry: TaskRegistry,
+        ledger: ApprovalLedger,
+    ) async throws {
+        guard let record = await registry.record(entry.task.taskID), !record.state.isTerminal else {
+            throw ApelinError(.denied, "this session has ended; nothing more runs as root for it")
+        }
+        if entry.mode == .full, await ledger.mode(session: entry.sessionID) == .full {
+            return
+        }
+        guard case let .user(approvalID) = run.approval else {
+            throw ApelinError(.denied, "running as root needs the user's approval of this call, every time")
+        }
+        let asked = await requested(approvalID, entry: entry, registry: registry)
+        guard let asked, asked["tool"]?.stringValue == AgentToolName.shellRun.rawValue,
+              let approved = approvedSpec(asked, key: RunCodeApproval.rootCommandDetail), approved == run.spec,
+              directoryName(asked["workingDirectory"]?.stringValue) == directoryName(run.workingDirectory)
+        else {
+            throw ApelinError(.denied, "\(approvalID) is not the user's approval of this command as root here")
+        }
+        guard await AgentSessionTable.shared.consume(run.sessionID, approvalID: approvalID) else {
+            throw ApelinError(.denied, "the app has not approved \(approvalID)")
+        }
+    }
+
+    /// Whether `asked`, one of the session's own `approvalRequested` events,
+    /// is for a command as root: what the app must check the device owner
+    /// for before approving it.
+    static func isRootRequest(_ asked: JSONValue?) -> Bool {
+        asked?["detail"]?[RunCodeApproval.rootCommandDetail] != nil
     }
 
     /// The command a shell_run approval request showed the user, as the
     /// `RunCodeSpec` the agent sends for it: apelin-agent puts the classified
-    /// invocation in `detail.command` (ApelinAgent's `RunCodeInvocation`, in
-    /// its synthesized Codable shape) and hands shell text to `sh`
+    /// invocation in `detail.command` — `detail.rootCommand` for a root
+    /// request — (ApelinAgent's `RunCodeInvocation`, in its synthesized
+    /// Codable shape) and hands shell text to `sh`
     /// (`ChannelHostBackend.spec`). A request without one approves nothing.
-    private static func approvedSpec(_ asked: JSONValue) -> RunCodeSpec? {
-        guard let command = asked["detail"]?["command"],
+    private static func approvedSpec(_ asked: JSONValue, key: String = "command") -> RunCodeSpec? {
+        guard let command = asked["detail"]?[key],
               let invocation = try? command.decode(RequestedInvocation.self)
         else { return nil }
         switch invocation {
@@ -252,7 +312,7 @@ enum AgentApprovals {
 }
 
 /// A shell_run command and working directory the app approved for the rest
-/// of a session.
+/// of a session, as mobile: a root request is never granted for the session.
 struct RunCodeGrant: Equatable, Sendable {
     var spec: RunCodeSpec
     /// As both sides spell it, the project root `.`.
@@ -401,8 +461,10 @@ actor AgentSessionTable {
         entries[sessionID]?.runCodeGrants.contains(grant) == true
     }
 
-    /// The session closed: nothing it was granted for the session holds.
+    /// The session closed: nothing it was granted holds — no approval it
+    /// has not spent (a root one included), no session grant, no project.
     func forgetGrants(_ sessionID: String) {
+        entries[sessionID]?.approvals = [:]
         entries[sessionID]?.runCodeGrants = []
         entries[sessionID]?.reachableProjects = []
     }

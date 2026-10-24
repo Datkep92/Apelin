@@ -3,13 +3,18 @@ import UIKit
 
 /// The outstanding decision replaces the input. Only its result enters history.
 final class ComposerApprovalSection: ComposerSectionView {
-    var onDecision: ((UUID, ApprovalDecision) -> Void)?
+    /// The request and the decision; Approve on a request as root waits on
+    /// the device owner's check there before anything is sent.
+    var onDecision: ((ChatMessage, ApprovalDecision) -> Void)?
     private var request: ChatMessage?
     var isPresentingRequest: Bool {
         request != nil
     }
 
     private let titleLabel = UILabel()
+    /// Shown only for a command that runs as root, between the title and
+    /// the detail, so it is read before the command.
+    private let rootLabel = UILabel()
     private let detailLabel = UILabel()
     /// The title and detail: a request taller than half the window scrolls
     /// from its start, under buttons that stay in place.
@@ -25,6 +30,13 @@ final class ComposerApprovalSection: ComposerSectionView {
         // Drawn at the final size and pinned to the top, not stretched, while a frame animates.
         titleLabel.contentMode = .topLeft
         titleLabel.accessibilityTraits.insert(.header)
+        let subheadline = UIFont.preferredFont(forTextStyle: .subheadline)
+        rootLabel.font = subheadline.fontDescriptor.withSymbolicTraits(.traitBold)
+            .map { UIFont(descriptor: $0, size: 0) } ?? subheadline
+        rootLabel.textColor = .systemRed
+        rootLabel.numberOfLines = 0
+        rootLabel.contentMode = .topLeft
+        rootLabel.text = String(localized: "Runs as root, with full control of this device")
         detailLabel.font = .preferredFont(forTextStyle: .subheadline)
         detailLabel.textColor = .secondaryLabel
         detailLabel.numberOfLines = 0
@@ -48,7 +60,7 @@ final class ComposerApprovalSection: ComposerSectionView {
         approveButton.addAction(UIAction { [weak self] _ in self?.decide(.approve) }, for: .touchUpInside)
         denyButton.addAction(UIAction { [weak self] _ in self?.decide(.deny) }, for: .touchUpInside)
         textScroll.contentInsetAdjustmentBehavior = .never
-        for view in [titleLabel, detailLabel] {
+        for view in [titleLabel, rootLabel, detailLabel] {
             textScroll.addSubview(view)
         }
         for view in [textScroll, denyButton, approveButton] {
@@ -73,7 +85,7 @@ final class ComposerApprovalSection: ComposerSectionView {
         let update = { [self] in
             request = message
             if let message, replacing {
-                for label in [titleLabel, detailLabel] {
+                for label in [titleLabel, rootLabel, detailLabel] {
                     UIView.transition(
                         with: label,
                         duration: 0.25,
@@ -99,13 +111,14 @@ final class ComposerApprovalSection: ComposerSectionView {
 
     private func setText(of message: ChatMessage) {
         titleLabel.text = message.approvalTitle
+        rootLabel.isHidden = !message.runsAsRoot
         detailLabel.text = message.approvalDetail
         textScroll.contentOffset = .zero
     }
 
     private func decide(_ decision: ApprovalDecision) {
         guard let request else { return }
-        onDecision?(request.id, decision)
+        onDecision?(request, decision)
     }
 
     override func layoutSubviews() {
@@ -122,12 +135,20 @@ final class ComposerApprovalSection: ComposerSectionView {
             titleLabel.sizeThatFits(CGSize(width: contentWidth, height: .greatestFiniteMagnitude)).height,
         )
         titleLabel.frame = CGRect(x: 0, y: ChatMarkdownView.blockSpacing, width: contentWidth, height: titleHeight)
+        var textBottom = titleLabel.frame.maxY
+        if !rootLabel.isHidden {
+            let rootHeight = ceil(
+                rootLabel.sizeThatFits(CGSize(width: contentWidth, height: .greatestFiniteMagnitude)).height,
+            )
+            rootLabel.frame = CGRect(x: 0, y: textBottom + ChatMarkdownView.blockSpacing / 2, width: contentWidth, height: rootHeight)
+            textBottom = rootLabel.frame.maxY
+        }
         let detailHeight = ceil(
             detailLabel.sizeThatFits(CGSize(width: contentWidth, height: .greatestFiniteMagnitude)).height,
         )
         detailLabel.frame = CGRect(
             x: 0,
-            y: titleLabel.frame.maxY + ChatMarkdownView.blockSpacing,
+            y: textBottom + ChatMarkdownView.blockSpacing,
             width: contentWidth,
             height: detailHeight,
         )

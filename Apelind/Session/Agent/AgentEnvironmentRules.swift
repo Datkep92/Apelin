@@ -89,7 +89,7 @@ enum AgentEnvironmentRules {
         default:
             return
         }
-        guard entry.mode != .relaxed else { return }
+        guard entry.mode.asks else { return }
         guard await AgentApprovals.spend(entry: entry, registry: registry, covers: covers) else {
             throw ApelinError(
                 .denied,

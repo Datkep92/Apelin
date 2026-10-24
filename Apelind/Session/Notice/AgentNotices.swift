@@ -26,8 +26,8 @@ struct AgentNotice: Equatable, Sendable {
         /// A key of the app's catalogue, which the system resolves when it
         /// shows the banner, in the app's language. The app spells each one
         /// too, so none is an orphan: "New Chat" (ChatRuntime), "Approval
-        /// Required" (ChatApprovalRow), "Done" and "Failed"
-        /// (EnvironmentTaskController).
+        /// Required" and "Root Approval Required" (ChatApprovalRow), "Done"
+        /// and "Failed" (EnvironmentTaskController).
         case key(String)
     }
 }
@@ -132,7 +132,7 @@ struct AgentNoticeTrack: Sendable {
                 identifier: "\(sessionID).approval.\(marks.approvals)",
                 sessionID: sessionID,
                 title: conversation(title),
-                subtitle: .key("Approval Required"),
+                subtitle: .key(AgentApprovals.isRootRequest(payload) ? "Root Approval Required" : "Approval Required"),
                 body: reason.map(AgentNotice.Text.verbatim),
             )
         case "finished":

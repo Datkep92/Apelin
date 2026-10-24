@@ -1,6 +1,753 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Enable Full Mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تفعيل الوضع الكامل"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständigen Modus aktivieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Full Mode"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activar el modo completo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer le mode complet"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva modalità completa"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全モードを有効にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 모드 켜기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ativar o modo completo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить полный режим"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bật chế độ toàn quyền"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用完全模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用完全模式"
+          }
+        }
+      }
+    },
+    "Enable Full Mode?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تفعيل الوضع الكامل؟"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständigen Modus aktivieren?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Full Mode?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Activar el modo completo?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer le mode complet ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attivare la modalità completa?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全モードを有効にしますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 모드를 켜겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ativar o modo completo?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить полный режим?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bật chế độ toàn quyền?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用完全模式？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要啟用完全模式嗎？"
+          }
+        }
+      }
+    },
+    "Full" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "كامل"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complet"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completa"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Полный"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toàn quyền"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全"
+          }
+        }
+      }
+    },
+    "Not Approved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم تتم الموافقة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht genehmigt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Approved"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No aprobado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non approuvé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non approvato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "承認されていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인되지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não aprovado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не одобрено"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chưa phê duyệt"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未授权"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未核准"
+          }
+        }
+      }
+    },
+    "Root Approval Required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الموافقة على صلاحيات الجذر مطلوبة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root-Genehmigung erforderlich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root Approval Required"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se requiere aprobación de root"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approbation root requise"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approvazione root richiesta"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "root の承認が必要です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "root 승인 필요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprovação de root necessária"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Требуется разрешение для root"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cần phê duyệt quyền root"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 root 授权"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 root 核准"
+          }
+        }
+      }
+    },
+    "Runs as root, with full control of this device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يعمل بصلاحيات الجذر، مع تحكّم كامل في هذا الجهاز"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird als root ausgeführt, mit voller Kontrolle über dieses Gerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runs as root, with full control of this device"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se ejecuta como root, con control total de este dispositivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "S’exécute en tant que root, avec un contrôle total de cet appareil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Viene eseguito come root, con pieno controllo di questo dispositivo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "root として実行され、このデバイスを完全に制御します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "root로 실행되며 이 기기를 완전히 제어합니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executa como root, com controle total deste dispositivo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполняется от имени root, с полным контролем над этим устройством"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chạy với quyền root, toàn quyền kiểm soát thiết bị này"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以 root 身份运行，对本设备拥有完全控制权"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以 root 身分執行，對本裝置擁有完全控制權"
+          }
+        }
+      }
+    },
+    "Strict: asks before commands and sensitive changes. Relaxed: runs these operations without asking, within the app’s permissions, but asks before any command that runs as root. Full: runs commands as root without asking too. Each chat uses this setting when you send its next message." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "صارم: يسأل قبل الأوامر والتغييرات الحساسة. متساهل: ينفّذ هذه العمليات دون سؤال، ضمن أذونات التطبيق، لكنه يسأل قبل أي أمر يعمل بصلاحيات الجذر. كامل: ينفّذ الأوامر بصلاحيات الجذر دون سؤال أيضًا. تستخدم كل محادثة هذا الإعداد عند إرسال رسالتها التالية."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streng: fragt vor Befehlen und sensiblen Änderungen. Locker: führt diese Vorgänge ohne Nachfrage im Rahmen der App-Berechtigungen aus, fragt aber vor jedem Befehl, der als root läuft. Vollständig: führt auch Befehle als root ohne Nachfrage aus. Jeder Chat verwendet diese Einstellung, wenn du seine nächste Nachricht sendest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strict: asks before commands and sensitive changes. Relaxed: runs these operations without asking, within the app’s permissions, but asks before any command that runs as root. Full: runs commands as root without asking too. Each chat uses this setting when you send its next message."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estricto: pregunta antes de comandos y cambios sensibles. Flexible: ejecuta estas operaciones sin preguntar, dentro de los permisos de la app, pero pregunta antes de cualquier comando que se ejecute como root. Completo: también ejecuta comandos como root sin preguntar. Cada chat usa este ajuste cuando envías su siguiente mensaje."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strict : demande avant les commandes et les modifications sensibles. Souple : exécute ces opérations sans demander, dans la limite des autorisations de l’app, mais demande avant toute commande exécutée en tant que root. Complet : exécute aussi les commandes en tant que root sans demander. Chaque discussion utilise ce réglage lorsque vous envoyez son prochain message."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rigorosa: chiede prima dei comandi e delle modifiche sensibili. Permissiva: esegue queste operazioni senza chiedere, entro i permessi dell’app, ma chiede prima di qualsiasi comando eseguito come root. Completa: esegue anche i comandi come root senza chiedere. Ogni chat usa questa impostazione quando invii il suo prossimo messaggio."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "厳格：コマンドや慎重な変更の前に確認します。緩和：Appの権限の範囲内でこれらの操作を確認せずに実行しますが、root として実行するコマンドの前には確認します。完全：root としてのコマンドも確認せずに実行します。各チャットは、次にメッセージを送信したときにこの設定を使用します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "엄격: 명령과 민감한 변경 전에 묻습니다. 완화: 앱 권한 범위 내에서 이러한 작업을 묻지 않고 실행하지만, root로 실행하는 명령 전에는 묻습니다. 전체: root 명령도 묻지 않고 실행합니다. 각 채팅은 다음 메시지를 보낼 때 이 설정을 사용합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estrito: pergunta antes de comandos e alterações sensíveis. Flexível: executa essas operações sem perguntar, dentro das permissões do app, mas pergunta antes de qualquer comando executado como root. Completo: também executa comandos como root sem perguntar. Cada conversa usa esta configuração quando você envia a próxima mensagem dela."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Строгий: спрашивает перед командами и важными изменениями. Свободный: выполняет эти операции без вопросов в пределах прав приложения, но спрашивает перед любой командой, выполняемой от имени root. Полный: выполняет команды от имени root тоже без вопросов. Каждый чат использует эту настройку, когда вы отправляете в нём следующее сообщение."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nghiêm ngặt: hỏi trước khi chạy lệnh và thực hiện thay đổi nhạy cảm. Linh hoạt: chạy các thao tác này mà không hỏi, trong phạm vi quyền của ứng dụng, nhưng hỏi trước bất kỳ lệnh nào chạy với quyền root. Toàn quyền: chạy cả lệnh với quyền root mà không hỏi. Mỗi cuộc trò chuyện dùng cài đặt này khi bạn gửi tin nhắn tiếp theo trong đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "严格：执行命令和敏感更改前询问。宽松：在应用权限范围内直接执行这些操作，但任何以 root 身份运行的命令都会先询问。完全：以 root 身份运行命令也不再询问。每个聊天会在你下次发送消息时使用此设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "嚴格：執行指令和敏感變更前詢問。寬鬆：在 App 權限範圍內直接執行這些操作，但任何以 root 身分執行的指令都會先詢問。完全：以 root 身分執行指令也不再詢問。每個聊天會在你傳送下一則訊息時使用此設定。"
+          }
+        }
+      }
+    },
+    "The agent can run commands as root without asking, with full control of this device. Each chat switches when you send its next message." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يمكن للوكيل تنفيذ الأوامر بصلاحيات الجذر دون سؤال، مع تحكّم كامل في هذا الجهاز. تتحول كل محادثة عند إرسال رسالتها التالية."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Agent kann Befehle als root ohne Nachfrage ausführen und hat damit volle Kontrolle über dieses Gerät. Jeder Chat wechselt, wenn du seine nächste Nachricht sendest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The agent can run commands as root without asking, with full control of this device. Each chat switches when you send its next message."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El agente puede ejecutar comandos como root sin preguntar, con control total de este dispositivo. Cada chat cambia cuando envías su siguiente mensaje."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’agent peut exécuter des commandes en tant que root sans demander, avec un contrôle total de cet appareil. Chaque discussion bascule lorsque vous envoyez son prochain message."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’agente può eseguire comandi come root senza chiedere, con pieno controllo di questo dispositivo. Ogni chat cambia modalità quando invii il suo prossimo messaggio."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エージェントは確認せずに root としてコマンドを実行でき、このデバイスを完全に制御できます。各チャットは、次にメッセージを送信したときに切り替わります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "에이전트가 묻지 않고 명령을 root로 실행할 수 있으며, 이 기기를 완전히 제어합니다. 각 채팅은 다음 메시지를 보낼 때 전환됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O agente pode executar comandos como root sem perguntar, com controle total deste dispositivo. Cada conversa muda quando você envia a próxima mensagem dela."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Агент сможет выполнять команды от имени root без вопросов, с полным контролем над этим устройством. Каждый чат переключится, когда вы отправите в нём следующее сообщение."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tác nhân có thể chạy lệnh với quyền root mà không hỏi, toàn quyền kiểm soát thiết bị này. Mỗi cuộc trò chuyện sẽ chuyển chế độ khi bạn gửi tin nhắn tiếp theo trong đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智能体可以无需确认即以 root 身份运行命令，对本设备拥有完全控制权。每个聊天会在你下次发送消息时切换。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代理程式可以在不詢問的情況下以 root 身分執行指令，對本裝置擁有完全控制權。每個聊天會在你傳送下一則訊息時切換。"
+          }
+        }
+      }
+    },
+    "The request is still waiting." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا يزال الطلب في الانتظار."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Anfrage wartet weiterhin."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The request is still waiting."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La solicitud sigue esperando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La demande est toujours en attente."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La richiesta è ancora in attesa."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リクエストはまだ待機中です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "요청이 아직 대기 중입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A solicitação ainda está aguardando."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запрос всё ещё ожидает."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yêu cầu vẫn đang chờ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该请求仍在等待。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該請求仍在等待。"
+          }
+        }
+      }
+    },
     "Logs" : {
       "extractionState" : "manual",
       "localizations" : {

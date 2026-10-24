@@ -339,11 +339,18 @@ final class ChatRuntime {
         changed(id)
     }
 
-    func approve(_ messageID: UUID, in id: UUID, decision: ApprovalDecision) async throws {
+    /// `ownerVerified`: the reader passed the device owner's check for this
+    /// decision, which the host requires to approve a command as root.
+    func approve(_ messageID: UUID, in id: UUID, decision: ApprovalDecision, ownerVerified: Bool? = nil) async throws {
         guard let sessionID = records[id]?.sessionID,
               let approvalID = transcript(id).approvalIDs[messageID]
         else { return }
-        try await ApelinService.app.agentApprove(sessionID: sessionID, approvalID: approvalID, decision: decision)
+        try await ApelinService.app.agentApprove(
+            sessionID: sessionID,
+            approvalID: approvalID,
+            decision: decision,
+            ownerVerified: ownerVerified,
+        )
     }
 
     func stop(_ id: UUID) async throws {

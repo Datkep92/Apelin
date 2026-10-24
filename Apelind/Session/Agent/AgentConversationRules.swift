@@ -106,7 +106,7 @@ enum AgentConversationRules {
 
     /// An agent reads the task of a conversation of its own project, or of
     /// another project (never a temporary chat) it may reach: in Relaxed
-    /// mode, or once the app approved this session reaching it.
+    /// or Full mode, or once the app approved this session reaching it.
     static func mayRead(
         _ taskID: TaskID,
         target: AgentSessionTable.Entry?,
@@ -127,7 +127,7 @@ enum AgentConversationRules {
         guard !project.isTemporary else {
             throw ApelinError(.denied, "a temporary chat's conversations are the user's alone")
         }
-        guard caller.mode == .relaxed || reachable else {
+        guard !caller.mode.asks || reachable else {
             throw ApelinError(
                 .denied,
                 "approval required: the user has not let this conversation reach the project \(project.name)",

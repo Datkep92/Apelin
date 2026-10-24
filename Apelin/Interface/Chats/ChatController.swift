@@ -1,6 +1,7 @@
 import ApelinProtocol
 import ListViewKit
 import SnapKit
+import SPIndicator
 import UIKit
 
 /// The conversation page, the detail column's root while one is picked.
@@ -46,6 +47,9 @@ final class ChatController: UIViewController {
     /// window out on the composer's spring, so the composer is told only of
     /// a change, never again on every streamed batch.
     private var shownApproval: ChatMessage?
+    /// A root request whose owner check is on screen: a second tap on
+    /// Approve does not ask again.
+    private var checkingOwner: UUID?
     private var stoppableChat: UUID?
     private var isSwitchingChat = false
     private var needsInitialScroll = false
@@ -109,12 +113,9 @@ final class ChatController: UIViewController {
         view.addSubview(composerBackground)
 
         composer.delegate = self
-        composer.approvalSection.onDecision = { [weak self] id, decision in
+        composer.approvalSection.onDecision = { [weak self] request, decision in
             guard let self, let chat else { return }
-            Task {
-                do { try await self.runtime.approve(id, in: chat.id, decision: decision) }
-                catch { self.presentNotice(title: "Unable to Send Decision", message: error.readableMessage) }
-            }
+            Task { await self.decide(request, decision, in: chat.id) }
         }
         composer.modelBar.onEffortChanged = { ComposerModelPreferences.effort = $0 }
         composer.modelBar.onTierChanged = { ComposerModelPreferences.tier = $0 }
@@ -383,6 +384,36 @@ final class ChatController: UIViewController {
                     }
                 } : nil)
             }
+        }
+    }
+
+    /// Sends the reader's decision. Approving a command as root first asks
+    /// for Face ID, Touch ID or the passcode (`DeviceOwnerCheck`); when that
+    /// does not pass, nothing is sent and the request goes on waiting.
+    private func decide(_ request: ChatMessage, _ decision: ApprovalDecision, in chatID: UUID) async {
+        var ownerVerified: Bool?
+        if decision == .approve, request.runsAsRoot {
+            guard checkingOwner == nil else { return }
+            checkingOwner = request.id
+            let confirmed = await DeviceOwnerCheck.confirm(
+                reason: String(localized: "Approve a command that runs as root on this device."),
+            )
+            checkingOwner = nil
+            guard confirmed else {
+                SPIndicator.present(
+                    title: String(localized: "Not Approved"),
+                    message: String(localized: "The request is still waiting."),
+                    preset: .error,
+                    haptic: .error,
+                )
+                return
+            }
+            ownerVerified = true
+        }
+        do {
+            try await runtime.approve(request.id, in: chatID, decision: decision, ownerVerified: ownerVerified)
+        } catch {
+            presentNotice(title: "Unable to Send Decision", message: error.readableMessage)
         }
     }
 

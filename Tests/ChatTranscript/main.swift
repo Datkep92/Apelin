@@ -68,7 +68,8 @@ precondition(notified.count == 1 && notified[0].trace.map(\.text) == ["Send a no
 print("ok: empty thoughts, subsecond reasoning, standalone tools and ended turns")
 
 /// The approval card shows what the decision is bound to: why the gate
-/// asked, a changed description's diff, then the arguments.
+/// asked, a changed description's diff, then the arguments read by name
+/// (through `ToolCallDetail`, as the trace sheet reads them).
 let installApproval = ChatTranscript(events: [
     event(1, "prompt", ["text": .string("Install it")]),
     event(2, "approvalRequested", [
@@ -81,13 +82,42 @@ let installApproval = ChatTranscript(events: [
 ]) { _ in nil }.messages.first { $0.role.needsApproval }
 precondition(installApproval?.approvalTitle == "Install the package")
 let approvalDetail = installApproval?.approvalDetail ?? ""
-let detailPositions = ["the packaging description changed", "+postinst", "{\"artifact_id\":\"x\"}"]
+let detailPositions = ["the packaging description changed", "+postinst", "artifact_id"]
     .compactMap { approvalDetail.range(of: $0)?.lowerBound }
 precondition(
-    detailPositions.count == 3 && detailPositions == detailPositions.sorted(),
-    "the card names the reason, the diff, then the arguments: \(approvalDetail)",
+    detailPositions.count == 3 && detailPositions == detailPositions.sorted()
+        && !approvalDetail.contains("{\"artifact_id\""),
+    "the card names the reason, the diff, then the arguments by name, not as raw JSON: \(approvalDetail)",
 )
 print("ok: an approval card carries the reason and the description diff before the arguments")
+
+/// A command that runs as root marks its card (`runsAsRoot`) and shows the
+/// exact command by name, so the reader reads it before Face ID.
+let rootApproval = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("Install the dependency")]),
+    event(2, "approvalRequested", [
+        "approvalID": .string("r1"), "tool": .string("shell_run"),
+        "arguments": .string("{\"argv\":[\"irisin-cli\",\"install\",\"--yes\",\"mobilesubstrate\"],\"root\":true}"),
+        "reason": .string("Runs as root, with full control of this device."),
+        "detail": .object(["rootCommand": .object([
+            "argv": .object(["_0": .array([.string("irisin-cli"), .string("install")])]),
+        ])]),
+    ]),
+]) { _ in nil }.messages.first { $0.role.needsApproval }
+precondition(rootApproval?.runsAsRoot == true, "a root command's card is marked")
+precondition(
+    (rootApproval?.approvalDetail ?? "").contains("irisin-cli") && (rootApproval?.approvalDetail ?? "").contains("mobilesubstrate"),
+    "the card shows the exact root command: \(rootApproval?.approvalDetail ?? "")",
+)
+let plainShell = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("x")]),
+    event(2, "approvalRequested", [
+        "approvalID": .string("s1"), "tool": .string("shell_run"), "arguments": .string("{\"argv\":[\"make\"]}"),
+        "detail": .object(["command": .object(["argv": .object(["_0": .array([.string("make")])])])]),
+    ]),
+]) { _ in nil }.messages.first { $0.role.needsApproval }
+precondition(plainShell?.runsAsRoot == false, "an ordinary command's card is not marked as root")
+print("ok: a root command's card is marked and shows the command")
 
 let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("apelin-chat-store-\(UUID())")
 try FileManager.default.createDirectory(at: storageURL, withIntermediateDirectories: true)

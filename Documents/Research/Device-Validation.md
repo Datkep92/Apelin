@@ -180,6 +180,21 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] Root agent commands and Full mode (2026-10-24, root round). On a
+      device with Irisin and a signed-in provider: in Strict and Relaxed, a
+      `shell_run` with `asRoot` (e.g. `irisin-cli install --yes <id>` for a
+      declared dependency) posts a notice whose subtitle is "Root Approval
+      Required"; the composer card shows the red "Runs as root" line;
+      Approve raises Face ID / Touch ID (and, on a device with no passcode,
+      runs without a prompt), a cancel or failure leaves it pending with the
+      "Not Approved" indicator; after it passes the command runs at euid 0
+      (confirm with `id -u`). Then Settings ▸ Permission Mode ▸ Full asks to
+      confirm and raises the owner check; in Full the same root command runs
+      with no card. Check an approval of an ordinary (non-root) command, and
+      a session grant, never run a root command. Run on an iPhone (Face ID
+      or Touch ID), an iPad, and a device with no passcode set. The host
+      gating is covered on the Mac (`RootRunChecks` in `make harness`); the
+      LocalAuthentication prompt and the real euid-0 run are device-only.
 - [ ] A rootless bootstrap: install, hello, `i1-smoke`, `t1`, `i3-chain`.
 - [ ] Real hardware (not a vphone): the same, plus a real respring and
       confirmLoaded. Toolchain setup and removal, SDK import and builds

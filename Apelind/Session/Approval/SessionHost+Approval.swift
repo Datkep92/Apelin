@@ -33,7 +33,7 @@ extension SessionHost {
         }
         // Only the host names the digest it approved.
         build.approvedBuildDigest = nil
-        if await approvals.mode(session: session) == .confirm, let refusal = await approveBuild(&build, request, session: session) {
+        if await approvals.mode(session: session).asks, let refusal = await approveBuild(&build, request, session: session) {
             return refusal
         }
         do {

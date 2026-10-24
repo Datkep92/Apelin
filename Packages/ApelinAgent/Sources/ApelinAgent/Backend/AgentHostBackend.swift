@@ -169,7 +169,8 @@ public struct HostCallContext: Sendable, Hashable, Codable {
 
 /// Why the agent's gate let a call through.
 public enum ApprovalEvidence: Sendable, Hashable, Codable {
-    /// The session is in Relaxed mode.
+    /// The session is in Relaxed or Full mode; the host decides from its
+    /// own record of the mode.
     case relaxed
     /// A user-editable preset matched; the name is the preset's.
     case preset(String)

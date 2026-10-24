@@ -71,6 +71,43 @@ final class OperationTableTests: XCTestCase {
         XCTAssertNil(plain.imageCheck, "the image list is not read unless asked")
     }
 
+    /// Full is a new mode; old stored and wire values still decode, and a
+    /// shell_run request carries `asRoot` and the approve request
+    /// `ownerVerified` through the wire.
+    func testApprovalModeFullAndRootRunWire() throws {
+        XCTAssertEqual(ApprovalMode(rawValue: "full"), .full)
+        XCTAssertEqual(ApprovalMode(rawValue: "relaxed"), .relaxed)
+        XCTAssertEqual(ApprovalMode(rawValue: "confirm"), .confirm)
+        XCTAssertEqual(ApprovalMode.relaxed.asks, false)
+        XCTAssertEqual(ApprovalMode.full.asks, false)
+        XCTAssertEqual(ApprovalMode.confirm.asks, true)
+        for mode in [ApprovalMode.relaxed, .confirm, .full] {
+            let data = try JSONCoding.encode(mode)
+            XCTAssertEqual(try JSONCoding.decode(ApprovalMode.self, from: data), mode)
+        }
+        // An open request written before Full decodes unchanged.
+        let open = try JSONCoding.decode(AgentOpenRequest.self, from: Data(#"{"approvalMode":"confirm"}"#.utf8))
+        XCTAssertEqual(open.approvalMode, .confirm)
+
+        let root = AgentRunCodeRequest(sessionID: "s", spec: .argv(["irisin-cli", "install"]), approval: .relaxed, asRoot: true)
+        let rootWire = try request(for: root)
+        XCTAssertEqual(rootWire.asRoot, true)
+        // An older request with no asRoot field is a mobile run.
+        let mobile = try JSONCoding.decode(AgentRunCodeRequest.self, from: Data(#"{"sessionID":"s","spec":{"argv":{"_0":["make"]}},"workingDirectory":".","timeoutSeconds":120,"approval":{"relaxed":{}}}"#.utf8))
+        XCTAssertNil(mobile.asRoot)
+
+        let approve = AgentApproveRequest(sessionID: "s", approvalID: "a", decision: .approve, ownerVerified: true)
+        XCTAssertEqual(try request(for: approve).ownerVerified, true)
+        let old = try JSONCoding.decode(AgentApproveRequest.self, from: Data(#"{"sessionID":"s","approvalID":"a","decision":"approve"}"#.utf8))
+        XCTAssertNil(old.ownerVerified, "an approve without the field claims no owner check")
+
+        XCTAssertEqual(RunCodeApproval.rootCommandDetail, "rootCommand")
+    }
+
+    private func request<R: OperationRequest>(for request: R) throws -> R {
+        try WireRequest(request).decode(R.self)
+    }
+
     func testEnvelopeRoundTrip() throws {
         let request = try WireRequest(BuildStartRequest(projectID: "p1", configuration: .release))
         XCTAssertEqual(request.operation, .buildStart)

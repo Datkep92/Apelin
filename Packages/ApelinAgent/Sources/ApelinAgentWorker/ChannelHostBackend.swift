@@ -21,7 +21,8 @@ import Foundation
 /// dSYMs); apelin_screen_capture / apelin_screen_read_tree / apelin_screen_interact → `captureScreen` /
 /// `readUITree` / `uiAction`; apelin_sdk_analyze_framework and apelin_sdk_read_header's SDK →
 /// `sdkList`, the project's pinned SDK first; shell_run → `agentRunCode`,
-/// which the host runs as mobile in the project; apelin_template_list →
+/// which the host runs as mobile in the project (as root, with `asRoot`, when
+/// Full mode or the user's approval of that root request lets it); apelin_template_list →
 /// `extensionList`, isolated extensions left out; apelin_project_create →
 /// `projectCreate`; git_status / git_diff / git_stage / git_unstage /
 /// git_commit → `gitStatus` / `gitDiff` / `gitStage` / `gitUnstage` /
@@ -86,6 +87,7 @@ public struct ChannelHostBackend: AgentHostBackend {
                 workingDirectory: request.workingDirectory,
                 timeoutSeconds: request.timeoutSeconds,
                 approval: Self.approval(request.context.approval),
+                asRoot: request.asRoot ? true : nil,
             ))
         } catch let error as ApelinError where error.code == .denied && error.reason == .notAPreset {
             // The host's preset rule does not count this call; the runner

@@ -195,14 +195,20 @@ struct ChatTranscript {
                         payload?["tool"]?.stringValue ?? "",
                         arguments: payload?["arguments"]?.stringValue,
                     )
-                    // what the decision is bound to besides the arguments: why
-                    // the gate asked, and a changed description's diff
+                    // Why the gate asked, a changed description's diff, and
+                    // the call's arguments read by name (the exact command a
+                    // root run spends Face ID on) through the same
+                    // `ToolCallDetail` the trace sheet shows.
+                    let arguments = (payload?["arguments"]?.stringValue)
+                        .map { ToolCallDetail(detail: $0, title: title).text }
                     let detail = [
                         payload?["reason"]?.stringValue,
                         payload?["detail"]?["descriptionChanged"]?["diff"]?.stringValue,
-                        payload?["arguments"]?.stringValue,
+                        arguments,
                     ].compactMap(\.self).filter { !$0.isEmpty }.joined(separator: "\n\n")
-                    add(ChatMessage(id: rowID, role: .approval(nil), text: title + "\n\n" + detail))
+                    var request = ChatMessage(id: rowID, role: .approval(nil), text: title + "\n\n" + detail)
+                    request.runsAsRoot = RootApprovalText.isRoot(payload)
+                    add(request)
                 }
             case "approvalResolved":
                 if let approvalID = payload?["approvalID"]?.stringValue,

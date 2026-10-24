@@ -61,6 +61,9 @@ struct ChatMessage: Identifiable, Hashable {
     /// (the session's `received`); nil before the first count, and for a
     /// session older than the count.
     var receivedTokens: Int?
+    /// An approval of a command that runs as root (`RootApprovalText`):
+    /// the card says so, and Approve checks the device owner first.
+    var runsAsRoot = false
 
     var activityTitle: String {
         guard case let .thinking(seconds, tools) = role else { return text }

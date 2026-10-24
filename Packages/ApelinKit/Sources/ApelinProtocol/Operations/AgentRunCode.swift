@@ -1,7 +1,8 @@
-/// `shell_run` as the session host runs it: as mobile, in the session's
-/// project, with no shell unless the invocation is a script. Only the agent
-/// worker of `sessionID` may send it; the host refuses it from anyone else,
-/// and re-decides the approval itself under Confirm.
+/// `shell_run` as the session host runs it: as mobile — or as root when the
+/// request asks and the host allows it —, in the session's project, with no
+/// shell unless the invocation is a script. Only the agent worker of
+/// `sessionID` may send it; the host refuses it from anyone else, and
+/// re-decides the approval itself under Confirm, and for root in every mode.
 public enum RunCodeSpec: Codable, Sendable, Equatable {
     /// An executable name (no path) resolved in the bootstrap's `bin`
     /// directories, then its arguments.
@@ -30,6 +31,13 @@ public enum RunCodeApproval: Codable, Sendable, Equatable {
         "the host does not recognise this command as a preset; ask the user",
         reason: .notAPreset,
     )
+
+    /// The key of a root request's command in its `approvalRequested`
+    /// `detail`, in place of `command`: apelin-agent writes it, the host
+    /// binds a root approval to it, and the app's card and the host's banner
+    /// say "runs as root" from it. An ordinary request names `command`, so
+    /// neither approval can stand in for the other.
+    public static let rootCommandDetail = "rootCommand"
 }
 
 public struct AgentRunCodeRequest: OperationRequest {
@@ -42,6 +50,10 @@ public struct AgentRunCodeRequest: OperationRequest {
     /// 1–1800.
     public var timeoutSeconds: Int
     public var approval: RunCodeApproval
+    /// Run as root instead of mobile. The host runs it so only in Full mode,
+    /// or with the app's single-use approval of exactly this root request
+    /// (`rootCommandDetail`); never as a preset or under a session grant.
+    public var asRoot: Bool?
 
     public init(
         sessionID: String,
@@ -49,12 +61,14 @@ public struct AgentRunCodeRequest: OperationRequest {
         workingDirectory: String = ".",
         timeoutSeconds: Int = 120,
         approval: RunCodeApproval,
+        asRoot: Bool? = nil,
     ) {
         self.sessionID = sessionID
         self.spec = spec
         self.workingDirectory = workingDirectory
         self.timeoutSeconds = timeoutSeconds
         self.approval = approval
+        self.asRoot = asRoot
     }
 }
 

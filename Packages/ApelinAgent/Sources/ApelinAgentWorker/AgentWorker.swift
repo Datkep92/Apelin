@@ -194,7 +194,11 @@ public enum AgentWorker {
 
     /// The wire's approval mode as the session's gate takes it.
     static func approvalMode(_ wire: ApelinProtocol.ApprovalMode) -> ApelinAgent.ApprovalMode {
-        wire == .relaxed ? .relaxed : .confirm
+        switch wire {
+        case .relaxed: .relaxed
+        case .confirm: .confirm
+        case .full: .full
+        }
     }
 
     static func serviceTier(_ wire: AgentServiceTier?) -> ServiceTier? {
@@ -583,6 +587,12 @@ actor EventRelay {
             ])])
         case let .command(invocation):
             payload["detail"] = .object(["command": (try? ApelinCore.JSONValue(encoding: invocation)) ?? .null])
+        // Its own key, so the host never takes it for an ordinary command's
+        // approval, nor the other way round.
+        case let .rootCommand(invocation):
+            payload["detail"] = .object([
+                RunCodeApproval.rootCommandDetail: (try? ApelinCore.JSONValue(encoding: invocation)) ?? .null,
+            ])
         case let .packageRemoval(installationID):
             payload["detail"] = .object(["packageRemoval": .object(["installationID": .string(installationID)])])
         case let .gitPush(remote, branch):

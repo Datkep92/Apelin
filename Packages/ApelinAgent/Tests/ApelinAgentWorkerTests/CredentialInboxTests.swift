@@ -157,6 +157,28 @@ struct EventRelayMappingTests {
         #expect(sent == RunCodeSpec.script(interpreter: "sh", source: "make | tail"))
     }
 
+    /// A command as root goes in its own `detail.rootCommand` key, which the
+    /// host binds a root approval to and the app's card reads; the ordinary
+    /// `command` key is absent, so neither approval can stand in for the
+    /// other (`AgentApprovals.isRootRequest`, `RootApprovalText`).
+    @Test
+    func `a root shell_run request carries its command under rootCommand`() {
+        let invocation = RunCodeInvocation.argv(["irisin-cli", "install", "--yes", "mobilesubstrate"])
+        let request = ApprovalRequest(
+            id: "a", toolCallID: "c", tool: "shell_run", arguments: "{}", workingDirectory: "Sources",
+            projectID: "p", fingerprint: "f", reason: "root", detail: .rootCommand(invocation), allowsSessionScope: false,
+        )
+        let payload = EventRelay.approvalPayload(request)
+        let command: ApelinCore.JSONValue = .object([
+            "argv": .object(["_0": .array([
+                .string("irisin-cli"), .string("install"), .string("--yes"), .string("mobilesubstrate"),
+            ])]),
+        ])
+        #expect(payload["detail"]?[RunCodeApproval.rootCommandDetail] == command)
+        #expect(payload["detail"]?["command"] == nil, "a root request does not also fill command")
+        #expect(payload["allowsSessionScope"] == .bool(false), "a root request is never for the session")
+    }
+
     /// The session host reads `detail.packageRemoval.installationID` back
     /// from this event to grant the removal once
     /// (`AgentApprovals.recordInLedger` in Apelind; the session host's test

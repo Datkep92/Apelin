@@ -1084,7 +1084,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   in the bootstrap's bin directories, then `/usr/bin`, `/bin`) or `script`
   (sh, bash, zsh, python3, perl with `-c`/`-e`) — that the host runs itself,
   only for the caller that is that session's worker, as mobile (uid, gid,
-  groups 501 before exec), in a working directory that resolves inside the
+  groups 501 before exec) — or, with `asRoot`, as root, which
+  `AgentApprovals.authorize` allows only in Full mode (both the session
+  table and the ledger saying Full, the ledger holding an unknown session
+  to Confirm) or against one single-use approval of a *root* request
+  (`detail.rootCommand`) for exactly that command and directory; a root run
+  is never a preset, never a session grant, and an approval of an ordinary
+  request never authorises it. The identity is the host's decision, not the
+  request's; a root run keeps root's own `HOME` —, in a working directory
+  that resolves inside the
   project, its own process group killed at the timeout (1–1800 s), both
   streams capped at 256 KiB and read for at most 2 s after it exits or is
   killed — a descendant that left the group (setsid) is neither found nor
@@ -1157,7 +1165,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   normalised the same way; the agent then sends an identical call as
   `RunCodeApproval.session` (its gate's remembered fingerprint), which the
   host runs only against a grant of this session, never spent, taken back
-  if the worker refuses the decision and forgotten on `agentClose`. A call
+  if the worker refuses the decision and forgotten on `agentClose`. A root
+  request (`asRoot`) is approved on its own `detail.rootCommand`, never a
+  session grant and never a preset, and the relay takes it only with the
+  app's `ownerVerified` (the device owner checked); `agentClose` forgets
+  every unspent approval, a root one included. A call
   the agent sent as a preset that the host's rule does not count is
   refused with `RunCodeApproval.presetRefusal` (`denied`, reason
   `notAPreset`: the agent goes by `ApelinError.reason`, never the message);
@@ -1644,7 +1656,19 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `serviceTier` reach the worker's session configuration. The stop control's icon, text
   and border are red. It takes a
   live output cancellation callback and stays hidden without one. Settings stores a global `AgentPermissions.mode`,
-  default relaxed, with confirmation when changing from strict to relaxed.
+  default relaxed, one of Strict / Relaxed / Full (严格 / 宽松 / 完全), with a
+  confirmation when changing into Relaxed from Strict, and, for Full, a
+  confirmation that root runs without asking followed by `DeviceOwnerCheck`
+  (Face ID, Touch ID or the passcode; a device with no passcode passes);
+  leaving Full asks nothing. The composer's approval card reads a call's
+  arguments by name through the same `ToolCallDetail` the trace sheet uses,
+  so a root command reads the same on the card as in the trace — the exact
+  command the reader confirms before Face ID. It marks a root
+  request with a red *Runs as root* line (VoiceOver reads it; the row's
+  accessibility value is "Root Approval Required"), and Approve on it runs
+  `DeviceOwnerCheck` before `agentApprove` carries `ownerVerified`; on a
+  failed or cancelled check nothing is sent and the request stays pending
+  (an `SPIndicator` says so). Deny never checks.
   The runtime reads that mode when opening a session, and reads the global model, effort and tier on each send (changes apply between runs). The transport's explicit approval mode and host safeguards remain authoritative. A single summary groups consecutive thinking and tool steps, with body-size labels at 50% label
   colour; an unfinished thought shimmers unless Reduce Motion is on, a
   finished one names seconds and tool count. Tapping opens a live-updating trace form sheet with the thinking, tool calls and approval records, all without icons and aligned to the text margin; a thought's text and a call's arguments and output are plain, selectable body text (Litext's `TextLabelView`, never Markdown). A call's arguments arrive as one line of JSON, so they are decoded for the row (`ToolCallDetail`, tested in `Tests/ChatTranscript`): each argument's name on a line of its own, set smaller in the secondary colour, its value under it — a string as itself, line breaks and quotes and all, so a written file reads as the file, anything else as compact JSON —, the reason first unless it only repeats the title, then the short values, then the long ones, by name within each, and last the result under "Result". Arguments that are not a JSON object show as they came. `TraceBody` builds the text and measures it once per text, text size and width, for `height(for:)` and the layout alike, so a long file is decoded and laid out once, never cut short. Main transcript headers have no icons either, except the running summary's count: after its title, `arrow.down.circle.fill` and the output tokens the run has received (`received`; `ReceivedTokensView`), grouped as the locale groups them, its digits one width, at the title's 50% label colour. It changes as counts arrive, apart from the title's once-a-second rule, follows the title when the title rolls to another width, fades in and out on the same summary (at once under Reduce Motion), and is the title's `accessibilityValue` ("1,234 tokens received"), the view itself hidden from VoiceOver. A session from before the count shows none. Under a running summary, the line of its newest call (Live chat and project UI ▸ `ToolCallBannerView`). Only provider-supplied reasoning
@@ -1895,7 +1919,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
 - **Credentials** live in the keychain, this device only, never synced, in
   Apelin's own items; nothing is shared with kk or `~/.kwwk`. Exporting a
   signed-in state comes later.
-- **Approval** has two modes. *Relaxed* runs everything. *Confirm* lets every
+- **Approval** has three modes (owner, 2026-10-24). *Relaxed* runs everything.
+  *Confirm* lets every
   edit inside the project through — never one in a git directory, which no
   mode writes —, plus a preset list of reads and commands
   (respring among them); any other system tool or binary is confirmed at
@@ -1909,6 +1934,22 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Switching a project's toolchain or SDK is a project edit. The UI and the
   agent call *Confirm* Strict (严格模式; owner, 2026-10-22); `ApprovalMode.confirm`
   and every stored or wire value keep the name.
+  *Full* (完全) is Relaxed plus one thing: a `shell_run` as root runs without
+  asking. A command as root (`shell_run` ▸ `asRoot`) is the one thing Relaxed
+  and Strict both ask about, every time, on a card that says *Runs as root*;
+  Approve on it is answered only after LocalAuthentication's
+  `.deviceOwnerAuthentication` (Face ID, Touch ID or the passcode) passes, or
+  the device has no passcode — Deny needs none —, and the host takes the
+  decision only with the app's `ownerVerified`. A root command is never a
+  preset and never granted for the session; the host runs it only in Full,
+  or against one single-use approval bound to that exact command and
+  directory as a *root* request (`detail.rootCommand`, never
+  `detail.command`). Full is for a dependency install
+  (`irisin-cli install --yes <id>` at euid 0, package-dependencies skill),
+  not the project's own build. Switching into Full is a confirmation that
+  says root will run without asking, plus the same owner check; leaving it
+  asks nothing. The wire value is `full` and old stored values still decode;
+  `ApprovalMode.asks` is true for Strict alone.
 - **Install** always packages a deb and hands it to Irisin's daemon. irisind
   is changed to accept a peer by its entitlement and an executable under the
   jailbreak root or the system, not by Irisin's own path, and ships in a new

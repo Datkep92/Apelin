@@ -1,3 +1,4 @@
+"NSFaceIDUsageDescription" = "Conferma la tua identità prima che l’agente esegua un comando come root.";
 "NSCameraUsageDescription" = "Scatta foto da allegare alla chat.";
 "Apelin Toolchain" = "Toolchain Apelin";
 "Apelin SDK" = "SDK Apelin";

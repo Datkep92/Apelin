@@ -214,7 +214,7 @@ actor InstallBridge {
 
     private func checkAgentInstall(artifact: ArtifactRegistry.Artifact?, session: String?) async throws {
         guard let artifact else { throw ApelinError(.denied, "the agent installs build artifacts only") }
-        guard await approvals.mode(session: session) == .confirm else { return }
+        guard await approvals.mode(session: session).asks else { return }
         guard let project = artifact.projectID, let packaging = artifact.packagingDigest else {
             throw ApelinError(
                 .denied,
@@ -345,7 +345,7 @@ actor InstallBridge {
 
         if case let .worker(.agent, session) = caller {
             // Removal is confirmed every time under Confirm (§7), whatever was approved before.
-            if await approvals.mode(session: session) == .confirm {
+            if await approvals.mode(session: session).asks {
                 guard let session,
                       await approvals.takeRemoval(installationID: record.installationID, session: session)
                 else {

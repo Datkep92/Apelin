@@ -4,6 +4,8 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Take photos to attach to your chat.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Confirm it is you before the agent runs a command as root.</string>
 	<!--
 	Merged with the keys Xcode generates (GENERATE_INFOPLIST_FILE). Only what
 	the INFOPLIST_KEY_ settings cannot say lives here: the three transfer file

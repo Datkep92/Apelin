@@ -1,3 +1,4 @@
+"NSFaceIDUsageDescription" = "تأكَّد من هويتك قبل أن يشغّل الوكيل أمرًا بصلاحيات الجذر.";
 "NSCameraUsageDescription" = "التقط صورًا لإرفاقها بالمحادثة.";
 "Apelin Toolchain" = "سلسلة أدوات Apelin";
 "Apelin SDK" = "Apelin SDK";

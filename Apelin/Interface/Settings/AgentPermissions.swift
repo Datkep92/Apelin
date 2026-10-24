@@ -12,10 +12,14 @@ enum AgentPermissions {
     }
 
     static func title(for mode: ApprovalMode) -> String {
-        mode == .confirm ? String(localized: "Strict") : String(localized: "Relaxed")
+        switch mode {
+        case .confirm: String(localized: "Strict")
+        case .relaxed: String(localized: "Relaxed")
+        case .full: String(localized: "Full")
+        }
     }
 
     static var explanation: String {
-        String(localized: "Strict: asks before commands and sensitive changes. Relaxed: runs these operations without asking, within the app’s permissions. Each chat uses this setting when you send its next message.")
+        String(localized: "Strict: asks before commands and sensitive changes. Relaxed: runs these operations without asking, within the app’s permissions, but asks before any command that runs as root. Full: runs commands as root without asking too. Each chat uses this setting when you send its next message.")
     }
 }

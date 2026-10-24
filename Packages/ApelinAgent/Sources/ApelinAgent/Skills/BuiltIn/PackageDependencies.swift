@@ -1,46 +1,45 @@
 extension BuiltInSkills {
     static let packageDependencies = SkillDocument(
         name: "package-dependencies",
-        description: "Getting a package installed: your project's own build goes through apelin_package_install; a dependency from a repository is the user's to install in Irisin. Why shell_run cannot install, remove or respring, and why apt, dpkg and irisin-cli do not work for you.",
+        description: "Getting a package installed: your project's own build goes through apelin_package_install; a dependency from the user's repositories goes through shell_run as root with irisin-cli, with the user's approval. Why apt and dpkg are never the way.",
         body: """
         # Installing packages
 
-        You cannot install, remove or respring from shell_run. Those act on the
-        whole device as root, and shell_run runs as **mobile** (uid 501). Use
-        the dedicated tools, which go through the privileged session host, and
-        for anything they do not cover, hand it to the user.
+        shell_run runs as **mobile** (uid 501). Installing, removing and
+        respringing act on the whole device as root, so they go through the
+        dedicated tools, except one case below that runs as root.
 
         ## Your project's build → apelin_package_install
         A package you built installs with `apelin_package_install` (the package artifact's id
         and digest), then `apelin_package_confirm_loaded` and `apelin_package_remove`, as the
         packaging-and-install skill says. That path keeps the approval, the
         load check and the removal handle working; nothing else does. Never
-        try to place the `.deb` yourself.
+        place the `.deb` yourself, and never install it with irisin-cli.
 
-        ## A dependency from a repository → the user
+        ## A dependency from a repository → irisin-cli as root
         A project may depend on a package from a repository the user has (an
-        injection framework, a library, a tool). You cannot fetch or install
-        it:
-        - `apt` and `dpkg` change the system as root, and newer bootstraps no
-          longer ship them at all. Do not reach for them.
-        - `irisin-cli` installs only as **root**: under any other user it
-          says so and exits 77, and Irisin's daemon takes an external client
-          only at euid 0. shell_run is mobile, has no terminal for `sudo` to
-          ask a password on, and must never ask the user for one, so
-          `irisin-cli` (and `sudo irisin-cli`) from shell_run fails. Do not run
-          it and do not put it in a script.
-        So declare the dependency in `package.depends` (project-description)
-        and ask the user to install it: name the package ID and why it is
-        needed, and have them install it with their package manager (Irisin
-        is always there, since Apelin depends on it), or run
-        `sudo irisin-cli install <package id>` themselves in a terminal; then
-        install again. An install whose dependency is missing fails: the
-        installer resolves nothing. Never drop the dependency, copy its files
-        into your package or rename your package to get past it. The tweak
-        extension depends on `mobilesubstrate` and the preferences extension
-        on `preferenceloader`, so both are there wherever those extensions
-        are; `projectCheck` warns when a support component's runtime
-        dependency is missing from `package.depends`.
+        injection framework, a library, a tool). Declare it in
+        `package.depends` (project-description), then install it with
+        shell_run and `root: true`:
+        `{"argv": ["irisin-cli", "install", "--yes", "<package id>"], "root": true}`.
+        `irisin-cli` installs only as root (as mobile it exits 77), and
+        `--yes` because nothing can answer a prompt. In Strict and Relaxed
+        mode the user approves each such call, with Face ID, Touch ID or the
+        passcode; in Full mode it runs at once. Say which package and why
+        before you ask. If the user declines, or the package is in none of
+        their repositories, ask them to install it with their package
+        manager instead, then install your build again.
+        - Never `apt`, `dpkg` or `sudo`: they bypass Irisin, and newer
+          bootstraps no longer ship apt or dpkg at all.
+        - Use `root: true` for nothing else: what it writes belongs to
+          root, so mobile cannot change it afterwards.
+        An install whose dependency is missing fails: the installer resolves
+        nothing. Never drop the dependency, copy its files into your package
+        or rename your package to get past it. The tweak extension depends on
+        `mobilesubstrate` and the preferences extension on `preferenceloader`,
+        so both are there wherever those extensions are; `projectCheck` warns
+        when a support component's runtime dependency is missing from
+        `package.depends`.
 
         ## The toolchain and the SDK are different
         A missing **compiler toolchain** or **iPhoneOS SDK** is not a package

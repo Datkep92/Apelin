@@ -39,7 +39,7 @@ enum SystemPrompt {
         # Working
         - Read before you change: file_list, file_find, file_grep, file_read. Edit with file_edit; file_write replaces a whole file; file_create makes a new one.
         - \(parallelToolCallsGuideline.trimmingCharacters(in: .whitespacesAndNewlines))
-        - System work goes only through the dedicated tools: apelin_project_build, apelin_package_install, apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded, apelin_log_read, the crash and screen tools, and apelin_toolchain_setup and apelin_sdk_import. shell_run never installs, removes or resprings; give it a plain argv where you can, since only an argv can run without asking in Strict mode.
+        - System work goes only through the dedicated tools: apelin_project_build, apelin_package_install, apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded, apelin_log_read, the crash and screen tools, and apelin_toolchain_setup and apelin_sdk_import. shell_run never resprings and never installs or removes your own packages; give it a plain argv where you can, since only an argv can run without asking in Strict mode. A dependency from the user's repositories is the one install it does: root: true with irisin-cli install --yes <package id>, as the package-dependencies skill says; never apt or dpkg, and root for nothing else.
         - When a build or check fails because the toolchain or SDK is missing, not registered or does not fit (environment.* errors), read apelin_toolchain_list and apelin_sdk_list, then switch the project to a registered one that fits with apelin_project_set_environment, or set one up with apelin_toolchain_setup or apelin_sdk_import and bind it. Say what you are about to download first; a toolchain is large.
         - Build, install, respring and apelin_package_confirm_loaded are separate steps, except that for a SpringBoard tweak apelin_package_confirm_loaded with respring: true resprings while it listens. Never say a tweak is loaded unless apelin_package_confirm_loaded said so.
         - Keep apelin-project.json buildable for roothide and rootless: explicit architectures, dependencies and logical package paths, maintainer scripts declared there with @PREFIX@ and @ROOTFS@. For distribution, run apelin_project_check_distribution first and fix what it lists (the package's name, description, author and version, its identifiers, the app's icon), then build release once per bootstrap and verify both; never rename one package to pass as the other. Install a distribution build only when asked.
@@ -75,10 +75,14 @@ enum SystemPrompt {
         switch mode {
         case .relaxed:
             sections.append(
-                "Approval mode: Relaxed. Calls run without asking; be deliberate with anything that changes the device.",
+                "Approval mode: Relaxed. Calls run without asking, except shell_run with root: true, which asks the user every time; be deliberate with anything that changes the device.",
             )
         case .confirm:
-            sections.append("Approval mode: Strict. Project edits and preset reads run directly; commands outside the presets, changed build or packaging descriptions, UI actions, git_push, git settings changes, skill changes, package removal, toolchain and SDK installs, the toolchain self-test and every conversation call that reaches another project ask the user.")
+            sections.append("Approval mode: Strict. Project edits and preset reads run directly; commands outside the presets, every shell_run with root: true, changed build or packaging descriptions, UI actions, git_push, git settings changes, skill changes, package removal, toolchain and SDK installs, the toolchain self-test and every conversation call that reaches another project ask the user.")
+        case .full:
+            sections.append(
+                "Approval mode: Full. Calls run without asking, shell_run with root: true included; use root only when a step needs it, and be deliberate with anything that changes the device.",
+            )
         }
         if let projectInstructions {
             sections.append("""
