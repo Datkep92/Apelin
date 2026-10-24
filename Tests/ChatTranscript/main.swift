@@ -619,3 +619,72 @@ try FileManager.default.removeItem(at: languages)
 precondition(placeholders == ["New Chat", "新規チャット", "Nouvelle discussion", "محادثة جديدة"],
              "every localization's New Chat and the key itself: \(placeholders)")
 print("ok: an untitled conversation is a state, shown in today's language and named after its first message")
+
+do {
+    /// Whether two row arrays are one storage: a transcript handed back
+    /// from the cache rather than built again.
+    func sameStorage(_ lhs: [ChatMessage], _ rhs: [ChatMessage]) -> Bool {
+        lhs.withUnsafeBufferPointer { a in rhs.withUnsafeBufferPointer { b in a.baseAddress == b.baseAddress } }
+    }
+    let senderTurn = [
+        event(1, "prompt", ["id": .string(UUID().uuidString), "text": .string("From afar"), "from": .string("s1")]),
+        event(2, "messageStarted"), event(3, "thinking", ["text": .string("Looking")]),
+        event(4, "toolCall", ["id": .string("t1"), "tool": .string("list")]), event(5, "toolResult", ["id": .string("t1")]),
+        event(6, "message", ["text": .string("First reply")]), event(7, "finished"),
+    ]
+    var titles = ["s1": "Docs"]
+    var cache = ChatTranscriptCache()
+    var chat = ChatRecord(summary: ChatSummary(title: "Cached", updated: Date()), events: senderTurn)
+    func cached(_ record: ChatRecord, followed: Set<UUID> = []) -> ChatTranscript {
+        cache.transcript(of: record, isFollowed: { followed.contains($0) }, conversationTitle: { titles[$0] }) { _ in nil }
+    }
+    func fresh(_ record: ChatRecord) -> [ChatMessage] {
+        ChatTranscript(events: record.events, sending: record.sending ?? [], conversationTitle: { titles[$0] }) { _ in nil }
+            .messages
+    }
+    let first = cached(chat)
+    precondition(sameStorage(first.messages, cached(chat).messages), "nothing changed: the transcript built before")
+
+    chat.events += [event(8, "prompt", ["text": .string("Again")]), event(9, "messageStarted"),
+                    event(10, "text", ["text": .string("Streaming")])]
+    let streamed = cached(chat)
+    precondition(!sameStorage(first.messages, streamed.messages), "new events build it again")
+    precondition(streamed.messages == fresh(chat) && streamed.isWorking, "as a transcript of the same events")
+    precondition(streamed.messages[0].text == first.messages[0].text)
+
+    chat.sending = [ComposerDraft(text: "Queued while it runs")]
+    let sending = cached(chat)
+    precondition(!sameStorage(streamed.messages, sending.messages), "a message on its way builds it again")
+    precondition(sending.messages.last?.text == "Queued while it runs" && sending.messages.last?.isQueued == true)
+    chat.sending = [ComposerDraft(id: chat.sending![0].id, text: "Typed again and resent")]
+    precondition(cached(chat).messages.last?.text == "Typed again and resent", "a draft resent under its id")
+
+    titles["s1"] = "Renamed Docs"
+    let renamed = cached(chat)
+    precondition(renamed.messages[0].sender == ChatTranscript.senderLine("Renamed Docs"), "a sender renamed shows")
+    precondition(sameStorage(renamed.messages, cached(chat).messages))
+
+    // the page's conversation stays while another one is built; followed
+    // ones stay whatever is built
+    let other = ChatRecord(summary: ChatSummary(title: "Other", updated: Date()), events: senderTurn)
+    let followed = ChatRecord(summary: ChatSummary(title: "Followed", updated: Date()), events: senderTurn)
+    let keepers: Set = [followed.summary.id]
+    let followedFirst = cached(followed, followed: keepers)
+    let shown = cached(chat, followed: keepers)
+    _ = cached(followed, followed: keepers)
+    precondition(sameStorage(shown.messages, cached(chat, followed: keepers).messages), "a followed build keeps the page's")
+    _ = cached(other, followed: keepers)
+    precondition(!sameStorage(shown.messages, cached(chat, followed: keepers).messages), "another page's drops it")
+    precondition(sameStorage(followedFirst.messages, cached(followed, followed: keepers).messages))
+    cache.remove(followed.summary.id)
+    precondition(!sameStorage(followedFirst.messages, cached(followed, followed: keepers).messages))
+
+    // a rebuilt row equal to the one shown is that very value
+    let rows = fresh(chat)
+    let rebuilt = fresh(chat)
+    let reused = ChatTranscriptCache.reusing(rows, in: rebuilt)
+    precondition(reused == rows && rows.contains { !$0.trace.isEmpty })
+    precondition(!zip(rebuilt, rows).contains { !$0.trace.isEmpty && sameStorage($0.trace, $1.trace) })
+    precondition(zip(reused, rows).allSatisfy { sameStorage($0.trace, $1.trace) }, "unchanged rows share their storage")
+    print("ok: a transcript is built again only when its events, its messages on their way or a sender's title change")
+}

@@ -27,8 +27,15 @@ final class ChatRuntime {
     private var readers: [UUID: Task<Void, Never>] = [:]
     private var opening: [UUID: Task<AgentOpenResponse, Error>] = [:]
     private var attachmentCache: [String: ComposerAttachment] = [:]
+    private var transcripts = ChatTranscriptCache()
     /// Conversations whose latest state is in memory only.
     private var unsaved: Set<UUID> = []
+    /// Conversations being written, and those changed again meanwhile. A
+    /// conversation is written once at a time and then once more with what
+    /// it holds by then, so one that streams faster than it can be written
+    /// queues no save, nor a copy of its whole history, per batch.
+    private var saving: Set<UUID> = []
+    private var savesPending: Set<UUID> = []
     /// Who waits for a conversation's compaction to end, by conversation.
     private var compactions: [UUID: CheckedContinuation<AgentCompactionResult, Error>] = [:]
 
@@ -186,37 +193,49 @@ final class ChatRuntime {
         try await store.remove(id)
         readers.removeValue(forKey: id)?.cancel()
         records.removeValue(forKey: id)
+        transcripts.remove(id)
     }
 
+    /// The conversation's rows, built again only when its events, the
+    /// messages it is sending or the titles it names senders by changed
+    /// (`ChatTranscriptCache`).
     func transcript(_ id: UUID) -> ChatTranscript {
-        let record = records[id]
-        let conversationTitle = { [records] (sessionID: String) in
-            records.values.first { $0.sessionID == sessionID }?.summary.displayTitle
+        guard let record = records[id] else {
+            return ChatTranscript(events: []) { _ in nil }
         }
-        return ChatTranscript(
-            events: record?.events ?? [],
-            sending: record?.sending ?? [],
-            conversationTitle: conversationTitle,
-            now: Date(),
-        ) { [self] item in
-            guard let path = attachmentPath(item, in: id) else { return nil }
-            if let cached = attachmentCache[path] {
-                return cached
-            }
-            guard let size = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.fileSizeKey]).fileSize,
-                  size <= 32 * 1024 * 1024, let data = try? Data(contentsOf: URL(fileURLWithPath: path))
-            else { return nil }
-            let isText = item.mimeType.hasPrefix("text/")
-                || UTType(mimeType: item.mimeType)?.conforms(to: .text) == true
-            let file = ComposerAttachment(
-                name: item.name,
-                data: data,
-                text: isText ? String(decoding: data.prefix(8192), as: UTF8.self) : nil,
-                isImage: item.mimeType.hasPrefix("image/"),
-            )
-            attachmentCache[path] = file
-            return file
+        return transcripts.transcript(
+            of: record,
+            isFollowed: { readers[$0] != nil },
+            conversationTitle: { title(ofSession: $0) },
+        ) { [self] item in attachment(item, in: id) }
+    }
+
+    /// The title of the conversation `sessionID` is, which names a message
+    /// its agent sent.
+    private func title(ofSession sessionID: String) -> String? {
+        records.values.first { $0.sessionID == sessionID }?.summary.displayTitle
+    }
+
+    /// A message's attachment, read from its file once and kept. One that
+    /// cannot be read is tried again with the conversation's next change.
+    private func attachment(_ item: AgentAttachment, in id: UUID) -> ComposerAttachment? {
+        guard let path = attachmentPath(item, in: id) else { return nil }
+        if let cached = attachmentCache[path] {
+            return cached
         }
+        guard let size = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              size <= 32 * 1024 * 1024, let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+        else { return nil }
+        let isText = item.mimeType.hasPrefix("text/")
+            || UTType(mimeType: item.mimeType)?.conforms(to: .text) == true
+        let file = ComposerAttachment(
+            name: item.name,
+            data: data,
+            text: isText ? String(decoding: data.prefix(8192), as: UTF8.self) : nil,
+            isImage: item.mimeType.hasPrefix("image/"),
+        )
+        attachmentCache[path] = file
+        return file
     }
 
     /// Where a message's attachment is: by its canonical path, inside the
@@ -422,9 +441,11 @@ final class ChatRuntime {
                 )))
             }
             while !Task.isCancelled {
-                guard let self, let record = records[id], record.task == task else { return }
+                // Only the cursor: a copy of the record held over the wait
+                // would make the next batch copy every event to add to them.
+                guard let self, records[id]?.task == task, let cursor = records[id]?.cursor else { return }
                 do {
-                    let batch = try await ApelinService.app.attach(task, afterSeq: record.cursor)
+                    let batch = try await ApelinService.app.attach(task, afterSeq: cursor)
                     guard !Task.isCancelled, records[id]?.task == task else { return }
                     let fresh = records[id]?.take(batch.events) ?? []
                     settleSending(in: id, against: fresh)
@@ -461,12 +482,17 @@ final class ChatRuntime {
                     if let finished = fresh.last(where: { $0.kind == "compactionFinished" }) {
                         endCompaction(id, with: .success(Self.compactionResult(finished)))
                     }
+                    let wasWorking = records[id]?.summary.isWorking
                     let current = transcript(id)
                     records[id]?.summary.isWorking = current.isWorking || current.isCompacting
                     if let last = batch.events.last {
                         records[id]?.summary.updated = last.time
                     }
-                    changed(id)
+                    // A wait that ran out with nothing, as an idle session's
+                    // does every 20 s, has nothing to write or show.
+                    if !batch.events.isEmpty || records[id]?.summary.isWorking != wasWorking {
+                        changed(id)
+                    }
                     if batch.finished {
                         return
                     }
@@ -529,6 +555,10 @@ final class ChatRuntime {
             unsaved.remove(id)
             return
         }
+        guard saving.insert(id).inserted else {
+            savesPending.insert(id)
+            return
+        }
         revision += 1
         let revision = revision
         Task { [store, weak self] in
@@ -539,6 +569,15 @@ final class ChatRuntime {
                 self?.unsaved.insert(id)
                 self?.onSaveFailure?(error)
             }
+            self?.saveEnded(id)
+        }
+    }
+
+    /// Writes what changed while `id` was being written.
+    private func saveEnded(_ id: UUID) {
+        saving.remove(id)
+        if savesPending.remove(id) != nil {
+            persist(id)
         }
     }
 

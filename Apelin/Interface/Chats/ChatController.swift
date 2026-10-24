@@ -41,6 +41,12 @@ final class ChatController: UIViewController {
     private var followedTurn: UUID?
     /// How fast the followed turn's reply streams.
     private var turnPace = TurnFollowing.Pace()
+    /// The request the composer shows in place of the input, and the
+    /// conversation its Stop stops. Each change to either lays the whole
+    /// window out on the composer's spring, so the composer is told only of
+    /// a change, never again on every streamed batch.
+    private var shownApproval: ChatMessage?
+    private var stoppableChat: UUID?
     private var isSwitchingChat = false
     private var needsInitialScroll = false
     /// Whether the reader was at the latest message when the page last
@@ -364,16 +370,26 @@ final class ChatController: UIViewController {
             quietWatch.wake(at: transcript.quietDeadline) { [weak self] in self?.refreshRuntime() }
             if summary.isWorking != chat.isWorking {
                 // the session stopped (or came back) with no event that redraws the request
-                composer.showApproval(summary.isWorking ? messages.first { $0.role.needsApproval } : nil)
+                showApproval(summary.isWorking ? messages.first { $0.role.needsApproval } : nil)
             }
-            composer.modelBar.setOutputCancellation(summary.isWorking ? { [weak self] in
-                guard let self else { return }
-                Task {
-                    do { try await self.runtime.stop(chat.id) }
-                    catch { self.presentNotice(title: "Unable to Stop", message: error.readableMessage) }
-                }
-            } : nil)
+            let stoppable = summary.isWorking ? chat.id : nil
+            if stoppable != stoppableChat {
+                stoppableChat = stoppable
+                composer.modelBar.setOutputCancellation(summary.isWorking ? { [weak self] in
+                    guard let self else { return }
+                    Task {
+                        do { try await self.runtime.stop(chat.id) }
+                        catch { self.presentNotice(title: "Unable to Stop", message: error.readableMessage) }
+                    }
+                } : nil)
+            }
         }
+    }
+
+    private func showApproval(_ request: ChatMessage?) {
+        guard request != shownApproval else { return }
+        shownApproval = request
+        composer.showApproval(request)
     }
 
     /// A new user message starts a turn, whose output the list then follows
@@ -432,7 +448,7 @@ final class ChatController: UIViewController {
         let visible = items.filter { !$0.role.isApproval }
         messageList.apply(visible, animated: !isSwitchingChat && !UIAccessibility.isReduceMotionEnabled)
         // a request its stopped session left can no longer be answered
-        composer.showApproval(chat?.isWorking == true ? items.first { $0.role.needsApproval } : nil)
+        showApproval(chat?.isWorking == true ? items.first { $0.role.needsApproval } : nil)
     }
 
     @objc private func updateModelSelection() {

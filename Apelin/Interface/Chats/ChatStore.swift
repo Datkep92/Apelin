@@ -7,6 +7,8 @@ struct ChatRecord: Codable, Sendable {
     var draft = ComposerDraft()
     var sessionID: String?
     var task: TaskHandle?
+    /// Only ever appended to (`take`): the runtime keeps a transcript built
+    /// from them for as long as their count holds.
     var events: [TaskEvent] = []
     /// Messages sent and not yet echoed by the host, oldest first: shown at
     /// once, and kept on disk until their `prompt` or `queued` event comes
