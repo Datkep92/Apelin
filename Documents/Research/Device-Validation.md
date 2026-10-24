@@ -1692,3 +1692,34 @@ stand-in on the hosts, which have no Python. Every script ended `ok`:
 `hello`, `terminal`, `logs`, `diagnostics`, `i3-image-check-refused` and
 `i1-smoke` (26 steps) on both, and `files` on the iPhone; the iPad has no
 tweak extension, toolchain or SDK, so `files` was skipped there.
+
+## 0.1.8 Compact… (2026-10-24, CI build 35 of `6093216`)
+
+The roothide package CI built for the tagged commit (SHA-256 checked against
+its `SHA256SUMS`) went onto the iOS 26.4 iPhone vphone and the iPadOS 26.4
+iPad vphone through `irisin-cli install --yes`, over CI's build of
+`340f2b4`, which went on first over 0.1.7. Driven through vphoned (taps,
+`input.type`, the accessibility tree, screenshots), on the iPhone with its
+deepseek-v4-pro account:
+
+- A General Chat conversation with two `run_code` turns of about 80 KB of
+  output each: Compact… is enabled between replies, asks, shows the
+  progress card, and the session compacted 7 messages in about a minute
+  (`compactionFinished` {compacted, 7}; `transcript.json` 34 KB). The next
+  message got the first command's last number right from the summary.
+- While a reply runs (Stop shown), Compact… is greyed out.
+- A one-message chat: Nothing to Compact.
+- A stopped session, the host restarted by the install: Compact… reopens it
+  and the outcome arrives through the replay (Nothing to Compact in about
+  2 s, no row repeated). On `340f2b4` the replay swallowed both compaction
+  events and the card waited for good — fixed in `6093216`; the one
+  conversation that build had read stays inconsistent on that vphone and
+  repeated its last turn when compacted again.
+- The card's Cancel needs a held touch from vphoned (`input.long_press`): a
+  zero-length tap on a button inside its scroll view is swallowed. A finger
+  is not.
+
+On the iPad, which has no model account, the app launches and Compact… is
+greyed out for a chat with no session. The native ChatGPT Codex path
+(`compaction_trigger` on `/codex/responses`) was not run on a vphone: no
+Codex account is signed in there.
