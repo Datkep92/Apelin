@@ -47,7 +47,8 @@ let package = Package(
                 // Not imported: it binds the swift-nio ceiling above to
                 // every build of apelin-agent. kwwk links NIOCore already.
                 .product(name: "NIOCore", package: "swift-nio"),
-                // RunCodePresetRule: the words of a preset, as the host reads them.
+                // RunCodePresetRule: the words of a preset, as the host reads them;
+                // TokenEstimate: the output a run receives, as the app counts a reply.
                 .product(name: "ApelinProtocol", package: "ApelinKit"),
                 // CanonicalPath: the path rules the rest of Apelin decides by.
                 .product(name: "ApelinCore", package: "ApelinKit"),

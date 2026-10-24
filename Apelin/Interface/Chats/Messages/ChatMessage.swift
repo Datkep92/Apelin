@@ -50,13 +50,14 @@ struct ChatMessage: Identifiable, Hashable {
     /// A user message another conversation's agent sent: the line shown
     /// over the bubble naming that conversation.
     var sender: String?
-    /// A tool row's call, and on a running summary the latest thing it did,
-    /// for the summary's one-line preview.
-    var preview: ActivityPreview?
     /// A tool row whose result has not come back yet.
     var awaitsResult = false
     /// On a running summary, the calls in its trace still waiting for a result.
     var runningTools = 0
+    /// On a running summary, the output tokens the run has received so far
+    /// (the session's `received`); nil before the first count, and for a
+    /// session older than the count.
+    var receivedTokens: Int?
 
     var activityTitle: String {
         guard case let .thinking(seconds, tools) = role else { return text }
@@ -101,20 +102,4 @@ struct ChatMessage: Identifiable, Hashable {
         self.text = text
         self.attachments = attachments
     }
-}
-
-/// What a running summary's preview line shows.
-enum ActivityPreview: Hashable {
-    /// The end of the latest thinking text; only the tail is kept.
-    case thinking(String)
-    /// A tool call: the reason the agent gave, and for a file tool the file's
-    /// name and, once its result is in, the lines it added and removed.
-    case tool(reason: String, file: String?, change: LineChange?)
-
-    struct LineChange: Hashable {
-        let added: Int
-        let removed: Int
-    }
-
-    static let thinkingTailLength = 200
 }

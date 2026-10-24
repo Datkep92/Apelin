@@ -393,19 +393,24 @@ actor WorkerState {
 
 /// Turns session events into task events. Streamed text is coalesced into
 /// `text` events of at least a few hundred bytes or a quarter second apart,
-/// so a long answer is not thousands of events in the host's registry.
+/// so a long answer is not thousands of events in the host's registry. The
+/// run's `received` count goes out with the same flushes, its latest only.
 actor EventRelay {
-    private let context: WorkerContext
-    private let taskID: TaskID
+    private let emit: @Sendable (String, ApelinCore.JSONValue?) -> Void
     private var text = ""
     private var thinking = ""
+    private var received: Int?
     private var lastFlush = Date()
     private var flushScheduled = false
     private var waiting = 0
 
     init(context: WorkerContext, taskID: TaskID) {
-        self.context = context
-        self.taskID = taskID
+        self.init { kind, payload in context.emit(taskID, kind, payload) }
+    }
+
+    /// `emit` takes each task event, in order.
+    init(emit: @escaping @Sendable (String, ApelinCore.JSONValue?) -> Void) {
+        self.emit = emit
     }
 
     func relay(_ event: AgentSessionEvent) {
@@ -418,23 +423,33 @@ actor EventRelay {
             thinking += delta
             scheduleFlush()
             return
+        case let .received(tokens):
+            received = tokens
+            scheduleFlush()
+            return
         default:
             flush()
         }
         for (kind, payload) in Self.events(for: event, waiting: &waiting) {
-            context.emit(taskID, kind, payload)
+            emit(kind, payload)
         }
     }
 
     func flush() {
         if !thinking.isEmpty {
-            context.emit(taskID, "thinking", .object(["text": .string(thinking)]))
+            emit("thinking", .object(["text": .string(thinking)]))
         }
         if !text.isEmpty {
-            context.emit(taskID, "text", .object(["text": .string(text)]))
+            emit("text", .object(["text": .string(text)]))
+        }
+        if let received {
+            for (kind, payload) in Self.events(for: .received(tokens: received), waiting: &waiting) {
+                emit(kind, payload)
+            }
         }
         text = ""
         thinking = ""
+        received = nil
         lastFlush = Date()
     }
 
@@ -496,6 +511,8 @@ actor EventRelay {
             return [("thinking", .object(["text": .string(text)]))]
         case let .messageFinished(text):
             return [("message", .object(["text": .string(text)]))]
+        case let .received(tokens):
+            return [("received", .object(["tokens": .number(Double(tokens))]))]
         case let .toolCallStarted(call):
             return [("toolCall", .object([
                 "id": .string(call.id),

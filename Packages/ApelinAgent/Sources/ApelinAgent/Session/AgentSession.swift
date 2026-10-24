@@ -44,6 +44,8 @@ public actor AgentSession {
     /// Messages sent while a run was going, oldest first, each until the
     /// run's loop takes it: `injected` is the text the loop is handed.
     private var queued: [(id: UUID, text: String, attachments: [AgentAttachment], injected: String)] = []
+    /// What the current run has received, for the app's counter.
+    private var output = OutputTally()
 
     /// Opens a session. When `sessions/<id>/` already exists, its transcript
     /// is resumed and its event sequence continues; approvals that were left
@@ -537,9 +539,13 @@ public actor AgentSession {
 
     private func handle(_ event: AgentEvent) async {
         switch event {
+        case .agentStart:
+            // the counter counts each run's output from nothing
+            output = OutputTally()
         case let .messageStart(message):
             switch message {
             case .assistant:
+                output.startMessage()
                 await record(.messageStarted)
             case let .user(user) where !queued.isEmpty:
                 // the loop took a queued message: it is in the conversation now
@@ -559,15 +565,22 @@ public actor AgentSession {
             switch update {
             case let .textDelta(_, delta, _):
                 await record(.textDelta(delta))
+                await count(delta)
             case let .thinkingDelta(_, delta, _):
                 await record(.thinkingDelta(delta))
+                await count(delta)
             case .toolCallStart:
                 await record(.toolCallPreparing)
+            case let .toolCallDelta(_, delta, _):
+                // only counted: the call comes whole in `toolCallStarted`
+                await count(delta)
             default:
                 break
             }
         case let .messageEnd(message):
             guard case let .assistant(assistant) = message else { break }
+            output.endMessage(reported: assistant.usage.output)
+            await recordOutput(messageEnded: true)
             await record(.messageFinished(text: Self.text(of: assistant.content)))
             if assistant.stopReason == .error {
                 await record(.error(
@@ -624,6 +637,19 @@ public actor AgentSession {
 
     private func record(_ event: AgentSessionEvent) async {
         _ = try? await log.append(event)
+    }
+
+    /// Counts streamed output: text, thinking or a call's arguments.
+    private func count(_ delta: String) async {
+        output.add(delta)
+        await recordOutput()
+    }
+
+    /// The run's total so far, when `OutputTally` says it is time.
+    private func recordOutput(messageEnded: Bool = false) async {
+        if let tokens = output.take(at: Date(), messageEnded: messageEnded) {
+            await record(.received(tokens: tokens))
+        }
     }
 
     private func recordRunError(_ error: Error) async {

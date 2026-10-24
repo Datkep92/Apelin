@@ -27,6 +27,8 @@ final class ChatController: UIViewController {
     private let topBlur = ChatTopBlurView()
     private let latestMessageButton = UIButton(type: .system)
     private weak var reasoningPage: ChatReasoningController?
+    /// Builds the rows again once a running turn has gone quiet.
+    private let quietWatch = ChatQuietWatch()
 
     /// The shown conversation's rows as last applied.
     private var messages: [ChatMessage] = []
@@ -357,7 +359,9 @@ final class ChatController: UIViewController {
                 title = summary.displayTitle
             }
             titleView.setTitle(summary.displayTitle, animated: view.window != nil)
-            updateMessages(runtime.transcript(chat.id).messages)
+            let transcript = runtime.transcript(chat.id)
+            updateMessages(transcript.messages)
+            quietWatch.wake(at: transcript.quietDeadline) { [weak self] in self?.refreshRuntime() }
             if summary.isWorking != chat.isWorking {
                 // the session stopped (or came back) with no event that redraws the request
                 composer.showApproval(summary.isWorking ? messages.first { $0.role.needsApproval } : nil)

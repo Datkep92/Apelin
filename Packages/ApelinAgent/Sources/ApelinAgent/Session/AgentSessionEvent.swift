@@ -30,6 +30,10 @@ public enum AgentSessionEvent: Sendable, Hashable, Codable {
     case toolCallPreparing
     /// The assistant message is complete; `text` is all of its text.
     case messageFinished(text: String)
+    /// The output tokens the run has received so far (`OutputTally`):
+    /// recorded a few times a second while a message streams, and when it
+    /// ends, at the provider's count where it gave one.
+    case received(tokens: Int)
     case toolCallStarted(ToolCallRecord)
     case toolCallFinished(ToolResultRecord)
     /// The session is waiting: nothing runs until `approve` answers, and an

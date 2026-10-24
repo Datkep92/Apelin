@@ -1,23 +1,41 @@
 import ListViewKit
-import MarkdownView
+import Litext
 import UIKit
 
-/// Thinking and tool events stay separate in the transcript's original order.
+/// A summary in the transcript, or a step in its trace. A running summary's
+/// title is followed by the output the run has received so far. In the
+/// trace, a step's thinking, or a call's arguments and output, follow as
+/// plain selectable text.
 final class ChatActivityRow: ListRowView {
     var onToggle: (() -> Void)?
     private let header = ThinkingStatusLabel()
-    private let preview = ThinkingPreviewView()
-    private let body = ChatMarkdownView()
-    private static let sizingBody = ChatMarkdownView()
+    private let received = ReceivedTokensView()
+    private let body = TextLabelView()
+    /// The message this row shows: only a change to it animates, never the
+    /// row taking another message out of the pool.
+    private var shownID: UUID?
+    /// Whether the count is meant to be on screen, while it fades too.
+    private var showsReceived = false
+    private static let sizingBody = TextLabelView()
     private static let sizingHeader = ThinkingStatusLabel()
+    /// Between the title and the count after it.
+    private static let receivedSpacing: CGFloat = 6
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        // Selection handles extend beyond a row.
         clipsToBounds = false
         addSubview(header)
-        addSubview(preview)
+        received.isHidden = true
+        addSubview(received)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggle)))
+        body.isSelectable = true
+        body.delegate = self
+        body.isAccessibilityElement = true
         addSubview(body)
+        header.onShownTextChange = { [weak self] animated in
+            self?.titleChanged(animated: animated)
+        }
     }
 
     @available(*, unavailable)
@@ -26,47 +44,51 @@ final class ChatActivityRow: ListRowView {
     }
 
     func show(_ message: ChatMessage, includesThoughts: Bool = false) {
+        let isSameMessage = shownID == message.id
+        shownID = message.id
         header.animationIdentity = message.id
         header.text = message.activityTitle
         isAccessibilityElement = false
         header.accessibilityLabel = message.activityTitle
         // a summary in the transcript opens its trace; rows inside the trace only read
         let opensTrace = !includesThoughts && Self.isReasoning(message)
-        header.accessibilityValue = nil
         header.accessibilityTraits = opensTrace ? .button : .staticText
         header.accessibilityCustomActions = opensTrace
             ? [UIAccessibilityCustomAction(name: String(localized: "View Thoughts")) { [weak self] _ in
                 self?.onToggle?(); return true
             }]
             : nil
-        if let shown = Self.preview(of: message, includesThoughts: includesThoughts) {
-            preview.show(shown)
-            preview.isHidden = false
-        } else {
-            preview.reset()
-            preview.isHidden = true
+        let tokens = Self.receivedTokens(of: message, includesThoughts: includesThoughts)
+        header.accessibilityValue = tokens.map(ReceivedTokensView.spoken)
+        showReceived(tokens, animated: isSameMessage)
+        header.isThinking = message.role.isThinking
+        let text = Self.bodyText(of: message, includesThoughts: includesThoughts)
+        body.isHidden = text.isEmpty
+        // the trace updates live: a step that did not change keeps its selection
+        let attributed = Self.attributed(text)
+        if !body.attributedText.isEqual(to: attributed) {
+            body.clearSelection()
+            body.attributedText = attributed
         }
-        if case let .thinking(seconds, _) = message.role {
-            header.isThinking = seconds == nil
-            body.isHidden = !includesThoughts || message.text.isEmpty
-            body.setMarkdown(body.isHidden ? "" : message.text)
-        } else {
-            header.isThinking = false
-            body.isHidden = !includesThoughts || message.detail.isEmpty
-            body.setMarkdown(body.isHidden ? "" : message.detail)
-        }
+        body.accessibilityLabel = text.isEmpty ? nil : text
         setNeedsLayout()
     }
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        shownID = nil
         header.isThinking = false
-        preview.reset()
-        preview.isHidden = true
         header.animationIdentity = nil
         header.text = nil
+        header.accessibilityValue = nil
+        showsReceived = false
+        received.layer.removeAllAnimations()
+        received.isHidden = true
+        received.alpha = 1
         onToggle = nil
-        body.reset()
+        body.clearSelection()
+        body.attributedText = NSAttributedString()
+        body.accessibilityLabel = nil
     }
 
     override func layoutSubviews() {
@@ -84,32 +106,78 @@ final class ChatActivityRow: ListRowView {
             width: pixel(textWidth),
             height: pixel(height),
         )
-        var top = header.frame.maxY
-        if !preview.isHidden {
-            // the line keeps the reading width, padding included; its
-            // ground is drawn out to the row's edges
-            let padding = ChatMessageRow.horizontalPadding
-            preview.frame = CGRect(
-                x: content.minX - padding,
-                y: top + Self.previewSpacing,
-                width: content.width + padding * 2,
-                height: ThinkingPreviewView.height,
-            )
-            preview.groundBleed = UIEdgeInsets(
-                top: 0,
-                left: max(0, preview.frame.minX),
-                bottom: 0,
-                right: max(0, bounds.width - preview.frame.maxX),
-            )
-            top = preview.frame.maxY
-        }
+        layoutReceived(in: content)
+        // measured as `height(for:)` measures it
+        let bodyHeight = body.isHidden ? 0 : ceil(body.sizeThatFits(CGSize(width: textWidth, height: 0)).height)
         body.frame = CGRect(
             x: content.minX,
-            y: top + ChatMarkdownView.blockSpacing,
-            width: content.width,
-            height: max(0, content.maxY - top - ChatMarkdownView.blockSpacing),
+            y: header.frame.maxY + ChatMarkdownView.blockSpacing,
+            width: textWidth,
+            height: bodyHeight,
         )
-        body.trackedScrollView = superview as? UIScrollView
+    }
+
+    /// On the title's first line, after the text it draws now.
+    private func layoutReceived(in content: CGRect) {
+        guard !received.isHidden else { return }
+        let x = content.minX + header.shownTextWidth + Self.receivedSpacing
+        let size = received.sizeThatFits(.zero)
+        let line = ceil(header.font.lineHeight)
+        received.frame = directionalFrame(CGRect(
+            x: x,
+            y: header.frame.minY + ((line - size.height) / 2).rounded(),
+            width: max(0, min(size.width, content.maxX - x)),
+            height: size.height,
+        ))
+    }
+
+    /// The count follows its title when the title rolls to another width.
+    private func titleChanged(animated: Bool) {
+        setNeedsLayout()
+        guard animated, !received.isHidden, window != nil, !UIAccessibility.isReduceMotionEnabled else { return }
+        UIView.animate(
+            withDuration: 0.35,
+            delay: 0,
+            usingSpringWithDamping: 1,
+            initialSpringVelocity: 0,
+            options: [.beginFromCurrentState, .allowUserInteraction],
+        ) {
+            self.layoutIfNeeded()
+        }
+    }
+
+    /// A count that appears or goes on the same summary fades; one on
+    /// another summary, off screen or under Reduce Motion is there at once.
+    private func showReceived(_ tokens: Int?, animated: Bool) {
+        if let tokens {
+            received.show(tokens)
+        }
+        let shows = tokens != nil
+        guard shows != showsReceived else { return }
+        showsReceived = shows
+        let fades = animated && window != nil && !UIAccessibility.isReduceMotionEnabled
+        received.layer.removeAllAnimations()
+        if shows {
+            received.isHidden = false
+            // in place before it fades in, not moving in from elsewhere
+            setNeedsLayout()
+            layoutIfNeeded()
+            received.alpha = fades ? 0 : 1
+            if fades {
+                UIView.animate(withDuration: 0.2) { self.received.alpha = 1 }
+            }
+        } else if fades {
+            UIView.animate(withDuration: 0.2) {
+                self.received.alpha = 0
+            } completion: { _ in
+                guard !self.showsReceived else { return }
+                self.received.isHidden = true
+                self.received.alpha = 1
+            }
+        } else {
+            received.isHidden = true
+            received.alpha = 1
+        }
     }
 
     static func height(for message: ChatMessage, width: CGFloat, includesThoughts: Bool = false) -> CGFloat {
@@ -121,28 +189,34 @@ final class ChatActivityRow: ListRowView {
             sizingHeader.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height,
         )
         var height = headerHeight + insets.top + insets.bottom
-        if preview(of: message, includesThoughts: includesThoughts) != nil {
-            height += previewSpacing + ThinkingPreviewView.height
-        }
-        let text: String = if case .thinking = message.role {
-            includesThoughts ? message.text : ""
-        } else {
-            includesThoughts ? message.detail : ""
-        }
+        let text = bodyText(of: message, includesThoughts: includesThoughts)
         if !text.isEmpty {
-            sizingBody.setMarkdown(text)
-            height += ChatMarkdownView.blockSpacing + ceil(sizingBody.boundingSize(for: width).height)
+            sizingBody.attributedText = attributed(text)
+            height += ChatMarkdownView.blockSpacing + ceil(sizingBody.sizeThatFits(CGSize(width: width, height: 0)).height)
         }
         return height
     }
 
-    private static let previewSpacing: CGFloat = 8
-
-    /// Only a running summary in the transcript has the preview line; the
-    /// trace sheet shows the whole thinking instead.
-    private static func preview(of message: ChatMessage, includesThoughts: Bool) -> ActivityPreview? {
+    /// Only a running summary in the transcript shows the count.
+    private static func receivedTokens(of message: ChatMessage, includesThoughts: Bool) -> Int? {
         guard !includesThoughts, message.role.isThinking else { return nil }
-        return message.preview
+        return message.receivedTokens
+    }
+
+    /// In the trace: a thought's text, or a call's arguments and output.
+    private static func bodyText(of message: ChatMessage, includesThoughts: Bool) -> String {
+        guard includesThoughts else { return "" }
+        if case .thinking = message.role {
+            return message.text
+        }
+        return message.detail
+    }
+
+    private static func attributed(_ text: String) -> NSAttributedString {
+        NSAttributedString(string: text, attributes: [
+            .font: UIFont.preferredFont(forTextStyle: .body),
+            .foregroundColor: UIColor.label,
+        ])
     }
 
     private static func isReasoning(_ message: ChatMessage) -> Bool {
@@ -154,5 +228,15 @@ final class ChatActivityRow: ListRowView {
 
     @objc private func toggle() {
         onToggle?()
+    }
+}
+
+extension ChatActivityRow: TextLabelViewDelegate {
+    func textLabelView(
+        _ label: TextLabelView,
+        editMenuForSelection selection: NSRange,
+        suggestedActions: [UIMenuElement],
+    ) -> UIMenu? {
+        ChatSelectionMenu.menu(for: label, selection: selection, suggestedActions: suggestedActions)
     }
 }

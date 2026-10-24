@@ -126,27 +126,88 @@ precondition(activityTitle(nil, 0) == "Thinking…")
 print("ok: activity summary shows only positive duration and tool counts")
 
 /// While the turn runs, the trailing summary stays unfinished across tool
-/// calls and previews the newest step: the call's reason, a file edit's name
-/// and its line counts once the result is in, then newer thinking text.
+/// calls and carries the output the run has received, from its latest
+/// `received`; a run that has ended, or sent none, has no count.
+func received(_ seq: UInt64, _ tokens: Double) -> TaskEvent {
+    event(seq, "received", ["tokens": .number(tokens)])
+}
+
 let running = [
     event(1, "prompt", ["text": .string("Change the hook")]),
     event(2, "messageStarted"), event(3, "thinking", ["text": .string("Look at the hook")]),
-    event(4, "toolCall", ["id": .string("t1"), "tool": .string("patch_file"),
+    received(4, 12),
+    event(5, "toolCall", ["id": .string("t1"), "tool": .string("patch_file"),
                           "arguments": .string("{\"reason\":\"Turn the hook on\",\"path\":\"Sources/Tweak.x\"}")]),
+    received(6, 1234),
 ]
 let calling = ChatTranscript(events: running) { _ in nil }.messages.last
 precondition(calling?.role == .thinking(seconds: nil, tools: 1))
-precondition(calling?.preview == .tool(reason: "Turn the hook on", file: "Tweak.x", change: nil))
-let patched = running + [event(5, "toolResult", ["id": .string("t1"), "output": .string("Patched Sources/Tweak.x (1 replacement, +3 -1)\n--- a/Sources/Tweak.x")])]
-precondition(ChatTranscript(events: patched) { _ in nil }.messages.last?.preview
-    == .tool(reason: "Turn the hook on", file: "Tweak.x", change: .init(added: 3, removed: 1)))
-let thinkingAgain = patched + [event(6, "messageStarted"), event(7, "thinking", ["text": .string("Now build it")])]
-precondition(ChatTranscript(events: thinkingAgain) { _ in nil }.messages.last?.preview == .thinking("Now build it"))
-let unnamed = [event(1, "messageStarted"), event(2, "toolCall", ["id": .string("t1"), "tool": .string("build"), "arguments": .string("{}")])]
-precondition(ChatTranscript(events: unnamed) { _ in nil }.messages.last?.preview == .tool(reason: "Build the project", file: nil, change: nil))
-let ended = ChatTranscript(events: patched + [event(6, "finished")]) { _ in nil }.messages.last
-precondition(ended?.role.isThinking == false && ended?.preview == nil)
-print("ok: a running summary stays running across calls and previews its newest step")
+precondition(calling?.receivedTokens == 1234, "the latest count")
+let patched = running + [event(7, "toolResult", ["id": .string("t1"), "output": .string("Patched Sources/Tweak.x (1 replacement, +3 -1)")])]
+precondition(ChatTranscript(events: patched) { _ in nil }.messages.last?.receivedTokens == 1234, "kept across a call's result")
+let ended = ChatTranscript(events: patched + [event(8, "finished")]) { _ in nil }.messages.last
+precondition(ended?.role.isThinking == false && ended?.receivedTokens == nil)
+let nextRun = patched + [event(8, "finished"), event(9, "prompt", ["text": .string("Again")]), event(10, "messageStarted")]
+precondition(ChatTranscript(events: nextRun) { _ in nil }.messages.last?.receivedTokens == nil, "a new run counts afresh")
+precondition(ChatTranscript(events: nextRun + [received(11, 3)]) { _ in nil }.messages.last?.receivedTokens == 3)
+precondition(ChatTranscript(events: Array(running.prefix(3))) { _ in nil }.messages.last?.receivedTokens == nil,
+             "an older session sends no count")
+precondition(ChatTranscript(events: running) { _ in nil }.messages.map(\.id)
+    == ChatTranscript(events: running.filter { $0.kind != "received" }) { _ in nil }.messages.map(\.id),
+    "a count adds no row")
+print("ok: a running summary stays running across calls and carries the run's received tokens")
+
+/// A running turn that has shown a reply and then gone quiet for
+/// `quietInterval` gets a running summary under the reply, under the id its
+/// next thought takes, so that thought takes its place with no gap.
+let replied = [
+    event(1, "prompt", ["text": .string("Write the tweak")]),
+    event(2, "messageStarted"), event(3, "text", ["text": .string("I'll write Tweak.x now.")]),
+]
+let replyAt = Date(timeIntervalSince1970: 3)
+let stillStreaming = ChatTranscript(events: replied, now: replyAt.addingTimeInterval(1)) { _ in nil }
+precondition(stillStreaming.messages.last?.role == .assistant, "not quiet yet")
+precondition(stillStreaming.quietDeadline == replyAt.addingTimeInterval(ChatTranscript.quietInterval))
+let quiet = ChatTranscript(events: replied, now: replyAt.addingTimeInterval(2)) { _ in nil }
+let standIn = quiet.messages.last
+precondition(standIn?.role == .thinking(seconds: nil, tools: 0) && standIn?.activityTitle == "Thinking…")
+precondition(quiet.quietDeadline == nil, "nothing to wake for once it stands in")
+precondition(ChatTranscript(events: replied) { _ in nil }.messages.last?.role == .assistant, "without a time, never")
+for next in [
+    [event(6, "toolCallPreparing")],
+    [event(6, "messageStarted")],
+    [event(6, "thinking", ["text": .string("Hooks first")])],
+    [event(6, "toolCall", ["id": .string("t1"), "tool": .string("write_file"), "arguments": .string("{\"path\":\"Tweak.x\"}")])],
+] {
+    let resumed = ChatTranscript(events: replied + next, now: Date(timeIntervalSince1970: 6.5)) { _ in nil }.messages
+    precondition(resumed.last?.id == standIn?.id && resumed.last?.role.isThinking == true,
+                 "\(next[0].kind) takes the stand-in's place: \(resumed.map(\.role))")
+    precondition(resumed.count == quiet.messages.count)
+}
+
+let moreText = replied + [event(6, "text", ["text": .string(" Hooking SpringBoard.")])]
+let growing = ChatTranscript(events: moreText, now: Date(timeIntervalSince1970: 6.5)) { _ in nil }
+precondition(growing.messages.last?.text == "I'll write Tweak.x now. Hooking SpringBoard.", "more of the reply ends it")
+precondition(growing.quietDeadline == Date(timeIntervalSince1970: 6 + ChatTranscript.quietInterval))
+let finishedReply = ChatTranscript(events: replied + [event(4, "finished")], now: Date(timeIntervalSince1970: 60)) { _ in nil }
+precondition(finishedReply.messages.last?.role == .assistant && finishedReply.quietDeadline == nil, "an ended turn is not quiet")
+let summaryShown = ChatTranscript(events: Array(running.prefix(3)), now: Date(timeIntervalSince1970: 60)) { _ in nil }
+precondition(summaryShown.messages.count == 2 && summaryShown.quietDeadline == nil, "a running summary is sign enough")
+let asking = [
+    event(1, "prompt", ["text": .string("Install it")]), event(2, "messageStarted"),
+    event(3, "message", ["text": .string("Installing.")]),
+    event(4, "toolCall", ["id": .string("t1"), "tool": .string("install"), "arguments": .string("{}")]),
+    event(5, "approvalRequested", ["approvalID": .string("a1"), "tool": .string("install"), "arguments": .string("{}")]),
+]
+let waitingForUser = ChatTranscript(events: asking, now: Date(timeIntervalSince1970: 60)) { _ in nil }
+precondition(waitingForUser.messages.last?.role.needsApproval == true && waitingForUser.quietDeadline == nil,
+             "a turn waiting for an approval waits for the reader")
+let sentWhileQuiet = ChatTranscript(events: replied, sending: [ComposerDraft(text: "And a preference bundle")],
+                                    now: Date(timeIntervalSince1970: 60)) { _ in nil }.messages
+precondition(sentWhileQuiet.suffix(2).map(\.role) == [.thinking(seconds: nil, tools: 0), .user], "it stands in before a message on its way")
+precondition(ChatTranscript(events: replied, now: Date(timeIntervalSince1970: 60)) { _ in nil }.messages.map(\.id)
+    == quiet.messages.map(\.id), "rebuilt, it keeps its id")
+print("ok: a quiet running turn shows a running summary under its reply, which its next step takes over")
 
 /// Whether every summary, and every step in its trace, counts only the calls
 /// in its own trace.
@@ -357,9 +418,9 @@ precondition(TurnFollowing.turnMessage(in: []) == nil)
 
 // A reply's pace is its estimated tokens a second since its first text: about
 // four ASCII characters to a token, a token to each other character.
-precondition(TurnFollowing.estimatedTokens(in: "abcdefgh") == 2)
-precondition(TurnFollowing.estimatedTokens(in: "你好世界") == 4)
-precondition(TurnFollowing.estimatedTokens(in: "ok 好") == 1.75)
+precondition(TokenEstimate.tokens(in: "abcdefgh") == 2)
+precondition(TokenEstimate.tokens(in: "你好世界") == 4)
+precondition(TokenEstimate.tokens(in: "ok 好") == 1.75)
 let turnRows = ChatTranscript(events: [
     event(1, "prompt", ["id": .string(userID.uuidString), "text": .string("Write a long story")]),
     event(2, "messageStarted"), event(3, "thinking", ["text": .string("Planning the story out")]),

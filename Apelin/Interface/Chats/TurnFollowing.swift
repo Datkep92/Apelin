@@ -1,3 +1,4 @@
+import ApelinProtocol
 import CoreGraphics
 import Foundation
 
@@ -20,29 +21,14 @@ enum TurnFollowing {
     }
 
     /// Roughly how many tokens the turn starting with `message` has replied
-    /// so far, in its assistant rows. Thinking and calls are summarised in a
-    /// line, so they leave the reader nothing to keep up with.
+    /// so far, in its assistant rows (`TokenEstimate`). Thinking and calls
+    /// are summarised in a line, so they leave the reader nothing to keep up
+    /// with.
     static func replyTokens(in rows: [ChatMessage], after message: UUID) -> Double {
         guard let start = rows.lastIndex(where: { $0.id == message }) else { return 0 }
         return rows[rows.index(after: start)...]
             .filter { $0.role == .assistant }
-            .reduce(0) { $0 + estimatedTokens(in: $1.text) }
-    }
-
-    /// A token count without a tokenizer: about four characters to a token
-    /// for ASCII text, as for English and code, and a token to each other
-    /// character, as for Chinese, Japanese and Korean.
-    static func estimatedTokens(in text: some StringProtocol) -> Double {
-        var ascii = 0
-        var other = 0
-        for scalar in text.unicodeScalars {
-            if scalar.isASCII {
-                ascii += 1
-            } else {
-                other += 1
-            }
-        }
-        return Double(ascii) / 4 + Double(other)
+            .reduce(0) { $0 + TokenEstimate.tokens(in: $1.text) }
     }
 
     /// Where following takes the list from `offset`: to `latest`, the offset

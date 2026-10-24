@@ -16,6 +16,15 @@ final class ThinkingStatusLabel: LTXAnimatableLabel {
         didSet { requestText() }
     }
 
+    /// Called whenever what is drawn changes, and whether it animates: what
+    /// sits after the text moves with it.
+    var onShownTextChange: ((_ animated: Bool) -> Void)?
+
+    /// How wide the drawn text is.
+    var shownTextWidth: CGFloat {
+        ceil(NSAttributedString(string: shown ?? "", attributes: [.font: font]).size().width)
+    }
+
     /// What is drawn, which trails `text` while a change waits its turn.
     private var shown: String?
     private var shownIdentity: AnyHashable?
@@ -95,9 +104,10 @@ final class ThinkingStatusLabel: LTXAnimatableLabel {
             paragraph.alignment = .right
             attributes[.paragraphStyle] = paragraph
         }
-        setAttributedText(NSAttributedString(string: shown ?? "", attributes: attributes),
-                          animated: animated && !UIAccessibility.isReduceMotionEnabled)
+        let animates = animated && !UIAccessibility.isReduceMotionEnabled
+        setAttributedText(NSAttributedString(string: shown ?? "", attributes: attributes), animated: animates)
         setNeedsLayout()
+        onShownTextChange?(animates)
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -107,11 +117,7 @@ final class ThinkingStatusLabel: LTXAnimatableLabel {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        shimmer.fit(
-            width: NSAttributedString(string: shown ?? "", attributes: [.font: font]).size().width,
-            in: bounds,
-            rightToLeft: laysOutRightToLeft,
-        )
+        shimmer.fit(width: shownTextWidth, in: bounds, rightToLeft: laysOutRightToLeft)
     }
 
     override func didMoveToWindow() {

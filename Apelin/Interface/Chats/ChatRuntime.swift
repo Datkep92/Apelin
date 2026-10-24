@@ -197,6 +197,7 @@ final class ChatRuntime {
             events: record?.events ?? [],
             sending: record?.sending ?? [],
             conversationTitle: conversationTitle,
+            now: Date(),
         ) { [self] item in
             guard let path = attachmentPath(item, in: id) else { return nil }
             if let cached = attachmentCache[path] {

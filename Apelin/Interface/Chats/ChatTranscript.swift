@@ -11,6 +11,14 @@ struct ChatTranscript {
     /// Compacting between runs, as the app asked (`agentCompact`).
     var isCompacting = false
     var approvalIDs: [UUID: String] = [:]
+    /// While the turn runs and its last row is a reply with nothing after
+    /// it: when, with no event before then, a running summary stands in
+    /// under the reply. Nil once it does, and whenever nothing would.
+    private(set) var quietDeadline: Date?
+    /// How long a running turn goes without an event before a summary
+    /// stands in under its reply: the model may be writing a call it has
+    /// not announced yet, or the provider has stalled.
+    static let quietInterval: TimeInterval = 1.5
     private var thinking: Int?
     private var thinkingStarted: Date?
     private var assistant: Int?
@@ -19,15 +27,20 @@ struct ChatTranscript {
     /// tool returned. A running summary stands in under it, under the id the
     /// next thought takes, so the one becomes the other with no gap.
     private var unanswered: UUID?
+    /// The run's output so far, from its latest `received`.
+    private var receivedTokens: Int?
 
     /// `conversationTitle` names another conversation of the project by its
     /// session ID, for a message its agent sent. `sending` are messages sent
     /// and not echoed yet: each shows last, under its draft's id, until the
     /// host's `prompt` or `queued` event with that id takes its place.
+    /// `now` judges whether a running turn has been quiet for
+    /// `quietInterval`; without it no summary stands in for the quiet.
     init(
         events: [TaskEvent],
         sending: [ComposerDraft] = [],
         conversationTitle: (String) -> String? = { _ in nil },
+        now: Date? = nil,
         attachment: (AgentAttachment) -> ComposerAttachment?,
     ) {
         // sent during a run and not taken by it yet: shown after everything
@@ -109,6 +122,11 @@ struct ChatTranscript {
                     }
                 }
             case "toolCall":
+                // A call no thought announced heads its summary from where
+                // a summary standing in under the last row was.
+                if thinking == nil, standInAnchor != nil {
+                    startThinking(id: id, at: event.time)
+                }
                 finishThinking(at: event.time)
                 assistant = nil
                 unanswered = nil
@@ -118,20 +136,13 @@ struct ChatTranscript {
                     let arguments = payload?["arguments"]?.stringValue
                     var row = ChatMessage(id: id, role: .tool, text: Self.toolTitle(name, arguments: arguments))
                     row.detail = arguments ?? ""
-                    row.preview = Self.toolPreview(name, arguments: arguments, title: row.text)
                     row.awaitsResult = true
                     messages.append(row)
                 }
             case "toolResult":
                 if let toolID = payload?["id"]?.stringValue, let index = toolRows[toolID] {
-                    let output = payload?["output"]?.stringValue ?? ""
-                    messages[index].detail += "\n\n" + output
+                    messages[index].detail += "\n\n" + (payload?["output"]?.stringValue ?? "")
                     messages[index].awaitsResult = false
-                    if case let .tool(reason, file?, _) = messages[index].preview,
-                       payload?["isError"]?.boolValue != true
-                    {
-                        messages[index].preview = .tool(reason: reason, file: file, change: Self.lineChange(in: output))
-                    }
                 }
                 let files = (try? payload?["attachments"]?.decode([AgentAttachment].self)) ?? []
                 if !files.isEmpty {
@@ -168,10 +179,13 @@ struct ChatTranscript {
                 }
             case "error":
                 messages.append(ChatMessage(id: id, role: .assistant, text: payload?["message"]?.stringValue ?? ""))
+            case "received":
+                receivedTokens = payload?["tokens"]?.doubleValue.map { Int($0) }
             case "finished":
                 finishThinking(at: event.time)
                 assistant = nil
                 isWorking = false
+                receivedTokens = nil
             case "compactionStarted":
                 isCompacting = true
             case "compactionFinished":
@@ -181,6 +195,7 @@ struct ChatTranscript {
                     finishThinking(at: event.time)
                     isWorking = false
                     isCompacting = false
+                    receivedTokens = nil
                 }
             default: break
             }
@@ -188,13 +203,16 @@ struct ChatTranscript {
         messages = Self.presentationRows(messages)
         if isWorking {
             if let unanswered, messages.last?.id == unanswered {
-                messages.append(ChatMessage(
-                    id: Self.firstThoughtID(after: unanswered),
-                    role: .thinking(seconds: nil, tools: 0),
-                    text: "",
-                ))
+                messages.append(Self.standIn(after: unanswered))
+            } else if let reply = standInAnchor, let last = events.last?.time {
+                let deadline = last.addingTimeInterval(Self.quietInterval)
+                if let now, now >= deadline {
+                    messages.append(Self.standIn(after: reply))
+                } else {
+                    quietDeadline = deadline
+                }
             }
-            Self.keepTrailingSummaryRunning(&messages)
+            Self.keepTrailingSummaryRunning(&messages, receivedTokens: receivedTokens)
         }
         messages += queued
         for draft in sending where !messages.contains(where: { $0.id == draft.id }) {
@@ -215,50 +233,19 @@ struct ChatTranscript {
     /// While the turn runs, its last summary stays unfinished across tool
     /// calls and approvals. Each thought ends when a tool starts, so without
     /// this the title would flip between "Thought for…" and the running one.
-    private static func keepTrailingSummaryRunning(_ rows: inout [ChatMessage]) {
+    /// It carries the run's output so far.
+    private static func keepTrailingSummaryRunning(_ rows: inout [ChatMessage], receivedTokens: Int?) {
         guard let index = rows.lastIndex(where: { !$0.role.needsApproval }),
               case let .thinking(_, tools) = rows[index].role else { return }
         rows[index].role = .thinking(seconds: nil, tools: tools)
-        rows[index].preview = latestPreview(in: rows[index].trace)
         rows[index].runningTools = rows[index].trace.count(where: \.awaitsResult)
+        rows[index].receivedTokens = receivedTokens
     }
 
-    /// The newest step with something to show: thinking text, or a call.
-    private static func latestPreview(in trace: [ChatMessage]) -> ActivityPreview? {
-        for step in trace.reversed() {
-            if case .thinking = step.role {
-                let text = step.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty {
-                    return .thinking(String(text.suffix(ActivityPreview.thinkingTailLength)))
-                }
-            } else if let preview = step.preview {
-                return preview
-            }
-        }
-        return nil
-    }
-
-    private static let fileTools: Set<String> = ["write_file", "create_file", "patch_file"]
-
-    /// A call's reason, falling back to its title for a call made without
-    /// one (an older session, or a model that left it out).
-    private static func toolPreview(_ name: String, arguments: String?, title: String) -> ActivityPreview {
-        let values = arguments.flatMap { try? JSONCoding.decode(JSONValue.self, from: Data($0.utf8)) }
-        let reason = values?["reason"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let path = values?["path"]?.stringValue ?? ""
-        let file = fileTools.contains(name) && !path.isEmpty ? (path as NSString).lastPathComponent : nil
-        return .tool(reason: reason.isEmpty ? title : reason, file: file, change: nil)
-    }
-
-    /// The `+a -b` the file tools end their first result line with.
-    private static func lineChange(in output: String) -> ActivityPreview.LineChange? {
-        let firstLine = output.prefix { $0 != "\n" }
-        guard firstLine.hasSuffix(")"), let open = firstLine.lastIndex(of: "(") else { return nil }
-        let figures = firstLine[firstLine.index(after: open) ..< firstLine.index(before: firstLine.endIndex)]
-            .components(separatedBy: ", ").last?.split(separator: " ") ?? []
-        guard figures.count == 2, figures[0].hasPrefix("+"), figures[1].hasPrefix("-"),
-              let added = Int(figures[0].dropFirst()), let removed = Int(figures[1].dropFirst()) else { return nil }
-        return ActivityPreview.LineChange(added: added, removed: removed)
+    /// The running summary that stands in under `row` until the turn shows
+    /// what follows it, under the id the next thought will take.
+    private static func standIn(after row: UUID) -> ChatMessage {
+        ChatMessage(id: firstThoughtID(after: row), role: .thinking(seconds: nil, tools: 0), text: "")
     }
 
     /// Folds the thoughts, calls and approvals between two replies into one
@@ -327,11 +314,20 @@ struct ChatTranscript {
         return next == .tool || next.isApproval
     }
 
-    /// A thought after an unanswered row takes the id its stand-in had.
+    /// The last row, when a running summary may stand in under it: the
+    /// turn's unanswered row, or a reply (or an error) it showed last,
+    /// under which one stands in once the turn has gone quiet.
+    private var standInAnchor: UUID? {
+        guard let last = messages.last, last.id == unanswered || last.role == .assistant else { return nil }
+        return last.id
+    }
+
+    /// A thought right after a row a summary may have stood in under takes
+    /// the id the stand-in had.
     private mutating func startThinking(id: UUID, at date: Date) {
+        let id = standInAnchor.map(Self.firstThoughtID) ?? unanswered.map(Self.firstThoughtID) ?? id
         thinking = messages.count
         thinkingStarted = date
-        let id = unanswered.map(Self.firstThoughtID) ?? id
         unanswered = nil
         messages.append(ChatMessage(id: id, role: .thinking(seconds: nil, tools: 0), text: ""))
     }
