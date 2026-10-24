@@ -786,3 +786,5 @@ precondition(!earlierTitles.contains { $0.contains("_") }, "an earlier name is t
 print("ok: calls recorded under the earlier tool names read as today's do")
 
 checkTranscriptFold()
+
+checkToolCallDetail()

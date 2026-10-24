@@ -15,12 +15,14 @@ sources=(
     "$root/Apelin/Interface/Chats/Composer/ComposerDraft.swift"
     "$root/Apelin/Interface/Chats/Messages/ChatMessage.swift"
     "$root/Apelin/Interface/Chats/Messages/ToolCallBanner.swift"
+    "$root/Apelin/Interface/Chats/Messages/ToolCallDetail.swift"
     "$root/Apelin/Interface/Chats/ChatTranscript.swift"
     "$root/Apelin/Interface/Chats/ChatTranscriptCache.swift"
     "$root/Apelin/Interface/Chats/ChatStore.swift"
     "$root/Apelin/Interface/Chats/ChatAdoption.swift"
     "$root/Apelin/Interface/Chats/TurnFollowing.swift"
     "$root/Tests/ChatTranscript/TranscriptFold.swift"
+    "$root/Tests/ChatTranscript/ToolCallDetailCheck.swift"
     "$root/Tests/ChatTranscript/main.swift"
 )
 

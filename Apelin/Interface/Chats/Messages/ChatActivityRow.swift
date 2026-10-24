@@ -5,19 +5,21 @@ import UIKit
 /// A summary in the transcript, or a step in its trace. A running summary's
 /// title is followed by the output the run has received so far, and its
 /// newest call is the line under it. In the trace, a step's thinking, or a
-/// call's arguments and output, follow as plain selectable text.
+/// call's arguments one by one and its result (`TraceBody`), follow as plain
+/// selectable text.
 final class ChatActivityRow: ListRowView {
     var onToggle: (() -> Void)?
     private let header = ThinkingStatusLabel()
     private let received = ReceivedTokensView()
     private let bannerView = ToolCallBannerView()
     private let body = TextLabelView()
+    /// What the body shows, nil when it shows nothing.
+    private var bodyKey: TraceBody.Key?
     /// The message this row shows: only a change to it animates, never the
     /// row taking another message out of the pool.
     private var shownID: UUID?
     /// Whether the count is meant to be on screen, while it fades too.
     private var showsReceived = false
-    private static let sizingBody = TextLabelView()
     private static let sizingHeader = ThinkingStatusLabel()
     /// Between the title and the count after it.
     private static let receivedSpacing: CGFloat = 6
@@ -74,15 +76,29 @@ final class ChatActivityRow: ListRowView {
             bannerView.isHidden = true
         }
         header.isThinking = message.role.isThinking
-        let text = Self.bodyText(of: message, includesThoughts: includesThoughts)
-        body.isHidden = text.isEmpty
-        // the trace updates live: a step that did not change keeps its selection
-        let attributed = Self.attributed(text)
-        if !body.attributedText.isEqual(to: attributed) {
-            body.clearSelection()
-            body.attributedText = attributed
-        }
-        body.accessibilityLabel = text.isEmpty ? nil : text
+        showBody(includesThoughts ? TraceBody.key(for: message) : nil)
+        setNeedsLayout()
+    }
+
+    /// The trace updates live: a step that did not change keeps its selection.
+    private func showBody(_ key: TraceBody.Key?) {
+        body.isHidden = key == nil
+        guard key != bodyKey else { return }
+        bodyKey = key
+        body.clearSelection()
+        body.attributedText = key.map(TraceBody.text) ?? NSAttributedString()
+        body.accessibilityLabel = key == nil ? nil : body.attributedText.string
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        // the text is set in the size it was built for
+        guard let key = bodyKey, key.size != UIApplication.shared.preferredContentSizeCategory else { return }
+        showBody(TraceBody.Key(
+            source: key.source,
+            callTitle: key.callTitle,
+            size: UIApplication.shared.preferredContentSizeCategory,
+        ))
         setNeedsLayout()
     }
 
@@ -100,6 +116,7 @@ final class ChatActivityRow: ListRowView {
         bannerView.reset()
         bannerView.isHidden = true
         onToggle = nil
+        bodyKey = nil
         body.clearSelection()
         body.attributedText = NSAttributedString()
         body.accessibilityLabel = nil
@@ -141,7 +158,7 @@ final class ChatActivityRow: ListRowView {
             top = bannerView.frame.maxY
         }
         // measured as `height(for:)` measures it
-        let bodyHeight = body.isHidden ? 0 : ceil(body.sizeThatFits(CGSize(width: textWidth, height: 0)).height)
+        let bodyHeight = bodyKey.map { TraceBody.height(for: $0, width: textWidth) } ?? 0
         body.frame = CGRect(
             x: content.minX,
             y: top + ChatMarkdownView.blockSpacing,
@@ -225,10 +242,8 @@ final class ChatActivityRow: ListRowView {
         if banner(of: message, includesThoughts: includesThoughts) != nil {
             height += bannerSpacing + ToolCallBannerView.height
         }
-        let text = bodyText(of: message, includesThoughts: includesThoughts)
-        if !text.isEmpty {
-            sizingBody.attributedText = attributed(text)
-            height += ChatMarkdownView.blockSpacing + ceil(sizingBody.sizeThatFits(CGSize(width: width, height: 0)).height)
+        if includesThoughts, let key = TraceBody.key(for: message) {
+            height += ChatMarkdownView.blockSpacing + TraceBody.height(for: key, width: width)
         }
         return height
     }
@@ -244,22 +259,6 @@ final class ChatActivityRow: ListRowView {
     private static func banner(of message: ChatMessage, includesThoughts: Bool) -> ToolCallBanner? {
         guard !includesThoughts, message.role.isThinking else { return nil }
         return message.banner
-    }
-
-    /// In the trace: a thought's text, or a call's arguments and output.
-    private static func bodyText(of message: ChatMessage, includesThoughts: Bool) -> String {
-        guard includesThoughts else { return "" }
-        if case .thinking = message.role {
-            return message.text
-        }
-        return message.detail
-    }
-
-    private static func attributed(_ text: String) -> NSAttributedString {
-        NSAttributedString(string: text, attributes: [
-            .font: UIFont.preferredFont(forTextStyle: .body),
-            .foregroundColor: UIColor.label,
-        ])
     }
 
     private static func isReasoning(_ message: ChatMessage) -> Bool {

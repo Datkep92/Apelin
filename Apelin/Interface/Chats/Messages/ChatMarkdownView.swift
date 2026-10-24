@@ -9,6 +9,9 @@ import UIKit
 final class ChatMarkdownView: MarkdownStreamView {
     static let blockSpacing: CGFloat = 16
 
+    /// Whether the label reads the document shown now (`updateSpokenText`).
+    private var spokenTextIsCurrent = false
+
     /// How long every streamed character takes to fade in, so even a chunk of
     /// one character takes this long to appear in full.
     static let revealDuration: TimeInterval = 0.5
@@ -118,6 +121,40 @@ final class ChatMarkdownView: MarkdownStreamView {
             }
         }
         super.applyDocument(text, newContextViews: newContextViews, animated: animated)
+        spokenTextIsCurrent = false
+        updateSpokenText()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updateSpokenText()
+    }
+
+    /// Litext's label draws the reply but is no accessibility element, and
+    /// this view is only a container, so VoiceOver never reached the text.
+    /// The label reads it, code and tables as they would be copied; the view
+    /// stays a container, so a code block's buttons are still reached on
+    /// their own. Only a view in a window: the one measuring a row is never
+    /// read, and is not made to spell its document out for every row.
+    private func updateSpokenText() {
+        guard window != nil, !spokenTextIsCurrent else { return }
+        spokenTextIsCurrent = true
+        let spoken = Self.spokenText(textLabelView.attributedText)
+        textLabelView.isAccessibilityElement = !spoken.isEmpty
+        textLabelView.accessibilityLabel = spoken.isEmpty ? nil : spoken
+        textLabelView.accessibilityTraits = .staticText
+    }
+
+    /// The document as text: each attachment (a list marker, a code block, a
+    /// table) as the text it stands for.
+    static func spokenText(_ document: NSAttributedString) -> String {
+        let text = NSMutableAttributedString(attributedString: document)
+        text.enumerateAttribute(.litextAttachment, in: NSRange(location: 0, length: text.length), options: .reverse) {
+            value, range, _ in
+            guard let attachment = value as? TextLabel.Attachment else { return }
+            text.replaceCharacters(in: range, with: attachment.attributedStringRepresentation())
+        }
+        return text.string.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// The colour at half its own opacity, in light and dark alike.
