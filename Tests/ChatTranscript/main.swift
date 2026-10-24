@@ -763,3 +763,5 @@ do {
                  "and then held")
     print("ok: a transcript is built again only when its events, its messages on their way, a sender's title or the turn's quiet change")
 }
+
+checkTranscriptFold()

@@ -20,6 +20,7 @@ sources=(
     "$root/Apelin/Interface/Chats/ChatStore.swift"
     "$root/Apelin/Interface/Chats/ChatAdoption.swift"
     "$root/Apelin/Interface/Chats/TurnFollowing.swift"
+    "$root/Tests/ChatTranscript/TranscriptFold.swift"
     "$root/Tests/ChatTranscript/main.swift"
 )
 

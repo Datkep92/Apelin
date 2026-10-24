@@ -196,8 +196,8 @@ final class ChatRuntime {
         transcripts.remove(id)
     }
 
-    /// The conversation's rows, built again only when its events, the
-    /// messages it is sending or the titles it names senders by changed
+    /// The conversation's rows, brought up to date only when its events, the
+    /// messages it is sending, a sender's title or the turn's quiet changed
     /// (`ChatTranscriptCache`).
     func transcript(_ id: UUID) -> ChatTranscript {
         guard let record = records[id] else {

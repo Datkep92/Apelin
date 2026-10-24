@@ -5,6 +5,11 @@ import Foundation
 
 /// Rebuilds visible rows from ordered host events. Rebuilding from the same
 /// events gives the same row IDs.
+///
+/// A fold: the events are read once, in order, into rows that `append`
+/// carries on from, and the rows shown are made from those afresh each
+/// time. Events read in batches and shown at a `now` give what a transcript
+/// built from all of them at once, at that `now`, would.
 struct ChatTranscript {
     var messages: [ChatMessage] = []
     var isWorking = false
@@ -15,10 +20,22 @@ struct ChatTranscript {
     /// it: when, with no event before then, a running summary stands in
     /// under the reply. Nil once it does, and whenever nothing would.
     private(set) var quietDeadline: Date?
+    /// How many events it has read.
+    private(set) var eventCount = 0
     /// How long a running turn goes without an event before a summary
     /// stands in under its reply: the model may be writing a call it has
     /// not announced yet, or the provider has stalled.
     static let quietInterval: TimeInterval = 1.5
+    /// The rows the events have made, before the thoughts, calls and
+    /// approvals between two replies are folded into their summary.
+    private var rows: [ChatMessage] = []
+    /// Where each id's first row is among `rows`, so a message or a decision
+    /// finds its row without reading every row before it.
+    private var firstRows: [UUID: Int] = [:]
+    /// Sent during a run and not taken by it yet: shown after everything
+    /// else until the run takes them, then in place like any message.
+    private var queued: [ChatMessage] = []
+    private var lastEventTime: Date?
     private var thinking: Int?
     private var thinkingStarted: Date?
     private var assistant: Int?
@@ -43,23 +60,34 @@ struct ChatTranscript {
         now: Date? = nil,
         attachment: (AgentAttachment) -> ComposerAttachment?,
     ) {
-        // sent during a run and not taken by it yet: shown after everything
-        // else until the run takes them, then in place like any message
-        var queued: [ChatMessage] = []
+        append(events, sending: sending, conversationTitle: conversationTitle, now: now, attachment: attachment)
+    }
+
+    /// Reads `events`, the ones that follow those read so far, and shows the
+    /// rows again with `sending` and at `now`, as `init` describes them; an
+    /// empty `events` only shows them again.
+    mutating func append(
+        _ events: some Collection<TaskEvent>,
+        sending: [ComposerDraft] = [],
+        conversationTitle: (String) -> String? = { _ in nil },
+        now: Date? = nil,
+        attachment: (AgentAttachment) -> ComposerAttachment?,
+    ) {
         // By position: a reopened session's events go on after the earlier
         // task's under a numbering that starts again (`ChatRecord.reopen`).
-        for (index, event) in events.enumerated() {
+        for (index, event) in zip(eventCount..., events) {
             let payload = event.payload
             let text = payload?["text"]?.stringValue ?? ""
             let id = Self.rowID("event:\(index)")
+            lastEventTime = event.time
             switch event.kind {
             case "prompt", "steer":
                 finishThinking(at: event.time)
                 assistant = nil
                 let messageID = Self.userMessageID(of: event) ?? id
-                let files = (try? payload?["attachments"]?.decode([AgentAttachment].self)) ?? []
+                let files = Self.attachments(in: payload?["attachments"])
                 queued.removeAll { $0.id == messageID }
-                if !messages.contains(where: { $0.id == messageID }) {
+                if firstRows[messageID] == nil {
                     var message = ChatMessage(
                         id: messageID,
                         role: .user,
@@ -67,15 +95,15 @@ struct ChatTranscript {
                         attachments: files.compactMap(attachment),
                     )
                     message.sender = payload?["from"]?.stringValue.map { Self.senderLine(conversationTitle($0)) }
-                    messages.append(message)
+                    add(message)
                 }
                 unanswered = messageID
                 isWorking = true
             case "queued":
                 guard let messageID = Self.userMessageID(of: event),
-                      !messages.contains(where: { $0.id == messageID }), !queued.contains(where: { $0.id == messageID })
+                      firstRows[messageID] == nil, !queued.contains(where: { $0.id == messageID })
                 else { break }
-                let files = (try? payload?["attachments"]?.decode([AgentAttachment].self)) ?? []
+                let files = Self.attachments(in: payload?["attachments"])
                 var message = ChatMessage(
                     id: messageID,
                     role: .user,
@@ -85,7 +113,7 @@ struct ChatTranscript {
                 message.isQueued = true
                 queued.append(message)
             case "queueDropped":
-                let ids = Set((try? payload?["ids"]?.decode([UUID].self)) ?? [])
+                let ids = Self.identifiers(in: payload?["ids"])
                 queued.removeAll { ids.contains($0.id) }
             case "messageStarted":
                 assistant = nil
@@ -97,7 +125,7 @@ struct ChatTranscript {
                     startThinking(id: id, at: event.time)
                 }
                 if let thinking {
-                    messages[thinking].text += text
+                    rows[thinking].text += text
                 }
             case "toolCallPreparing":
                 // The call shows only once its arguments are whole, so the
@@ -111,14 +139,14 @@ struct ChatTranscript {
                 guard !text.isEmpty else { break }
                 unanswered = nil
                 if assistant == nil {
-                    assistant = messages.count
-                    messages.append(ChatMessage(id: id, role: .assistant, text: ""))
+                    assistant = rows.count
+                    add(ChatMessage(id: id, role: .assistant, text: ""))
                 }
                 if let assistant {
                     if event.kind == "message" {
-                        messages[assistant].text = text
+                        rows[assistant].text = text
                     } else {
-                        messages[assistant].text += text
+                        rows[assistant].text += text
                     }
                 }
             case "toolCall":
@@ -131,27 +159,27 @@ struct ChatTranscript {
                 assistant = nil
                 unanswered = nil
                 if let toolID = payload?["id"]?.stringValue {
-                    toolRows[toolID] = messages.count
+                    toolRows[toolID] = rows.count
                     let name = payload?["tool"]?.stringValue ?? ""
                     let arguments = payload?["arguments"]?.stringValue
                     var row = ChatMessage(id: id, role: .tool, text: Self.toolTitle(name, arguments: arguments))
                     row.detail = arguments ?? ""
                     row.banner = ToolCallBanner(tool: name, arguments: arguments, title: row.text)
                     row.awaitsResult = true
-                    messages.append(row)
+                    add(row)
                 }
             case "toolResult":
                 if let toolID = payload?["id"]?.stringValue, let index = toolRows[toolID] {
                     let output = payload?["output"]?.stringValue ?? ""
-                    messages[index].detail += "\n\n" + output
-                    messages[index].awaitsResult = false
-                    if messages[index].banner?.file != nil, payload?["isError"]?.boolValue != true {
-                        messages[index].banner?.change = ToolCallBanner.lineChange(in: output)
+                    rows[index].detail += "\n\n" + output
+                    rows[index].awaitsResult = false
+                    if rows[index].banner?.file != nil, payload?["isError"]?.boolValue != true {
+                        rows[index].banner?.change = ToolCallBanner.lineChange(in: output)
                     }
                 }
-                let files = (try? payload?["attachments"]?.decode([AgentAttachment].self)) ?? []
+                let files = Self.attachments(in: payload?["attachments"])
                 if !files.isEmpty {
-                    messages.append(ChatMessage(
+                    add(ChatMessage(
                         id: id,
                         role: .assistant,
                         text: "",
@@ -174,16 +202,16 @@ struct ChatTranscript {
                         payload?["detail"]?["descriptionChanged"]?["diff"]?.stringValue,
                         payload?["arguments"]?.stringValue,
                     ].compactMap(\.self).filter { !$0.isEmpty }.joined(separator: "\n\n")
-                    messages.append(ChatMessage(id: rowID, role: .approval(nil), text: title + "\n\n" + detail))
+                    add(ChatMessage(id: rowID, role: .approval(nil), text: title + "\n\n" + detail))
                 }
             case "approvalResolved":
                 if let approvalID = payload?["approvalID"]?.stringValue,
-                   let index = messages.firstIndex(where: { $0.id == Self.rowID(approvalID) })
+                   let index = firstRows[Self.rowID(approvalID)]
                 {
-                    messages[index].role = .approval(payload?["decision"]?.stringValue == "approve" ? .approve : .deny)
+                    rows[index].role = .approval(payload?["decision"]?.stringValue == "approve" ? .approve : .deny)
                 }
             case "error":
-                messages.append(ChatMessage(id: id, role: .assistant, text: payload?["message"]?.stringValue ?? ""))
+                add(ChatMessage(id: id, role: .assistant, text: payload?["message"]?.stringValue ?? ""))
             case "received":
                 receivedTokens = payload?["tokens"]?.doubleValue.map { Int($0) }
             case "finished":
@@ -205,11 +233,21 @@ struct ChatTranscript {
             default: break
             }
         }
-        messages = Self.presentationRows(messages)
+        eventCount += events.count
+        show(sending: sending, now: now)
+    }
+
+    /// The rows as shown, made afresh from the fold's: what it holds and
+    /// `sending` and `now` decide them, never what was shown before.
+    private mutating func show(sending: [ComposerDraft], now: Date?) {
+        messages = Self.presentationRows(rows)
+        quietDeadline = nil
         if isWorking {
             if let unanswered, messages.last?.id == unanswered {
                 messages.append(Self.standIn(after: unanswered))
-            } else if let reply = standInAnchor, let last = events.last?.time {
+            } else if let reply = Self.standInAnchor(after: messages, unanswered: unanswered),
+                      let last = lastEventTime
+            {
                 let deadline = last.addingTimeInterval(Self.quietInterval)
                 if let now, now >= deadline {
                     messages.append(Self.standIn(after: reply))
@@ -226,6 +264,41 @@ struct ChatTranscript {
             message.isQueued = isWorking
             messages.append(message)
         }
+    }
+
+    /// Adds a row to the fold's, noting where its id's first row is.
+    private mutating func add(_ row: ChatMessage) {
+        if firstRows[row.id] == nil {
+            firstRows[row.id] = rows.count
+        }
+        rows.append(row)
+    }
+
+    /// The attachments an event lists, read off its payload as decoding
+    /// them would: every one, or none when any is not an attachment.
+    /// Decoding writes the value out as JSON and reads it back.
+    static func attachments(in value: JSONValue?) -> [AgentAttachment] {
+        guard case let .array(items)? = value else { return [] }
+        var files: [AgentAttachment] = []
+        for item in items {
+            guard let path = item["path"]?.stringValue, let name = item["name"]?.stringValue,
+                  let mimeType = item["mimeType"]?.stringValue
+            else { return [] }
+            files.append(AgentAttachment(path: path, name: name, mimeType: mimeType))
+        }
+        return files
+    }
+
+    /// The ids a `queueDropped` lists, read as `attachments(in:)` reads:
+    /// every one, or none when any is not an id.
+    static func identifiers(in value: JSONValue?) -> Set<UUID> {
+        guard case let .array(items)? = value else { return [] }
+        var ids: Set<UUID> = []
+        for item in items {
+            guard let id = item.stringValue.flatMap(UUID.init(uuidString:)) else { return [] }
+            ids.insert(id)
+        }
+        return ids
     }
 
     /// The id of the user message an event shows: a `prompt`, `steer` or
@@ -320,11 +393,17 @@ struct ChatTranscript {
         return next == .tool || next.isApproval
     }
 
-    /// The last row, when a running summary may stand in under it: the
-    /// turn's unanswered row, or a reply (or an error) it showed last,
-    /// under which one stands in once the turn has gone quiet.
+    /// The last of the fold's rows, when a running summary may stand in
+    /// under it (`standInAnchor(after:unanswered:)`).
     private var standInAnchor: UUID? {
-        guard let last = messages.last, last.id == unanswered || last.role == .assistant else { return nil }
+        Self.standInAnchor(after: rows, unanswered: unanswered)
+    }
+
+    /// The last of `rows`, when a running summary may stand in under it:
+    /// the turn's unanswered row, or a reply (or an error) it showed last,
+    /// under which one stands in once the turn has gone quiet.
+    private static func standInAnchor(after rows: [ChatMessage], unanswered: UUID?) -> UUID? {
+        guard let last = rows.last, last.id == unanswered || last.role == .assistant else { return nil }
         return last.id
     }
 
@@ -332,10 +411,10 @@ struct ChatTranscript {
     /// the id the stand-in had.
     private mutating func startThinking(id: UUID, at date: Date) {
         let id = standInAnchor.map(Self.firstThoughtID) ?? unanswered.map(Self.firstThoughtID) ?? id
-        thinking = messages.count
+        thinking = rows.count
         thinkingStarted = date
         unanswered = nil
-        messages.append(ChatMessage(id: id, role: .thinking(seconds: nil, tools: 0), text: ""))
+        add(ChatMessage(id: id, role: .thinking(seconds: nil, tools: 0), text: ""))
     }
 
     private static func firstThoughtID(after row: UUID) -> UUID {
@@ -345,7 +424,7 @@ struct ChatTranscript {
     private mutating func finishThinking(at date: Date) {
         guard let thinking else { return }
         let seconds = max(0, Int(date.timeIntervalSince(thinkingStarted ?? date)))
-        messages[thinking].role = .thinking(seconds: seconds, tools: 0)
+        rows[thinking].role = .thinking(seconds: seconds, tools: 0)
         self.thinking = nil
         thinkingStarted = nil
     }
