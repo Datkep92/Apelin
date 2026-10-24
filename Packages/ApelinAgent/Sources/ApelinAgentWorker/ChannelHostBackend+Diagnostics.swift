@@ -12,7 +12,7 @@ public extension ChannelHostBackend {
             subsystem: request.subsystem,
             process: request.process,
             limit: limit,
-            windowSeconds: min(Self.maximumLogWindow, max(1, Double(request.sinceSeconds))),
+            windowSeconds: Double(min(ReadLogsRequest.maximumListenSeconds, max(1, request.listenSeconds))),
         )
         let first = try await service.logStream(LogStreamRequest(filter: filter, waitMilliseconds: 0))
         var entries: [ApelinAgent.LogEntry] = []

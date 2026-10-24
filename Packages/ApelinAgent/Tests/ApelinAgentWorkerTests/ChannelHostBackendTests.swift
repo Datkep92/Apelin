@@ -259,11 +259,11 @@ struct ChannelHostBackendTests {
                 TaskEvent(seq: EventSeq(3), kind: TaskEvent.stateKind, payload: .object(["state": .string("succeeded")])),
             ], state: .succeeded, lastSeq: EventSeq(3), finished: true), [])
         }
-        let response = try await fixture.backend.readLogs(ReadLogsRequest(context: fixture.context(), process: "SpringBoard", subsystem: "wiki.qaq.hello", sinceSeconds: 300, limit: 1))
+        let response = try await fixture.backend.readLogs(ReadLogsRequest(context: fixture.context(), process: "SpringBoard", subsystem: "wiki.qaq.hello", listenSeconds: 300, limit: 1))
         let open = try #require(fixture.host.requests(LogStreamRequest.self).first)
         #expect(open.filter?.subsystem == "wiki.qaq.hello")
         #expect(open.filter?.process == "SpringBoard")
-        #expect(open.filter?.windowSeconds == ChannelHostBackend.maximumLogWindow)
+        #expect(open.filter?.windowSeconds == Double(ReadLogsRequest.maximumListenSeconds), "a listen is cut to its most")
         #expect(response.entries.count == 1)
         #expect(response.truncated)
         #expect(response.entries.first?.message.hasPrefix("ApelinLoaded") == true)

@@ -64,18 +64,22 @@ public struct ConfirmLoadedResponse: Sendable, Hashable, Codable {
 
 // MARK: - logs and crashes
 
+/// A listen to the live log: iOS keeps no history, so only lines logged
+/// during the call are heard, for at most `maximumListenSeconds`.
 public struct ReadLogsRequest: Sendable, Hashable, Codable {
+    public static let maximumListenSeconds = 10
+
     public var context: HostCallContext
     public var process: String?
     public var subsystem: String?
-    public var sinceSeconds: Int
+    public var listenSeconds: Int
     public var limit: Int
 
-    public init(context: HostCallContext, process: String?, subsystem: String?, sinceSeconds: Int, limit: Int) {
+    public init(context: HostCallContext, process: String?, subsystem: String?, listenSeconds: Int, limit: Int) {
         self.context = context
         self.process = process
         self.subsystem = subsystem
-        self.sinceSeconds = sinceSeconds
+        self.listenSeconds = listenSeconds
         self.limit = limit
     }
 }

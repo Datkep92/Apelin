@@ -17,8 +17,8 @@ extension BuiltInSkills {
           apelin_log_read and apelin_package_confirm_loaded find your lines.
         - The unified log has no history on iOS: it is read live, so a line is
           seen only while something listens. apelin_log_read listens from the
-          moment it is called for at most 10 seconds (`since_seconds` sets
-          how long, not how far back), and your tool calls run one at a
+          moment it is called for at most 10 seconds (`listen_seconds` sets
+          how long; nothing is read back), and your tool calls run one at a
           time, so it hears only what the host logs during the call on its
           own: something that recurs, or something the user does while it
           runs — tell them first. A line logged once at the host's launch is

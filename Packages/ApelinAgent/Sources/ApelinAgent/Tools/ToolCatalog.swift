@@ -106,7 +106,7 @@ public extension AgentToolName {
         case .removePackage: "Remove a package Apelin built and installed, by its installation record id."
         case .respring: "Restart SpringBoard."
         case .confirmLoaded: "Check that a build is loaded in its target process by its marker log line, and whether its filter selects the target. Pass respring: true for a SpringBoard tweak: the marker is logged once at launch and only seen while listening."
-        case .readLogs: "Read recent system log lines for a process or subsystem, bounded."
+        case .readLogs: "Listen to the live system log for up to \(ReadLogsRequest.maximumListenSeconds) seconds and answer the lines logged meanwhile, for a process or subsystem. iOS keeps no log history: a line logged before the call is never seen. A tweak's line logged once at launch is apelin_package_confirm_loaded's to hear (with respring: true for SpringBoard)."
         case .listCrashes: "List crash report ids, newest first."
         case .readCrash: "Read a crash report by id."
         case .symbolicateCrash: "Symbolicate a crash report against the project's matching dSYM and rank suspects."
@@ -393,7 +393,7 @@ public extension AgentToolName {
             Schema.object([
                 "process": Schema.string("Process name."),
                 "subsystem": Schema.string("Log subsystem."),
-                "since_seconds": Schema.integer("How far back, default 300, at most 3600."),
+                "listen_seconds": Schema.integer("How long to listen, 1 to \(ReadLogsRequest.maximumListenSeconds) seconds. Default \(ReadLogsRequest.maximumListenSeconds)."),
                 "limit": Schema.integer("Maximum lines, default 200, at most 1000."),
             ], required: [])
         case .listCrashes:

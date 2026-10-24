@@ -411,7 +411,10 @@ actor ToolRunner {
                 context: context,
                 process: arguments.argString("process"),
                 subsystem: arguments.argString("subsystem"),
-                sinceSeconds: min(3600, max(1, arguments.argInt("since_seconds") ?? 300)),
+                listenSeconds: min(
+                    ReadLogsRequest.maximumListenSeconds,
+                    max(1, arguments.argInt("listen_seconds") ?? ReadLogsRequest.maximumListenSeconds),
+                ),
                 limit: min(1000, max(1, arguments.argInt("limit") ?? 200)),
             )))
 

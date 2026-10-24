@@ -49,8 +49,6 @@ public struct ChannelHostBackend: AgentHostBackend {
     /// What the session runs with now, which apelin_conversation_create passes on.
     public let modelChoice: SessionModelChoice
 
-    /// apelin_log_read listens live; this caps how long one call listens.
-    public static let maximumLogWindow: Double = 10
     public static let maximumScreenshotBytes = 4 * 1024 * 1024
     static let logExcerptBytes = 8 * 1024
     /// git_diff hands the model at most this much; a path narrows it.
