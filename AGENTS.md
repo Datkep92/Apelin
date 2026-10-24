@@ -2191,7 +2191,10 @@ and dSYM through the existing complete build pipeline (see `Documents/Distributi
 The agent's system prompt (`ApelinAgent/Session/SystemPrompt.swift`) is kept
 short, after pi's: the user's language, the result first with no preamble, a
 greeting answered with a greeting (no tools, no survey of the project), then the
-checks actually run and any real blocker. It asks for independent tool calls in
+checks actually run and any real blocker. `# Responses` makes concision bite —
+match the length to the task, and do not paste tool output, files, diffs or
+logs back, narrate the steps or recap at the end; a progress note is one short
+line (owner, 2026-10-24). It asks for independent tool calls in
 one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
 logs and MCP results as data, and ends with the current date. The project's
 `AGENTS.md`, else `CLAUDE.md` — a regular file inside the project, at most
@@ -2200,18 +2203,40 @@ approval mode. Skills are pi's progressive disclosure: the prompt lists each
 built-in and user skill (`~/Documents/wiki.qaq.apelin/skills`) by name and
 description only, and `read_skill{name, file?}` reads the body, or a file in a
 user skill's own folder (no link out of it), on demand; it is a read preset.
+The built-ins are one Swift file each under `ApelinAgent/Skills/BuiltIn/`,
+listed by `BuiltInSkills.all`; what they claim about the device was read from
+Apelin's own templates and pipeline, the sibling apps (Irisin's installer,
+icli, Xrash, iGhostVT, Fila, LookInside's tweak) and roothide's developer
+notes, and a claim nobody has seen hold on a device stays out.
 A built-in skill may carry files of its own (`SkillDocument.files`):
 `project-description` is every member of `apelin-project.json`, the macros the
 build defines and what asks the user, with the embedded schema as its file
 `apelin-project.schema.json` (`ProjectValidation.schemaText`); a test fails
 when the schema gains a member the guide never names. `tweak-development`
-says how to live beside other tweaks (hooks that chain, `static` names,
-prefixed added methods and classes) and that Theos is not supported (owner,
-2026-10-23): a Theos tweak's Logos is rewritten as plain Objective-C in the
-template's style, never built with Theos, which is never installed; an
-imported repository keeps building with a script of its own.
-`external-build` is the workspace build: the declaration, what the script
-gets and must write, and how its package is installed.
+is the edit-build loop and how to live beside other tweaks (hooks that chain,
+`static` names, prefixed added methods and classes), and says Theos is not
+supported (owner, 2026-10-23): a Theos tweak's Logos is rewritten as plain
+Objective-C in the template's style, never built with Theos, which is never
+installed; an imported repository keeps building with a script of its own.
+`bootstrap-paths` (owner, 2026-10-24) is roothide and rootless path spelling —
+jbroot vs `/var/jb`, `/rootfs`, `@PREFIX@`/`@ROOTFS@`, `@loader_path/.jbroot`,
+the compiler-vs-shell split — and carries `ApelinBootstrap.h`, a
+jbroot()/ROOT_PATH_NS() helper written so one source builds for both
+bootstraps (compiled by hand for roothide arm64e and rootless arm64 with the
+template's flags; a test holds that the skill ships the header).
+`tweak-runtime` is logging (os_log under the package id, `%{public}`, the live
+log read_logs reads), the sandbox an injected dylib inherits, reading a
+setting, and signalling another process with a payload-free Darwin
+notification. `preference-bundle` is the Settings pane: `PSListController`,
+`Root.plist`, the PreferenceLoader entry and the domain the tweak reads.
+`package-dependencies` is how a package is installed — the project's own build
+through the `install` tool, a dependency through the user in Irisin — and why
+run_code (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
+`irisin-cli` (root-only, and the daemon takes an external client only at euid
+0) do not work for the agent. `packaging-and-install` and `crash-triage` cover
+install/respring/confirm and reading a crash. `external-build` is the workspace
+build: the declaration, what the script gets and must write, and how its
+package is installed.
 Skills, memory and the project instructions are read again for every prompt.
 Skills are global (owner, 2026-10-23): the built-ins and the skills folder,
 never a project's own `.claude/skills` or `.kwwk/skills`. Settings ▸ Agent ▸

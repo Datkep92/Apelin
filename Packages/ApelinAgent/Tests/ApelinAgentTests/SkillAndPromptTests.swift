@@ -124,6 +124,63 @@ struct SkillAndPromptTests {
         }
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func `every built-in skill is listed by name and read_skill serves its body`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let skills = BuiltInSkills.all
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm,
+                                       skills: skills, mcpServers: [])
+        let names = Set(skills.map(\.name))
+        // The device's hard-won rules each have a skill.
+        for name in ["tweak-development", "bootstrap-paths", "tweak-runtime", "preference-bundle",
+                     "project-description", "external-build", "packaging-and-install",
+                     "package-dependencies", "crash-triage"]
+        {
+            #expect(names.contains(name), "no built-in skill \(name)")
+            #expect(prompt.contains("<skill name=\"\(name)\">"), "the prompt does not list \(name)")
+        }
+        let runner = try runner(home)
+        for skill in skills {
+            let body = try await text(runner.run(.local(.readSkill), toolCallID: UUID().uuidString,
+                                                 arguments: ["name": .string(skill.name)], cancellation: nil, mcp: nil))
+            #expect(body.contains(skill.body.prefix(32)), "read_skill did not serve \(skill.name)")
+            #expect(!prompt.contains(skill.body), "the prompt leaked \(skill.name)'s body")
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `the bootstrap-paths skill carries its C helper and read_skill serves it`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let skill = try #require(BuiltInSkills.all.first { $0.name == "bootstrap-paths" })
+        let header = try #require(skill.files["ApelinBootstrap.h"])
+        // The helper is the one that builds for both bootstraps: the roothide
+        // branch finds the jbroot from its own image, the rootless branch is
+        // the fixed prefix.
+        #expect(header.contains("ApelinBootstrapPath"))
+        #expect(header.contains("APELIN_BOOTSTRAP_ROOTHIDE"))
+        #expect(header.contains(".jbroot-"))
+        #expect(header.contains("@\"/var/jb\""))
+        let runner = try runner(home)
+        let served = try await text(runner.run(.local(.readSkill), toolCallID: UUID().uuidString,
+                                               arguments: ["name": "bootstrap-paths", "file": "ApelinBootstrap.h"],
+                                               cancellation: nil, mcp: nil))
+        #expect(served == header)
+    }
+
+    @Test
+    func `the responses section forbids pasting tool output and long recaps`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm,
+                                       skills: [], mcpServers: [])
+        #expect(prompt.contains("# Responses"))
+        #expect(prompt.contains("Do not paste tool output"))
+        #expect(prompt.contains("never use a tool just to show"))
+        #expect(prompt.contains("progress note is one short line"))
+    }
+
     @Test
     func `read_skill needs no approval in Confirm mode`() throws {
         let home = try TemporaryHome()
