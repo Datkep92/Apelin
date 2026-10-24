@@ -1536,13 +1536,20 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   custom models do not get guessed levels. Beside it, Speed (a bolt) offers
   Standard and the faster tiers kwwk's catalog lists for the model
   (`AgentAccount.serviceTiers`: Codex's `priority`, shown as Fast, and
-  `ultrafast`); a model that lists none shows no Speed, Standard sends no
-  tier, and a changed model keeps the tier only where it is listed. kwwk
-  also drops a Codex tier the model does not list. `ComposerModelSelection.current`
-  saves the provider, model, effort, tier and its last supported-level and
-  tier snapshot in
-  `UserDefaults`, shared by every conversation and restored on launch;
-  changes notify every open composer. Return and long-paste preferences
+  `ultrafast`); a model that lists none shows no Speed, and Standard sends
+  no tier. kwwk also drops a Codex tier the model does not list. Each
+  control keeps its own `UserDefaults` value, shared by every conversation
+  and restored on launch, and a change notifies every open composer:
+  `ComposerModelSelection.current` the provider and model with the
+  catalog's last supported-level and tier snapshot; `ComposerModelPreferences`
+  the reader's effort and Speed (owner, 2026-10-24: Ultrafast must not
+  vanish on its own), written only by the reader's pick. The catalog decides
+  what is sent — the saved effort where the model offers it, else High, else
+  its strongest; the saved tier where offered, else Standard — never what
+  is saved, so a model that lacks a pick, or a catalog that briefly lists
+  nothing, leaves it for the next model that offers it. A signed-in account
+  whose sign-in did not read this time keeps its model rather than losing
+  it to another account's. Return and long-paste preferences
   (`ComposerBehavior`) are also global `UserDefaults` values. Beginning to
   type takes the catalog's levels and tiers for the saved model again.
   Model, effort, Speed and Stop blocks fade and reposition on the composer's spring, including

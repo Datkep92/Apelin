@@ -108,16 +108,8 @@ final class ChatController: UIViewController {
                 catch { self.presentNotice(title: "Unable to Send Decision", message: error.readableMessage) }
             }
         }
-        composer.modelBar.onEffortChanged = { effort in
-            guard var selection = ComposerModelSelection.current else { return }
-            selection.effort = effort
-            ComposerModelSelection.current = selection
-        }
-        composer.modelBar.onTierChanged = { tier in
-            guard var selection = ComposerModelSelection.current else { return }
-            selection.tier = tier
-            ComposerModelSelection.current = selection
-        }
+        composer.modelBar.onEffortChanged = { ComposerModelPreferences.effort = $0 }
+        composer.modelBar.onTierChanged = { ComposerModelPreferences.tier = $0 }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateModelSelection),
@@ -516,27 +508,23 @@ final class ChatController: UIViewController {
 }
 
 extension ChatController {
-    /// `model` of `account` as the selection, keeping the chosen effort
-    /// where the model offers it, else High, else its strongest; and the
-    /// chosen tier where the model offers it, else the standard one.
+    /// `model` of `account` with what the catalog says it offers. The
+    /// reader's effort and speed are kept apart (`ComposerModelPreferences`),
+    /// so picking a model that lacks them does not lose them.
     private static func selection(of model: String, in account: AgentAccount) -> ComposerModelSelection {
-        let efforts = (account.reasoningEfforts?[model] ?? []).filter { [.low, .high, .max].contains($0) }
-        let effort = ComposerModelSelection.current?.effort.flatMap { efforts.contains($0) ? $0 : nil }
-            ?? (efforts.contains(.high) ? .high : efforts.last)
-        let tiers = account.serviceTiers?[model] ?? []
-        return ComposerModelSelection(
+        ComposerModelSelection(
             provider: account.provider,
             model: model,
-            supportedEfforts: efforts,
-            effort: effort,
-            supportedTiers: tiers,
-            tier: ComposerModelSelection.current?.tier.flatMap { tiers.contains($0) ? $0 : nil },
+            supportedEfforts: (account.reasoningEfforts?[model] ?? []).filter { [.low, .high, .max].contains($0) },
+            supportedTiers: account.serviceTiers?[model] ?? [],
         )
     }
 
     /// With no model picked, or one no longer enabled, the first enabled
     /// model is picked; with none enabled the bar keeps asking. A model
-    /// still enabled takes the catalog's efforts and tiers again.
+    /// still enabled takes the catalog's efforts and tiers again. A
+    /// signed-in account whose sign-in did not read this time lists no
+    /// models; its model is kept rather than swapped for another's.
     func ensureModelSelection() {
         selectionCheck?.cancel()
         selectionCheck = Task {
@@ -544,14 +532,19 @@ extension ChatController {
                   !Task.isCancelled
             else { return }
             let accounts = EnabledModels.accounts(from: listed)
-            if let current = ComposerModelSelection.current, let account = accounts.first(where: { account in
-                account.provider == current.provider && (account.models ?? []).contains(current.model)
-            }) {
-                let refreshed = Self.selection(of: current.model, in: account)
-                if refreshed != current {
-                    ComposerModelSelection.current = refreshed
+            if let current = ComposerModelSelection.current {
+                if let account = accounts.first(where: { account in
+                    account.provider == current.provider && (account.models ?? []).contains(current.model)
+                }) {
+                    let refreshed = Self.selection(of: current.model, in: account)
+                    if refreshed != current {
+                        ComposerModelSelection.current = refreshed
+                    }
+                    return
                 }
-                return
+                if listed.contains(where: { $0.provider == current.provider && $0.signedIn && $0.models == nil }) {
+                    return
+                }
             }
             guard let account = accounts.first, let model = account.models?.first else { return }
             ComposerModelSelection.current = Self.selection(of: model, in: account)
