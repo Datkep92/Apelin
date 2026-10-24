@@ -1664,3 +1664,17 @@ normally and was killed (signal 9) on that first message when linked with
 flag ran. apelin-build now refuses such a slice at its link; Apelin's
 templates and steps never pass the flag, so only a `linkFlags` entry or a
 workspace's own script can.
+
+## Composer picks and workspace distribution (2026-10-24, `8fbfa02`)
+
+The roothide 0.1.6 build 37 of `8fbfa02` went onto the iOS 26.4 iPhone
+vphone over 0.1.4 through `irisin-cli install --yes` (Irisin 4.7.5). The
+first attempt stopped while unpacking (`irisin-journal/<transaction>/183`
+not found) and left the package `reinstreq half-installed` at 0.1.4; the
+same command again installed, configured and registered it. vphoned's
+`apps.launch` then verified Apelin as the foreground app, and the composer
+came back with the saved model and its effort (deepseek-v4-pro, High),
+read through the new per-control keys. No agent session ran, and the
+workspace distribution page was not opened on the device; the Mac covers
+the release findings (`ExternalBuildTests`), check_distribution
+(`ChannelHostBackendTests`) and the menu's build method (`Tests/Onboarding`).
