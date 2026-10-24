@@ -84,6 +84,9 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For build in a workspace: what it builds, which runs the workspace's
     /// own script.
     public var externalBuild: ExternalBuildApproval?
+    /// For apelin_skill_save and apelin_skill_remove: the skill, checked
+    /// before asking, and what a save writes.
+    public var skillChange: SkillChangeApproval?
 
     public init(
         tool: Tool,
@@ -178,6 +181,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
         case .notificationSend:
             return .allow(.notRequired)
 
+        // Instructions every later conversation, in every project, lists
+        // and may follow: each change asks, the card showing the whole
+        // skill, and none is granted for the session.
+        case .skillSave, .skillRemove:
+            guard let change = facts.skillChange else {
+                return .ask(reason: "The skill to change could not be read.", detail: .none)
+            }
+            return .ask(reason: Self.skillReason(change), detail: .skillChange(change))
+
         // A field of the project's own apelin-project.json, which the file
         // tools edit as well: only a registered, checked, compatible
         // toolchain or SDK goes in. The binding is not part of the build
@@ -251,7 +263,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
 
         case .fileRead, .fileList, .fileGrep, .fileFind, .sdkAnalyzeFramework, .sdkReadHeader,
              .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
-             .screenCapture, .screenReadTree, .memoryList, .skillRead, .projectCheckDistribution,
+             .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .gitStatus, .gitDiff, .gitReadSettings,
              .conversationList, .conversationRead, .toolchainList, .sdkList:
             if presets.readTools.contains(tool) {
@@ -333,6 +345,13 @@ public struct ApprovalPolicy: Sendable, Hashable {
             " (\(ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)))"
         } ?? ""
         return "Sets up Command Line Tools \(setup.version) (\(components)) on this device: Apple's package\(size) is downloaded from Apple, adapted, installed as a package through Irisin for every project and self-tested; if no registered SDK fits it, one is imported from an enabled SDK source first. Each install needs your approval."
+    }
+
+    static func skillReason(_ change: SkillChangeApproval) -> String {
+        let what = change.action == "remove"
+            ? "Removes the skill \(change.name) from the skills folder."
+            : "Saves the skill \(change.name)\(change.replacing ? ", replacing the one of that name," : "") to the skills folder: every later conversation, in every project, lists it and may follow it."
+        return what + " Each change to the skills needs your approval."
     }
 
     static func otherProjectReason(_ reach: OtherProjectApproval) -> String {

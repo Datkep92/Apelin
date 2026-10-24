@@ -252,13 +252,14 @@ actor ToolRunner {
     /// project, nor for a call that reaches another project.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
-        case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport):
+        case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
+             .local(.skillSave), .local(.skillRemove):
             return false
         default:
             break
         }
         switch detail {
-        case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild:
+        case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -296,6 +297,17 @@ actor ToolRunner {
         case .skillRead:
             guard let skills else { throw ToolDeniedError(message: "Skills are unavailable.") }
             return try text(SkillReader(userDirectory: skills).read(arguments))
+
+        case .skillList:
+            return try json(skillTools().list())
+
+        case .skillSave, .skillRemove:
+            // The skill the card named, checked again as kwwk reads it.
+            guard let change = facts.skillChange else {
+                throw ToolDeniedError(message: "the skill to change could not be identified")
+            }
+            let tools = try skillTools()
+            return name == .skillSave ? try json(tools.save(change)) : try json(tools.remove(change))
 
         case .notificationSend:
             // No host request: the `notice` event is relayed with the rest,
@@ -664,6 +676,12 @@ actor ToolRunner {
             changed: edit.changed,
             warnings: checked.diagnostics.filter { $0.severity == "warning" }.map(\.message),
         )
+    }
+
+    /// The skills folder's tools; unavailable where the session has none.
+    func skillTools() throws -> SkillTools {
+        guard let skills else { throw ToolDeniedError(message: "Skills are unavailable.") }
+        return SkillTools(directory: skills)
     }
 
     /// Runs `body` until it answers or the call is cancelled: a stop does

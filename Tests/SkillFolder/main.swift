@@ -105,4 +105,28 @@ require(manager.fileExists(atPath: base.appendingPathComponent("secret.txt").pat
 try folder.remove("lint")
 require(visible(folder.root) == ["release-notes"], "a skill goes by its place")
 
+// Written text (the agent's apelin_skill_save): a folder named for the
+// skill, checked while staged, in whole or not at all.
+var checked: [String] = []
+let written = try folder.write("---\nname: triage\ndescription: Crashes.\n---\n\nRead the report.\n", named: "triage", replacing: false) {
+    checked.append($0.lastPathComponent)
+    require(read($0.appendingPathComponent("SKILL.md"))?.hasSuffix("Read the report.\n") == true, "check sees the staged file")
+}
+
+require(written == "triage" && checked == ["triage"], "the staged folder carries the skill's name")
+require(read(folder.root.appendingPathComponent("triage/SKILL.md"))?.contains("name: triage") == true, "and lands as its SKILL.md")
+require(fails(.exists("triage")) { try folder.write("x", named: "triage", replacing: false) }, "a skill there stays unless replaced")
+struct Refused: Error {}
+do {
+    try folder.write("bad", named: "triage", replacing: true) { _ in throw Refused() }
+    require(false, "a failed check writes nothing")
+} catch is Refused {}
+require(read(folder.root.appendingPathComponent("triage/SKILL.md"))?.contains("Read the report.") == true, "and keeps the skill there")
+try folder.write("---\nname: triage\ndescription: Crashes.\n---\n\nSymbolicate first.\n", named: "triage", replacing: true)
+require(read(folder.root.appendingPathComponent("triage/SKILL.md"))?.contains("Symbolicate first.") == true, "a replacement replaces")
+require(fails(.invalidLocation) { try folder.write("x", named: "../escape", replacing: false) }, "a name is one place in the folder")
+require(fails(.invalidLocation) { try folder.write("x", named: ".hidden", replacing: false) }, "and not a hidden one")
+require(visible(folder.root) == ["release-notes", "triage"], "nothing staged is left")
+require(((try? manager.contentsOfDirectory(atPath: folder.root.path)) ?? []).filter { $0.hasPrefix(".") }.isEmpty, "no hidden leftovers")
+
 print("ok: skills come into the folder whole or not at all, and go only from inside it")

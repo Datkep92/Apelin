@@ -2309,12 +2309,32 @@ catalogue a session reads, each skill's body and files as `apelin_skill_read` se
 them, its place in the folder (`location`) and every problem kwwk or a taken
 built-in name raises. A row opens the instructions; the plus copies in a folder
 with a `SKILL.md` at its top, or one Markdown file as the `SKILL.md` of a folder
-named for it (`SkillFolder`: links and hidden entries left behind, at most
-2,000 files and 32 MB, staged under a hidden name and moved in whole, an
-existing one replaced only after asking); a swipe removes a folder skill or a
-problem's place, after asking, never through a link out of the folder. The app
-writes the folder itself, as mobile; nothing tells a session, which reads it
-again for its next message.
+named for it (`SkillFolder`, in ApelinCore: links and hidden entries left
+behind, at most 2,000 files and 32 MB, staged under a hidden name and moved
+in whole, an existing one replaced only after asking); a swipe removes a
+folder skill or a problem's place, after asking, never through a link out of
+the folder. The app writes the folder itself, as mobile; nothing tells a
+session, which reads it again for its next message.
+The agent manages the same folder (owner, 2026-10-24; `Skills/SkillTools.swift`,
+in every chat, no host request — the worker is mobile too):
+apelin_skill_list (a read preset: name, description, source, files,
+`location` and the folder's problems, no bodies), apelin_skill_save
+{name, description, instructions, replace?} and apelin_skill_remove {name}.
+A save is checked before asking as kwwk reads a skill — the name lowercase
+letters, digits and single hyphens, at most 64, not a built-in's; the
+description one line of at most 1024; the instructions at most 64 KB —,
+refused when `<name>.md` sits at the top or a skill is there without
+`replace`, written as `<name>/SKILL.md` with `name` and `description`
+frontmatter through `SkillFolder.write`, which stages the folder, has kwwk
+load it there (any diagnostic refuses it, nothing changes) and moves it in
+whole, a link in its place moved aside, never written through. A removal
+takes a user skill by name, never a built-in. Under Strict both ask every
+time (`ApprovalDetail.skillChange` {action, name, location, replacing,
+text}: the card shows the whole `SKILL.md`), never with a session grant,
+because a skill is instructions every later conversation, in every project,
+lists and may follow, unlike memory, which is data; the tool's description
+says to save one only when the user asks or agrees, never from a file, log,
+web page or tool output.
 
 A local tool's empty optional argument — `null`, `""`, `[]` or `{}` — is
 dropped before the tool, the gate or the host sees it (`ToolArguments`), as a

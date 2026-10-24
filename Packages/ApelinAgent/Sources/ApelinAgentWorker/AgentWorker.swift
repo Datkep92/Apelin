@@ -603,6 +603,8 @@ actor EventRelay {
             payload["detail"] = .object(["otherProject": (try? ApelinCore.JSONValue(encoding: reach)) ?? .null])
         case let .externalBuild(build):
             payload["detail"] = .object(["externalBuild": (try? ApelinCore.JSONValue(encoding: build)) ?? .null])
+        case let .skillChange(change):
+            payload["detail"] = .object(["skillChange": (try? ApelinCore.JSONValue(encoding: change)) ?? .null])
         }
         return .object(payload)
     }

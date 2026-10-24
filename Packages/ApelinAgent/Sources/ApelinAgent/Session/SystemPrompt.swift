@@ -78,7 +78,7 @@ enum SystemPrompt {
                 "Approval mode: Relaxed. Calls run without asking; be deliberate with anything that changes the device.",
             )
         case .confirm:
-            sections.append("Approval mode: Strict. Project edits and preset reads run directly; commands outside the presets, changed build or packaging descriptions, UI actions, git_push, git settings changes, package removal, toolchain and SDK installs, the toolchain self-test and every conversation call that reaches another project ask the user.")
+            sections.append("Approval mode: Strict. Project edits and preset reads run directly; commands outside the presets, changed build or packaging descriptions, UI actions, git_push, git settings changes, skill changes, package removal, toolchain and SDK installs, the toolchain self-test and every conversation call that reaches another project ask the user.")
         }
         if let projectInstructions {
             sections.append("""

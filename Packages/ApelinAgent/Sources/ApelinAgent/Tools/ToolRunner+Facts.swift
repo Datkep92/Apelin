@@ -78,6 +78,10 @@ extension ToolRunner {
             facts.toolchainSetup = try await setupToAsk(arguments)
         case .sdkImport:
             facts.sdkImport = try await importToAsk(arguments)
+        case .skillSave:
+            facts.skillChange = try skillTools().change(saving: arguments)
+        case .skillRemove:
+            facts.skillChange = try skillTools().change(removing: arguments)
         case .projectSetEnvironment:
             facts.pathCheck = check { _ = try root.resolveForWrite(ProjectEnvironmentEdit.fileName, findingGitPointers: false) }
         default:

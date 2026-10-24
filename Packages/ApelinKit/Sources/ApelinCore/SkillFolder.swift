@@ -63,17 +63,45 @@ public struct SkillFolder {
             guard Self.size(of: source) <= Self.maximumBytes else { throw Failure.tooLarge }
             try manager.copyItem(at: source, to: staging.appendingPathComponent("SKILL.md"))
         }
+        try place(staging, at: location, replacing: replacing)
+        return location
+    }
+
+    /// Writes `text` as the `SKILL.md` of a folder named `name`, over what
+    /// is there only when `replacing`. The folder is staged beside the
+    /// folder's skills under a hidden name, still called `name`, and handed
+    /// to `check` there; only if it passes is it moved into place whole.
+    @discardableResult
+    public func write(_ text: String, named name: String, replacing: Bool, check: (URL) throws -> Void = { _ in }) throws -> String {
+        let location = try Self.checked(name)
+        guard text.utf8.count <= Self.maximumBytes else { throw Failure.tooLarge }
+        let manager = FileManager.default
+        try? manager.createDirectory(at: root, withIntermediateDirectories: false)
+        let staging = root.appendingPathComponent(".import-\(UUID().uuidString)", isDirectory: true)
+        try manager.createDirectory(at: staging, withIntermediateDirectories: false)
+        defer { try? manager.removeItem(at: staging) }
+        let folder = staging.appendingPathComponent(location, isDirectory: true)
+        try manager.createDirectory(at: folder, withIntermediateDirectories: false)
+        try Data(text.utf8).write(to: folder.appendingPathComponent("SKILL.md"), options: .withoutOverwriting)
+        try check(folder)
+        try place(folder, at: location, replacing: replacing)
+        return location
+    }
+
+    /// Moves `staged` in at `location`; what is there goes only when
+    /// `replacing`, moved aside first — a link itself, never what it names.
+    private func place(_ staged: URL, at location: String, replacing: Bool) throws {
+        let manager = FileManager.default
         let destination = root.appendingPathComponent(location, isDirectory: true)
         if Self.exists(destination) {
             guard replacing else { throw Failure.exists(location) }
             let old = root.appendingPathComponent(".removing-\(UUID().uuidString)", isDirectory: true)
             try manager.moveItem(at: destination, to: old)
             defer { try? manager.removeItem(at: old) }
-            try manager.moveItem(at: staging, to: destination)
+            try manager.moveItem(at: staged, to: destination)
         } else {
-            try manager.moveItem(at: staging, to: destination)
+            try manager.moveItem(at: staged, to: destination)
         }
-        return location
     }
 
     /// Removes what sits at `location`, a link itself rather than what it

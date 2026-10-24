@@ -86,6 +86,30 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// A build of a workspace, which runs its own script. The host lets
     /// through only the build it names, once.
     case externalBuild(ExternalBuildApproval)
+    /// A skill saved to or removed from the skills folder, which every later
+    /// conversation lists: the whole text a save writes.
+    case skillChange(SkillChangeApproval)
+}
+
+/// What an apelin_skill_save or apelin_skill_remove card names: the skill,
+/// its place in the skills folder, and for a save the `SKILL.md` it writes.
+public struct SkillChangeApproval: Sendable, Hashable, Codable {
+    /// `save` or `remove`.
+    public var action: String
+    public var name: String
+    /// Its place in the skills folder, relative to it.
+    public var location: String
+    /// Whether a save replaces a skill of that name.
+    public var replacing: Bool
+    /// The `SKILL.md` a save writes, frontmatter included.
+    public var text: String?
+    public init(action: String, name: String, location: String, replacing: Bool, text: String?) {
+        self.action = action
+        self.name = name
+        self.location = location
+        self.replacing = replacing
+        self.text = text
+    }
 }
 
 /// What a workspace build's card names, and the host matches its build to
