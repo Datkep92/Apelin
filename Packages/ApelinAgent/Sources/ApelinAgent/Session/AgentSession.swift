@@ -91,7 +91,7 @@ public actor AgentSession {
         } else if previous?.project != configuration.project {
             throw SessionStoreError.corrupt("session \(configuration.id) belongs to another project")
         }
-        let transcript = try await log.readTranscript()
+        let transcript = try await LegacyToolNames.migrate(log.readTranscript())
         try await Self.closeAbandonedApprovals(log)
 
         let resolved = try await ProviderResolver.resolve(configuration.provider, credentials: credentials)
@@ -345,7 +345,7 @@ public actor AgentSession {
     /// before the model sees the message.
     ///
     /// `from`: another conversation of the project sent it
-    /// (`conversation_send`). It is recorded as the user's text, marked
+    /// (`apelin_conversation_send`). It is recorded as the user's text, marked
     /// with that conversation, and the model reads one line before it
     /// saying it came from another agent, not from the user.
     public func prompt(

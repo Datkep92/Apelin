@@ -123,7 +123,7 @@ public struct ConversationListToolResponse: Sendable, Hashable, Codable {
 }
 
 public struct ConversationReadToolRequest: Sendable, Hashable, Codable {
-    /// conversation_read waits at most ten minutes.
+    /// apelin_conversation_read waits at most ten minutes.
     public static let maximumWaitSeconds = 600
 
     public var context: HostCallContext

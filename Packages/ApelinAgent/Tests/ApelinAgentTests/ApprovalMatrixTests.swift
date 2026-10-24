@@ -80,8 +80,8 @@ struct ApprovalMatrixTests {
                 #expect(result == .allow(.preset(tool.rawValue)), "\(tool.rawValue)")
             }
         }
-        // respring is preset; ui_action and remove_package ask.
-        #expect(verdict(.confirm, InvocationFacts(tool: .local(.respring))) == .allow(.preset("respring")))
+        // respring is preset; apelin_screen_interact and apelin_package_remove ask.
+        #expect(verdict(.confirm, InvocationFacts(tool: .local(.respring))) == .allow(.preset("apelin_device_respring")))
         #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.uiAction)))))
         #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.removePackage)))))
         // MCP tools ask.
@@ -99,8 +99,8 @@ struct ApprovalMatrixTests {
         presets.systemTools.formUnion([.removePackage, .runCode])
         presets.readTools.insert(.removePackage)
 
-        #expect(verdict(.confirm, InvocationFacts(tool: .local(.captureScreen)), presets: presets) == .allow(.preset("capture_screen")))
-        #expect(verdict(.confirm, InvocationFacts(tool: .local(.uiAction)), presets: presets) == .allow(.preset("ui_action")))
+        #expect(verdict(.confirm, InvocationFacts(tool: .local(.captureScreen)), presets: presets) == .allow(.preset("apelin_screen_capture")))
+        #expect(verdict(.confirm, InvocationFacts(tool: .local(.uiAction)), presets: presets) == .allow(.preset("apelin_screen_interact")))
         #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.respring)), presets: presets)))
         #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.removePackage)), presets: presets)))
         #expect(isAsk(verdict(.confirm, InvocationFacts(tool: .local(.runCode), command: .shell("x | y")), presets: presets)))
@@ -111,7 +111,7 @@ struct ApprovalMatrixTests {
     }
 
     @Test
-    func `run_code is classified by structure, not by prefix`() throws {
+    func `shell_run is classified by structure, not by prefix`() throws {
         defer { home.remove() }
         func classify(_ command: String) throws -> RunCodeInvocation {
             try CommandClassifier.classify(.object(["command": .string(command)]))
@@ -225,15 +225,15 @@ struct ApprovalMatrixTests {
     @Test
     func `Fingerprints bind tool, arguments, cwd, project and digest`() {
         defer { home.remove() }
-        let base = ApprovalFingerprint.make(tool: "run_code", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "p", digest: nil)
-        #expect(base == ApprovalFingerprint.make(tool: "run_code", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "p", digest: nil))
-        #expect(base != ApprovalFingerprint.make(tool: "run_code", arguments: ["argv": ["make", "x"]], workingDirectory: ".", projectID: "p", digest: nil))
-        #expect(base != ApprovalFingerprint.make(tool: "run_code", arguments: ["argv": ["make"]], workingDirectory: "Sources", projectID: "p", digest: nil))
-        #expect(base != ApprovalFingerprint.make(tool: "run_code", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "q", digest: nil))
-        #expect(base != ApprovalFingerprint.make(tool: "build", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "p", digest: nil))
+        let base = ApprovalFingerprint.make(tool: "shell_run", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "p", digest: nil)
+        #expect(base == ApprovalFingerprint.make(tool: "shell_run", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "p", digest: nil))
+        #expect(base != ApprovalFingerprint.make(tool: "shell_run", arguments: ["argv": ["make", "x"]], workingDirectory: ".", projectID: "p", digest: nil))
+        #expect(base != ApprovalFingerprint.make(tool: "shell_run", arguments: ["argv": ["make"]], workingDirectory: "Sources", projectID: "p", digest: nil))
+        #expect(base != ApprovalFingerprint.make(tool: "shell_run", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "q", digest: nil))
+        #expect(base != ApprovalFingerprint.make(tool: "apelin_project_build", arguments: ["argv": ["make"]], workingDirectory: ".", projectID: "p", digest: nil))
         #expect(
-            ApprovalFingerprint.make(tool: "build", arguments: [:], workingDirectory: ".", projectID: "p", digest: "a")
-                != ApprovalFingerprint.make(tool: "build", arguments: [:], workingDirectory: ".", projectID: "p", digest: "b"),
+            ApprovalFingerprint.make(tool: "apelin_project_build", arguments: [:], workingDirectory: ".", projectID: "p", digest: "a")
+                != ApprovalFingerprint.make(tool: "apelin_project_build", arguments: [:], workingDirectory: ".", projectID: "p", digest: "b"),
         )
     }
 }

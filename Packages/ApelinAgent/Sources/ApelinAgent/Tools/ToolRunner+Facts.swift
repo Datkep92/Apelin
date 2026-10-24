@@ -39,7 +39,7 @@ extension ToolRunner {
             if ProjectBuildSystem.read(in: root) == .external {
                 let artifact = try arguments.requireString("artifact_id")
                 guard let state = try? await digests.packagingState(ofArtifact: artifact, for: project) else {
-                    throw ToolArgumentError("No build of this workspace made a package \(artifact): build again, then install the artifact build answers.")
+                    throw ToolArgumentError("No build of this workspace made a package \(artifact): build it again with apelin_project_build, then install the artifact that build answers.")
                 }
                 facts.description = state
             } else {
@@ -96,7 +96,7 @@ extension ToolRunner {
     ) async throws {
         guard let reference = arguments.argNonEmptyString("project") else {
             if project.isTemporary {
-                throw ToolArgumentError("General Chat has no conversations of its own: name the project with project (its projectID or folder name; project_create answers both)")
+                throw ToolArgumentError("General Chat has no conversations of its own: name the project with project (its projectID or folder name; apelin_project_create answers both)")
             }
             return
         }
@@ -132,12 +132,12 @@ extension ToolRunner {
         let product: AvailableToolchain
         if let id = arguments.argNonEmptyString("product_id") {
             guard let match = listed.available.first(where: { $0.productID == id }) else {
-                throw ToolArgumentError("no release \(id) in toolchain_list's available")
+                throw ToolArgumentError("no release \(id) in apelin_toolchain_list's available")
             }
             product = match
         } else if let version = arguments.argNonEmptyString("version") {
             guard let match = listed.available.first(where: { $0.version == version }) else {
-                throw ToolArgumentError("no Command Line Tools \(version) in toolchain_list's available")
+                throw ToolArgumentError("no Command Line Tools \(version) in apelin_toolchain_list's available")
             }
             product = match
         } else {
@@ -158,7 +158,7 @@ extension ToolRunner {
         if let installed = listed.installed.first(where: { record in
             record.version == product.version && components.allSatisfy(record.components.contains) && record.problem == nil
         }) {
-            throw ToolArgumentError("Command Line Tools \(product.version) is already set up as \(installed.id); bind it with project_environment_set")
+            throw ToolArgumentError("Command Line Tools \(product.version) is already set up as \(installed.id); bind it with apelin_project_set_environment")
         }
         return ToolchainSetupApproval(
             productID: product.productID,
@@ -174,14 +174,14 @@ extension ToolRunner {
         let version = try arguments.requireString("version").trimmingCharacters(in: .whitespaces)
         let listed = try await backend.sdks(context: probeContext)
         if let registered = listed.installed.first(where: { $0.version == version }) {
-            throw ToolArgumentError("iPhoneOS \(version) is already registered as \(registered.id); bind it with project_environment_set")
+            throw ToolArgumentError("iPhoneOS \(version) is already registered as \(registered.id); bind it with apelin_project_set_environment")
         }
         let source = arguments.argNonEmptyString("source")
         guard let offer = listed.available.first(where: {
             $0.version == version && (source == nil || $0.source == source)
         }) else {
             let problems = listed.sourceProblems.isEmpty ? "" : " (\(listed.sourceProblems.joined(separator: "; ")))"
-            throw ToolArgumentError("no enabled source offers iPhoneOS \(version)\(source.map { " in \($0)" } ?? "")\(problems); sdk_list names what they offer")
+            throw ToolArgumentError("no enabled source offers iPhoneOS \(version)\(source.map { " in \($0)" } ?? "")\(problems); apelin_sdk_list names what they offer")
         }
         return SDKImportApproval(source: offer.source, url: offer.sourceURL, branch: offer.branch, version: offer.version)
     }

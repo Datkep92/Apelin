@@ -4,7 +4,7 @@ import Foundation
 
 /// The toolchain and SDK a command on the device compiles with, and the
 /// variables that hand them to it. The session host builds it for the
-/// agent's run_code (`agentRunCode`) and for the user's terminal
+/// agent's shell_run (`agentRunCode`) and for the user's terminal
 /// (`ptyOpen`); the agent's system prompt describes the same one, so what
 /// the model is told is what its commands get.
 ///
@@ -123,7 +123,7 @@ public struct DevelopmentEnvironment: Sendable, Equatable {
 
     public static let toolchainBinVariable = "APELIN_TOOLCHAIN_BIN"
 
-    /// The directories run_code looks a bare command name up in, and its
+    /// The directories shell_run looks a bare command name up in, and its
     /// `PATH` behind the toolchain: the bootstrap's bin directories, then
     /// the system's. The agent's system prompt names what it finds there.
     public static func searchPath(installRoot: String) -> [String] {

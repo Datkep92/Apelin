@@ -30,7 +30,7 @@ enum AgentHandler: DomainHandler {
             return await forward(request, AgentSteerRequest.self, host: host) { $0.sessionID }
         case .agentAbort:
             let reply = await forward(request, AgentAbortRequest.self, host: host) { $0.sessionID }
-            // The run_code calls the stopped run was waiting on stop with it.
+            // The shell_run calls the stopped run was waiting on stop with it.
             if case .success = reply.0.result, let abort = try? request.decode(AgentAbortRequest.self) {
                 AgentRunCode.stop(session: abort.sessionID)
             }
@@ -440,11 +440,11 @@ enum AgentHandler: DomainHandler {
 
     /// Only the session's own worker may run code, only in its project, and
     /// under Confirm only with a preset the host recognises or an approval
-    /// the app gave for a `run_code` call of this session.
+    /// the app gave for a `shell_run` call of this session.
     private static func runCode(_ request: HostRequest, host: SessionHost) async -> HostReply {
         await request.serve(AgentRunCodeRequest.self) { run in
             guard case let .worker(.agent, instance) = request.caller, instance == run.sessionID else {
-                throw ApelinError(.denied, "only the agent session's own worker can call run_code")
+                throw ApelinError(.denied, "only the agent session's own worker can call shell_run")
             }
             // Taken before the checks, so a Stop or Close that comes while
             // they run still ends the process once it spawns.

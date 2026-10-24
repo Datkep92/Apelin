@@ -7,7 +7,7 @@ import Foundation
 
 /// A workspace's build (`ExternalBuildDeclaration`, owner 2026-10-23): its
 /// own script, run as mobile in the project with the development
-/// environment run_code and the terminal get, then the one `.deb` it wrote
+/// environment shell_run and the terminal get, then the one `.deb` it wrote
 /// into `APELIN_PACKAGE_DIR` checked and registered as the build's artifact,
 /// as `BuildService` registers its own. Apelin neither compiles, signs nor
 /// packages here: the script does all of it, and the package is judged by
@@ -15,7 +15,7 @@ import Foundation
 ///
 /// The script gets, beside the toolchain first on `PATH`, `SDKROOT` and
 /// `IPHONEOS_DEPLOYMENT_TARGET`: `APELIN_BUILD_ID` (the marker
-/// `confirm_loaded` matches, `ApelinLoaded <id>` under the package ID's
+/// `apelin_package_confirm_loaded` matches, `ApelinLoaded <id>` under the package ID's
 /// subsystem), `APELIN_BOOTSTRAP` and `APELIN_ARCHITECTURE` (the package's
 /// `Architecture`), `APELIN_PREFIX` (what `@PREFIX@` is: `/var/jb` rootless,
 /// empty roothide), `APELIN_CONFIGURATION` (`debug` or `release`),
@@ -284,7 +284,7 @@ public enum ExternalBuild {
         }
     }
 
-    /// What `confirm_loaded` checks, when the package installs exactly one
+    /// What `apelin_package_confirm_loaded` checks, when the package installs exactly one
     /// tweak: a dylib in MobileSubstrate's folder with its filter plist
     /// beside it. The marker is the template's, under the package ID.
     static func loadCheck(_ contents: DebArchiveReader.Contents, packageID: String, inputs: Inputs) -> BuildLoadCheck? {

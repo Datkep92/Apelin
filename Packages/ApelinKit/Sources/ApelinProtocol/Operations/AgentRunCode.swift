@@ -1,4 +1,4 @@
-/// `run_code` as the session host runs it: as mobile, in the session's
+/// `shell_run` as the session host runs it: as mobile, in the session's
 /// project, with no shell unless the invocation is a script. Only the agent
 /// worker of `sessionID` may send it; the host refuses it from anyone else,
 /// and re-decides the approval itself under Confirm.

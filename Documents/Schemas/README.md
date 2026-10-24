@@ -51,7 +51,7 @@ other hidden configuration.
 | `projectID` | Lowercase UUID, made at creation. Renaming the folder never changes it; approvals are bound to it. |
 | `kind` | `app`, `tweak`, `cli` or `preferences`. Requires a product of type `app`, `dylib` (plus `package.tweakFilter`), `executable` or `bundle` respectively. Only `tweak` may carry `tweakFilter`. |
 | `template` | `{extensionID, templateID, version, digest}`: the extension, its version and the template digest (below) the project was generated from. The Confirm baseline. |
-| `environment` | `{toolchain, sdk}`, each `{id, digest}`: the registered toolchain and SDK the project is pinned to. Changing either is an explicit operation (the agent's `project_environment_set`, checked first by `projectCheck` with `environment`); a new default never moves a project. |
+| `environment` | `{toolchain, sdk}`, each `{id, digest}`: the registered toolchain and SDK the project is pinned to. Changing either is an explicit operation (the agent's `apelin_project_set_environment`, checked first by `projectCheck` with `environment`); a new default never moves a project. |
 | `language` | `c`, `objc` or `swift`. A C-family project compiles `.c` and `.m`; a Swift one `.swift` only (beyond the schema). No mixing in v1. |
 | `deploymentTarget` | `16.0` or later, as a string. |
 | `architectures` | `{rootless?, roothide?}` → `arm64`/`arm64e` lists. The keys present are the bootstraps the project packages for. Templates default to rootless `[arm64, arm64e]`, roothide `[arm64e]`. |
@@ -88,7 +88,7 @@ with the SDK's physical path, `-mios-version-min` / `-target` from
 
 | Define | Value |
 |---|---|
-| `APELIN_BUILD_ID` | String literal, unique per build; the marker `confirm_loaded` matches. |
+| `APELIN_BUILD_ID` | String literal, unique per build; the marker `apelin_package_confirm_loaded` matches. |
 | `APELIN_PACKAGE_ID`, `APELIN_VERSION`, `APELIN_PRODUCT_NAME` | String literals from `package.id`, `package.version`, the product's `name`. |
 | `APELIN_BOOTSTRAP_ROOTLESS` or `APELIN_BOOTSTRAP_ROOTHIDE` | `1`, for the bootstrap being built. |
 | `APELIN_CONFIGURATION_DEBUG` or `APELIN_CONFIGURATION_RELEASE` | `1`. |

@@ -597,7 +597,7 @@ do {
         }
         return .object(["tool": .string(tool), "detail": .object([AgentConversationRules.otherProjectDetail: .object(detail)])])
     }
-    let openAsk = otherProjectAsk("conversation_create", action: "create", projectID: other.id, text: "Import the repository")
+    let openAsk = otherProjectAsk("apelin_conversation_create", action: "create", projectID: other.id, text: "Import the repository")
     check(AgentConversationRules.coversOpen(crossChild, target: other, asked: openAsk), "an approval of this open in this project covers it")
     let third = ResolvedProject(id: "p-third", name: "Third", path: scratchPath + "/Third")
     check(!AgentConversationRules.coversOpen(crossChild, target: third, asked: openAsk), "not one in another project")
@@ -606,7 +606,7 @@ do {
         "nor another prompt",
     )
     check(
-        !AgentConversationRules.coversOpen(crossChild, target: other, asked: otherProjectAsk("conversation_send", action: "send", projectID: other.id, text: "Import the repository")),
+        !AgentConversationRules.coversOpen(crossChild, target: other, asked: otherProjectAsk("apelin_conversation_send", action: "send", projectID: other.id, text: "Import the repository")),
         "nor an approval of another tool",
     )
 
@@ -693,7 +693,7 @@ do {
         descriptorCount: 0,
     )
     check(toElsewhere.fromSessionID == "c-opener", "a message goes to another project's conversation the same way")
-    let sendAsk = otherProjectAsk("conversation_send", action: "send", projectID: other.id, sessionID: "c-elsewhere", text: "Build it")
+    let sendAsk = otherProjectAsk("apelin_conversation_send", action: "send", projectID: other.id, sessionID: "c-elsewhere", text: "Build it")
     check(AgentConversationRules.coversSend(toElsewhere, target: elsewhere, asked: sendAsk), "an approval of this message to this conversation covers it")
     check(
         !AgentConversationRules.coversSend(AgentPromptRequest(sessionID: "c-elsewhere", text: "Push it"), target: elsewhere, asked: sendAsk),
@@ -1465,7 +1465,7 @@ do {
     await AgentSessionTable.shared.add(removalSession)
     await registry.append(removalSession.task.taskID, kind: "approvalRequested", payload: .object([
         "approvalID": .string("remove-hello"),
-        "tool": .string("remove_package"),
+        "tool": .string("apelin_package_remove"),
         "arguments": .string(#"{"installation_id":"\#(installationID)"}"#),
         "detail": .object(["packageRemoval": .object(["installationID": .string(installationID)])]),
     ]))
@@ -1736,7 +1736,7 @@ do {
           "with the terminal's environment git refuses it: \(refused.output)")
 }
 
-// MARK: - The terminal and run_code get the project's toolchain and SDK
+// MARK: - The terminal and shell_run get the project's toolchain and SDK
 
 /// A home whose data folder registers a toolchain (installed beside it, as
 /// irisind puts one under the install root) and two SDKs, and a project
@@ -1788,7 +1788,7 @@ do {
 }
 
 do {
-    // In a project: what it binds, the same for the terminal and run_code.
+    // In a project: what it binds, the same for the terminal and shell_run.
     let launch = try TerminalHost.launch(
         installRoot: "/",
         home: developmentHome,
@@ -1806,20 +1806,20 @@ do {
         let parts = entry.split(separator: "=", maxSplits: 1).map(String.init)
         return (parts[0], parts.count > 1 ? parts[1] : "")
     }) { first, _ in first }
-    check(entries.count == variables.count, "run_code gets each variable once: \(entries)")
+    check(entries.count == variables.count, "shell_run gets each variable once: \(entries)")
     check(variables["PATH"] == "\(developmentBin):/var/jb/usr/bin:/var/jb/bin:/var/jb/usr/local/bin:/usr/bin:/bin",
-          "run_code's PATH is the toolchain's tools, then its search path: \(String(describing: variables["PATH"]))")
+          "shell_run's PATH is the toolchain's tools, then its search path: \(String(describing: variables["PATH"]))")
     check(variables["SDKROOT"] == developmentOldSDK && variables["IPHONEOS_DEPLOYMENT_TARGET"] == "15.0",
-          "run_code has the project's SDK and deployment target, as its terminal does")
+          "shell_run has the project's SDK and deployment target, as its terminal does")
     check(variables["HOME"] == developmentHome && variables["APELIN_PROJECT_ROOT"] == developmentProject && variables["TMPDIR"] == "/var/jb/var/tmp",
           "and what it had before")
-    check(entries.allSatisfy { !$0.contains("tok3n") && !$0.contains("inst-secret") }, "no record field but paths reaches run_code")
+    check(entries.allSatisfy { !$0.contains("tok3n") && !$0.contains("inst-secret") }, "no record field but paths reaches shell_run")
 
     // A temporary chat binds nothing: the defaults.
     let temporary = ResolvedProject(id: "temporary:\(UUID().uuidString)", name: "t", path: developmentProject)
     let general = AgentRunCode.environment(preset: nil, project: temporary, installRoot: "/", home: developmentHome)
     check(general.contains("SDKROOT=\(developmentNewSDK)") && general.contains("IPHONEOS_DEPLOYMENT_TARGET=16.0"),
-          "a temporary chat's run_code has the default toolchain's SDK: \(general)")
+          "a temporary chat's shell_run has the default toolchain's SDK: \(general)")
 
     // A preset is a read-only command the host chose the words of: its own
     // short list, no compiler on its path.
@@ -1866,7 +1866,7 @@ do {
         }
         await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object(payload))
     }
-    // What apelin-agent puts in a run_code request's `detail`: the command,
+    // What apelin-agent puts in a shell_run request's `detail`: the command,
     // as ApelinAgent's RunCodeInvocation encodes it (ApelinAgentWorker's
     // tests hold that shape).
     func command(_ invocation: String, _ value: JSONValue) -> JSONValue {
@@ -1891,8 +1891,8 @@ do {
     let changed: JSONValue = .object([
         "descriptionChanged": .object(["kind": .string("build"), "digest": .string(digest)]),
     ])
-    await ask(long, "late-build", tool: "build", detail: changed)
-    await ask(long, "late-run", tool: "run_code", detail: makeCommand)
+    await ask(long, "late-build", tool: "apelin_project_build", detail: changed)
+    await ask(long, "late-run", tool: "shell_run", detail: makeCommand)
     let approveBuild = AgentApproveRequest(sessionID: long.sessionID, approvalID: "late-build", decision: .approve)
     try await AgentApprovals.recordInLedger(approveBuild, entry: long, registry: registry, ledger: ledger)
     let recorded = try await ledger.state(of: digest, kind: .build, project: "p-agent")
@@ -1904,14 +1904,14 @@ do {
     } catch {
         lateRunPassed = false
     }
-    check(lateRunPassed, "a run_code approval asked after the first thousand events lets the call through")
-    await expectErrorAsync("a run_code approval is used once", code: .denied) {
+    check(lateRunPassed, "a shell_run approval asked after the first thousand events lets the call through")
+    await expectErrorAsync("a shell_run approval is used once", code: .denied) {
         try await AgentApprovals.authorize(runCode(long, "late-run"), entry: long, registry: registry, installRoot: "/")
     }
 
     // An approval that does not apply is refused and left as the app gave it.
     let short = await session("agent-short")
-    await ask(short, "for-build", tool: "build")
+    await ask(short, "for-build", tool: "apelin_project_build")
     await sessions.record(short.sessionID, approvalID: "for-build", decision: .approve)
     await expectErrorAsync("an approval asked for another tool", code: .denied) {
         try await AgentApprovals.authorize(
@@ -1922,7 +1922,7 @@ do {
         )
     }
     let kept = await sessions.entry(short.sessionID)?.approvals["for-build"]
-    check(kept == .approve, "a refused run_code call does not spend an approval asked for another tool")
+    check(kept == .approve, "a refused shell_run call does not spend an approval asked for another tool")
     await sessions.record(short.sessionID, approvalID: "never-asked", decision: .approve)
     await expectErrorAsync("an approval the session never asked for", code: .denied) {
         try await AgentApprovals.authorize(
@@ -1933,7 +1933,7 @@ do {
         )
     }
     let unasked = await sessions.entry(short.sessionID)?.approvals["never-asked"]
-    check(unasked == .approve, "a refused run_code call does not spend an approval with no request behind it")
+    check(unasked == .approve, "a refused shell_run call does not spend an approval with no request behind it")
 
     // An approval runs the command it was asked for, in the directory it was
     // asked for, and nothing else.
@@ -1946,7 +1946,7 @@ do {
             return false
         }
     }
-    await ask(bound, "make-here", tool: "run_code", detail: makeCommand)
+    await ask(bound, "make-here", tool: "shell_run", detail: makeCommand)
     await sessions.record(bound.sessionID, approvalID: "make-here", decision: .approve)
     let other = AgentRunCodeRequest(
         sessionID: bound.sessionID,
@@ -1970,7 +1970,7 @@ do {
 
     // Shell text the agent could not reduce to argv runs as an sh script.
     let shellText = "make 2>&1 | tail -n 20"
-    await ask(bound, "make-piped", tool: "run_code", detail: command("shell", .object(["_0": .string(shellText)])))
+    await ask(bound, "make-piped", tool: "shell_run", detail: command("shell", .object(["_0": .string(shellText)])))
     await sessions.record(bound.sessionID, approvalID: "make-piped", decision: .approve)
     let piped = AgentRunCodeRequest(
         sessionID: bound.sessionID,
@@ -1979,10 +1979,16 @@ do {
     )
     let pipedPassed = await authorized(piped)
     check(pipedPassed, "approved shell text runs as the sh script it became")
-    await ask(bound, "no-command", tool: "run_code")
+    await ask(bound, "no-command", tool: "shell_run")
     await sessions.record(bound.sessionID, approvalID: "no-command", decision: .approve)
     let noCommandPassed = await authorized(runCode(bound, "no-command"))
-    check(!noCommandPassed, "a run_code approval that names no command is refused")
+    check(!noCommandPassed, "a shell_run approval that names no command is refused")
+    // An approval asked under the name run_code had before the rename is no
+    // approval for shell_run: the worker and the host change together.
+    await ask(bound, "make-earlier-name", tool: "run_code", detail: makeCommand)
+    await sessions.record(bound.sessionID, approvalID: "make-earlier-name", decision: .approve)
+    let earlierNamePassed = await authorized(runCode(bound, "make-earlier-name"))
+    check(!earlierNamePassed, "an approval recorded under run_code's earlier name is refused")
 }
 
 // MARK: - An agent sets up a toolchain or imports an SDK only as the user approved it
@@ -2002,7 +2008,7 @@ do {
         await sessions.add(entry)
         return entry
     }
-    // What apelin-agent writes into toolchain_setup's and sdk_import's
+    // What apelin-agent writes into apelin_toolchain_setup's and apelin_sdk_import's
     // approvalRequested `detail` (ApelinAgentWorker's tests hold that shape).
     func ask(_ entry: AgentSessionTable.Entry, _ approvalID: String, tool: String, detail: JSONValue) async {
         await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
@@ -2054,7 +2060,7 @@ do {
     // Under Confirm: exactly the approved setup, once.
     let unapproved = await authorized(setup, strict)
     check(!unapproved, "a Strict session needs the user's approval")
-    await ask(strict, "setup-1", tool: "toolchain_setup", detail: setupDetail)
+    await ask(strict, "setup-1", tool: "apelin_toolchain_setup", detail: setupDetail)
     let notYetGiven = await authorized(setup, strict)
     check(!notYetGiven, "asking is not approving")
     await sessions.record(strict.sessionID, approvalID: "setup-1", decision: .approve)
@@ -2067,7 +2073,7 @@ do {
     let again = await authorized(setup, strict)
     check(!again, "once: a second setup asks again")
     let importRequest = SDKImportRequest(source: .repository(url: sourceURL, branch: "sdk/iPhoneOS17.5"))
-    await ask(strict, "import-1", tool: "sdk_import", detail: importDetail)
+    await ask(strict, "import-1", tool: "apelin_sdk_import", detail: importDetail)
     await sessions.record(strict.sessionID, approvalID: "import-1", decision: .approve)
     let otherBranch = await authorized(SDKImportRequest(source: .repository(url: sourceURL, branch: "sdk/iPhoneOS18.5")), strict)
     check(!otherBranch, "an import approval covers its branch only")
@@ -2075,7 +2081,7 @@ do {
     check(!setupFromImport, "and no setup")
     let approvedImport = await authorized(importRequest, strict)
     check(approvedImport, "the approved import goes through")
-    await ask(strict, "denied-1", tool: "sdk_import", detail: importDetail)
+    await ask(strict, "denied-1", tool: "apelin_sdk_import", detail: importDetail)
     await sessions.record(strict.sessionID, approvalID: "denied-1", decision: .deny)
     let afterDenial = await authorized(importRequest, strict)
     check(!afterDenial, "a denied approval lets nothing through")
@@ -2113,7 +2119,7 @@ do {
         ]
         detail["bootstrap"] = bootstrap.map(JSONValue.string)
         await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
-            "approvalID": .string(approvalID), "tool": .string("build"),
+            "approvalID": .string(approvalID), "tool": .string("apelin_project_build"),
             "detail": .object([AgentExternalBuildRules.detailKey: .object(detail)]),
         ]))
     }
@@ -2161,7 +2167,7 @@ do {
         "action": .string("create"), "projectID": .string("p-far"), "projectName": .string("Far"), "text": .string("Build it"),
     ])])
     await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
-        "approvalID": .string("reach-1"), "tool": .string("conversation_create"), "detail": detail,
+        "approvalID": .string("reach-1"), "tool": .string("apelin_conversation_create"), "detail": detail,
     ]))
     let before = await sessions.mayReach("p-far", session: entry.sessionID)
     check(!before, "another project is out of reach until the user approves a call naming it")
@@ -2222,7 +2228,7 @@ do {
     ]
     for (approvalID, detail) in asks {
         await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
-            "approvalID": .string(approvalID), "tool": .string("build"), "detail": detail,
+            "approvalID": .string(approvalID), "tool": .string("apelin_project_build"), "detail": detail,
         ]))
     }
     func relay(_ approvalID: String, workerTakesIt: Bool) async throws {
@@ -2275,7 +2281,7 @@ do {
         )
         await sessions.add(session)
         await registry.append(session.task.taskID, kind: "approvalRequested", payload: .object([
-            "approvalID": .string("shared-build"), "tool": .string("build"), "detail": sharedBuild,
+            "approvalID": .string("shared-build"), "tool": .string("apelin_project_build"), "detail": sharedBuild,
         ]))
         pair.append(session)
     }
@@ -2309,7 +2315,7 @@ do {
     ])])
     for session in pair {
         await registry.append(session.task.taskID, kind: "approvalRequested", payload: .object([
-            "approvalID": .string("unheld-build"), "tool": .string("build"), "detail": unheldBuild,
+            "approvalID": .string("unheld-build"), "tool": .string("apelin_project_build"), "detail": unheldBuild,
         ]))
     }
     func approveUnheld(_ session: AgentSessionTable.Entry) -> AgentApproveRequest {
@@ -2361,7 +2367,7 @@ do {
     await AgentSessionTable.shared.add(entry)
     await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
         "approvalID": .string("evict-build"),
-        "tool": .string("build"),
+        "tool": .string("apelin_project_build"),
         "detail": .object(["descriptionChanged": .object([
             "kind": .string("build"), "digest": .string(digest(1000)),
         ])]),
@@ -2390,7 +2396,7 @@ do {
     )
 }
 
-// MARK: - A run_code approved for the session runs again for that command only
+// MARK: - A shell_run approved for the session runs again for that command only
 
 do {
     let registry = TaskRegistry(directory: scratch.appendingPathComponent("grant-tasks"))
@@ -2408,7 +2414,7 @@ do {
     func ask(_ approvalID: String, argv: [String], sessionScope: Bool, workingDirectory: String = ".") async {
         await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
             "approvalID": .string(approvalID),
-            "tool": .string("run_code"),
+            "tool": .string("shell_run"),
             "workingDirectory": .string(workingDirectory),
             "allowsSessionScope": .bool(sessionScope),
             "detail": .object(["command": .object(["argv": .object(["_0": .array(argv.map { .string($0) })])])]),
@@ -2445,7 +2451,7 @@ do {
     }
 
     let before = await authorized(["make"], .session)
-    check(!before, "a session-scoped run_code with no grant behind it is refused")
+    check(!before, "a session-scoped shell_run with no grant behind it is refused")
 
     await ask("make-session", argv: ["make"], sessionScope: true)
     try await approve("make-session", scope: .session)
@@ -2483,7 +2489,7 @@ do {
     check(!afterClose, "a closed session's grants are gone")
 }
 
-// MARK: - run_code presets are read-only and stay in the project
+// MARK: - shell_run presets are read-only and stay in the project
 
 do {
     let registry = TaskRegistry(directory: scratch.appendingPathComponent("preset-tasks"))
@@ -2868,7 +2874,7 @@ do {
     check(after < 0.5, "a task runs while \(width) config reads wait on git (it waited \(after) s)")
 }
 
-// MARK: - run_code returns although a process that left its group holds the pipes
+// MARK: - shell_run returns although a process that left its group holds the pipes
 
 do {
     /// The script prints, forks a child that calls setsid — out of the group
@@ -2921,7 +2927,7 @@ do {
     }
     let descriptorsBefore = openDescriptors()
     let exited = escaping("exited", then: "exit 0;", timeout: 30)
-    check(exited != nil, "run_code returns when its script exits and an escaped child keeps the pipes open")
+    check(exited != nil, "shell_run returns when its script exits and an escaped child keeps the pipes open")
     if let (response, elapsed) = exited {
         check(openDescriptors() == descriptorsBefore, "the cut pipes are closed, none left open")
         check(elapsed < 6, "it returns within the drain after the script exits (it took \(elapsed) s)")
@@ -2931,7 +2937,7 @@ do {
     }
 
     let timedOut = escaping("timed-out", then: "sleep 1000;", timeout: 2)
-    check(timedOut != nil, "run_code returns at its timeout although an escaped child keeps the pipes open")
+    check(timedOut != nil, "shell_run returns at its timeout although an escaped child keeps the pipes open")
     if let (response, elapsed) = timedOut {
         check(elapsed < 2 + 6, "it returns within the timeout and the drain (it took \(elapsed) s)")
         check(response?.stdout == "hi\n" && response?.timedOut == true, "the timeout is reported with the output")
@@ -3311,7 +3317,7 @@ do {
     check(AgentSessionLineage.load(session: "../x", state: state) == nil, "and reads nothing, even with a file there")
 }
 
-// MARK: - A run_code call its session stopped before it spawned does not run on
+// MARK: - A shell_run call its session stopped before it spawned does not run on
 
 do {
     let session = UUID().uuidString

@@ -3,7 +3,7 @@ import ApelinProtocol
 import Foundation
 
 /// What an agent may set up on the device — a toolchain from Apple's
-/// catalog (`toolchain_setup`), an SDK from an SDK source (`sdk_import`) —
+/// catalog (`apelin_toolchain_setup`), an SDK from an SDK source (`apelin_sdk_import`) —
 /// decided by the host from the request and the session's own approvals,
 /// never from what the agent says it asked.
 ///

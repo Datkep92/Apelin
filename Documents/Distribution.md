@@ -34,9 +34,9 @@ waits until it is fixed.
 
 They are advice. Build still goes ahead after a confirmation, and the build
 itself is never refused for them. **Ask Agent to Prepare** closes the page and
-sends the project's conversation a request to run `check_distribution`, fix
+sends the project's conversation a request to run `apelin_project_check_distribution`, fix
 what it lists and report back without building. The agent's
-`check_distribution` tool answers the same findings; its `build` with
+`apelin_project_check_distribution` tool answers the same findings; its `apelin_project_build` with
 `configuration: release` and a `bootstrap` returns them among the
 diagnostics, and its system prompt tells it to check before a distribution
 build.
@@ -56,7 +56,7 @@ target, with `APELIN_CONFIGURATION=release` and that target's
 `APELIN_BOOTSTRAP`, `APELIN_ARCHITECTURE` and `APELIN_PREFIX`, whatever this
 device runs. Its script writes the one `.deb`; Apelin reads its control file,
 requires the target's architecture and registers it as for any build. There is
-no description to check before, so `check_distribution` and the first page
+no description to check before, so `apelin_project_check_distribution` and the first page
 only say whether the script is declared. The release build reads the package it
 wrote and lists, under the outcome and among the agent's build diagnostics:
 
@@ -77,7 +77,7 @@ For a project apelin-build builds, use its existing build and packaging descript
 - Declare maintainer scripts in `package.maintainerScripts` only when needed.
   Refer to bootstrap paths with `@PREFIX@` and real system paths with `@ROOTFS@`.
   The packager substitutes these per target and checks every script with `sh -n`.
-- Use the typed `build` tool with `configuration: "release"` and an explicit
+- Use the typed `apelin_project_build` tool with `configuration: "release"` and an explicit
   `bootstrap: "roothide"` or `"rootless"` when asking the agent to build a
   distribution. Omit bootstrap for an ordinary build for the current device.
 - Do not create a second packaging script that bypasses these checks. Never

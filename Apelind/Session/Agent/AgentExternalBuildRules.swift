@@ -4,7 +4,7 @@ import Foundation
 
 /// An agent's build of a workspace, which runs the workspace's own script
 /// (apelin-build's `ExternalBuild`): code from the repository, as mobile,
-/// as run_code would run it. Under Confirm each one spends an approval the
+/// as shell_run would run it. Under Confirm each one spends an approval the
 /// app gave this session whose own `approvalRequested` names exactly that
 /// build (`detail.externalBuild` {projectID, configuration, bootstrap?}), so
 /// one approval builds once and nothing is granted for the session (owner,

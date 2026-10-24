@@ -11,7 +11,7 @@ private func spawnAddChdir(
     _ path: UnsafePointer<CChar>,
 ) -> Int32
 
-/// `agentRunCode`: the agent's `run_code`, run by the session host as
+/// `agentRunCode`: the agent's `shell_run`, run by the session host as
 /// mobile (uid, gid and groups 501 set before exec), in the session's
 /// project, with stdin from /dev/null, every other descriptor closed, its
 /// own process group (killed whole when time runs out) and both output
@@ -29,10 +29,10 @@ enum AgentRunCode {
     private static let interpreters: [(name: String, flag: String)] = [
         ("sh", "-c"), ("bash", "-c"), ("zsh", "-c"), ("python3", "-c"), ("perl", "-e"),
     ]
-    /// The process groups of the run_code calls running now, by session.
+    /// The process groups of the shell_run calls running now, by session.
     private static let running = RunningGroups()
 
-    /// Kills the run_code calls `session` is running: stopping or closing
+    /// Kills the shell_run calls `session` is running: stopping or closing
     /// the conversation ends them rather than leaving them to their timeout.
     static func stop(session: String) {
         running.stop(session: session)
@@ -44,7 +44,7 @@ enum AgentRunCode {
         running.stopCount(session: session)
     }
 
-    /// Kills every run_code call running, for the host's shutdown: the
+    /// Kills every shell_run call running, for the host's shutdown: the
     /// timeout that bounds each one ends with the host.
     static func stopAll() {
         running.stopAll()
@@ -57,7 +57,7 @@ enum AgentRunCode {
 
     static func resolveExecutable(_ name: String, installRoot: String) throws -> String {
         guard !name.isEmpty, !name.contains("/"), !CanonicalPath.containsNUL(name), name != ".", name != ".." else {
-            throw ApelinError(.badRequest, "run_code takes an executable name, not a path")
+            throw ApelinError(.badRequest, "shell_run takes an executable name, not a path")
         }
         for directory in DevelopmentEnvironment.searchPath(installRoot: installRoot) {
             guard let path = CanonicalPath.resolve(directory + "/" + name) else { continue }
@@ -73,11 +73,11 @@ enum AgentRunCode {
     private static func argv(for spec: RunCodeSpec, installRoot: String) throws -> [String] {
         switch spec {
         case let .argv(argv):
-            guard let name = argv.first else { throw ApelinError(.badRequest, "run_code needs an executable") }
+            guard let name = argv.first else { throw ApelinError(.badRequest, "shell_run needs an executable") }
             guard argv.allSatisfy({ !CanonicalPath.containsNUL($0) }), argv.count <= maximumArguments else {
                 throw ApelinError(
                     .badRequest,
-                    "run_code takes at most \(maximumArguments) arguments, and none may contain a NUL byte",
+                    "shell_run takes at most \(maximumArguments) arguments, and none may contain a NUL byte",
                 )
             }
             return try [resolveExecutable(name, installRoot: installRoot)] + argv.dropFirst()
@@ -192,7 +192,7 @@ enum AgentRunCode {
 
     /// Runs a tool of the host's own choosing (`argv[0]` a canonical path)
     /// from `directory` (`/` unless asked) to read what it prints, the way
-    /// run_code runs: as mobile when the host is root, as the user running
+    /// shell_run runs: as mobile when the host is root, as the user running
     /// it on a test host, which is no more than that user may do anyway.
     /// With a `session`, it is one of that session's calls, as `run` makes
     /// it: a stop since it took `stopsSeen` ends it. Nil when it could not start.
@@ -250,7 +250,7 @@ enum AgentRunCode {
         posix_spawn_file_actions_adddup2(&actions, err[1], 2)
         guard spawnAddChdir(&actions, directory) == 0 else {
             [out[0], out[1], err[0], err[1]].forEach { close($0) }
-            throw ApelinError(.internal, "could not set run_code's working directory")
+            throw ApelinError(.internal, "could not set shell_run's working directory")
         }
 
         var everySignal = sigset_t()
@@ -272,7 +272,7 @@ enum AgentRunCode {
                 && spawnSetUID(&attributes, uid_t(WorkerRole.mobileUID)) == 0)
         else {
             [out[0], out[1], err[0], err[1]].forEach { close($0) }
-            throw ApelinError(.internal, "could not set mobile's identity for run_code")
+            throw ApelinError(.internal, "could not set mobile's identity for shell_run")
         }
 
         let started = Date()

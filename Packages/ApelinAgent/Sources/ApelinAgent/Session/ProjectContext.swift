@@ -86,7 +86,7 @@ enum ProjectContext {
         }
         switch buildSystem {
         case .external:
-            lines.append("- Build: external. No Apelin build description; build with the project's own tools through run_code.")
+            lines.append("- Build: external. No Apelin build description; build with the project's own tools through shell_run.")
         case .apelin:
             var build = "Apelin's build tool"
             if case let .array(steps)? = manifest.value(at: "build.steps") {

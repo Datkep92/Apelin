@@ -26,7 +26,7 @@ struct EnvironmentToolTests {
     @Test
     func `the catalog names them with their risks`() {
         #expect(Self.tools.map(\.rawValue) == [
-            "toolchain_list", "sdk_list", "toolchain_setup", "sdk_import", "toolchain_self_test", "project_environment_set",
+            "apelin_toolchain_list", "apelin_sdk_list", "apelin_toolchain_setup", "apelin_sdk_import", "apelin_toolchain_self_test", "apelin_project_set_environment",
         ])
         #expect(AgentToolName.toolchainList.risk == .readOnly && AgentToolName.sdkList.risk == .readOnly)
         for tool in [AgentToolName.toolchainSetup, .sdkImport, .toolchainSelfTest] {
@@ -58,7 +58,7 @@ struct EnvironmentToolTests {
         for tool in [AgentToolName.toolchainList, .sdkList, .toolchainSetup, .sdkImport, .toolchainSelfTest] {
             #expect(offered.contains(tool.rawValue), "\(tool.rawValue)")
         }
-        #expect(!offered.contains("project_environment_set"))
+        #expect(!offered.contains("apelin_project_set_environment"))
     }
 
     @Test
@@ -66,8 +66,8 @@ struct EnvironmentToolTests {
         let home = try TemporaryHome()
         defer { home.remove() }
         let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm, skills: [], mcpServers: [])
-        #expect(prompt.contains("environment.* errors") && prompt.contains("project_environment_set"))
-        #expect(prompt.contains("toolchain_setup or sdk_import") && prompt.contains("toolchain and SDK installs"))
+        #expect(prompt.contains("environment.* errors") && prompt.contains("apelin_project_set_environment"))
+        #expect(prompt.contains("apelin_toolchain_setup or apelin_sdk_import") && prompt.contains("toolchain and SDK installs"))
     }
 
     // MARK: Approval
@@ -131,7 +131,7 @@ struct EnvironmentToolTests {
         defer { harness.home.remove() }
         let (result, asked) = try await harness.run(.toolchainSetup, ["version": "15.3", "swift": true])
         #expect(asked.count == 1)
-        #expect(asked.first?.tool == "toolchain_setup" && asked.first?.allowsSessionScope == false)
+        #expect(asked.first?.tool == "apelin_toolchain_setup" && asked.first?.allowsSessionScope == false)
         #expect(asked.first?.detail == .toolchainSetup(ToolchainSetupApproval(productID: "082-15", version: "15.3", components: ["c", "swift"], sizeBytes: 700_000_000)))
         #expect(asked.first?.reason.contains("700") == true, "\(asked.first?.reason ?? "")")
         #expect(text(result).contains("\"succeeded\" : true"))

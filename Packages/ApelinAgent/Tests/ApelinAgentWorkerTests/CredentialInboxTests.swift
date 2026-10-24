@@ -96,17 +96,30 @@ struct CredentialInboxTests {
 
 @Suite("The relay from session events to task events")
 struct EventRelayMappingTests {
+    /// A reopened session relays its whole log again, calls recorded
+    /// under the earlier names included: a token saved then stays masked.
+    @Test
+    func `a credential call recorded under either name reaches the app masked`() {
+        var waiting = 0
+        for name in ["apelin_git_save_credential", "git_save_credential"] {
+            let call = ToolCallRecord(id: "c", name: name, arguments: #"{"host":"github.com","token":"ghp_secret","username":"octocat"}"#)
+            let relayed = EventRelay.events(for: .toolCallStarted(call), waiting: &waiting)
+            let arguments = relayed.first?.1?["arguments"]?.stringValue ?? ""
+            #expect(!arguments.contains("ghp_secret") && arguments.contains("octocat"), "\(name)")
+        }
+    }
+
     @Test
     func `an approval request puts the task in waitingForApproval until it is resolved`() {
         var waiting = 0
         let request = ApprovalRequest(
-            id: "approval-1", toolCallID: "call-1", tool: "run_code", arguments: "{}", workingDirectory: ".",
+            id: "approval-1", toolCallID: "call-1", tool: "shell_run", arguments: "{}", workingDirectory: ".",
             projectID: "p", fingerprint: "f", reason: "asks", detail: .command(.argv(["make"])), allowsSessionScope: true,
         )
         let asked = EventRelay.events(for: .approvalRequested(request), waiting: &waiting)
         #expect(asked.map(\.0) == ["approvalRequested", "state"])
         #expect(asked[0].1?["approvalID"]?.stringValue == "approval-1")
-        #expect(asked[0].1?["tool"]?.stringValue == "run_code")
+        #expect(asked[0].1?["tool"]?.stringValue == "shell_run")
         #expect(asked[1].1?["state"]?.stringValue == "waitingForApproval")
         let resolved = EventRelay.events(for: .approvalResolved(requestID: "approval-1", decision: .approve(.once)), waiting: &waiting)
         #expect(resolved.map(\.0) == ["approvalResolved", "state"])
@@ -114,13 +127,13 @@ struct EventRelayMappingTests {
     }
 
     /// The session host reads `detail.command` and `workingDirectory` back
-    /// from this event to hold a run_code approval to the command it showed
+    /// from this event to hold a shell_run approval to the command it showed
     /// (`AgentApprovals.approvedSpec` in Apelind decodes exactly this shape).
     @Test
-    func `a run_code approval request carries its command in the shape the host reads`() {
+    func `a shell_run approval request carries its command in the shape the host reads`() {
         func payload(_ invocation: RunCodeInvocation, cwd: String) -> ApelinCore.JSONValue {
             let request = ApprovalRequest(
-                id: "a", toolCallID: "c", tool: "run_code", arguments: "{}", workingDirectory: cwd,
+                id: "a", toolCallID: "c", tool: "shell_run", arguments: "{}", workingDirectory: cwd,
                 projectID: "p", fingerprint: "f", reason: "asks", detail: .command(invocation), allowsSessionScope: true,
             )
             return EventRelay.approvalPayload(request)
@@ -160,14 +173,14 @@ struct EventRelayMappingTests {
             return
         }
         let request = ApprovalRequest(
-            id: "a", toolCallID: "c", tool: "remove_package", arguments: "{}", workingDirectory: ".",
+            id: "a", toolCallID: "c", tool: "apelin_package_remove", arguments: "{}", workingDirectory: ".",
             projectID: "p", fingerprint: "f", reason: reason, detail: detail, allowsSessionScope: false,
         )
         let payload = EventRelay.approvalPayload(request)
         let expected: ApelinCore.JSONValue = .object([
             "packageRemoval": .object(["installationID": .string("inst-1")]),
         ])
-        #expect(payload["tool"]?.stringValue == "remove_package")
+        #expect(payload["tool"]?.stringValue == "apelin_package_remove")
         #expect(payload["detail"] == expected)
     }
 

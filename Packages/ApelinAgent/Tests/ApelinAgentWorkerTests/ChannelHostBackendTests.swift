@@ -136,7 +136,7 @@ struct ChannelHostBackendTests {
     }
 
     @Test
-    func `check_distribution counts what stops the build, and says a workspace's package is checked by its build`() async throws {
+    func `apelin_project_check_distribution counts what stops the build, and says a workspace's package is checked by its build`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.projectCheck, reply: ProjectCheckResponse(
             passed: false,
@@ -201,7 +201,7 @@ struct ChannelHostBackendTests {
     }
 
     @Test
-    func `confirm_loaded starts a load check with the session's project and reads its answer from the final state`() async throws {
+    func `apelin_package_confirm_loaded starts a load check with the session's project and reads its answer from the final state`() async throws {
         let fixture = try Fixture()
         let answer = ApelinProtocol.ConfirmLoadedResponse(loaded: true, evidence: [
             LoadEvidence(kind: "log", passed: true, detail: "confirmed: Marker logged by pid 55."),
@@ -231,7 +231,7 @@ struct ChannelHostBackendTests {
     }
 
     @Test
-    func `confirm_loaded without respring sends no trigger; a check that ended without an answer throws`() async throws {
+    func `apelin_package_confirm_loaded without respring sends no trigger; a check that ended without an answer throws`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.confirmLoaded, reply: TaskHandle(taskID: TaskID("confirm-task"), kind: .confirmLoaded))
         fixture.host.on(.confirmLoadedAttach, reply: batch("confirm-task", [stateEvent(.failed, "apelin-diagnostics exited")]))
@@ -242,7 +242,7 @@ struct ChannelHostBackendTests {
     }
 
     @Test
-    func `read_logs opens a bounded stream and reads it to its end`() async throws {
+    func `apelin_log_read opens a bounded stream and reads it to its end`() async throws {
         let fixture = try Fixture()
         let entry: ApelinCore.JSONValue = .object([
             "time": .string("2026-10-17T10:00:00Z"), "process": .string("SpringBoard"),
@@ -270,7 +270,7 @@ struct ChannelHostBackendTests {
     }
 
     @Test
-    func `read_crash reads the descriptor crashOpen hands back, bounded`() async throws {
+    func `apelin_crash_read reads the descriptor crashOpen hands back, bounded`() async throws {
         let fixture = try Fixture()
         let text = Data(String(repeating: "x", count: 100).utf8)
         fixture.host.on(.crashOpen) { _ in (CrashOpenResponse(descriptor: DescriptorSlot(index: 0), size: 100), [descriptor(holding: text)]) }
@@ -281,7 +281,7 @@ struct ChannelHostBackendTests {
     }
 
     @Test
-    func `symbolicate_crash asks the diagnostics worker with the project`() async throws {
+    func `apelin_crash_symbolicate asks the diagnostics worker with the project`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.crashSymbolicate, reply: CrashSymbolicateResponse(id: "r.ips", process: "SpringBoard", matchedImageUUIDs: ["UUID-1"], crashedThread: [
             ApelinProtocol.SymbolicatedFrame(index: 0, image: "Hello.dylib", address: "0x1000", symbol: "HookedDidFinishLaunching", file: "Tweak.m", line: 30),
@@ -294,7 +294,7 @@ struct ChannelHostBackendTests {
     }
 
     @Test
-    func `capture_screen reads the image from the reply's descriptor`() async throws {
+    func `apelin_screen_capture reads the image from the reply's descriptor`() async throws {
         let fixture = try Fixture()
         let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
         fixture.host.on(.captureScreen) { _ in (ApelinProtocol.CaptureScreenResponse(image: DescriptorSlot(index: 0), width: 10, height: 20), [descriptor(holding: jpeg)]) }
@@ -326,7 +326,7 @@ struct ChannelHostBackendTests {
     }
 
     @Test
-    func `run_code is agentRunCode: a shell line becomes an sh script, the evidence is passed on`() async throws {
+    func `shell_run is agentRunCode: a shell line becomes an sh script, the evidence is passed on`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.agentRunCode, reply: AgentRunCodeResponse(exitCode: 0, stdout: "ok", stderr: "", durationMilliseconds: 5))
         let response = try await fixture.backend.runCode(RunCodeRequest(

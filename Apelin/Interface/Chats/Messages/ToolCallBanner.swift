@@ -1,4 +1,5 @@
 import ApelinCore
+import ApelinProtocol
 import Foundation
 
 /// What the line under a running summary shows: its newest call, by the
@@ -16,8 +17,9 @@ struct ToolCallBanner: Hashable {
     }
 
     /// The tools that write a file; the first line of their result ends
-    /// with the lines added and removed, as `+a -b`.
-    static let fileTools: Set<String> = ["write_file", "create_file", "patch_file"]
+    /// with the lines added and removed, as `+a -b`. A call recorded under
+    /// an earlier name counts too (`AgentToolName.canonical`).
+    static let fileTools: Set<AgentToolName> = [.writeFile, .createFile, .patchFile]
 }
 
 extension ToolCallBanner {
@@ -29,8 +31,12 @@ extension ToolCallBanner {
         let path = values?["path"]?.stringValue ?? ""
         self.init(
             reason: reason.isEmpty ? title : reason,
-            file: Self.fileTools.contains(tool) && !path.isEmpty ? (path as NSString).lastPathComponent : nil,
+            file: Self.writesFile(tool) && !path.isEmpty ? (path as NSString).lastPathComponent : nil,
         )
+    }
+
+    private static func writesFile(_ tool: String) -> Bool {
+        AgentToolName.canonical(tool).map(fileTools.contains) ?? false
     }
 
     /// The `+a -b` a file tool ends its result's first line with:

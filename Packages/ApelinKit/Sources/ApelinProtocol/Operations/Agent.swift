@@ -24,7 +24,7 @@ public enum ApprovalScope: String, Codable, Sendable {
     /// The call that asked, once.
     case once
     /// Identical calls for the rest of the session, where the request
-    /// offered it (`allowsSessionScope`); for run_code the host records a
+    /// offered it (`allowsSessionScope`); for shell_run the host records a
     /// grant for that command in that working directory.
     case session
 }
@@ -199,7 +199,7 @@ public struct AgentOpenRequest: OperationRequest {
     /// when it completed, `failed` or `cancelled` otherwise. For headless
     /// runs that follow the session task until it ends.
     public var closeWhenFinished: Bool?
-    /// A name for the conversation, from an agent's conversation_create;
+    /// A name for the conversation, from an agent's apelin_conversation_create;
     /// the host keeps it as the session's title and puts it on
     /// `conversationOpened`.
     public var title: String?

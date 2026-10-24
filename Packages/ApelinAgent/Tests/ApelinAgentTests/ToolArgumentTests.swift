@@ -24,7 +24,7 @@ struct ToolArgumentTests {
     }
 
     @Test
-    func `run_code takes the command beside an empty argv, and refuses two forms`() throws {
+    func `shell_run takes the command beside an empty argv, and refuses two forms`() throws {
         let normalized = ToolArguments.normalized(["argv": [], "command": "ls -la"], for: .runCode)
         #expect(try CommandClassifier.classify(normalized) == .argv(["ls", "-la"]))
         #expect(throws: ToolArgumentError.self) {

@@ -7,7 +7,7 @@
       "provider": "openAICompatible",
       "model": "deepseek-chat",
       "approvalMode": "confirm",
-      "prompt": "Use the run_code tool to run exactly this argv in the project folder: [\"uname\", \"-a\"]. Then tell me the kernel version it printed in one sentence. Do nothing else.",
+      "prompt": "Use the shell_run tool to run exactly this argv in the project folder: [\"uname\", \"-a\"]. Then tell me the kernel version it printed in one sentence. Do nothing else.",
       "closeWhenFinished": true
     }},
     {"op": "wait", "request": {"seconds": 45}},

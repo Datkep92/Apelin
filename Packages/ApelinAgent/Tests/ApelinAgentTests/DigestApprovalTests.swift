@@ -194,7 +194,7 @@ struct DigestApprovalTests {
     }
 }
 
-@Suite("confirm_loaded that resprings")
+@Suite("apelin_package_confirm_loaded that resprings")
 struct ConfirmLoadedGateTests {
     @Test
     func `is gated as respring; without respring it is a read`() async throws {

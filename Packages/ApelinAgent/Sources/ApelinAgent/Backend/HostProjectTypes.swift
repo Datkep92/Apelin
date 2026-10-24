@@ -47,7 +47,7 @@ public struct ProjectTemplate: Sendable, Hashable, Codable {
         }
     }
 
-    /// `<extension-id>/<template-id>`, what project_create takes.
+    /// `<extension-id>/<template-id>`, what apelin_project_create takes.
     public var id: String
     public var name: String
     /// The extension's kind: workspace, app, tweak, commandLineTool or

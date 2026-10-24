@@ -11,7 +11,7 @@ extension BuiltInSkills {
         build reads. It is checked strictly: an unknown member, a duplicate
         key or a wrong type is an error naming its field, such as
         `/products/0/sources`. The complete schema is this skill's file
-        `apelin-project.schema.json` (read_skill with that file).
+        `apelin-project.schema.json` (apelin_skill_read with that file).
 
         ## Members Apelin writes
         Never invent, copy or change these:
@@ -20,7 +20,7 @@ extension BuiltInSkills {
         - `template`: the template the project was made from.
         - `environment` `{toolchain, sdk}`, each `{id, digest}`: the
           registered toolchain and SDK. Change them only with
-          project_environment_set; never type a digest.
+          apelin_project_set_environment; never type a digest.
         - `displayName` and `autoName`: the name Apelin shows.
 
         ## What it builds

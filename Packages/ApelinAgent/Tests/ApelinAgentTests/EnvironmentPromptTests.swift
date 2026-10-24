@@ -21,7 +21,7 @@ struct EnvironmentPromptTests {
         #expect(prompt.contains("- SDKs: none registered."))
         #expect(prompt.contains("This project binds toolchain gone, which is not installed here"))
         #expect(prompt.contains("This project binds SDK gone-too, which is not registered here"))
-        #expect(prompt.contains("run_code has no Apelin compiler until a toolchain is installed"))
+        #expect(prompt.contains("shell_run has no Apelin compiler until a toolchain is installed"))
         #expect(prompt.contains("never through a login shell"))
         #expect(!prompt.contains("`/rootfs`"), "the rootfs note is roothide's")
     }
@@ -52,9 +52,9 @@ struct EnvironmentPromptTests {
         let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot, installRoot: home.home.path + "/jb")
         var inputs = try EnvironmentPrompt.inputs(configuration, root: ScopedRoot(home.projectURL), device: .current)
         inputs.commandsFound = ["git", "make"]
-        #expect(EnvironmentPrompt.section(inputs).contains("- Also on run_code's PATH: git, make. Not installed: cmake, dpkg-deb, ldid, ninja, perl, python3, xcrun."))
+        #expect(EnvironmentPrompt.section(inputs).contains("- Also on shell_run's PATH: git, make. Not installed: cmake, dpkg-deb, ldid, ninja, perl, python3, xcrun."))
         inputs.commandsFound = []
-        #expect(EnvironmentPrompt.section(inputs).contains("- Also on run_code's PATH: none of cmake, dpkg-deb, git, ldid, make, ninja, perl, python3, xcrun."))
+        #expect(EnvironmentPrompt.section(inputs).contains("- Also on shell_run's PATH: none of cmake, dpkg-deb, git, ldid, make, ninja, perl, python3, xcrun."))
     }
 
     @Test

@@ -48,12 +48,12 @@ struct SkillAndPromptTests {
         #expect(prompt.contains("<skill name=\"tweak-development\">"))
         #expect(!prompt.contains("skill-body-marker"))
         #expect(!prompt.contains(BuiltInSkills.all[0].body))
-        #expect(prompt.contains("call read_skill"))
+        #expect(prompt.contains("call apelin_skill_read"))
         #expect(prompt.hasSuffix("Current date: \(Self.day(1_800_000_000))"))
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func `read_skill answers a body, lists and reads the skill's files, and stays in its folder`() async throws {
+    func `apelin_skill_read answers a body, lists and reads the skill's files, and stays in its folder`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         try writeSkill(home, folder: "theme", name: "theme-colours", body: "Use the palette.",
@@ -92,7 +92,7 @@ struct SkillAndPromptTests {
         }
         #expect(try await call(["name": "tweak-development", "file": ""]).contains("# Tweak development"))
         let guide = try await call(["name": "project-description"])
-        #expect(guide.contains("Files in this skill's folder (read_skill with file): apelin-project.schema.json"))
+        #expect(guide.contains("Files in this skill's folder (apelin_skill_read with file): apelin-project.schema.json"))
         let schema = try await call(["name": "project-description", "file": "apelin-project.schema.json"])
         #expect(schema.contains(#""title": "Apelin project description, version 1""#))
     }
@@ -125,7 +125,7 @@ struct SkillAndPromptTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func `every built-in skill is listed by name and read_skill serves its body`() async throws {
+    func `every built-in skill is listed by name and apelin_skill_read serves its body`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let skills = BuiltInSkills.all
@@ -144,13 +144,13 @@ struct SkillAndPromptTests {
         for skill in skills {
             let body = try await text(runner.run(.local(.readSkill), toolCallID: UUID().uuidString,
                                                  arguments: ["name": .string(skill.name)], cancellation: nil, mcp: nil))
-            #expect(body.contains(skill.body.prefix(32)), "read_skill did not serve \(skill.name)")
+            #expect(body.contains(skill.body.prefix(32)), "apelin_skill_read did not serve \(skill.name)")
             #expect(!prompt.contains(skill.body), "the prompt leaked \(skill.name)'s body")
         }
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func `the bootstrap-paths skill carries its C helper and read_skill serves it`() async throws {
+    func `the bootstrap-paths skill carries its C helper and apelin_skill_read serves it`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let skill = try #require(BuiltInSkills.all.first { $0.name == "bootstrap-paths" })
@@ -182,7 +182,7 @@ struct SkillAndPromptTests {
     }
 
     @Test
-    func `the prompt keeps notify_user for what the user would want to know while away`() throws {
+    func `the prompt keeps apelin_notification_send for what the user would want to know while away`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .relaxed,
@@ -190,17 +190,17 @@ struct SkillAndPromptTests {
         let working = try #require(prompt.range(of: "# Working")?.upperBound)
         let device = try #require(prompt.range(of: "# This device")?.lowerBound)
         let section = prompt[working ..< device]
-        #expect(section.contains("tell them with notify_user"))
+        #expect(section.contains("tell them with apelin_notification_send"))
         #expect(section.contains("never for routine progress, instead of your reply, or to say you are done"))
     }
 
     @Test
-    func `read_skill needs no approval in Confirm mode`() throws {
+    func `apelin_skill_read needs no approval in Confirm mode`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let verdict = try ApprovalPolicy(mode: .confirm)
             .evaluate(InvocationFacts(tool: .local(.readSkill)), root: ScopedRoot(home.projectURL))
-        #expect(verdict == .allow(.preset("read_skill")))
+        #expect(verdict == .allow(.preset("apelin_skill_read")))
     }
 
     @Test

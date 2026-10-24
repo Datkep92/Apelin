@@ -41,7 +41,7 @@ struct CopilotLiveTests {
             credentials: credentials,
         )
         let stream = try await session.events(afterSeq: 0)
-        try await session.prompt("Use the read_file tool to read secret-word.txt, then reply with only the word it contains.")
+        try await session.prompt("Use the file_read tool to read secret-word.txt, then reply with only the word it contains.")
 
         var toolCalls: [String] = []
         var finalText = ""
@@ -65,7 +65,7 @@ struct CopilotLiveTests {
 
         #expect(errors.isEmpty, "\(errors)")
         #expect(finish == .completed)
-        #expect(toolCalls.contains("read_file"))
+        #expect(toolCalls.contains("file_read"))
         #expect(finalText.contains(word))
     }
 }

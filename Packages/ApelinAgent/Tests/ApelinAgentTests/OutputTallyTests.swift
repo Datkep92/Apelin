@@ -58,7 +58,7 @@ struct OutputTallyTests {
             .message(fauxAssistantMessage(blocks: [
                 fauxThinking("Read the readme first."),
                 fauxText("Reading it."),
-                fauxToolCall(name: "read_file", arguments: ["reason": "Read the readme", "path": "README.md"]),
+                fauxToolCall(name: "file_read", arguments: ["reason": "Read the readme", "path": "README.md"]),
             ], stopReason: .toolUse)),
             .message(fauxAssistantMessage("It says hello.")),
             .message(fauxAssistantMessage("Still hello.")),

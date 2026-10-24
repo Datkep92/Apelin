@@ -1,7 +1,7 @@
 extension BuiltInSkills {
     static let tweakRuntime = SkillDocument(
         name: "tweak-runtime",
-        description: "How a tweak behaves at run time inside another process: logging with os_log so read_logs can see it, what the host's sandbox lets it read and write, reading settings, and telling another process something changed with a Darwin notification. Read when a tweak logs, stores a setting, reads files, or talks to another process.",
+        description: "How a tweak behaves at run time inside another process: logging with os_log so apelin_log_read can see it, what the host's sandbox lets it read and write, reading settings, and telling another process something changed with a Darwin notification. Read when a tweak logs, stores a setting, reads files, or talks to another process.",
         body: """
         # A tweak at run time
 
@@ -14,15 +14,15 @@ extension BuiltInSkills {
         - Log with `os_log` to a logger whose subsystem is the package ID, as
           the template's `TweakLog()` does
           (`os_log_create(APELIN_PACKAGE_ID, "<category>")`). This is how
-          read_logs and confirm_loaded find your lines.
+          apelin_log_read and apelin_package_confirm_loaded find your lines.
         - The unified log has no history on iOS: it is read live, so a line is
-          seen only while something listens. read_logs listens from the
+          seen only while something listens. apelin_log_read listens from the
           moment it is called for at most 10 seconds (`since_seconds` sets
           how long, not how far back), and your tool calls run one at a
           time, so it hears only what the host logs during the call on its
           own: something that recurs, or something the user does while it
           runs — tell them first. A line logged once at the host's launch is
-          confirm_loaded's (with `respring: true` for SpringBoard). To trace
+          apelin_package_confirm_loaded's (with `respring: true` for SpringBoard). To trace
           a hook, log on each call, with the build ID, rate-limited if it is
           hot. Filter by `subsystem` (your package ID; dotted children
           included).

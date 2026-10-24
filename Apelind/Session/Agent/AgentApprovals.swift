@@ -27,7 +27,7 @@ enum AgentApprovals {
     /// approval, in the host's ledger) before `forward` hands it to the
     /// worker, so the host knows it when the worker acts on it at once, and
     /// taken back when the worker did not accept it, so the host never holds
-    /// a grant the worker was not given. A run_code approved for the
+    /// a grant the worker was not given. A shell_run approved for the
     /// session also leaves a session grant for that command in that
     /// directory (`recordSessionGrant`).
     static func relay<Reply>(
@@ -79,7 +79,7 @@ enum AgentApprovals {
     }
 
     /// Records a session grant when the app approved, for the session, a
-    /// run_code request that offered it: the command its `detail.command`
+    /// shell_run request that offered it: the command its `detail.command`
     /// showed in its `workingDirectory`, normalised as `authorize` compares
     /// them. Answers the grant when it is new, nil when it added nothing.
     private static func recordSessionGrant(
@@ -193,12 +193,12 @@ enum AgentApprovals {
             }
             return preset
         case let .user(approvalID):
-            // The approval must be one this session asked for run_code, for
+            // The approval must be one this session asked for shell_run, for
             // this command in this directory, checked before it is spent so
             // a refused call leaves it alone.
             let asked = await requested(approvalID, entry: entry, registry: registry)
             guard let asked, asked["tool"]?.stringValue == AgentToolName.runCode.rawValue else {
-                throw ApelinError(.denied, "\(approvalID) is not an approval this session requested for run_code")
+                throw ApelinError(.denied, "\(approvalID) is not an approval this session requested for shell_run")
             }
             guard let approved = approvedSpec(asked), approved == run.spec,
                   directoryName(asked["workingDirectory"]?.stringValue) == directoryName(run.workingDirectory)
@@ -220,7 +220,7 @@ enum AgentApprovals {
         }
     }
 
-    /// The command a run_code approval request showed the user, as the
+    /// The command a shell_run approval request showed the user, as the
     /// `RunCodeSpec` the agent sends for it: apelin-agent puts the classified
     /// invocation in `detail.command` (ApelinAgent's `RunCodeInvocation`, in
     /// its synthesized Codable shape) and hands shell text to `sh`
@@ -251,7 +251,7 @@ enum AgentApprovals {
     }
 }
 
-/// A run_code command and working directory the app approved for the rest
+/// A shell_run command and working directory the app approved for the rest
 /// of a session.
 struct RunCodeGrant: Equatable, Sendable {
     var spec: RunCodeSpec
@@ -261,7 +261,7 @@ struct RunCodeGrant: Equatable, Sendable {
 
 /// What the host keeps about each agent session it opened: the project it
 /// resolved, the approval mode the app chose, the approvals the app gave,
-/// the run_code calls it approved for the session, and, for one an agent
+/// the shell_run calls it approved for the session, and, for one an agent
 /// opened (`AgentConversations`), the session that opened it.
 actor AgentSessionTable {
     static let shared = AgentSessionTable()
@@ -274,7 +274,7 @@ actor AgentSessionTable {
         var title: String?
         var createdAt: Date
         var approvals: [String: ApprovalDecision] = [:]
-        /// The run_code calls the app approved for the rest of the session.
+        /// The shell_run calls the app approved for the rest of the session.
         var runCodeGrants: [RunCodeGrant] = []
         /// The session whose agent opened this one; nil for the app's.
         var parentSessionID: String?

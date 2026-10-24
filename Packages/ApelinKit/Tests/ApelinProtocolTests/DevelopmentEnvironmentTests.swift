@@ -3,7 +3,7 @@ import ApelinCore
 import Foundation
 import XCTest
 
-/// The toolchain and SDK run_code and the terminal compile with, chosen
+/// The toolchain and SDK shell_run and the terminal compile with, chosen
 /// from apelin-environment's registries the way `projectCreate` binds them.
 final class DevelopmentEnvironmentTests: XCTestCase {
     private var home: URL!

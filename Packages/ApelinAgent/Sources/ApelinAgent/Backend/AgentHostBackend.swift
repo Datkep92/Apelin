@@ -40,8 +40,8 @@ public protocol AgentHostBackend: Sendable {
     func readUITree(_ request: ReadUITreeRequest) async throws -> ReadUITreeResponse
     /// One structured UI action on the target.
     func uiAction(_ request: UIActionRequest) async throws -> UIActionResponse
-    /// Where a registered SDK lives, for `analyze_framework` and
-    /// `framework_header` to read as mobile.
+    /// Where a registered SDK lives, for `apelin_sdk_analyze_framework` and
+    /// `apelin_sdk_read_header` to read as mobile.
     func registeredSDK(_ request: RegisteredSDKRequest) async throws -> RegisteredSDKResponse
     /// What a package for other people should not carry yet: warnings,
     /// never a refusal.

@@ -10,9 +10,9 @@ let userID = UUID()
 let events = [
     event(1, "prompt", ["id": .string(userID.uuidString), "text": .string("Make a change")]),
     event(2, "messageStarted"), event(3, "thinking", ["text": .string("A supplied reasoning summary")]),
-    event(4, "toolCall", ["id": .string("t1"), "tool": .string("read_file"), "arguments": .string("{\"path\":\"README.md\"}")]),
+    event(4, "toolCall", ["id": .string("t1"), "tool": .string("file_read"), "arguments": .string("{\"path\":\"README.md\"}")]),
     event(5, "toolResult", ["id": .string("t1"), "output": .string("file content")]),
-    event(6, "approvalRequested", ["approvalID": .string("a1"), "tool": .string("run_code"), "arguments": .string("{}")]),
+    event(6, "approvalRequested", ["approvalID": .string("a1"), "tool": .string("shell_run"), "arguments": .string("{}")]),
     event(7, "approvalResolved", ["approvalID": .string("a1"), "decision": .string("deny")]),
     event(8, "messageStarted"), event(9, "text", ["text": .string("Partial")]),
     event(10, "message", ["text": .string("Final text")]), event(11, "finished"),
@@ -30,10 +30,10 @@ precondition(ChatTranscript(events: Array(events.prefix(6))) { _ in nil }.messag
 precondition(ChatTranscript(events: Array(events.prefix(9))) { _ in nil }.isWorking)
 let toolLoop = [
     event(1, "messageStarted"), event(2, "thinking", ["text": .string("First thought")]),
-    event(3, "toolCall", ["id": .string("t1"), "tool": .string("list")]),
+    event(3, "toolCall", ["id": .string("t1"), "tool": .string("file_list")]),
     event(4, "toolResult", ["id": .string("t1")]), event(4, "message", ["text": .string("")]),
     event(5, "messageStarted"), event(6, "thinking", ["text": .string("Second thought")]),
-    event(7, "toolCall", ["id": .string("t2"), "tool": .string("read_file")]),
+    event(7, "toolCall", ["id": .string("t2"), "tool": .string("file_read")]),
     event(8, "messageStarted"), event(9, "message", ["text": .string("Answer")]), event(10, "finished"),
 ]
 let combined = ChatTranscript(events: toolLoop) { _ in nil }.messages
@@ -55,10 +55,10 @@ let fastThought = ChatTranscript(events: [
 ]) { _ in nil }
 precondition(fastThought.messages.count == 1 && fastThought.messages[0].role == .assistant, "Zero-second, zero-tool summaries are hidden")
 precondition(!fastThought.isWorking)
-let orphanTool = ChatTranscript(events: [event(1, "toolCall", ["id": .string("tool"), "tool": .string("list")]), event(2, "finished")]) { _ in nil }
+let orphanTool = ChatTranscript(events: [event(1, "toolCall", ["id": .string("tool"), "tool": .string("file_list")]), event(2, "finished")]) { _ in nil }
 precondition(orphanTool.messages[0].role == .thinking(seconds: 0, tools: 1), "A tool without supplied thinking still counts once")
 let notified = ChatTranscript(events: [
-    event(1, "toolCall", ["id": .string("n1"), "tool": .string("notify_user"), "arguments": .string("{\"body\":\"Built.\"}")]),
+    event(1, "toolCall", ["id": .string("n1"), "tool": .string("apelin_notification_send"), "arguments": .string("{\"body\":\"Built.\"}")]),
     event(2, "notice", ["body": .string("Built.")]),
     event(3, "toolResult", ["id": .string("n1"), "output": .string("Sent to Apelin as a notification.")]),
     event(4, "finished"),
@@ -72,7 +72,7 @@ print("ok: empty thoughts, subsecond reasoning, standalone tools and ended turns
 let installApproval = ChatTranscript(events: [
     event(1, "prompt", ["text": .string("Install it")]),
     event(2, "approvalRequested", [
-        "approvalID": .string("a2"), "tool": .string("install"), "arguments": .string("{\"artifact_id\":\"x\"}"),
+        "approvalID": .string("a2"), "tool": .string("apelin_package_install"), "arguments": .string("{\"artifact_id\":\"x\"}"),
         "reason": .string("the packaging description changed since the template or the last approval"),
         "detail": .object(["descriptionChanged": .object([
             "kind": .string("packaging"), "digest": .string("d"), "diff": .string("+postinst"),
@@ -144,7 +144,7 @@ let running = [
     event(1, "prompt", ["text": .string("Change the hook")]),
     event(2, "messageStarted"), event(3, "thinking", ["text": .string("Look at the hook")]),
     received(4, 12),
-    event(5, "toolCall", ["id": .string("t1"), "tool": .string("patch_file"),
+    event(5, "toolCall", ["id": .string("t1"), "tool": .string("file_edit"),
                           "arguments": .string("{\"reason\":\"Turn the hook on\",\"path\":\"Sources/Tweak.x\"}")]),
     received(6, 1234),
 ]
@@ -184,7 +184,7 @@ func banner(_ events: [TaskEvent]) -> ToolCallBanner? {
 let editing = [
     event(1, "prompt", ["text": .string("Change the hook")]),
     event(2, "messageStarted"), event(3, "thinking", ["text": .string("Look at the hook")]),
-    call(4, "t1", "patch_file", "{\"reason\":\"Turn the hook on\",\"path\":\"Sources/Tweak.x\"}"),
+    call(4, "t1", "file_edit", "{\"reason\":\"Turn the hook on\",\"path\":\"Sources/Tweak.x\"}"),
 ]
 precondition(banner(editing) == ToolCallBanner(reason: "Turn the hook on", file: "Tweak.x"), "the reason and the file, no counts yet")
 let editedCall = editing + [result(5, "t1", "Patched Sources/Tweak.x (1 replacement, +3 -1)\n--- a/Sources/Tweak.x")]
@@ -194,15 +194,17 @@ precondition(banner(editing + [result(5, "t1", "Patched Sources/Tweak.x (1 repla
 let thinkingAfter = editedCall + [event(6, "messageStarted"), event(7, "thinking", ["text": .string("Now build it")])]
 precondition(banner(thinkingAfter)?.reason == "Turn the hook on", "thinking leaves the newest call in place")
 let written = thinkingAfter + [
-    call(8, "t2", "write_file", "{\"reason\":\"Add the preferences\",\"path\":\"Prefs/Root.plist\"}"),
+    call(8, "t2", "file_write", "{\"reason\":\"Add the preferences\",\"path\":\"Prefs/Root.plist\"}"),
     result(9, "t2", "Created Prefs/Root.plist (812 bytes, +24 -0)"),
 ]
 precondition(banner(written) == ToolCallBanner(reason: "Add the preferences", file: "Root.plist", change: .init(added: 24, removed: 0)),
              "the newest call")
-let buildCall = written + [call(10, "t3", "build", "{}")]
+let buildCall = written + [call(10, "t3", "apelin_project_build", "{}")]
 precondition(banner(buildCall) == ToolCallBanner(reason: "Build the project"), "a call without a reason shows its title, and no file")
-let readWithPath = written + [call(10, "t3", "read_file", "{\"reason\":\"Check the hook\",\"path\":\"Sources/Tweak.x\"}")]
+let readWithPath = written + [call(10, "t3", "file_read", "{\"reason\":\"Check the hook\",\"path\":\"Sources/Tweak.x\"}")]
 precondition(banner(readWithPath) == ToolCallBanner(reason: "Check the hook"), "only a file tool names its file")
+let earlierName = Array(editing.prefix(3)) + [call(4, "t1", "patch_file", "{\"reason\":\"Turn the hook on\",\"path\":\"Sources/Tweak.x\"}")]
+precondition(banner(earlierName) == banner(editing), "a call recorded under an earlier name names its file too")
 precondition(banner(editedCall + [event(6, "finished")]) == nil, "a finished summary has no line")
 precondition(banner(Array(editing.prefix(3))) == nil, "nor a running one before its first call")
 precondition(ChatTranscript(events: editedCall) { _ in nil }.messages.count == 2, "the line adds no row")
@@ -231,7 +233,7 @@ for next in [
     [event(6, "toolCallPreparing")],
     [event(6, "messageStarted")],
     [event(6, "thinking", ["text": .string("Hooks first")])],
-    [event(6, "toolCall", ["id": .string("t1"), "tool": .string("write_file"), "arguments": .string("{\"path\":\"Tweak.x\"}")])],
+    [event(6, "toolCall", ["id": .string("t1"), "tool": .string("file_write"), "arguments": .string("{\"path\":\"Tweak.x\"}")])],
 ] {
     let resumed = ChatTranscript(events: replied + next, now: Date(timeIntervalSince1970: 6.5)) { _ in nil }.messages
     precondition(resumed.last?.id == standIn?.id && resumed.last?.role.isThinking == true,
@@ -250,8 +252,8 @@ precondition(summaryShown.messages.count == 2 && summaryShown.quietDeadline == n
 let asking = [
     event(1, "prompt", ["text": .string("Install it")]), event(2, "messageStarted"),
     event(3, "message", ["text": .string("Installing.")]),
-    event(4, "toolCall", ["id": .string("t1"), "tool": .string("install"), "arguments": .string("{}")]),
-    event(5, "approvalRequested", ["approvalID": .string("a1"), "tool": .string("install"), "arguments": .string("{}")]),
+    event(4, "toolCall", ["id": .string("t1"), "tool": .string("apelin_package_install"), "arguments": .string("{}")]),
+    event(5, "approvalRequested", ["approvalID": .string("a1"), "tool": .string("apelin_package_install"), "arguments": .string("{}")]),
 ]
 let waitingForUser = ChatTranscript(events: asking, now: Date(timeIntervalSince1970: 60)) { _ in nil }
 precondition(waitingForUser.messages.last?.role.needsApproval == true && waitingForUser.quietDeadline == nil,
@@ -280,7 +282,7 @@ let textBeforeCall = [
     event(2, "messageStarted"), event(3, "text", ["text": .string("I'll build the release")]),
     event(4, "toolCallPreparing"),
     event(5, "message", ["text": .string("I'll build the release, install it and open it.")]),
-    event(6, "toolCall", ["id": .string("t1"), "tool": .string("build"), "arguments": .string("{}")]),
+    event(6, "toolCall", ["id": .string("t1"), "tool": .string("apelin_project_build"), "arguments": .string("{}")]),
 ]
 let building = ChatTranscript(events: textBeforeCall) { _ in nil }.messages
 precondition(building.filter { $0.role == .assistant }.map(\.text) == ["I'll build the release, install it and open it."], "One message's text is one row")
@@ -300,14 +302,14 @@ print("ok: a message's text before its call is one row, and the call is in the s
 let twoSummaries = [
     event(1, "prompt", ["text": .string("Turn the hook on and build")]),
     event(2, "messageStarted"), event(3, "thinking", ["text": .string("Read the hook first")]),
-    event(4, "toolCall", ["id": .string("t1"), "tool": .string("read_file"), "arguments": .string("{\"path\":\"Tweak.x\"}")]),
+    event(4, "toolCall", ["id": .string("t1"), "tool": .string("file_read"), "arguments": .string("{\"path\":\"Tweak.x\"}")]),
     event(5, "toolResult", ["id": .string("t1"), "output": .string("%hook")]),
     event(6, "messageStarted"), event(7, "text", ["text": .string("The hook is off.")]), event(8, "toolCallPreparing"),
     event(9, "message", ["text": .string("The hook is off. Turning it on.")]),
-    event(10, "toolCall", ["id": .string("t2"), "tool": .string("patch_file"), "arguments": .string("{\"path\":\"Tweak.x\"}")]),
+    event(10, "toolCall", ["id": .string("t2"), "tool": .string("file_edit"), "arguments": .string("{\"path\":\"Tweak.x\"}")]),
     event(11, "toolResult", ["id": .string("t2"), "output": .string("Patched Tweak.x (1 replacement, +1 -1)")]),
     event(12, "messageStarted"), event(13, "toolCallPreparing"), event(14, "message", ["text": .string("")]),
-    event(15, "toolCall", ["id": .string("t3"), "tool": .string("build"), "arguments": .string("{}")]),
+    event(15, "toolCall", ["id": .string("t3"), "tool": .string("apelin_project_build"), "arguments": .string("{}")]),
     event(16, "toolResult", ["id": .string("t3"), "output": .string("Built")]),
     event(17, "messageStarted"), event(18, "message", ["text": .string("Built.")]), event(19, "finished"),
 ]
@@ -683,7 +685,7 @@ do {
     let senderTurn = [
         event(1, "prompt", ["id": .string(UUID().uuidString), "text": .string("From afar"), "from": .string("s1")]),
         event(2, "messageStarted"), event(3, "thinking", ["text": .string("Looking")]),
-        event(4, "toolCall", ["id": .string("t1"), "tool": .string("list")]), event(5, "toolResult", ["id": .string("t1")]),
+        event(4, "toolCall", ["id": .string("t1"), "tool": .string("file_list")]), event(5, "toolResult", ["id": .string("t1")]),
         event(6, "message", ["text": .string("First reply")]), event(7, "finished"),
     ]
     var titles = ["s1": "Docs"]
@@ -763,5 +765,24 @@ do {
                  "and then held")
     print("ok: a transcript is built again only when its events, its messages on their way, a sender's title or the turn's quiet change")
 }
+
+/// A conversation recorded before the tools were renamed titles its calls as
+/// one recorded today does, and every earlier name has a title of its own.
+func callTitles(_ tools: [String]) -> [String] {
+    let calls = tools.enumerated().map { index, tool in
+        event(UInt64(index + 1), "toolCall", [
+            "id": .string("c\(index)"), "tool": .string(tool), "arguments": .string("{\"path\":\"a.m\",\"name\":\"Demo\"}"),
+        ])
+    }
+    return ChatTranscript(events: calls + [event(UInt64(tools.count + 1), "finished")]) { _ in nil }
+        .messages.flatMap(\.trace).filter { $0.role == .tool }.map(\.text)
+}
+
+let earlierNames = AgentToolName.legacyNames.keys.sorted()
+let earlierTitles = callTitles(earlierNames)
+precondition(earlierTitles.count == earlierNames.count)
+precondition(earlierTitles == callTitles(earlierNames.compactMap { AgentToolName.canonical($0)?.rawValue }))
+precondition(!earlierTitles.contains { $0.contains("_") }, "an earlier name is titled, not spelled out")
+print("ok: calls recorded under the earlier tool names read as today's do")
 
 checkTranscriptFold()

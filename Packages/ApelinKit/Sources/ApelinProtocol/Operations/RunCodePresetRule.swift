@@ -1,7 +1,7 @@
 import ApelinCore
 import Foundation
 
-/// The words-only half of the rule that decides which `run_code` calls
+/// The words-only half of the rule that decides which `shell_run` calls
 /// Confirm runs as presets, shared by both sides: the agent (ApelinAgent's
 /// `CommandPreset`) reads it to decide whether to send a call as a preset,
 /// and the session host (Apelind's `AgentRunCode.preset`) to decide whether

@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - install / remove_package / respring
+// MARK: - install / apelin_package_remove / respring
 
 public struct InstallRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext

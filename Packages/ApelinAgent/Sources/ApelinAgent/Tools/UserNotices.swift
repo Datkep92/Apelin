@@ -2,7 +2,7 @@ import enum ApelinProtocol.AgentNoticeRules
 import Foundation
 import KWWKAI
 
-/// `notify_user`'s rules on the agent's side: the notice as the host will
+/// `apelin_notification_send`'s rules on the agent's side: the notice as the host will
 /// post it, and how many this turn may still send. The session host
 /// decides again from the `notice` event (`AgentNoticeTrack`); these are
 /// checked first so the model hears why one was not sent, rather than

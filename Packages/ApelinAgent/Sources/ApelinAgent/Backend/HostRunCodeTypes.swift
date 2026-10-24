@@ -1,8 +1,8 @@
 import Foundation
 
-// MARK: - run_code
+// MARK: - shell_run
 
-/// How `run_code` was classified, structurally (never by command prefix).
+/// How `shell_run` was classified, structurally (never by command prefix).
 public enum RunCodeInvocation: Sendable, Hashable, Codable {
     /// A plain argv: executable name (no path) and arguments.
     case argv([String])

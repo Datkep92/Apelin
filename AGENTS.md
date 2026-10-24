@@ -445,7 +445,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     protected config a repository cannot turn off, so the user's git takes no bare
     layout it finds by walking up and runs none of its pagers or hooks —, and
     the development environment of the terminal's project (none: the
-    defaults), the one run_code gets (Agent sessions ▸ `agentRunCode`). A login
+    defaults), the one shell_run gets (Agent sessions ▸ `agentRunCode`). A login
     shell's `/etc/profile` sets `PATH` anew, so the package ships
     `etc/profile.d/wiki.qaq.apelin.sh` (`Packaging/profile.d/`), which puts
     `APELIN_TOOLCHAIN_BIN` back in front when it is set and does nothing
@@ -475,7 +475,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     `message` with text, its first paragraph as plain text in at most 180
     characters, else "Done") or `failed` (subtitle "Failed", body the last
     `error`), and for the agent's own `notice` {title?, body} (2026-10-24:
-    its `notify_user` tool, for something the reader would want to know
+    its `apelin_notification_send` tool, for something the reader would want to know
     while away — a long build, install or setup that ended, something to
     do on the device —; subtitle its title, body its body, each one plain
     line, cut to 40 and 180 characters; at most three between two of the
@@ -585,7 +585,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   An empty workspace's manifest says `"buildSystem": "external"` (one
   without the key is read the same way): Apelin has no build description
   for it, so the agent builds with the project's own tools through
-  `run_code` and writes down how in the project's `AGENTS.md`; a package
+  `shell_run` and writes down how in the project's `AGENTS.md`; a package
   it installs comes from the workspace's own build script (Workspace
   builds, below). New Project
   takes an optional repository address for the empty workspace and sends
@@ -905,12 +905,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   workingDirectory, projectID, fingerprint, reason, allowsSessionScope,
   detail} followed by `state` `waitingForApproval`, `approvalResolved`
   followed by `state` `running` when none is left, `notice` {title?, body}
-  (`notify_user`, between its `toolCall` and `toolResult`; the host posts
+  (`apelin_notification_send`, between its `toolCall` and `toolResult`; the host posts
   it, Notifications above; the transcript shows only the call), `error`, `finished`
   {reason}, `compactionStarted` and `compactionFinished` {outcome:
   compacted, tooShort, cancelled or failed, messagesCompacted?, message?}
   (`AgentCompactionResult`). An app that is not attached leaves an approval waiting; nothing
-  approves by default. The file tools (write, create, patch; there is no
+  approves by default. The file tools (file_write, file_create, file_edit; there is no
   rename, delete or mkdir) never write a git directory: a `.git` entry at
   any depth, compared without case, and what a `.git` file or link names
   (its `gitdir:` or link target, followed even before it exists, and that
@@ -929,20 +929,20 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   they write can feed the host's git presets. They read it freely; the
   repository changes through the git operations. Every system tool is one
   host request
-  (`ChannelHostBackend`): build → `buildStart` read to its end (the artifact's `buildID` is what confirm_loaded matches), install →
-  `installPackage`, remove_package, respring, confirm_loaded → a
+  (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches), apelin_package_install →
+  `installPackage`, apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded → a
   `confirmLoaded` task with the session's project read to its end (with
-  `respring: true` it carries `trigger: respring` and is gated as respring;
-  it never asks for `imageCheck`), read_logs → a `logStream` of
+  `respring: true` it carries `trigger: respring` and is gated as apelin_device_respring;
+  it never asks for `imageCheck`), apelin_log_read → a `logStream` of
   at most 10 s, list/read/symbolicate crashes → `crashList`, `crashOpen`
   (descriptor), `crashSymbolicate`, screen/UI → `captureScreen`,
   `readUITree`, `uiAction`, the framework tools' SDK → `sdkList` (the
-  project's pinned `environment.sdk.id` first), run_code → `agentRunCode`;
-  in General Chat only, project_template_list → `extensionList` (isolated
-  extensions left out) and project_create{template, name, values} →
+  project's pinned `environment.sdk.id` first), shell_run → `agentRunCode`;
+  in General Chat only, apelin_template_list → `extensionList` (isolated
+  extensions left out) and apelin_project_create{template, name, values} →
   `projectCreate`, allowed under Confirm like a project edit, answering
   the project's link — the new project's chat builds it, which
-  conversation_create naming the project opens with the task, and this
+  apelin_conversation_create naming the project opens with the task, and this
   one's file tools stay in its temporary folder. In a project's chat only, git_status, git_diff,
   git_stage, git_unstage and git_commit → the matching `git*` request,
   git_fetch, git_pull, git_push and git_clone → `gitFetch`, `gitPull`,
@@ -951,31 +951,31 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the remote and branch it names (the checked-out branch read first when
   none is given, then sent explicitly), never with a session grant. A
   failure names its fix: a token in Settings ▸ Git, an author there, a
-  fetch before a rejected push, never a forced one. git_settings, git_set_author,
-  git_save_credential and git_remove_credential → `gitSettings`,
+  fetch before a rejected push, never a forced one. apelin_git_read_settings, apelin_git_set_author,
+  apelin_git_save_credential and apelin_git_remove_credential → `gitSettings`,
   `gitAuthorSet`, `gitCredentialSet` and `gitCredentialRemove`, in any chat:
   reading needs nothing, every change asks under Confirm (the card names
   the host and user, never the token, and never a session grant), and the
   token is masked in the `toolCall` and `approvalRequested` events
   (`ToolArgumentRedaction`); `GitHandler` skips its project check for
-  these four. On a workspace, build runs the script its `external`
+  these four. On a workspace, apelin_project_build runs the script its `external`
   declares (Workspace builds, below) and asks under Confirm every time,
   never with a session grant; one that declares none answers how to
   declare it instead of asking.
   Toolchains and SDKs (2026-10-22, `ChannelHostBackend+Environment.swift`),
-  in any chat: toolchain_list → `toolchainStatus` and `toolchainCatalog`
+  in any chat: apelin_toolchain_list → `toolchainStatus` and `toolchainCatalog`
   (the installed ones with their components, newest SDK read and
   self-test results; each release Apelin sets up with its size, newest
   SDK, recommended SDK, minimum iOS, CPU features, Swift and why this
   device cannot take it, the catalog's fields the app's picker shows; the
-  project's binding), sdk_list → `sdkList` with the sources read and
+  project's binding), apelin_sdk_list → `sdkList` with the sources read and
   `toolchainStatus` (registered SDKs and the branches the enabled sources
   offer, each with the toolchains that read it), both read presets.
-  toolchain_setup {version | product_id, swift?} → `toolchainSetup` from
+  apelin_toolchain_setup {version | product_id, swift?} → `toolchainSetup` from
   Apple's catalog, the release resolved in the catalog before asking and
   sent by product ID (one this device cannot take, Swift a release does
   not offer, or a release already set up is refused before asking), and
-  sdk_import {version, source?} → `sdkImport` of the branch an enabled
+  apelin_sdk_import {version, source?} → `sdkImport` of the branch an enabled
   source offers (the model never names an address), each read to its end
   with `environmentAttach`, only the stages, warnings, failed self-test
   cases and the record kept; under Confirm each asks every time, the card
@@ -984,9 +984,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   approval (Approvals above). Their tasks are ended, not resumed, when
   the host stops (an agent session started them); a setup's job record
   stays, and the next setup of the same release goes on from it.
-  toolchain_self_test {toolchain_id} → `toolchainSelfTest`, asking under
+  apelin_toolchain_self_test {toolchain_id} → `toolchainSelfTest`, asking under
   Confirm (a session grant allowed: it records results and installs
-  nothing). In a project's chat, project_environment_set {toolchain_id?,
+  nothing). In a project's chat, apelin_project_set_environment {toolchain_id?,
   sdk_id?} → `projectCheck` with `environment` (the check a project bound
   to them gets, nothing written, digests the registry's), refused on any
   `environment.*` error with its message — an SDK newer than the
@@ -1001,11 +1001,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   removal (device-wide, never needed to build, Settings asks itself),
   transfer export (its file is only of use through the app's share sheet),
   project rename (the file tools already edit `displayName`); a
-  distribution build is build {configuration: release, bootstrap}.
+  distribution build is apelin_project_build {configuration: release, bootstrap}.
   Conversations (2026-10-22, `AgentConversations`,
   `Session/Agent/AgentConversationRules.swift`), in any chat — General
   Chat names a project, its own chat has no others:
-  conversation_create {prompt, title?, project?} → `agentOpen` from the
+  apelin_conversation_create {prompt, title?, project?} → `agentOpen` from the
   agent with this session's provider, model, effort and tier
   (`SessionModelChoice`: the open request's, then each app prompt's) and
   the title (`AgentOpenRequest.title`), answered without waiting with the
@@ -1022,24 +1022,24 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   opener's task, from which the app adopts it as a conversation of that
   project without selecting it (and from `agentList`'s `parentSessionID`
   and `projectName` at launch: `ChatAdoption`). The worker names the new
-  session by its title, else generates one. conversation_send {project?}
+  session by its title, else generates one. apelin_conversation_send {project?}
   → `agentPrompt` to another session as the user's message (never a
   temporary chat): the host writes `fromSessionID` (the app's is dropped)
   and clears the mode, provider, model, effort, tier, message ID and
   attachments, and refuses descriptors; the worker records it as
   `prompt` {text, from}, the model reading one line before it naming the
   sending conversation (`ConversationSender`), and the app names the
-  sender over the bubble. conversation_list {project?} → `agentList`
+  sender over the bubble. apelin_conversation_list {project?} → `agentList`
   {projectID?}, one project's sessions only, each with `parentSessionID`
   and its link, titled by the session's own `title` events as the host
-  relays them; conversation_read {project?} → `agentList` for the task,
+  relays them; apelin_conversation_read {project?} → `agentList` for the task,
   then `agentAttach` of a task of that project's sessions only, read from
   the start (`ConversationReader`: state running, waitingForApproval,
   idle or ended, the approvals still waiting, the assistant's `message`
   and `error` texts after `after_seq`, cut at 32 KiB with `last_seq`
   where the next read goes on), and with `wait_seconds` (0–600) attaching
   again, 5 s at a time, until a turn after `after_seq` finishes, a new
-  approval is asked, it ends or the time runs out; conversation_stop
+  approval is asked, it ends or the time runs out; apelin_conversation_stop
   {close?} → `agentAbort`, then `agentClose` when asked, of a session the
   caller opened, wherever it is. In the caller's own project, create,
   send and stop pass Confirm like a project edit, list and read as read
@@ -1050,13 +1050,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the project from `Projects/` for the card, the host resolves it again.
   Links (2026-10-22): the app opens `apelin://conversation/<session ID>`
   (selecting its project) and `apelin://project/<projectID>`
-  (`ApelinLink`); conversation_create, conversation_list,
-  conversation_read and project_create answer them beside the IDs, and
+  (`ApelinLink`); apelin_conversation_create, apelin_conversation_list,
+  apelin_conversation_read and apelin_project_create answer them beside the IDs, and
   the system prompt tells the model to hand the user a markdown link
   whenever it opens or points to another conversation or project.
   `agentApprove` and `agentSteer` stay the app's.
   Notices (2026-10-24, `Tools/UserNotices.swift`), in any chat:
-  notify_user {title?, body} → no host request: the tool writes a `notice`
+  apelin_notification_send {title?, body} → no host request: the tool writes a `notice`
   event, which the host posts as a banner by its own rules (Notifications
   above). It never asks, in either mode, and is no preset the user could
   take away (`ApprovalPolicy`): it reads, writes and runs nothing, and the
@@ -1135,7 +1135,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the words of a preset are one rule, ApelinProtocol's `RunCodePresetRule`,
   which ApelinAgent's presets read too, with paths read from the same
   working directory — or an approval the app gave through
-  `agentApprove` for a `run_code` `approvalRequested` of this session, used
+  `agentApprove` for a `shell_run` `approvalRequested` of this session, used
   once, and only for the command its `detail.command` showed (shell text
   as the `sh` script it is sent as) in its `workingDirectory`; any other
   run is refused and leaves the approval unspent. An `agentApprove` with
@@ -1162,11 +1162,41 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   what was asked from the session's own `approvalRequested` event and calls
   `recordApproval(digest, kind:, project:)` for a changed description or
   `allowRemoval(installationID:, session:)` for a package removal (a
-  remove_package request carries `detail.packageRemoval.installationID`;
+  apelin_package_remove request carries `detail.packageRemoval.installationID`;
   without it the approval would never be spent), before
   the worker hears it, and takes the grant and the session's record of the
   decision back if the worker does not accept it; `agentClose` forgets the
   session.
+- **Agent tool names** (owner, 2026-10-24). A tool that acts on what
+  Apelin keeps — its projects and templates, the packages it installs, the
+  device, the screen, logs and crashes, toolchains and SDKs, other
+  conversations, memory, skills, its git settings, a notification — is
+  `apelin_<scope>_<verb>` (`apelin_project_build`, `apelin_package_install`,
+  `apelin_device_respring`, `apelin_git_set_author`); a generic verb on the
+  session's own project is `<domain>_<verb>`: `file_read`, `file_write`,
+  `file_create`, `file_edit`, `file_list`, `file_grep`, `file_find`,
+  `shell_run`, and the repository's nine `git_*`. MCP tools keep kwwk's
+  `mcp__<server>__<tool>`. Lowercase, `[a-z0-9_]`, a letter first, no
+  `__`, at most 64 characters, which every provider takes
+  (`AgentToolNameTests`). The names are ApelinProtocol's `AgentToolName`,
+  which the session host's approval rules, the app's titles and widget and
+  the agent read; what each tool does stays in ApelinAgent's
+  `ToolCatalog`. `AgentToolName.legacyNames` keeps the names 0.1.8 and
+  before used (and `notify_user`), and `canonical` answers the tool either
+  kind of name means: the app titles an old conversation's calls as new
+  ones, the widget and apelin_conversation_read show today's names, and the
+  credential redaction masks a token whatever name the call was recorded
+  under — a reopened session relays its whole log again. A reopened
+  session's transcript is put in today's names before kwwk reads it
+  (`LegacyToolNames.migrate`: calls, results and kwwk's tool
+  declarations, never text), so no provider is sent a call to a tool the
+  request does not offer. The host matches today's names only: an
+  approval asked under an old one is refused, and the worker and host
+  ship and restart together. Project instructions, memories and skills
+  written before are not rewritten; the prompt says once that they may use
+  the old names (`SystemPrompt.renamedToolsNote`). `ToolNameReferenceTests`
+  fails on an old name in the prompt, a tool's description, a built-in
+  skill or any source of the agent.
 - **Agent credentials** are the keychain's: `KeychainCredentialSource`,
   service `wiki.qaq.apelin.agent`, access group `wiki.qaq.apelin.agent`
   (`keychain-access-groups` on apelin-agent only), after first unlock, this
@@ -1711,12 +1741,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   in ApelinBuild: template placeholders, the template's first version, a
   `local.apelin.` identifier, an app without an icon, a version already
   packaged for the target), never an error; the distribution page and the
-  agent's `check_distribution` tool read them (`Documents/Distribution.md`).
+  agent's `apelin_project_check_distribution` tool read them (`Documents/Distribution.md`).
   Its answer carries the `environment` binding it checked; with
   `environment` {toolchainID?, sdkID?} in the request it checks the
   project as if bound to those registered components instead — digests
   the registry's, an unregistered one `notFound`, nothing written — which
-  is how the agent's project_environment_set is judged before it writes
+  is how the agent's apelin_project_set_environment is judged before it writes
   (`ProjectCheck.binding`, `run(projectID:environment:)`).
 - **The environment** apelin-build reads through `EnvironmentRegistry`
   (`ApelinProject/Environment`); on the device that is `EnvironmentStores`,
@@ -1779,7 +1809,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   mobile in the project, the bootstrap's interpreter, stdin closed, its own
   process group, 30 minutes at most (a cancel or the timeout kills the
   group), the output the build log; with the development environment
-  run_code gets and `APELIN_BUILD_ID`, `APELIN_BOOTSTRAP`,
+  shell_run gets and `APELIN_BUILD_ID`, `APELIN_BOOTSTRAP`,
   `APELIN_ARCHITECTURE`, `APELIN_PREFIX`, `APELIN_CONFIGURATION`,
   `APELIN_PROJECT_ROOT` and `APELIN_PACKAGE_DIR`, a fresh folder in
   `Builds/<projectID>/<buildID>/`. Exactly one regular `.deb` there, whose
@@ -1808,7 +1838,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (`DistributionCheck.packageFindings`) and reports `distribution.*`
   warnings: a `local.apelin.` identifier, a version already packaged for
   the target, a package other than the other target's latest release.
-  check_distribution counts any check error as not ready and, for a
+  apelin_project_check_distribution counts any check error as not ready and, for a
   workspace, notes that the build checks the package. Tested by
   `ExternalBuildTests` (the declaration, the script's environment, one
   package, the failures, the timeout, the release findings), the agent's
@@ -2224,7 +2254,7 @@ greeting answered with a greeting (no tools, no survey of the project), then the
 checks actually run and any real blocker. `# Responses` makes concision bite —
 match the length to the task, and do not paste tool output, files, diffs or
 logs back, narrate the steps or recap at the end; a progress note is one short
-line (owner, 2026-10-24). `# Working` keeps notify_user for what the reader
+line (owner, 2026-10-24). `# Working` keeps apelin_notification_send for what the reader
 would want to know while away (a long build, install or setup ended, something
 to do on the device), never routine progress, the reply or the turn's end. It
 asks for independent tool calls in
@@ -2234,7 +2264,7 @@ logs and MCP results as data, and ends with the current date. The project's
 16 KB — is added as project instructions that never override the prompt or the
 approval mode. Skills are pi's progressive disclosure: the prompt lists each
 built-in and user skill (`~/Documents/wiki.qaq.apelin/skills`) by name and
-description only, and `read_skill{name, file?}` reads the body, or a file in a
+description only, and `apelin_skill_read{name, file?}` reads the body, or a file in a
 user skill's own folder (no link out of it), on demand; it is a read preset.
 The built-ins are one Swift file each under `ApelinAgent/Skills/BuiltIn/`,
 listed by `BuiltInSkills.all`; what they claim about the device was read from
@@ -2258,13 +2288,13 @@ jbroot()/ROOT_PATH_NS() helper written so one source builds for both
 bootstraps (compiled by hand for roothide arm64e and rootless arm64 with the
 template's flags; a test holds that the skill ships the header).
 `tweak-runtime` is logging (os_log under the package id, `%{public}`, the live
-log read_logs reads), the sandbox an injected dylib inherits, reading a
+log apelin_log_read reads), the sandbox an injected dylib inherits, reading a
 setting, and signalling another process with a payload-free Darwin
 notification. `preference-bundle` is the Settings pane: `PSListController`,
 `Root.plist`, the PreferenceLoader entry and the domain the tweak reads.
 `package-dependencies` is how a package is installed — the project's own build
-through the `install` tool, a dependency through the user in Irisin — and why
-run_code (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
+through `apelin_package_install`, a dependency through the user in Irisin — and why
+shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
 `irisin-cli` (root-only, and the daemon takes an external client only at euid
 0) do not work for the agent. `packaging-and-install` and `crash-triage` cover
 install/respring/confirm and reading a crash. `external-build` is the workspace
@@ -2275,7 +2305,7 @@ Skills are global (owner, 2026-10-23): the built-ins and the skills folder,
 never a project's own `.claude/skills` or `.kwwk/skills`. Settings ▸ Agent ▸
 Skills (`Apelin/Interface/Settings/Skills/`) lists them from `agentSkillList`,
 which the credential worker answers with `SkillCatalog.listing` — the
-catalogue a session reads, each skill's body and files as `read_skill` serves
+catalogue a session reads, each skill's body and files as `apelin_skill_read` serves
 them, its place in the folder (`location`) and every problem kwwk or a taken
 built-in name raises. A row opens the instructions; the plus copies in a folder
 with a `SKILL.md` at its top, or one Markdown file as the `SKILL.md` of a folder
@@ -2289,8 +2319,8 @@ again for its next message.
 A local tool's empty optional argument — `null`, `""`, `[]` or `{}` — is
 dropped before the tool, the gate or the host sees it (`ToolArguments`), as a
 model fills an optional parameter it means to leave out; a required one is
-left for the tool to refuse, and `git_set_author`'s empty fields, which clear
-them, are kept. run_code refuses two of `argv`, `command` and `script` at
+left for the tool to refuse, and `apelin_git_set_author`'s empty fields, which clear
+them, are kept. shell_run refuses two of `argv`, `command` and `script` at
 once, and a memory id the current revision lacks is named as a wrong id,
 not as a change to memory.
 
@@ -2302,14 +2332,14 @@ toolchain (ID, CLT release, components with the Swift version, the minimum
 iOS, the newest SDK it reads, its self-test count, default / this project's /
 prepared, its tool directory) and SDK (ID, version, path, the same marks, and
 "too new" for the prepared toolchain), a binding this device lacks, and that
-run_code and the terminal already have the prepared toolchain and SDK, so the
+shell_run and the terminal already have the prepared toolchain and SDK, so the
 model neither probes nor sets up again what is installed. It also says that
-run_code needs no login shell (whose profile builds `PATH` again), on roothide
+shell_run needs no login shell (whose profile builds `PATH` again), on roothide
 that a path a bootstrap tool prints (`/var/mobile/…` with the bootstrap as
 `/`, or `/rootfs/…`) is not the name the toolchain's compilers know, so they
 get relative paths or `$APELIN_PROJECT_ROOT` (on the iPhone vphone, `pwd -P`
 in the data folder printed `/var/mobile/Documents/…`), and which of cmake,
-dpkg-deb, git, ldid, make, ninja, perl, python3 and xcrun are on run_code's
+dpkg-deb, git, ldid, make, ninja, perl, python3 and xcrun are on shell_run's
 search path (`DevelopmentEnvironment.searchPath`,
 the host's own list). It is read again
 with the rest and holds nothing that changes unless the environment does —
@@ -2349,7 +2379,7 @@ user and not writable by group or others; symlinks are refused. Corrupt data is
 reported rather than replaced with an empty library. Titles are limited to 120
 characters, bodies to 2,000, with at most 64 records and 32,768 content bytes.
 
-`memory_list`, `memory_save` and `memory_delete` are local agent tools and run
+`apelin_memory_list`, `apelin_memory_save` and `apelin_memory_delete` are local agent tools and run
 without an approval prompt. They can see all-chat records and the current
 project's records only. Every new prompt or steer refreshes the saved context
 from disk, including existing sessions. Memory is explicitly untrusted fact

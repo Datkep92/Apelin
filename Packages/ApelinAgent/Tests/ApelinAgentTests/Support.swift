@@ -116,7 +116,7 @@ actor MockBackend: AgentHostBackend {
         case other(String)
     }
 
-    /// What toolchain_list and sdk_list answer.
+    /// What apelin_toolchain_list and apelin_sdk_list answer.
     var toolchainList = ToolchainListToolResponse(
         installed: [InstalledToolchain(id: "clt-16.4-c", version: "16.4", components: ["c"], newestSDK: "18.5", boundByThisProject: true)],
         available: [
@@ -131,7 +131,7 @@ actor MockBackend: AgentHostBackend {
             AvailableSDK(version: "17.5", branch: "sdk/iPhoneOS17.5", source: "OwnGoal iOS SDKs", sourceURL: "https://github.com/owngoal-dev/iOS-SDKs.git", readBy: ["clt-16.4-c"]),
         ],
     )
-    /// What project_environment_set's check answers, by SDK id.
+    /// What apelin_project_set_environment's check answers, by SDK id.
     var environmentFindings: [String: [EnvironmentDiagnostic]] = [:]
     /// Other projects resolve_project finds, by name or id.
     var otherProjects: [String: ProjectIdentity] = [:]
@@ -159,7 +159,7 @@ actor MockBackend: AgentHostBackend {
         sdkRoot = path
     }
 
-    /// The evidence of every run_code call, refused ones included.
+    /// The evidence of every shell_run call, refused ones included.
     var runCodeEvidence: [ApprovalEvidence] = []
     /// Whether this host's preset rule refuses every preset, as the real
     /// host does for a call its own rule does not count.
@@ -330,7 +330,7 @@ actor MockBackend: AgentHostBackend {
 
     func conversationCreate(_ request: ConversationCreateToolRequest) -> ConversationCreateToolResponse {
         if let target = request.target {
-            calls.append(.conversationElsewhere(tool: "conversation_create", project: target.id, evidence: request.context.approval))
+            calls.append(.conversationElsewhere(tool: "apelin_conversation_create", project: target.id, evidence: request.context.approval))
         } else {
             calls.append(.conversationCreate(prompt: request.prompt, title: request.title))
         }
@@ -339,7 +339,7 @@ actor MockBackend: AgentHostBackend {
 
     func conversationSend(_ request: ConversationSendToolRequest) -> ConversationActionToolResponse {
         if let target = request.target {
-            calls.append(.conversationElsewhere(tool: "conversation_send", project: target.id, evidence: request.context.approval))
+            calls.append(.conversationElsewhere(tool: "apelin_conversation_send", project: target.id, evidence: request.context.approval))
         } else {
             calls.append(.conversationSend(sessionID: request.sessionID, text: request.text))
         }
@@ -348,7 +348,7 @@ actor MockBackend: AgentHostBackend {
 
     func conversationList(_ request: ConversationListToolRequest) -> ConversationListToolResponse {
         if let target = request.target {
-            calls.append(.conversationElsewhere(tool: "conversation_list", project: target.id, evidence: request.context.approval))
+            calls.append(.conversationElsewhere(tool: "apelin_conversation_list", project: target.id, evidence: request.context.approval))
         } else {
             calls.append(.conversationList)
         }
@@ -357,7 +357,7 @@ actor MockBackend: AgentHostBackend {
 
     func conversationRead(_ request: ConversationReadToolRequest) -> ConversationReadToolResponse {
         if let target = request.target {
-            calls.append(.conversationElsewhere(tool: "conversation_read", project: target.id, evidence: request.context.approval))
+            calls.append(.conversationElsewhere(tool: "apelin_conversation_read", project: target.id, evidence: request.context.approval))
         } else {
             calls.append(.conversationRead(sessionID: request.sessionID, afterSeq: request.afterSeq, waitSeconds: request.waitSeconds))
         }

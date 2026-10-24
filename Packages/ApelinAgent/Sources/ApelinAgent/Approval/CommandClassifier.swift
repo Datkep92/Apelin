@@ -3,7 +3,7 @@ import ApelinProtocol
 import Foundation
 import KWWKAI
 
-/// Turns `run_code`'s arguments into a `RunCodeInvocation`, structurally.
+/// Turns `shell_run`'s arguments into a `RunCodeInvocation`, structurally.
 ///
 /// Shell text becomes a plain argv only when it is one simple command made
 /// of words: bare words, single-quoted strings, and double-quoted strings
@@ -32,7 +32,7 @@ public enum CommandClassifier {
             }
             return .shell(command)
         }
-        throw ToolArgumentError("run_code needs argv, command or script")
+        throw ToolArgumentError("shell_run needs argv, command or script")
     }
 
     /// The words of `text` if it is one simple command, else nil.

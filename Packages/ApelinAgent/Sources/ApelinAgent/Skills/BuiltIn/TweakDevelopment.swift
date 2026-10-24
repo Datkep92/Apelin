@@ -13,7 +13,7 @@ extension BuiltInSkills {
         ## The project
         - `apelin-project.json` is the build description: sources, compile and
           link flags, frameworks, the deployment target (16.0) and build steps.
-          Changing it, or a build script it names, makes the next `build` ask the
+          Changing it, or a build script it names, makes the next `apelin_project_build` ask the
           user once (Strict mode); editing sources never does. Change it only
           when the task needs it, and say why. The project-description skill
           lists every member; read it before you edit the file.
@@ -33,10 +33,10 @@ extension BuiltInSkills {
           bootstrap-paths skill says; logging is the tweak-runtime skill's.
 
         ## Finding the API you hook
-        - `analyze_framework` lists a framework's exported symbols and
+        - `apelin_sdk_analyze_framework` lists a framework's exported symbols and
           Objective-C classes from the SDK's `.tbd`; pass `private: true` for
           `PrivateFrameworks`, and `symbol_filter` to narrow.
-        - `framework_header` reads a public header. Private frameworks usually
+        - `apelin_sdk_read_header` reads a public header. Private frameworks usually
           have no headers in the SDK: declare the interface you need in a local
           header, only the selectors you call.
         - Check availability: the build uses `-Werror=unguarded-availability-new`.
@@ -48,7 +48,7 @@ extension BuiltInSkills {
         - Never block the main thread in SpringBoard; a hang there is a
           respring loop for the user.
         - Keep the template's load-time marker log line intact so
-          `confirm_loaded` can see it.
+          `apelin_package_confirm_loaded` can see it.
         - Symbols are hidden by default (`-fvisibility=hidden`); export only
           what the loader needs.
 
@@ -89,7 +89,7 @@ extension BuiltInSkills {
         - Logos gave every hook a mangled name unique to the tweak
           (`_logos_method$…`); a rewrite names them itself, by the rules in
           Beside other tweaks. A Swift or C++ function is hooked by its
-          mangled symbol, as analyze_framework lists it, looked up with
+          mangled symbol, as apelin_sdk_analyze_framework lists it, looked up with
           `dlsym` or `MSFindSymbol`: a demangled name finds nothing. Check
           the symbol on each iOS version the package supports.
         - A `.x` file becomes `.m`; an `.xm` that uses C++ is rewritten
@@ -113,14 +113,14 @@ extension BuiltInSkills {
           package id, version and author the repository already has.
 
         ## The loop
-        1. Read the relevant files (`read_file`, `grep`, `find`).
-        2. Edit with `patch_file` (exact snippet, one occurrence) or
-           `write_file`/`create_file` for new files.
-        3. `build`. Fix every error diagnostic by file and line, rebuild.
+        1. Read the relevant files (`file_read`, `file_grep`, `file_find`).
+        2. Edit with `file_edit` (exact snippet, one occurrence) or
+           `file_write`/`file_create` for new files.
+        3. `apelin_project_build`. Fix every error diagnostic by file and line, rebuild.
            Treat warnings as work unless they are in the template.
         4. Install and confirm as the packaging-and-install skill describes.
         Keep each step its own call: build, install, respring and
-        confirm_loaded are approved one by one.
+        apelin_package_confirm_loaded are approved one by one.
         """,
     )
 }

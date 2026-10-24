@@ -115,8 +115,8 @@ struct ConversationBackendTests {
             _ = try await fixture.backend.conversationCreate(ConversationCreateToolRequest(context: fixture.context(), prompt: "x"))
             Issue.record("the host refused")
         } catch let failure as ConversationToolFailure {
-            #expect(failure.message.hasPrefix("conversation_create failed: 6 conversations"))
-            #expect(failure.message.contains("conversation_stop"))
+            #expect(failure.message.hasPrefix("apelin_conversation_create failed: 6 conversations"))
+            #expect(failure.message.contains("apelin_conversation_stop"))
         }
         fixture.host.on(.agentList, reply: AgentListResponse(sessions: []))
         await #expect(throws: ConversationToolFailure.self) {
@@ -134,7 +134,7 @@ struct ConversationBackendTests {
             ("message", text("First draft")),
             ("finished", .object(["reason": .string("completed")])),
             ("prompt", text("Shorter")),
-            ("approvalRequested", .object(["approvalID": .string("a1"), "tool": .string("run_code"), "reason": .string("Scripts require approval")])),
+            ("approvalRequested", .object(["approvalID": .string("a1"), "tool": .string("shell_run"), "reason": .string("Scripts require approval")])),
             (TaskEvent.stateKind, .object(["state": .string("waitingForApproval")])),
             ("message", text("Shorter draft")),
             ("error", .object(["message": .string("the provider returned an error")])),
@@ -149,7 +149,7 @@ struct ConversationBackendTests {
             ConversationMessage(seq: 8, role: "assistant", text: "Shorter draft"),
             ConversationMessage(seq: 9, role: "error", text: "the provider returned an error"),
         ], "only what came after seq 4")
-        #expect(read.pendingApprovals == [ConversationApproval(approvalID: "a1", tool: "run_code", reason: "Scripts require approval")])
+        #expect(read.pendingApprovals == [ConversationApproval(approvalID: "a1", tool: "shell_run", reason: "Scripts require approval")])
         #expect(read.lastSeq == 9 && !read.truncated && !read.timedOut && read.title == "Docs")
         #expect(fixture.host.requests(AgentAttachRequest.self).allSatisfy { $0.taskID == Self.childTask.taskID && $0.waitMilliseconds == 0 })
 

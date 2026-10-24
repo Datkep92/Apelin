@@ -10,33 +10,33 @@ import Foundation
 /// channel (`ChannelTransport`); tests pass a fake.
 ///
 /// Mapping (tool → host operation):
-/// build → `buildStart`, then its task read to the end; install →
-/// `installPackage` likewise; remove_package → `removePackage`; respring →
-/// `respring`; confirm_loaded → a `confirmLoaded` task with the session's
+/// apelin_project_build → `buildStart`, then its task read to the end;
+/// apelin_package_install → `installPackage` likewise; apelin_package_remove →
+/// `removePackage`; apelin_device_respring → `respring`; apelin_package_confirm_loaded → a `confirmLoaded` task with the session's
 /// project (and `trigger: respring` when asked), read to its end, the image
 /// list never asked for;
-/// read_logs → a bounded `logStream` read to its end; list_crashes →
-/// `crashList`; read_crash → `crashOpen` (a read-only descriptor);
-/// symbolicate_crash → `crashSymbolicate` (apelin-diagnostics, the project's
-/// dSYMs); capture_screen / read_ui_tree / ui_action → `captureScreen` /
-/// `readUITree` / `uiAction`; analyze_framework and framework_header's SDK →
-/// `sdkList`, the project's pinned SDK first; run_code → `agentRunCode`,
-/// which the host runs as mobile in the project; project_template_list →
-/// `extensionList`, isolated extensions left out; project_create →
+/// apelin_log_read → a bounded `logStream` read to its end; apelin_crash_list →
+/// `crashList`; apelin_crash_read → `crashOpen` (a read-only descriptor);
+/// apelin_crash_symbolicate → `crashSymbolicate` (apelin-diagnostics, the project's
+/// dSYMs); apelin_screen_capture / apelin_screen_read_tree / apelin_screen_interact → `captureScreen` /
+/// `readUITree` / `uiAction`; apelin_sdk_analyze_framework and apelin_sdk_read_header's SDK →
+/// `sdkList`, the project's pinned SDK first; shell_run → `agentRunCode`,
+/// which the host runs as mobile in the project; apelin_template_list →
+/// `extensionList`, isolated extensions left out; apelin_project_create →
 /// `projectCreate`; git_status / git_diff / git_stage / git_unstage /
 /// git_commit → `gitStatus` / `gitDiff` / `gitStage` / `gitUnstage` /
 /// `gitCommit` on the session's project (no author: the host's settings);
 /// git_fetch / git_pull / git_push / git_clone → `gitFetch` / `gitPull` /
 /// `gitPush` / `gitCloneInto`, each task read to its end;
-/// conversation_create → `agentOpen` with this session's provider, model
+/// apelin_conversation_create → `agentOpen` with this session's provider, model
 /// and effort, in this session's project or the one named, answered
-/// without waiting; conversation_send → `agentPrompt` with the text alone;
-/// conversation_list → `agentList` of a project; conversation_read →
+/// without waiting; apelin_conversation_send → `agentPrompt` with the text alone;
+/// apelin_conversation_list → `agentList` of a project; apelin_conversation_read →
 /// `agentList` for the task, then `agentAttach` (`ConversationReader`);
-/// conversation_stop → `agentAbort`, then `agentClose` when asked. The host
+/// apelin_conversation_stop → `agentAbort`, then `agentClose` when asked. The host
 /// keeps them to this session's project, and to another one only as the
-/// user approved. toolchain_list, sdk_list, toolchain_setup,
-/// toolchain_self_test, sdk_import and project_environment_set's check:
+/// user approved. apelin_toolchain_list, apelin_sdk_list, apelin_toolchain_setup,
+/// apelin_toolchain_self_test, apelin_sdk_import and apelin_project_set_environment's check:
 /// ChannelHostBackend+Environment.
 public struct ChannelHostBackend: AgentHostBackend {
     public let service: ApelinService
@@ -46,19 +46,19 @@ public struct ChannelHostBackend: AgentHostBackend {
     public let projectURL: URL
     /// `Projects/`, where a conversation call finds the other project it names.
     public let projectsURL: URL
-    /// What the session runs with now, which conversation_create passes on.
+    /// What the session runs with now, which apelin_conversation_create passes on.
     public let modelChoice: SessionModelChoice
 
-    /// read_logs listens live; this caps how long one call listens.
+    /// apelin_log_read listens live; this caps how long one call listens.
     public static let maximumLogWindow: Double = 10
     public static let maximumScreenshotBytes = 4 * 1024 * 1024
     static let logExcerptBytes = 8 * 1024
     /// git_diff hands the model at most this much; a path narrows it.
     public static let maximumDiffBytes = 64 * 1024
 
-    /// conversation_read hands the model at most this much text.
+    /// apelin_conversation_read hands the model at most this much text.
     public static let maximumConversationBytes = 32 * 1024
-    /// One attach while conversation_read waits: short, so a stop is quick.
+    /// One attach while apelin_conversation_read waits: short, so a stop is quick.
     static let conversationPollMilliseconds = 5000
 
     public init(
@@ -77,7 +77,7 @@ public struct ChannelHostBackend: AgentHostBackend {
         self.modelChoice = modelChoice
     }
 
-    // MARK: run_code
+    // MARK: shell_run
 
     public func runCode(_ request: RunCodeRequest) async throws -> RunCodeResponse {
         let response: AgentRunCodeResponse
@@ -159,7 +159,7 @@ public struct ChannelHostBackend: AgentHostBackend {
                         name: file ?? "\(artifact.packageID)_\(artifact.version)\(bootstrap).deb",
                         digest: artifact.digest,
                     ))
-                    // The artifact names the APELIN_BUILD_ID confirm_loaded matches.
+                    // The artifact names the APELIN_BUILD_ID apelin_package_confirm_loaded matches.
                     if let named = artifact.buildID, !named.isEmpty {
                         buildID = named
                     }
@@ -327,7 +327,7 @@ public struct ChannelHostBackend: AgentHostBackend {
         )
     }
 
-    // MARK: confirm_loaded
+    // MARK: apelin_package_confirm_loaded
 
     public func confirmLoaded(
         _ request: ApelinAgent.ConfirmLoadedRequest,

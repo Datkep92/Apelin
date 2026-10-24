@@ -35,13 +35,13 @@ extension BuiltInSkills {
            not vroot-linked, so it opens files at their real kernel path. A
            bootstrap path like `/Library/…` must be made absolute first:
            `/var/jb` + path on rootless, the jbroot + path on roothide. This
-           skill's file `ApelinBootstrap.h` does exactly that (read_skill with
+           skill's file `ApelinBootstrap.h` does exactly that (apelin_skill_read with
            that file); it is what roothide's `jbroot()` and rootless's
            `ROOT_PATH_NS()` do, written so the one source builds for both
            bootstraps. System paths — `/System`, `/usr/lib/libSystem.B.dylib`,
            `/var/mobile/Library/Preferences`, a container — are already real
            and are **not** converted; converting one breaks it.
-        2. **The bootstrap's shell and its tools** (what run_code's `bash`,
+        2. **The bootstrap's shell and its tools** (what shell_run's `bash`,
            the terminal and a build script use on roothide) are vroot-linked:
            the jbroot is their `/`, and the real filesystem is under
            `/rootfs`. So `pwd -P`, `realpath` and `readlink` in that shell

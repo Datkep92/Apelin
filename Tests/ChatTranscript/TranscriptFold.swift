@@ -282,7 +282,11 @@ private struct FoldLog {
             default: nil
             }
         }
-        let tools = ["write_file", "read_file", "run_code", "patch_file", "build", "notify_user", "project_create"]
+        // Today's names, and now and then one an earlier release recorded.
+        let tools = [
+            "file_write", "file_read", "shell_run", "file_edit", "apelin_project_build", "apelin_notification_send",
+            "apelin_project_create", "patch_file", "build",
+        ]
         while log.events.count < count {
             switch random.int(in: 0 ... 27) {
             case 0, 1:
@@ -343,7 +347,7 @@ private struct FoldLog {
                 let id = random.chance(8) ? openApprovals.last ?? "approval" : "approval-\(log.events.count)"
                 openApprovals.append(id)
                 var payload: [String: JSONValue] = [
-                    "approvalID": .string(id), "tool": .string("run_code"),
+                    "approvalID": .string(id), "tool": .string("shell_run"),
                     "arguments": .string("{\"command\":\"ls\"}"), "reason": .string("why"),
                 ]
                 if random.chance(3) {

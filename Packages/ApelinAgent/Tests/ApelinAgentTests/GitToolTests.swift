@@ -84,7 +84,7 @@ struct GitToolTests {
         for tool in Self.gitTools {
             #expect(!general.contains(tool.rawValue), "\(tool.rawValue)")
         }
-        #expect(general.contains("project_create"))
+        #expect(general.contains("apelin_project_create"))
     }
 
     // MARK: Approval
@@ -255,7 +255,7 @@ struct GitToolTests {
         let workspace = prompt(.external)
         #expect(workspace.contains("# Workspace"))
         #expect(workspace.contains("build system is external"))
-        #expect(workspace.contains("run_code"))
+        #expect(workspace.contains("shell_run"))
         #expect(workspace.contains("AGENTS.md"))
         #expect(workspace.contains("git_clone"))
         #expect(workspace.contains("Settings ▸ Git"))
@@ -296,10 +296,12 @@ struct GitToolTests {
     @Test
     func `a recorded call shows a mask for the token and nothing else changes`() {
         let arguments = #"{"host":"github.com","token":"ghp_secret","username":"octocat"}"#
-        let redacted = ToolArgumentRedaction.redacted(arguments, tool: "git_save_credential")
+        let redacted = ToolArgumentRedaction.redacted(arguments, tool: "apelin_git_save_credential")
         #expect(!redacted.contains("ghp_secret"))
         #expect(redacted.contains("github.com") && redacted.contains("octocat"))
-        #expect(ToolArgumentRedaction.redacted("not json ghp_secret", tool: "git_save_credential") == "{}")
+        #expect(ToolArgumentRedaction.redacted("not json ghp_secret", tool: "apelin_git_save_credential") == "{}")
         #expect(ToolArgumentRedaction.redacted(arguments, tool: "git_status") == arguments)
+        // A session recorded before the rename relays its calls again on reopen.
+        #expect(!ToolArgumentRedaction.redacted(arguments, tool: "git_save_credential").contains("ghp_secret"))
     }
 }

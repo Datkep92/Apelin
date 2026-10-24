@@ -234,7 +234,7 @@ struct ProjectFileTools: Sendable {
     }
 }
 
-/// A small line diff for `patch_file` results: the changed hunk with three
+/// A small line diff for `file_edit` results: the changed hunk with three
 /// lines of context, in unified form.
 enum LineDiff {
     /// Lines added and removed, as `+a -b`: the first line of every file

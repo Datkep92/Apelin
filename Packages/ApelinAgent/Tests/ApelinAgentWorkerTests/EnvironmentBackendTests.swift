@@ -27,7 +27,7 @@ struct EnvironmentBackendTests {
     }
 
     @Test
-    func `toolchain_list carries each release's requirements and this project's binding`() async throws {
+    func `apelin_toolchain_list carries each release's requirements and this project's binding`() async throws {
         let fixture = try Fixture(manifest: Self.manifest)
         fixture.host.on(.toolchainStatus, reply: ToolchainStatusResponse(
             toolchains: [Self.toolchain("clt-16.4-c", version: "16.4", newestSDK: "18.5", productID: "082-16")],
@@ -65,7 +65,7 @@ struct EnvironmentBackendTests {
     }
 
     @Test
-    func `toolchain_list still answers when Apple's catalog cannot be read`() async throws {
+    func `apelin_toolchain_list still answers when Apple's catalog cannot be read`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.toolchainStatus, reply: ToolchainStatusResponse())
         fixture.host.on(.toolchainCatalog) { _ in throw ApelinError(.unavailable, "offline") }
@@ -74,7 +74,7 @@ struct EnvironmentBackendTests {
     }
 
     @Test
-    func `sdk_list offers the enabled sources' branches not yet registered, with the toolchains that read each`() async throws {
+    func `apelin_sdk_list offers the enabled sources' branches not yet registered, with the toolchains that read each`() async throws {
         let fixture = try Fixture(manifest: Self.manifest)
         fixture.host.on(.sdkList) { request in
             let asked = try request.decode(SDKListRequest.self)
@@ -100,7 +100,7 @@ struct EnvironmentBackendTests {
     }
 
     @Test
-    func `toolchain_setup starts the named catalog product and reads its task to the end, keeping only the stages`() async throws {
+    func `apelin_toolchain_setup starts the named catalog product and reads its task to the end, keeping only the stages`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.toolchainSetup, reply: TaskHandle(taskID: TaskID("setup-task"), kind: .environment))
         try fixture.host.on(.environmentAttach, reply: batch("setup-task", [
@@ -132,7 +132,7 @@ struct EnvironmentBackendTests {
     }
 
     @Test
-    func `sdk_import imports the source's branch and reads its task`() async throws {
+    func `apelin_sdk_import imports the source's branch and reads its task`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.sdkImport, reply: TaskHandle(taskID: TaskID("import-task"), kind: .environment))
         try fixture.host.on(.environmentAttach, reply: batch("import-task", [

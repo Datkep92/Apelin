@@ -1,7 +1,7 @@
 import Foundation
 import KWWKAI
 
-/// `analyze_framework` and `framework_header`: read a registered SDK's
+/// `apelin_sdk_analyze_framework` and `apelin_sdk_read_header`: read a registered SDK's
 /// `.tbd` stubs and headers directly, as mobile. The SDK root comes from the
 /// host; every read stays inside it.
 struct FrameworkTools: Sendable {

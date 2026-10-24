@@ -107,7 +107,7 @@ public struct ExternalBuildApproval: Sendable, Hashable, Codable {
     }
 }
 
-/// What a toolchain_setup card names, and the host matches its setup to.
+/// What a apelin_toolchain_setup card names, and the host matches its setup to.
 public struct ToolchainSetupApproval: Sendable, Hashable, Codable {
     public var productID: String
     public var version: String
@@ -122,7 +122,7 @@ public struct ToolchainSetupApproval: Sendable, Hashable, Codable {
     }
 }
 
-/// What an sdk_import card names, and the host matches its import to.
+/// What an apelin_sdk_import card names, and the host matches its import to.
 public struct SDKImportApproval: Sendable, Hashable, Codable {
     public var source: String
     public var url: String

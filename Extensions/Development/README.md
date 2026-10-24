@@ -27,7 +27,7 @@ manifest; nothing is retyped in the control files.
   method `Documents/Research/ApelinHello` hooked on the iOS 27 vphone) and
   logs, under the package id's os_log subsystem, `ApelinLoaded <build id> in
   <process>` from its constructor and `ApelinHooked <build id> …` from the
-  hook. `confirm_loaded` matches the first; the second shows the hook API was
+  hook. `apelin_package_confirm_loaded` matches the first; the second shows the hook API was
   really called.
 - **uikit-objc / uikit-swift** — a scene-based app whose `main` deletes this
   bundle's saved scene state before `UIApplicationMain`, one screen with its

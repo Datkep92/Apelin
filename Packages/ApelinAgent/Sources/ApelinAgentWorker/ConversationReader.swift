@@ -3,7 +3,7 @@ import ApelinCore
 import ApelinProtocol
 import Foundation
 
-/// What conversation_read makes of another conversation's task events:
+/// What apelin_conversation_read makes of another conversation's task events:
 /// its state over the whole log, the approvals still waiting, and the
 /// assistant's messages after `afterSeq`, bounded.
 struct ConversationReader {

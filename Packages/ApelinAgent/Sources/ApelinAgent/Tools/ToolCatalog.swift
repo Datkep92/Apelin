@@ -98,7 +98,7 @@ public extension AgentToolName {
         case .list: "List a project folder."
         case .grep: "Search project files with a regular expression."
         case .find: "Find project files whose names match a glob."
-        case .runCode: "Run a command or script in the project as mobile. Pass argv for a plain command, command for shell text, or script with an interpreter."
+        case .runCode: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter."
         case .analyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
         case .frameworkHeader: "Read one header of a framework in the registered SDK."
         case .build: "Build the project; returns structured diagnostics and artifacts with their digests."
@@ -114,12 +114,12 @@ public extension AgentToolName {
         case .readUITree: "Read the UI element tree of the foreground app or a target."
         case .uiAction: "Perform one UI action: tap, tap an element, type text, swipe, or press a button."
         case .memoryList: "Read saved user preferences and facts for all chats and this project, with their current revision."
-        case .memorySave: "Create or update a concise durable memory. Read memory_list first and supply its revision; never overwrite a user's correction or recreate a deleted memory from older context."
-        case .memoryDelete: "Delete a memory that is outdated or that the user asks to forget. Read memory_list first and supply its revision."
+        case .memorySave: "Create or update a concise durable memory. Read apelin_memory_list first and supply its revision; never overwrite a user's correction or recreate a deleted memory from older context."
+        case .memoryDelete: "Delete a memory that is outdated or that the user asks to forget. Read apelin_memory_list first and supply its revision."
         case .readSkill: "Read a skill's full instructions by name, or one file from its folder."
         case .notifyUser: "Show the user a notification from Apelin about something they would want to know while away from this chat: a long build, install, toolchain setup or device check you are waiting on finished or failed, or they must do something on the device (unlock it, open an app) before you can go on. Never for routine progress, never instead of your reply, and not to say you are done: Apelin already notifies them when your turn ends and when an approval waits. Plain text, no Markdown. At most \(AgentNoticeRules.maximumPerTurn) per turn, \(Int(AgentNoticeRules.minimumInterval)) seconds apart; it shows only while Apelin is not in front, and nothing tells you whether they saw it."
         case .projectTemplateList: "List the templates a new project can start from, with each template's id, kind and the parameters it asks for."
-        case .projectCreate: "Create a new project from a template id from project_template_list. Apelin fills the identifiers, toolchain and SDK; pass values only for parameters the user cares about. The project appears in the Projects menu with its link; this chat stays General Chat and its file tools do not reach it, so hand the work on with conversation_create naming the project."
+        case .projectCreate: "Create a new project from a template id from apelin_template_list. Apelin fills the identifiers, toolchain and SDK; pass values only for parameters the user cares about. The project appears in the Projects menu with its link; this chat stays General Chat and its file tools do not reach it, so hand the work on with apelin_conversation_create naming the project."
         case .gitStatus: "Show the project repository's branch, HEAD commit and changed files."
         case .gitDiff: "Show a unified diff of the worktree against the index, or with staged: true of the index against HEAD; optionally one path."
         case .gitStage: "Stage project files for the next commit."
@@ -134,17 +134,17 @@ public extension AgentToolName {
         case .gitSaveCredential: "Save the HTTPS credential for one host, replacing any it had: a username and a personal access token the user gave you. It is kept in the device's keychain and offered only to remotes on exactly that host."
         case .gitRemoveCredential: "Remove the saved HTTPS credential for one host."
         case .checkDistribution: "Before a distribution build, list what the package should not carry yet: the template's name, description, author or first version, a local identifier, an app without an icon, a version already packaged for the target, and any error that would stop the build. A workspace's package is checked by its release build instead."
-        case .conversationCreate: "Open another conversation, in this project or the one project names, with a first message, and return at once with its session id and link. Another agent works on it in parallel, under the same approval mode, and the user sees it in the sidebar. Collect its answer with conversation_read."
-        case .conversationSend: "Send a message to another conversation, as if the user typed it; it waits there if that conversation is busy. Name its project with project when it is not this one. Read the answer with conversation_read."
+        case .conversationCreate: "Open another conversation, in this project or the one project names, with a first message, and return at once with its session id and link. Another agent works on it in parallel, under the same approval mode, and the user sees it in the sidebar. Collect its answer with apelin_conversation_read."
+        case .conversationSend: "Send a message to another conversation, as if the user typed it; it waits there if that conversation is busy. Name its project with project when it is not this one. Read the answer with apelin_conversation_read."
         case .conversationList: "List the conversations of this project, or of the one project names: session id, link, title, state (open, waitingForApproval or ended), the conversation that opened each, and when it was last active."
         case .conversationRead: "Read a conversation of this project, or of the one project names: its state (running, waitingForApproval, idle or ended), the assistant's messages after after_seq, the approvals it is waiting on, and last_seq to pass as after_seq next time. With wait_seconds, wait until it finishes a turn after after_seq, asks for approval, or ends."
         case .conversationStop: "Stop the turn a conversation you opened is running. With close: true, also end the conversation and free its place; the user can still reopen it from the sidebar."
         case .toolchainList: "List the toolchains set up on this device (id, Command Line Tools version, components, the newest SDK each reads, self-test results) and the releases Apelin can set up from Apple's catalog, each with its download size, requirements and why this device cannot take it, if so; and which toolchain this project binds."
         case .sdkList: "List the iPhoneOS SDKs registered on this device and the ones the enabled SDK sources offer, each with the registered toolchains that read it; and which SDK this project binds."
-        case .toolchainSetup: "Set up a Command Line Tools release from toolchain_list on this device: Apple's package is downloaded, adapted, installed as a package and self-tested, importing a compatible SDK first if none is registered. Long; asks the user in Strict mode. Then bind it with project_environment_set."
-        case .sdkImport: "Import an iPhoneOS SDK an enabled source offers (sdk_list's available) onto this device: one branch is fetched, checked and registered. Asks the user in Strict mode. Then bind it with project_environment_set."
+        case .toolchainSetup: "Set up a Command Line Tools release from apelin_toolchain_list on this device: Apple's package is downloaded, adapted, installed as a package and self-tested, importing a compatible SDK first if none is registered. Long; asks the user in Strict mode. Then bind it with apelin_project_set_environment."
+        case .sdkImport: "Import an iPhoneOS SDK an enabled source offers (apelin_sdk_list's available) onto this device: one branch is fetched, checked and registered. Asks the user in Strict mode. Then bind it with apelin_project_set_environment."
         case .toolchainSelfTest: "Run a registered toolchain's self-test again: small programs are compiled, signed and run for each language and architecture, and the results recorded. A failure is reported, never unregistered."
-        case .projectEnvironmentSet: "Switch this project to a registered toolchain and/or SDK (ids from toolchain_list and sdk_list). The switch is checked first as projectCheck checks a project, and an incompatible pair, such as an SDK newer than the toolchain reads, is refused with that reason; then apelin-project.json is rewritten with the registry's digests."
+        case .projectEnvironmentSet: "Switch this project to a registered toolchain and/or SDK (ids from apelin_toolchain_list and apelin_sdk_list). The switch is checked first as projectCheck checks a project, and an incompatible pair, such as an SDK newer than the toolchain reads, is refused with that reason; then apelin-project.json is rewritten with the registry's digests."
         }
     }
 
@@ -164,31 +164,31 @@ public extension AgentToolName {
             ], required: ["prompt"])
         case .conversationSend:
             Schema.object([
-                "session_id": Schema.string("Session id from conversation_create or conversation_list."),
+                "session_id": Schema.string("Session id from apelin_conversation_create or apelin_conversation_list."),
                 "text": Schema.string("The message, which that agent reads as the user's."),
                 "project": Self.projectParameter,
             ], required: ["session_id", "text"])
         case .conversationRead:
             Schema.object([
-                "session_id": Schema.string("Session id from conversation_create or conversation_list."),
+                "session_id": Schema.string("Session id from apelin_conversation_create or apelin_conversation_list."),
                 "after_seq": Schema.integer("Only messages after this point: last_seq from the previous read. Omit for the whole conversation."),
                 "wait_seconds": Schema.integer("Wait up to this long, 0 to \(ConversationReadToolRequest.maximumWaitSeconds), for a turn after after_seq to finish. Default 0."),
                 "project": Self.projectParameter,
             ], required: ["session_id"])
         case .toolchainSetup:
             Schema.object([
-                "version": Schema.string("A release from toolchain_list's available, e.g. 16.4. Omit for the newest this device can take."),
-                "product_id": Schema.string("Or the release's product id from toolchain_list."),
+                "version": Schema.string("A release from apelin_toolchain_list's available, e.g. 16.4. Omit for the newest this device can take."),
+                "product_id": Schema.string("Or the release's product id from apelin_toolchain_list."),
                 "swift": Schema.boolean("Also set up Swift, where the release offers it on this device. Default false."),
             ], required: [])
         case .sdkImport:
             Schema.object([
-                "version": Schema.string("An SDK version from sdk_list's available, e.g. 17.5."),
-                "source": Schema.string("The source's name from sdk_list; omit for the first enabled source that offers the version."),
+                "version": Schema.string("An SDK version from apelin_sdk_list's available, e.g. 17.5."),
+                "source": Schema.string("The source's name from apelin_sdk_list; omit for the first enabled source that offers the version."),
             ], required: ["version"])
         case .toolchainSelfTest:
             Schema.object([
-                "toolchain_id": Schema.string("A registered toolchain's id from toolchain_list."),
+                "toolchain_id": Schema.string("A registered toolchain's id from apelin_toolchain_list."),
             ], required: ["toolchain_id"])
         case .projectEnvironmentSet:
             Schema.object([
@@ -213,7 +213,7 @@ public extension AgentToolName {
             ], required: ["host", "username", "token"])
         case .gitRemoveCredential:
             Schema.object([
-                "host": Schema.string("Host name as git_settings lists it."),
+                "host": Schema.string("Host name as apelin_git_read_settings lists it."),
             ], required: ["host"])
         case .gitDiff:
             Schema.object([
@@ -248,7 +248,7 @@ public extension AgentToolName {
             ], required: ["url"])
         case .projectCreate:
             Schema.object([
-                "template": Schema.string("Template id from project_template_list, e.g. wiki.qaq.apelin.dev.tweak/tweak."),
+                "template": Schema.string("Template id from apelin_template_list, e.g. wiki.qaq.apelin.dev.tweak/tweak."),
                 "name": Schema.string("Project folder name: a few words, no slashes. It never changes later."),
                 "values": .object([
                     "type": "object",
@@ -257,7 +257,7 @@ public extension AgentToolName {
             ], required: ["template", "name"])
         case .memorySave:
             Schema.object([
-                "revision": Schema.string("Exact current revision from memory_list."),
+                "revision": Schema.string("Exact current revision from apelin_memory_list."),
                 "id": Schema.string("Existing record id to update. Omit to create a new record."),
                 "title": Schema.string("Short title, at most \(MemoryStore.maximumTitleLength) characters."),
                 "body": Schema.string("Concise durable fact or preference, at most \(MemoryStore.maximumBodyLength) characters. No secrets or temporary progress."),
@@ -287,7 +287,7 @@ public extension AgentToolName {
             ], required: ["name"])
         case .memoryDelete:
             Schema.object([
-                "revision": Schema.string("Exact current revision from memory_list."),
+                "revision": Schema.string("Exact current revision from apelin_memory_list."),
                 "id": Schema.string("Record id to delete."),
             ], required: ["revision", "id"])
         case .writeFile:
@@ -374,20 +374,20 @@ public extension AgentToolName {
             ], required: [])
         case .install:
             Schema.object([
-                "artifact_id": Schema.string("Package artifact id from build."),
-                "artifact_digest": Schema.string("The artifact's digest from build."),
+                "artifact_id": Schema.string("Package artifact id from apelin_project_build."),
+                "artifact_digest": Schema.string("The artifact's digest from apelin_project_build."),
             ], required: ["artifact_id", "artifact_digest"])
         case .removePackage:
             Schema.object([
-                "installation_id": Schema.string("Installation record id from install."),
+                "installation_id": Schema.string("Installation record id from apelin_package_install."),
             ], required: ["installation_id"])
         case .respring:
             Schema.object([:], required: [])
         case .confirmLoaded:
             Schema.object([
-                "build_id": Schema.string("Build id from build."),
+                "build_id": Schema.string("Build id from apelin_project_build."),
                 "target": Schema.string("Process name or bundle id the tweak should load into, e.g. SpringBoard."),
-                "respring": Schema.boolean("Start listening, then respring, then wait for the marker. Approved like respring."),
+                "respring": Schema.boolean("Start listening, then respring, then wait for the marker. Approved like apelin_device_respring."),
             ], required: ["build_id", "target"])
         case .readLogs:
             Schema.object([
@@ -402,10 +402,10 @@ public extension AgentToolName {
                 "limit": Schema.integer("Maximum reports, default 20."),
             ], required: [])
         case .readCrash:
-            Schema.object(["report_id": Schema.string("Report id from list_crashes.")], required: ["report_id"])
+            Schema.object(["report_id": Schema.string("Report id from apelin_crash_list.")], required: ["report_id"])
         case .symbolicateCrash:
             Schema.object([
-                "report_id": Schema.string("Report id from list_crashes."),
+                "report_id": Schema.string("Report id from apelin_crash_list."),
                 "build_id": Schema.string("Build whose dSYM to use; omit to match by image UUID."),
             ], required: ["report_id"])
         case .captureScreen:
@@ -426,7 +426,7 @@ public extension AgentToolName {
                 "y": Schema.number("Tap or swipe start y, points."),
                 "to_x": Schema.number("Swipe end x."),
                 "to_y": Schema.number("Swipe end y."),
-                "element_id": Schema.string("Element id from read_ui_tree."),
+                "element_id": Schema.string("Element id from apelin_screen_read_tree."),
                 "text": Schema.string("Text to type."),
                 "button": Schema.string("home, lock, volume_up or volume_down."),
             ], required: ["action"])
@@ -434,7 +434,7 @@ public extension AgentToolName {
     }
 
     /// The conversation tools' other project.
-    internal static let projectParameter = Schema.string("Another project, by its projectID or folder name (project_create answers both): required in General Chat, omit for this project. A call that reaches another project asks the user in Strict mode.")
+    internal static let projectParameter = Schema.string("Another project, by its projectID or folder name (apelin_project_create answers both): required in General Chat, omit for this project. A call that reaches another project asks the user in Strict mode.")
 }
 
 /// Every tool asks for a short reason, which the app shows while the call
@@ -465,9 +465,9 @@ enum ToolReason {
 
 /// Models fill optional parameters with `null`, `""`, `[]` or `{}` when they
 /// mean to leave them out, and a tool that read those as given took the
-/// wrong branch: `read_skill` with `file: ""` read a file instead of the
-/// instructions, `run_code` with `argv: []` refused a command beside it,
-/// `memory_save` with `id: ""` updated a record that does not exist. So an
+/// wrong branch: `apelin_skill_read` with `file: ""` read a file instead of the
+/// instructions, `shell_run` with `argv: []` refused a command beside it,
+/// `apelin_memory_save` with `id: ""` updated a record that does not exist. So an
 /// empty optional argument is dropped before the tool, the gate or the host
 /// sees it. A required one is left for the tool to refuse.
 enum ToolArguments {

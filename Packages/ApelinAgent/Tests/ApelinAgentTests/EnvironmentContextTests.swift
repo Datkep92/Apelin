@@ -122,7 +122,7 @@ struct EnvironmentContextTests {
     // MARK: The environment
 
     @Test(.timeLimit(.minutes(1)))
-    func `the system prompt names the device, toolchains and SDKs, says run_code is prepared, and does not change between prompts`() async throws {
+    func `the system prompt names the device, toolchains and SDKs, says shell_run is prepared, and does not change between prompts`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let (bin, sdk) = try Self.register(in: home)

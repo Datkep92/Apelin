@@ -27,18 +27,18 @@ extension ChatWidgetSnapshot.Chat {
     /// The step a waiting approval is for, in a word.
     private var approvalStep: String? {
         switch approvalTool {
-        case "install": String(localized: "Install")
-        case "remove_package": String(localized: "Remove")
-        case "build": String(localized: "Build")
-        case "run_code": String(localized: "Run")
-        case "respring": String(localized: "Respring")
-        case "write_file", "create_file", "patch_file": String(localized: "Edit")
+        case "apelin_package_install": String(localized: "Install")
+        case "apelin_package_remove": String(localized: "Remove")
+        case "apelin_project_build": String(localized: "Build")
+        case "shell_run": String(localized: "Run")
+        case "apelin_device_respring": String(localized: "Respring")
+        case "file_write", "file_create", "file_edit": String(localized: "Edit")
         case "git_commit": String(localized: "Commit")
         case "git_pull": String(localized: "Pull")
         case "git_push": String(localized: "Push")
-        case "git_set_author", "git_save_credential", "git_remove_credential": String(localized: "Git Settings")
-        case "project_create": String(localized: "Create Project")
-        case "ui_action": String(localized: "Control Screen")
+        case "apelin_git_set_author", "apelin_git_save_credential", "apelin_git_remove_credential": String(localized: "Git Settings")
+        case "apelin_project_create": String(localized: "Create Project")
+        case "apelin_screen_interact": String(localized: "Control Screen")
         default: nil
         }
     }

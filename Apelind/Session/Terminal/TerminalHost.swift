@@ -193,7 +193,7 @@ actor TerminalHost {
     /// The shell, its arguments and the environment `login` would have set,
     /// with the development environment of `project` (a project folder, or
     /// nil for none) on top: its toolchain first on `PATH`, `SDKROOT` and
-    /// `IPHONEOS_DEPLOYMENT_TARGET`, as the agent's run_code gets them. A
+    /// `IPHONEOS_DEPLOYMENT_TARGET`, as the agent's shell_run gets them. A
     /// login shell's `/etc/profile` replaces `PATH`; the package's profile
     /// snippet puts the toolchain back from `APELIN_TOOLCHAIN_BIN`.
     static func launch(

@@ -29,7 +29,7 @@ extension BuiltInSkills {
         It runs as mobile in the project root, with no input, for at most 30
         minutes, and its output is the build log. Its environment:
         - the prepared toolchain first on `PATH`, with `SDKROOT` and
-          `IPHONEOS_DEPLOYMENT_TARGET`, as run_code has it: clang builds for
+          `IPHONEOS_DEPLOYMENT_TARGET`, as shell_run has it: clang builds for
           iOS without `-isysroot`; pass `-arch`.
         - `APELIN_BUILD_ID`: the marker below.
         - `APELIN_BOOTSTRAP`: `roothide` or `rootless`, the package's target.
@@ -71,16 +71,16 @@ extension BuiltInSkills {
            `dpkg-deb -b --root-owner-group "$stage" "$APELIN_PACKAGE_DIR/"`
            when the environment section lists dpkg-deb.
 
-        A tweak logs the marker `confirm_loaded` looks for from its
+        A tweak logs the marker `apelin_package_confirm_loaded` looks for from its
         constructor: `ApelinLoaded <APELIN_BUILD_ID>` with `os_log`, under a
         log whose subsystem is the package ID, as the tweak template does. Pass
         the ID in at compile time, such as
         `-DAPELIN_BUILD_ID="\\"$APELIN_BUILD_ID\\""`.
 
         ## Then
-        `build` runs the script (in Strict mode it asks the user every time)
-        and answers the package's artifact ID and digest; `install`,
-        `confirm_loaded` and `remove_package` work as the
+        `apelin_project_build` runs the script (in Strict mode it asks the user every time)
+        and answers the package's artifact ID and digest; `apelin_package_install`,
+        `apelin_package_confirm_loaded` and `apelin_package_remove` work as the
         packaging-and-install skill describes. The first install asks the
         user; it asks again only when the control file (but `Version`), a
         maintainer script or an installed path changes. A package someone
@@ -91,7 +91,7 @@ extension BuiltInSkills {
         ## Distribution
         A workspace is distributed like any project: build
         `configuration: release` once per bootstrap, and the script builds
-        for `APELIN_BOOTSTRAP` whatever this device runs. check_distribution
+        for `APELIN_BOOTSTRAP` whatever this device runs. apelin_project_check_distribution
         before it only says whether the script is declared; the release build
         checks the package it writes and lists, among its diagnostics, an
         identifier starting `local.apelin.`, a version this project already

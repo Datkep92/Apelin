@@ -54,7 +54,7 @@ public struct DeviceFacts: Sendable, Equatable {
 }
 
 /// The system prompt's `# Environment`: the device, the bootstrap, every
-/// registered toolchain and SDK, and what run_code already has — the same
+/// registered toolchain and SDK, and what shell_run already has — the same
 /// `DevelopmentEnvironment` the session host builds for it — so the model
 /// neither probes for compilers nor asks for a toolchain that is installed.
 ///
@@ -68,7 +68,7 @@ enum EnvironmentPrompt {
         var device: DeviceFacts
         var installRoot: String?
         var home: String
-        /// Which of `probedCommands` run_code finds on its search path; nil
+        /// Which of `probedCommands` shell_run finds on its search path; nil
         /// when nobody looked.
         var commandsFound: Set<String>?
 
@@ -81,7 +81,7 @@ enum EnvironmentPrompt {
     /// otherwise probe for, or assume from a Mac.
     static let probedCommands = ["cmake", "dpkg-deb", "git", "ldid", "make", "ninja", "perl", "python3", "xcrun"]
 
-    /// Which of `probedCommands` are executables on run_code's search path.
+    /// Which of `probedCommands` are executables on shell_run's search path.
     static func commandsFound(installRoot: String) -> Set<String> {
         let directories = DevelopmentEnvironment.searchPath(installRoot: installRoot)
         return Set(probedCommands.filter { name in
@@ -117,7 +117,7 @@ enum EnvironmentPrompt {
         lines += bindingLines(inputs, environment: environment)
         lines.append(preparedLine(inputs, environment: environment))
         lines.append(
-            "- run_code's environment is already set: run a command directly or with `bash -c`, never through a login shell (`bash -l`, `sh -l`), whose profile builds PATH again.",
+            "- shell_run's environment is already set: run a command directly or with `bash -c`, never through a login shell (`bash -l`, `sh -l`), whose profile builds PATH again.",
         )
         if bootstrap == .roothide {
             // The bootstrap's own tools see the bootstrap as / and the real
@@ -230,7 +230,7 @@ enum EnvironmentPrompt {
         let listed = found.isEmpty
             ? "none of " + probedCommands.joined(separator: ", ")
             : found.sorted().joined(separator: ", ")
-        var line = "- Also on run_code's PATH: \(listed)."
+        var line = "- Also on shell_run's PATH: \(listed)."
         if !found.isEmpty, !missing.isEmpty {
             line += " Not installed: " + missing.joined(separator: ", ") + "."
         }
@@ -239,15 +239,15 @@ enum EnvironmentPrompt {
 
     private static func preparedLine(_ inputs: Inputs, environment: DevelopmentEnvironment) -> String {
         guard let toolchain = environment.toolchain else {
-            return "- run_code has no Apelin compiler until a toolchain is installed. Do not search the device for one; ask the user to set one up."
+            return "- shell_run has no Apelin compiler until a toolchain is installed. Do not search the device for one; ask the user to set one up."
         }
         guard environment.sdk != nil else {
-            return "- run_code has the prepared toolchain's tools first on PATH, but no SDK it reads is registered. Do not search for one; ask the user to import one."
+            return "- shell_run has the prepared toolchain's tools first on PATH, but no SDK it reads is registered. Do not search for one; ask the user to import one."
         }
         let target = environment.deploymentTarget
         let whose = inputs.binding?.deploymentTarget == target ? "this project's deployment target"
             : inputs.inProject ? "Apelin's default" : "Apelin's default; this chat has no project"
-        var line = "- run_code and the user's terminal already have the toolchain and SDK marked prepared: "
+        var line = "- shell_run and the user's terminal already have the toolchain and SDK marked prepared: "
             + "the toolchain's tools first on PATH, SDKROOT set to the SDK, IPHONEOS_DEPLOYMENT_TARGET=\(target) (\(whose)). "
             + "clang, clang++, ld, lipo and the other tools are found by name and build for iOS against that SDK "
             + "without -isysroot or -target (pass -arch arm64 or arm64e)"
@@ -255,7 +255,7 @@ enum EnvironmentPrompt {
             ? "; swiftc takes the SDK too but needs -target arm64-apple-ios\(target). "
             : ". "
         line += "So do not look for compilers, SDKs or paths, and never set up or import again a toolchain or SDK listed here. "
-            + "A project with an Apelin build description builds with the build tool."
+            + "A project with an Apelin build description builds with apelin_project_build."
         return line
     }
 

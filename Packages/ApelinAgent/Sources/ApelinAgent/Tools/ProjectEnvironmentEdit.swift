@@ -28,7 +28,7 @@ enum ProjectEnvironmentEdit {
         // From the end, so the earlier spans keep their offsets.
         let edits = try wanted.map { path, value -> (Range<Int>, [UInt8], String) in
             guard let found = scanner.strings[path] else {
-                throw ToolArgumentError("\(fileName) has no string \(path); fix its environment with patch_file first")
+                throw ToolArgumentError("\(fileName) has no string \(path); fix its environment with file_edit first")
             }
             if found.value != value {
                 changed.insert(String(path.split(separator: ".")[1]))

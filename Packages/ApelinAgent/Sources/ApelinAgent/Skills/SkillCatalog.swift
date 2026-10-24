@@ -9,9 +9,9 @@ public struct SkillDocument: Sendable, Hashable {
     /// True for skills read from the user's folder.
     public var isUserSkill: Bool
     /// The folder a user skill's `SKILL.md` sits in, whose other files
-    /// `read_skill` may read; nil for a built-in or a root-level `.md`.
+    /// `apelin_skill_read` may read; nil for a built-in or a root-level `.md`.
     public var directory: String?
-    /// A built-in skill's files, by name, which `read_skill` serves as a
+    /// A built-in skill's files, by name, which `apelin_skill_read` serves as a
     /// user skill's folder is served.
     public var files: [String: String]
     /// A user skill's place in the skills folder, relative to it: what
@@ -56,7 +56,7 @@ public struct SkillProblem: Sendable, Hashable, CustomStringConvertible {
 /// `description` frontmatter).
 ///
 /// The system prompt lists only each skill's name and description, as pi's
-/// `<available_skills>` does; the body is read on demand with `read_skill`,
+/// `<available_skills>` does; the body is read on demand with `apelin_skill_read`,
 /// since the file tools cannot read outside the project.
 public enum SkillCatalog {
     public static func load(userDirectory: URL) -> (skills: [SkillDocument], diagnostics: [SkillProblem]) {
@@ -106,7 +106,7 @@ public enum SkillCatalog {
         guard !skills.isEmpty else { return "" }
         var lines = [
             "# Skills",
-            "Skills hold detailed instructions for particular tasks. When a task matches a skill's description, call read_skill with its name before you start, and follow it.",
+            "Skills hold detailed instructions for particular tasks. When a task matches a skill's description, call apelin_skill_read with its name before you start, and follow it.",
             "",
             "<available_skills>",
         ]

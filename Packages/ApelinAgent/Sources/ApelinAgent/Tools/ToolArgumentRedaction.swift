@@ -2,7 +2,7 @@ import ApelinCore
 import enum ApelinProtocol.AgentToolName
 import Foundation
 
-/// Arguments as the task's events record them: the token git_save_credential
+/// Arguments as the task's events record them: the token apelin_git_save_credential
 /// carries is replaced, so it reaches the host's keychain request and no
 /// event, transcript or log. The model's own copy is the user's message.
 /// A reopened session relays its whole log again, so a call recorded under

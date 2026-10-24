@@ -48,7 +48,7 @@ for name in ["I3 Chain Tweak", "相机翻译", "a?b#c;d", "100% done", session] 
 typealias Chat = ChatWidgetSnapshot.Chat
 let now = Date()
 func chat(_ id: String, _ status: Chat.Status, _ age: TimeInterval) -> (chat: Chat, updated: Date) {
-    (Chat(id: id, title: id, project: nil, status: status, approvalTool: status == .waiting ? "install" : nil),
+    (Chat(id: id, title: id, project: nil, status: status, approvalTool: status == .waiting ? "apelin_package_install" : nil),
      now.addingTimeInterval(-age))
 }
 

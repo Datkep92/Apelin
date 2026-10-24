@@ -1,17 +1,17 @@
 extension BuiltInSkills {
     static let packagingAndInstall = SkillDocument(
         name: "packaging-and-install",
-        description: "From a successful build to a confirmed load: the package artifact, install through the system installer, maintainer scripts, respring, confirm_loaded, and removal.",
+        description: "From a successful build to a confirmed load: the package artifact, install through the system installer, maintainer scripts, respring, apelin_package_confirm_loaded, and removal.",
         body: """
         # Packaging and install
 
-        `build` compiles, links, makes the dSYM, strips and signs (signing is
+        `apelin_project_build` compiles, links, makes the dSYM, strips and signs (signing is
         last; nothing touches the binary after it), then writes the `.deb`. Its
         result lists artifacts with an `id`, a `kind` and a `digest`.
 
         ## Install
-        - Call `install` with the `package` artifact's `id` and `digest`
-          exactly as `build` returned them. The host copies that artifact to
+        - Call `apelin_package_install` with the `package` artifact's `id` and `digest`
+          exactly as `apelin_project_build` returned them. The host copies that artifact to
           private staging and checks the digest before the installer sees it; a
           mismatch is refused, so never guess or reuse a digest from an older
           build.
@@ -22,9 +22,9 @@ extension BuiltInSkills {
           unless the task needs them; they run as root.
         - The result carries a `transactionID` and, on success, an
           `installationID`. Keep the installation id: it is the only handle for
-          `remove_package`.
+          `apelin_package_remove`.
         - Installation goes through Irisin's installer. There is no `dpkg` or
-          `apt` for you to call, and `run_code` must not try; the
+          `apt` for you to call, and `shell_run` must not try; the
           package-dependencies skill covers what installs a dependency.
 
         ## Maintainer scripts
@@ -49,26 +49,26 @@ extension BuiltInSkills {
         - A link you ship or create is relative (bootstrap-paths).
 
         ## Respring and confirm
-        - A tweak loaded into SpringBoard needs `respring`. Apps can instead be
+        - A tweak loaded into SpringBoard needs `apelin_device_respring`. Apps can instead be
           relaunched. After respring the session continues; the app may
           reconnect.
-        - `confirm_loaded` with the `buildID` and the target process reports
+        - `apelin_package_confirm_loaded` with the `buildID` and the target process reports
           the marker log line and whether the filter selects the target,
           separately; the image list is not read. The marker is logged once,
-          when the target starts, and is only seen while `confirm_loaded`
+          when the target starts, and is only seen while `apelin_package_confirm_loaded`
           listens (15 s; 30 s with a respring): for a SpringBoard tweak pass
-          `respring: true` instead of a separate `respring`. For an app, your
+          `respring: true` instead of a separate `apelin_device_respring`. For an app, your
           tool calls run one at a time, so ask the user to open it (quitting
           it first if it runs) while the call listens. "Installed" is not
           "loaded": report both.
         - If nothing loaded: check the filter plist's bundle id against the
           target, the injection framework dependency (`mobilesubstrate` in
-          `depends`), then `read_logs` for the target process. A daemon
+          `depends`), then `apelin_log_read` for the target process. A daemon
           started with `DISABLE_TWEAKS=1`, and an app on roothide's blacklist,
           load no tweaks at all.
 
         ## Removal
-        - `remove_package` takes an `installationID` from an install in this
+        - `apelin_package_remove` takes an `installationID` from an install in this
           project. Packages Apelin did not build and install, bootstrap packages
           and Apelin itself are out of reach, and removal is confirmed every
           time.

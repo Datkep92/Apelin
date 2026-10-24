@@ -3,18 +3,18 @@ import ApelinCore
 import ApelinProtocol
 import Foundation
 
-/// The device's toolchains and SDKs: toolchain_list → `toolchainStatus` and
-/// `toolchainCatalog`; sdk_list → `sdkList` with its sources read, and
-/// `toolchainStatus` for which toolchain reads each SDK; toolchain_setup →
-/// `toolchainSetup` from Apple's catalog by product ID; toolchain_self_test
-/// → `toolchainSelfTest`; sdk_import → `sdkImport` of a source's branch;
+/// The device's toolchains and SDKs: apelin_toolchain_list → `toolchainStatus` and
+/// `toolchainCatalog`; apelin_sdk_list → `sdkList` with its sources read, and
+/// `toolchainStatus` for which toolchain reads each SDK; apelin_toolchain_setup →
+/// `toolchainSetup` from Apple's catalog by product ID; apelin_toolchain_self_test
+/// → `toolchainSelfTest`; apelin_sdk_import → `sdkImport` of a source's branch;
 /// each task read to its end with `environmentAttach`, its progress left
-/// out but for the stages it went through. project_environment_set's check
+/// out but for the stages it went through. apelin_project_set_environment's check
 /// → `projectCheck` with the candidate binding, its `environment.*`
 /// findings. The host checks each again (AgentEnvironmentRules).
 public extension ChannelHostBackend {
     func toolchains(context _: HostCallContext) async throws -> ToolchainListToolResponse {
-        let status = try await environment("toolchain_list") { try await service.toolchainStatus() }
+        let status = try await environment("apelin_toolchain_list") { try await service.toolchainStatus() }
         let bound = Self.binding(projectURL: projectURL)
         var available: [AvailableToolchain] = []
         var problem: String?
@@ -35,7 +35,7 @@ public extension ChannelHostBackend {
     }
 
     func sdks(context _: HostCallContext) async throws -> SDKListToolResponse {
-        let list = try await environment("sdk_list") { try await service.sdkList(includeSources: true, readSources: true) }
+        let list = try await environment("apelin_sdk_list") { try await service.sdkList(includeSources: true, readSources: true) }
         let toolchains = await (try? service.toolchainStatus().toolchains) ?? []
         let bound = Self.binding(projectURL: projectURL)
         func readers(_ version: String) -> [String] {
@@ -71,24 +71,24 @@ public extension ChannelHostBackend {
 
     func toolchainSetup(_ request: ToolchainSetupToolRequest) async throws -> ToolchainTaskToolResponse {
         let components = request.components.compactMap(ToolchainComponentKind.init(rawValue:))
-        let handle = try await environment("toolchain_setup") {
+        let handle = try await environment("apelin_toolchain_setup") {
             try await service.toolchainSetup(ToolchainSetupRequest(
                 source: .appleCatalog(productID: request.productID),
                 components: components,
             ))
         }
-        return try await toolchainTask(handle, operation: "toolchain_setup")
+        return try await toolchainTask(handle, operation: "apelin_toolchain_setup")
     }
 
     func toolchainSelfTest(_ request: ToolchainSelfTestToolRequest) async throws -> ToolchainTaskToolResponse {
-        let handle = try await environment("toolchain_self_test") {
+        let handle = try await environment("apelin_toolchain_self_test") {
             try await service.toolchainSelfTest(id: request.toolchainID)
         }
-        return try await toolchainTask(handle, operation: "toolchain_self_test")
+        return try await toolchainTask(handle, operation: "apelin_toolchain_self_test")
     }
 
     func sdkImport(_ request: SDKImportToolRequest) async throws -> SDKImportToolResponse {
-        let handle = try await environment("sdk_import") {
+        let handle = try await environment("apelin_sdk_import") {
             try await service.sdkImport(.repository(url: request.url, branch: request.branch))
         }
         var stages: [String] = []
@@ -105,12 +105,12 @@ public extension ChannelHostBackend {
             sdk: record.map { Self.installed($0, readBy: [], boundID: nil) },
             stages: stages,
             warnings: warnings,
-            message: Self.endMessage(end, operation: "sdk_import"),
+            message: Self.endMessage(end, operation: "apelin_sdk_import"),
         )
     }
 
     func checkEnvironment(_ request: EnvironmentCheckToolRequest) async throws -> EnvironmentCheckToolResponse {
-        let check = try await environment("project_environment_set") {
+        let check = try await environment("apelin_project_set_environment") {
             try await service.projectCheck(
                 projectID: project.id,
                 environment: ProjectEnvironmentChoice(toolchainID: request.toolchainID, sdkID: request.sdkID),
@@ -118,7 +118,7 @@ public extension ChannelHostBackend {
         }
         guard let binding = check.environment else {
             let problems = check.diagnostics.filter { $0.severity == .error }.map(\.message).joined(separator: "; ")
-            throw EnvironmentToolFailure(message: "project_environment_set failed: the project file did not read (\(problems))")
+            throw EnvironmentToolFailure(message: "apelin_project_set_environment failed: the project file did not read (\(problems))")
         }
         return EnvironmentCheckToolResponse(
             toolchain: ComponentBinding(id: binding.toolchain.id, digest: binding.toolchain.digest),
@@ -180,7 +180,7 @@ public extension ChannelHostBackend {
         // The call stopped following the task before it ended: the task
         // goes on in the session host, and Settings shows it.
         case .queued, .running, .waitingForApproval:
-            "Stopped following \(operation); the task goes on in the session host, and toolchain_list counts it among running tasks until it ends."
+            "Stopped following \(operation); the task goes on in the session host, and apelin_toolchain_list counts it among running tasks until it ends."
         case .failed: end.message ?? "\(operation) failed"
         }
     }

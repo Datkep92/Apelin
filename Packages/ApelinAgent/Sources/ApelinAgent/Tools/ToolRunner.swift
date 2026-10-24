@@ -25,7 +25,7 @@ actor ToolRunner {
     let gate: ApprovalGate
     let memory: MemoryStore?
     let skills: URL?
-    /// Writes an event to the session's log: notify_user's `notice`.
+    /// Writes an event to the session's log: apelin_notification_send's `notice`.
     let record: (@Sendable (AgentSessionEvent) async throws -> Void)?
     private var notices = UserNotices()
 
@@ -286,7 +286,7 @@ actor ToolRunner {
                 default: return try json(tools.delete(arguments))
                 }
             } catch MemoryStoreError.changed {
-                throw ToolDeniedError(message: "Memory changed. Read memory_list again and respect the user's latest corrections or deletions; do not blindly retry.")
+                throw ToolDeniedError(message: "Memory changed. Read apelin_memory_list again and respect the user's latest corrections or deletions; do not blindly retry.")
             } catch MemoryStoreError.invalidContent {
                 throw ToolArgumentError("Memory needs a valid title (1–\(MemoryStore.maximumTitleLength) characters) and body (1–\(MemoryStore.maximumBodyLength) characters), without NUL bytes.")
             } catch MemoryStoreError.full {
@@ -349,7 +349,7 @@ actor ToolRunner {
 
         case .runCode:
             guard let invocation = facts.command else {
-                throw ToolArgumentError("run_code needs argv, command or script")
+                throw ToolArgumentError("shell_run needs argv, command or script")
             }
             let timeout = min(1800, max(1, arguments.argInt("timeout_seconds") ?? 120))
             return try await json(backend.runCode(RunCodeRequest(
@@ -637,7 +637,7 @@ actor ToolRunner {
             throw ToolArgumentError("name toolchain_id, sdk_id or both")
         }
         guard ProjectBuildSystem.read(in: root) != .external else {
-            throw ToolDeniedError(message: "this workspace builds with its own tools through run_code; it binds no Apelin toolchain or SDK")
+            throw ToolDeniedError(message: "this workspace builds with its own tools through shell_run; it binds no Apelin toolchain or SDK")
         }
         let checked = try await backend.checkEnvironment(EnvironmentCheckToolRequest(
             context: context,

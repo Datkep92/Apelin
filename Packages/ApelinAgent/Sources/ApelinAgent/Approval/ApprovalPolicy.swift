@@ -10,9 +10,9 @@ public struct ApprovalPresets: Sendable, Hashable, Codable {
     /// Read tools that run without asking. Only read-only tools count; a
     /// system tool named here is ignored.
     public var readTools: Set<AgentToolName>
-    /// System tools that run without asking. Only `respring` and
-    /// `ui_action` can be preset; build and install follow the digest rule,
-    /// run_code follows `commands`, and package removal always asks.
+    /// System tools that run without asking. Only `apelin_device_respring` and
+    /// `apelin_screen_interact` can be preset; build and install follow the digest rule,
+    /// shell_run follows `commands`, and package removal always asks.
     public var systemTools: Set<AgentToolName>
     public var commands: [CommandPreset]
 
@@ -61,20 +61,20 @@ public struct InvocationFacts: Sendable, Hashable {
     public var command: RunCodeInvocation?
     /// For build (`.build`) and install (`.packaging`).
     public var description: DescriptionState?
-    /// For remove_package: the installation record it removes.
+    /// For apelin_package_remove: the installation record it removes.
     public var installationID: String?
     /// For git_push: where it pushes, and what.
     public var push: GitPushTarget?
     /// For the git settings tools: what they change, in words, without a
     /// token ("the commit author", "the credential for github.com").
     public var gitSettings: String?
-    /// For run_code: its working directory, relative to the project root,
+    /// For shell_run: its working directory, relative to the project root,
     /// which a preset's path arguments are read from.
     public var workingDirectory: String
-    /// For toolchain_setup: the release, resolved in Apple's catalog before
+    /// For apelin_toolchain_setup: the release, resolved in Apple's catalog before
     /// asking, and sent by product ID.
     public var toolchainSetup: ToolchainSetupApproval?
-    /// For sdk_import: the source and branch, resolved before asking.
+    /// For apelin_sdk_import: the source and branch, resolved before asking.
     public var sdkImport: SDKImportApproval?
     /// For a conversation tool that names another project than the
     /// session's: what it does there.

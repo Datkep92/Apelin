@@ -34,15 +34,15 @@ struct ProjectCreationTests {
         defer { home.remove() }
         let names = { (runner: ToolRunner) in Set(runner.agentTools(mcp: []).map(\.name)) }
         let project = try names(runner(home, project: home.project, backend: MockBackend()))
-        #expect(!project.contains("project_template_list"))
-        #expect(!project.contains("project_create"))
+        #expect(!project.contains("apelin_template_list"))
+        #expect(!project.contains("apelin_project_create"))
         let general = try names(runner(home, project: generalChat(), backend: MockBackend()))
-        #expect(general.contains("project_template_list"))
-        #expect(general.contains("project_create"))
+        #expect(general.contains("apelin_template_list"))
+        #expect(general.contains("apelin_project_create"))
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func `project_create takes a template and runs under Confirm without asking`() async throws {
+    func `apelin_project_create takes a template and runs under Confirm without asking`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let backend = MockBackend()
@@ -64,7 +64,7 @@ struct ProjectCreationTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func `project_create needs a template and refuses a project's own chat`() async throws {
+    func `apelin_project_create needs a template and refuses a project's own chat`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let backend = MockBackend()
@@ -85,7 +85,7 @@ struct ProjectCreationTests {
         defer { home.remove() }
         let general = try SystemPrompt.make(project: generalChat(), projectRoot: home.projectURL.path, mode: .confirm, skills: [], mcpServers: [])
         #expect(general.contains("# General Chat"))
-        #expect(general.contains("project_template_list"))
+        #expect(general.contains("apelin_template_list"))
         let project = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm, skills: [], mcpServers: [])
         #expect(!project.contains("# General Chat"))
     }
