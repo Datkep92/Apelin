@@ -50,6 +50,9 @@ struct ChatMessage: Identifiable, Hashable {
     /// A user message another conversation's agent sent: the line shown
     /// over the bubble naming that conversation.
     var sender: String?
+    /// A tool row's call, and on a running summary its newest call, for the
+    /// line under the summary.
+    var banner: ToolCallBanner?
     /// A tool row whose result has not come back yet.
     var awaitsResult = false
     /// On a running summary, the calls in its trace still waiting for a result.

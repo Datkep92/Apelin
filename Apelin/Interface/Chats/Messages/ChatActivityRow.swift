@@ -3,13 +3,14 @@ import Litext
 import UIKit
 
 /// A summary in the transcript, or a step in its trace. A running summary's
-/// title is followed by the output the run has received so far. In the
-/// trace, a step's thinking, or a call's arguments and output, follow as
-/// plain selectable text.
+/// title is followed by the output the run has received so far, and its
+/// newest call is the line under it. In the trace, a step's thinking, or a
+/// call's arguments and output, follow as plain selectable text.
 final class ChatActivityRow: ListRowView {
     var onToggle: (() -> Void)?
     private let header = ThinkingStatusLabel()
     private let received = ReceivedTokensView()
+    private let bannerView = ToolCallBannerView()
     private let body = TextLabelView()
     /// The message this row shows: only a change to it animates, never the
     /// row taking another message out of the pool.
@@ -20,6 +21,8 @@ final class ChatActivityRow: ListRowView {
     private static let sizingHeader = ThinkingStatusLabel()
     /// Between the title and the count after it.
     private static let receivedSpacing: CGFloat = 6
+    /// Between the title and the line under it.
+    private static let bannerSpacing: CGFloat = 8
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -28,6 +31,8 @@ final class ChatActivityRow: ListRowView {
         addSubview(header)
         received.isHidden = true
         addSubview(received)
+        bannerView.isHidden = true
+        addSubview(bannerView)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggle)))
         body.isSelectable = true
         body.delegate = self
@@ -61,6 +66,13 @@ final class ChatActivityRow: ListRowView {
         let tokens = Self.receivedTokens(of: message, includesThoughts: includesThoughts)
         header.accessibilityValue = tokens.map(ReceivedTokensView.spoken)
         showReceived(tokens, animated: isSameMessage)
+        if let call = Self.banner(of: message, includesThoughts: includesThoughts) {
+            bannerView.show(call, animated: isSameMessage)
+            bannerView.isHidden = false
+        } else {
+            bannerView.reset()
+            bannerView.isHidden = true
+        }
         header.isThinking = message.role.isThinking
         let text = Self.bodyText(of: message, includesThoughts: includesThoughts)
         body.isHidden = text.isEmpty
@@ -85,6 +97,8 @@ final class ChatActivityRow: ListRowView {
         received.layer.removeAllAnimations()
         received.isHidden = true
         received.alpha = 1
+        bannerView.reset()
+        bannerView.isHidden = true
         onToggle = nil
         body.clearSelection()
         body.attributedText = NSAttributedString()
@@ -107,11 +121,30 @@ final class ChatActivityRow: ListRowView {
             height: pixel(height),
         )
         layoutReceived(in: content)
+        var top = header.frame.maxY
+        if !bannerView.isHidden {
+            // the line keeps the reading width, padding included; its
+            // ground is drawn out to the row's edges
+            let padding = ChatMessageRow.horizontalPadding
+            bannerView.frame = CGRect(
+                x: content.minX - padding,
+                y: top + Self.bannerSpacing,
+                width: content.width + padding * 2,
+                height: ToolCallBannerView.height,
+            )
+            bannerView.groundBleed = UIEdgeInsets(
+                top: 0,
+                left: max(0, bannerView.frame.minX),
+                bottom: 0,
+                right: max(0, bounds.width - bannerView.frame.maxX),
+            )
+            top = bannerView.frame.maxY
+        }
         // measured as `height(for:)` measures it
         let bodyHeight = body.isHidden ? 0 : ceil(body.sizeThatFits(CGSize(width: textWidth, height: 0)).height)
         body.frame = CGRect(
             x: content.minX,
-            y: header.frame.maxY + ChatMarkdownView.blockSpacing,
+            y: top + ChatMarkdownView.blockSpacing,
             width: textWidth,
             height: bodyHeight,
         )
@@ -189,6 +222,9 @@ final class ChatActivityRow: ListRowView {
             sizingHeader.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height,
         )
         var height = headerHeight + insets.top + insets.bottom
+        if banner(of: message, includesThoughts: includesThoughts) != nil {
+            height += bannerSpacing + ToolCallBannerView.height
+        }
         let text = bodyText(of: message, includesThoughts: includesThoughts)
         if !text.isEmpty {
             sizingBody.attributedText = attributed(text)
@@ -201,6 +237,13 @@ final class ChatActivityRow: ListRowView {
     private static func receivedTokens(of message: ChatMessage, includesThoughts: Bool) -> Int? {
         guard !includesThoughts, message.role.isThinking else { return nil }
         return message.receivedTokens
+    }
+
+    /// Only a running summary in the transcript has the line under it; the
+    /// trace lists every call whole.
+    private static func banner(of message: ChatMessage, includesThoughts: Bool) -> ToolCallBanner? {
+        guard !includesThoughts, message.role.isThinking else { return nil }
+        return message.banner
     }
 
     /// In the trace: a thought's text, or a call's arguments and output.

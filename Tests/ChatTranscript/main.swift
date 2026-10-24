@@ -165,6 +165,52 @@ precondition(ChatTranscript(events: running) { _ in nil }.messages.map(\.id)
     "a count adds no row")
 print("ok: a running summary stays running across calls and carries the run's received tokens")
 
+/// The line under a running summary is its newest call: the reason the agent
+/// gave, a file edit's name and, once its result is in, the lines it added
+/// and removed. Thinking after a call leaves the call there; nothing of the
+/// thinking shows.
+func call(_ seq: UInt64, _ id: String, _ tool: String, _ arguments: String) -> TaskEvent {
+    event(seq, "toolCall", ["id": .string(id), "tool": .string(tool), "arguments": .string(arguments)])
+}
+
+func result(_ seq: UInt64, _ id: String, _ output: String, isError: Bool = false) -> TaskEvent {
+    event(seq, "toolResult", ["id": .string(id), "output": .string(output), "isError": .bool(isError)])
+}
+
+func banner(_ events: [TaskEvent]) -> ToolCallBanner? {
+    ChatTranscript(events: events) { _ in nil }.messages.last?.banner
+}
+
+let editing = [
+    event(1, "prompt", ["text": .string("Change the hook")]),
+    event(2, "messageStarted"), event(3, "thinking", ["text": .string("Look at the hook")]),
+    call(4, "t1", "patch_file", "{\"reason\":\"Turn the hook on\",\"path\":\"Sources/Tweak.x\"}"),
+]
+precondition(banner(editing) == ToolCallBanner(reason: "Turn the hook on", file: "Tweak.x"), "the reason and the file, no counts yet")
+let editedCall = editing + [result(5, "t1", "Patched Sources/Tweak.x (1 replacement, +3 -1)\n--- a/Sources/Tweak.x")]
+precondition(banner(editedCall) == ToolCallBanner(reason: "Turn the hook on", file: "Tweak.x", change: .init(added: 3, removed: 1)))
+precondition(banner(editing + [result(5, "t1", "Patched Sources/Tweak.x (1 replacement, +3 -1)", isError: true)])?.change == nil,
+             "a failed call has no counts")
+let thinkingAfter = editedCall + [event(6, "messageStarted"), event(7, "thinking", ["text": .string("Now build it")])]
+precondition(banner(thinkingAfter)?.reason == "Turn the hook on", "thinking leaves the newest call in place")
+let written = thinkingAfter + [
+    call(8, "t2", "write_file", "{\"reason\":\"Add the preferences\",\"path\":\"Prefs/Root.plist\"}"),
+    result(9, "t2", "Created Prefs/Root.plist (812 bytes, +24 -0)"),
+]
+precondition(banner(written) == ToolCallBanner(reason: "Add the preferences", file: "Root.plist", change: .init(added: 24, removed: 0)),
+             "the newest call")
+let buildCall = written + [call(10, "t3", "build", "{}")]
+precondition(banner(buildCall) == ToolCallBanner(reason: "Build the project"), "a call without a reason shows its title, and no file")
+let readWithPath = written + [call(10, "t3", "read_file", "{\"reason\":\"Check the hook\",\"path\":\"Sources/Tweak.x\"}")]
+precondition(banner(readWithPath) == ToolCallBanner(reason: "Check the hook"), "only a file tool names its file")
+precondition(banner(editedCall + [event(6, "finished")]) == nil, "a finished summary has no line")
+precondition(banner(Array(editing.prefix(3))) == nil, "nor a running one before its first call")
+precondition(ChatTranscript(events: editedCall) { _ in nil }.messages.count == 2, "the line adds no row")
+precondition(ToolCallBanner.lineChange(in: "Replaced Tweak.x (40 bytes, +2 -2)") == .init(added: 2, removed: 2))
+precondition(ToolCallBanner.lineChange(in: "Unable to patch Tweak.x") == nil)
+precondition(ToolCallBanner.lineChange(in: "Patched Tweak.x (1 replacement)") == nil)
+print("ok: a running summary's line is its newest call, with a file edit's name and counts")
+
 /// A running turn that has shown a reply and then gone quiet for
 /// `quietInterval` gets a running summary under the reply, under the id its
 /// next thought takes, so that thought takes its place with no gap.

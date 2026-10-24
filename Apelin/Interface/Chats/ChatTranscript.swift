@@ -136,13 +136,18 @@ struct ChatTranscript {
                     let arguments = payload?["arguments"]?.stringValue
                     var row = ChatMessage(id: id, role: .tool, text: Self.toolTitle(name, arguments: arguments))
                     row.detail = arguments ?? ""
+                    row.banner = ToolCallBanner(tool: name, arguments: arguments, title: row.text)
                     row.awaitsResult = true
                     messages.append(row)
                 }
             case "toolResult":
                 if let toolID = payload?["id"]?.stringValue, let index = toolRows[toolID] {
-                    messages[index].detail += "\n\n" + (payload?["output"]?.stringValue ?? "")
+                    let output = payload?["output"]?.stringValue ?? ""
+                    messages[index].detail += "\n\n" + output
                     messages[index].awaitsResult = false
+                    if messages[index].banner?.file != nil, payload?["isError"]?.boolValue != true {
+                        messages[index].banner?.change = ToolCallBanner.lineChange(in: output)
+                    }
                 }
                 let files = (try? payload?["attachments"]?.decode([AgentAttachment].self)) ?? []
                 if !files.isEmpty {
@@ -233,13 +238,14 @@ struct ChatTranscript {
     /// While the turn runs, its last summary stays unfinished across tool
     /// calls and approvals. Each thought ends when a tool starts, so without
     /// this the title would flip between "Thought for…" and the running one.
-    /// It carries the run's output so far.
+    /// It carries the run's output so far and the newest call in its trace.
     private static func keepTrailingSummaryRunning(_ rows: inout [ChatMessage], receivedTokens: Int?) {
         guard let index = rows.lastIndex(where: { !$0.role.needsApproval }),
               case let .thinking(_, tools) = rows[index].role else { return }
         rows[index].role = .thinking(seconds: nil, tools: tools)
         rows[index].runningTools = rows[index].trace.count(where: \.awaitsResult)
         rows[index].receivedTokens = receivedTokens
+        rows[index].banner = rows[index].trace.last { $0.role == .tool }?.banner
     }
 
     /// The running summary that stands in under `row` until the turn shows
