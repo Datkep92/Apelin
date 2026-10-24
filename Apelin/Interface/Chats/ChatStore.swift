@@ -19,9 +19,11 @@ struct ChatRecord: Codable, Sendable {
 
 /// The replay a reopened session's task starts with: every event of the
 /// session again, renumbered and newly timed, before anything new. It ends
-/// at the first user message the conversation has not seen.
+/// at the first user message or compaction the conversation has not seen:
+/// Compact… reopens a stopped session too, with no message after it.
 struct SessionReplay: Codable, Sendable {
     private static let userMessageKinds: Set<String> = ["prompt", "steer"]
+    private static let compactionKind = "compactionStarted"
 
     /// How far the task has been read.
     var cursor = EventSeq.start
@@ -29,6 +31,9 @@ struct SessionReplay: Codable, Sendable {
     /// without one (a steer, or a message another conversation sent).
     private var messageIDs: Set<UUID> = []
     private var unnamedMessages = 0
+    /// The compactions still to come again. Absent from older files, which
+    /// have none.
+    private var compactions: Int?
 
     /// The replay of a session whose history is `events`.
     init(of events: [TaskEvent]) {
@@ -39,11 +44,17 @@ struct SessionReplay: Codable, Sendable {
                 unnamedMessages += 1
             }
         }
+        compactions = events.count { $0.kind == Self.compactionKind }
     }
 
     /// Whether `event` is still part of the replay, counting off the user
     /// message it repeats.
     mutating func replays(_ event: TaskEvent) -> Bool {
+        if event.kind == Self.compactionKind {
+            guard let remaining = compactions, remaining > 0 else { return false }
+            compactions = remaining - 1
+            return true
+        }
         guard Self.userMessageKinds.contains(event.kind) else { return true }
         if let id = ChatTranscript.userMessageID(of: event) {
             return messageIDs.remove(id) != nil

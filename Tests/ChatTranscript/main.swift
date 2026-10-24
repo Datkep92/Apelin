@@ -466,6 +466,16 @@ precondition(firstTask.take([event(1, "error", ["message": .string("Sign in firs
 var sameTask = reopened
 sameTask.reopen(as: reopened.task!)
 precondition(sameTask.events == reopened.events && sameTask.cursor == EventSeq(12), "the same task again reads on")
+// Compact… reopens a stopped session with no message after the replay:
+// the compaction it asked for is new, one already in the history is not.
+var compacted = ChatRecord(summary: ChatSummary(title: "Long", updated: Date()))
+compacted.task = TaskHandle(taskID: .make(), kind: .agent)
+compacted.events = history + [event(13, "compactionStarted"), event(14, "compactionFinished", ["outcome": .string("compacted")])]
+compacted.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
+let compactionReplay = history + [event(13, "compactionStarted"), event(14, "compactionFinished", ["outcome": .string("compacted")])]
+precondition(compacted.take(compactionReplay).isEmpty, "a compaction in the history is part of the replay")
+let asked = compacted.take([event(15, "compactionStarted"), event(16, "compactionFinished", ["outcome": .string("tooShort")])])
+precondition(asked.map(\.kind) == ["compactionStarted", "compactionFinished"], "the one asked for after a reopen is taken")
 print("ok: a reopened session's replay is read past, and the conversation keeps its rows")
 
 /// A name the reader gives a conversation is kept: the agent's `title`
