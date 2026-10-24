@@ -1678,3 +1678,17 @@ read through the new per-control keys. No agent session ran, and the
 workspace distribution page was not opened on the device; the Mac covers
 the release findings (`ExternalBuildTests`), check_distribution
 (`ChannelHostBackendTests`) and the menu's build method (`Tests/Onboarding`).
+
+## 0.1.7 release smoke (2026-10-24, CI build 8 of `eb25512`)
+
+The roothide package CI built for the release commit (the bytes Release
+published, SHA-256 checked against its `SHA256SUMS`) went onto the iOS 26.4
+iPhone vphone (over 0.1.6) and the iPadOS 26.4 iPad vphone (over 0.1.2)
+through `irisin-cli install --yes`, each on the first try. The smoke suite
+ran on both as `Scripts/device.py` runs it — each script dropped in the
+inbox, the app quit and launched again through vphoned, the run followed
+to its `run.end`, the harness entry's checks and cleanup after — by a shell
+stand-in on the hosts, which have no Python. Every script ended `ok`:
+`hello`, `terminal`, `logs`, `diagnostics`, `i3-image-check-refused` and
+`i1-smoke` (26 steps) on both, and `files` on the iPhone; the iPad has no
+tweak extension, toolchain or SDK, so `files` was skipped there.
