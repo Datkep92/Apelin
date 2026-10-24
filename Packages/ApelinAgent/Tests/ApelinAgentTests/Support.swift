@@ -88,6 +88,7 @@ actor MockBackend: AgentHostBackend {
         case respring
         case confirmLoaded(build: String, target: String)
         case createProject(template: String, name: String, values: [String: TemplateValue])
+        case renameProject(projectID: String, displayName: String, automatic: Bool)
         case gitStatus
         case gitDiff(path: String?, staged: Bool)
         case gitStage([String])
@@ -367,6 +368,11 @@ actor MockBackend: AgentHostBackend {
     func resolveProject(_ reference: String) throws -> ProjectIdentity {
         guard let found = otherProjects[reference] else { throw ToolDeniedError(message: "no project \(reference)") }
         return found
+    }
+
+    func renameProject(_ request: ProjectRenameToolRequest) -> ProjectRenameToolResponse {
+        calls.append(.renameProject(projectID: request.projectID, displayName: request.displayName, automatic: request.automatic))
+        return ProjectRenameToolResponse(projectID: request.projectID, folder: request.folder, displayName: request.displayName, changed: true)
     }
 
     func toolchains(context _: HostCallContext) -> ToolchainListToolResponse {

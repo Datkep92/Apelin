@@ -27,7 +27,7 @@ enum SystemPrompt {
         - Name: \(project.name.rawValue)
         - Root: \(projectRoot)
         - File tools take paths relative to the root and cannot leave it; links out of it are refused.
-        - The folder name and projectID never change. The displayed name is displayName in apelin-project.json. While autoName is true and displayName still equals the folder name, you may replace it with a short name once the user states a concrete goal, and set autoName to false. Greetings, small talk and questions are not goals. Otherwise rename only when asked, and never change the folder, product or package identifiers to do it.
+        - The folder name and projectID never change. The displayed name is displayName in apelin-project.json. Once the user states a concrete goal, you may give the project a short name with apelin_project_rename and automatic: true, which replaces only the name Apelin generated and leaves alone one the user chose. Greetings, small talk and questions are not goals. Otherwise rename only when asked, with apelin_project_rename, and never change the folder, product or package identifiers to do it.
 
         # Responses
         - Reply in the user's language. Be concise: lead with the result, no preamble, no restating the request, no list of what you left alone. A few sentences beat a report; match the length to the task and stop when it is answered.

@@ -1,3 +1,4 @@
+import enum ApelinCore.ProjectDisplayName
 import enum ApelinProtocol.AgentToolName
 import KWWKAI
 
@@ -78,6 +79,8 @@ extension ToolRunner {
             facts.toolchainSetup = try await setupToAsk(arguments)
         case .sdkImport:
             facts.sdkImport = try await importToAsk(arguments)
+        case .projectRename:
+            try await gatherRename(arguments, into: &facts)
         case .skillSave:
             facts.skillChange = try skillTools().change(saving: arguments)
         case .skillRemove:
@@ -121,6 +124,37 @@ extension ToolRunner {
             sessionID: arguments.argNonEmptyString("session_id"),
             text: name == .conversationCreate ? arguments.argString("prompt")
                 : name == .conversationSend ? arguments.argString("text") : nil,
+        )
+    }
+
+    /// The project a rename names, resolved before asking: this session's
+    /// when none is named (General Chat has none), else the one named,
+    /// whose card says what it is called now and what it becomes.
+    private func gatherRename(_ arguments: JSONValue, into facts: inout InvocationFacts) async throws {
+        let name = try arguments.requireString("display_name").trimmingCharacters(in: .whitespaces)
+        guard ProjectDisplayName.isValid(name) else {
+            throw ToolArgumentError("The name is 1 to \(ProjectDisplayName.maximumLength) characters on one line.")
+        }
+        let target: ProjectIdentity
+        if let reference = arguments.argNonEmptyString("project") {
+            target = try await backend.resolveProject(reference)
+        } else if project.isTemporary {
+            throw ToolArgumentError("General Chat has no project of its own: name it with project (its projectID or folder name, as apelin_project_list answers them)")
+        } else {
+            target = project
+        }
+        guard !target.isTemporary else { throw ToolDeniedError(message: "a temporary chat has no project to rename") }
+        facts.renamedProject = target
+        guard target.id != project.id else { return }
+        if arguments.argBool("automatic") == true {
+            throw ToolArgumentError("automatic naming is for this conversation's own project; rename another only when the user asks, without automatic")
+        }
+        let listed = try? await backend.projects().projects.first { $0.projectID == target.id }
+        facts.projectRename = ProjectRenameApproval(
+            projectID: target.id,
+            folder: target.name.rawValue,
+            currentName: listed?.displayName ?? target.name.rawValue,
+            displayName: name,
         )
     }
 

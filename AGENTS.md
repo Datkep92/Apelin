@@ -281,7 +281,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolchainStatus`, `toolchainCatalog`, `toolchainSetup`,
   `toolchainSelfTest`, `sdkList`, `sdkImport`, a setup or import narrowed
   by `AgentEnvironmentRules`, and `environmentAttach` for the tasks its own
-  session started — its git tasks too; never a removal or a cancel), the environment worker `installPackage`, `removePackage`
+  session started — its git tasks too; never a removal or a cancel;
+  `projectRename`, narrowed by `AgentProjectRenameRules`), the environment worker `installPackage`, `removePackage`
   and `buildAttach` (its local toolchain package, through the same bridge),
   the diagnostics worker `crashOpen` and `respring`, and nothing else call
   anything. Workers: `apelin-environment` (toolchain, SDKs, git, transfer
@@ -1002,9 +1003,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the build description digest (Documents/Schemas/README.md), so the next
   build does not ask for it. Left out (2026-10-22): toolchain and SDK
   removal (device-wide, never needed to build, Settings asks itself),
-  transfer export (its file is only of use through the app's share sheet),
-  project rename (the file tools already edit `displayName`); a
-  distribution build is apelin_project_build {configuration: release, bootstrap}.
+  transfer export (its file is only of use through the app's share sheet);
+  project rename came later (2026-10-24, apelin_project_rename, Project
+  display names below); a distribution build is apelin_project_build
+  {configuration: release, bootstrap}.
   apelin_project_list (2026-10-24), in any chat, a read preset with no
   host request: the projects under `Projects/` as the conversation tools
   resolve them (`ChannelHostBackend.projects`: no folder that links out,
@@ -2211,8 +2213,18 @@ eight words and 80 characters. A greeting or generic question has no project
 candidate. If a greeting came first, the same chat can still receive a project
 candidate on a later concrete goal while the placeholder remains; its existing
 chat title is kept. Plain-title or malformed JSON responses never rename a project.
-`projectRename` is app-only in CallerPolicy; an agent can edit only its own
-project manifest through the existing scoped file tools. The writer opens the
+The agent renames through `projectRename` too (apelin_project_rename,
+owner, 2026-10-24; `Session/Agent/AgentProjectRenameRules.swift`): its own
+session's project in either mode, without asking — the label the file
+tools may write in its manifest anyway, outside every approval digest —,
+with `automatic: true` as `onlyIfAutomatic`, the session's own project's
+alone (the prompt's way to name a placeholder once the user states a goal,
+a user's or an external rename winning as above); another project only by
+its projectID, and under Confirm only by spending one approval the app gave
+that session naming exactly that project and name
+(`detail.projectRename` {projectID, folder, currentName, displayName}),
+every time, never for the session. The file tools still edit the field
+where they reach. The writer opens the
 canonical project directory, refuses a symlink manifest, checks its identity and
 bytes again, and replaces it relative to that directory. These display fields
 are excluded from build and packaging approval digests.

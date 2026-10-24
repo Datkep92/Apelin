@@ -255,6 +255,20 @@ public struct ChannelHostBackend: AgentHostBackend {
         return ProjectCreateToolResponse(projectID: created.projectID, name: created.name)
     }
 
+    public func renameProject(_ request: ProjectRenameToolRequest) async throws -> ProjectRenameToolResponse {
+        let renamed = try await service.projectRename(ProjectRenameRequest(
+            projectID: request.projectID,
+            displayName: request.displayName,
+            onlyIfAutomatic: request.automatic,
+        ))
+        return ProjectRenameToolResponse(
+            projectID: renamed.projectID,
+            folder: request.folder,
+            displayName: renamed.displayName,
+            changed: renamed.changed,
+        )
+    }
+
     static func templateValue(_ value: ApelinCore.JSONValue) -> TemplateValue? {
         switch value {
         case let .string(text): .string(text)

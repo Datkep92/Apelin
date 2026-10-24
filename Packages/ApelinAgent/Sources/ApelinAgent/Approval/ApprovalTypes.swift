@@ -89,6 +89,26 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// A skill saved to or removed from the skills folder, which every later
     /// conversation lists: the whole text a save writes.
     case skillChange(SkillChangeApproval)
+    /// A rename of another project than the session's. The host lets
+    /// through only the rename it names, once.
+    case projectRename(ProjectRenameApproval)
+}
+
+/// What an apelin_project_rename card names for another project, and the
+/// host matches its rename to (AgentProjectRenameRules): the project and
+/// the name it is given.
+public struct ProjectRenameApproval: Sendable, Hashable, Codable {
+    public var projectID: String
+    public var folder: String
+    /// The name the sidebar shows now.
+    public var currentName: String
+    public var displayName: String
+    public init(projectID: String, folder: String, currentName: String, displayName: String) {
+        self.projectID = projectID
+        self.folder = folder
+        self.currentName = currentName
+        self.displayName = displayName
+    }
 }
 
 /// What an apelin_skill_save or apelin_skill_remove card names: the skill,

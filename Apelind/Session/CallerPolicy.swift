@@ -42,7 +42,9 @@ enum CallerPolicy {
         .toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainSelfTest,
         .sdkList, .sdkImport, .environmentAttach,
         .extensionList,
-        .projectCreate, .projectCheck,
+        // A rename is its own project's, or another's only as the user
+        // approved it (AgentProjectRenameRules).
+        .projectCreate, .projectCheck, .projectRename,
         .buildStart, .buildAttach, .buildCancel,
         .installPackage, .removePackage, .respring, .approvalDigestState,
         .fileRead,

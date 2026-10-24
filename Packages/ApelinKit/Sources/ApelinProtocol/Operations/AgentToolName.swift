@@ -44,6 +44,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case templateList = "apelin_template_list"
     case projectList = "apelin_project_list"
     case projectCreate = "apelin_project_create"
+    case projectRename = "apelin_project_rename"
     case gitStatus = "git_status"
     case gitDiff = "git_diff"
     case gitStage = "git_stage"

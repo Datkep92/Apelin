@@ -605,6 +605,8 @@ actor EventRelay {
             payload["detail"] = .object(["externalBuild": (try? ApelinCore.JSONValue(encoding: build)) ?? .null])
         case let .skillChange(change):
             payload["detail"] = .object(["skillChange": (try? ApelinCore.JSONValue(encoding: change)) ?? .null])
+        case let .projectRename(rename):
+            payload["detail"] = .object(["projectRename": (try? ApelinCore.JSONValue(encoding: rename)) ?? .null])
         }
         return .object(payload)
     }

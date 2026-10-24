@@ -259,7 +259,8 @@ actor ToolRunner {
             break
         }
         switch detail {
-        case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange:
+        case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
+             .projectRename:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -343,6 +344,20 @@ actor ToolRunner {
 
         case .projectList:
             return try await json(backend.projects())
+
+        case .projectRename:
+            // The project the facts resolved, and for another one the
+            // rename its card named.
+            guard let target = facts.renamedProject else {
+                throw ToolDeniedError(message: "the project to rename could not be identified")
+            }
+            return try await json(backend.renameProject(ProjectRenameToolRequest(
+                context: context,
+                projectID: target.id,
+                folder: target.name.rawValue,
+                displayName: arguments.requireString("display_name").trimmingCharacters(in: .whitespaces),
+                automatic: arguments.argBool("automatic") ?? false,
+            )))
 
         case .projectCreate:
             return try await json(backend.createProject(ProjectCreateToolRequest(

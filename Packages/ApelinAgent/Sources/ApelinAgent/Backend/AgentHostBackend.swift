@@ -90,6 +90,9 @@ public protocol AgentHostBackend: Sendable {
     func resolveProject(_ reference: String) async throws -> ProjectIdentity
     /// The projects under `Projects/`, as `resolveProject` reads them.
     func projects() async throws -> ProjectListToolResponse
+    /// A project's displayName, by `projectRename`; the host checks the
+    /// session may rename it.
+    func renameProject(_ request: ProjectRenameToolRequest) async throws -> ProjectRenameToolResponse
     /// The device's toolchains, and the releases Apple's catalog offers.
     func toolchains(context: HostCallContext) async throws -> ToolchainListToolResponse
     /// The device's SDKs, and the ones the enabled sources offer.
@@ -114,6 +117,10 @@ public extension AgentHostBackend {
 
     func projects() async throws -> ProjectListToolResponse {
         ProjectListToolResponse(projects: [], truncated: false)
+    }
+
+    func renameProject(_: ProjectRenameToolRequest) async throws -> ProjectRenameToolResponse {
+        throw ToolDeniedError(message: "renaming projects is not available here")
     }
 
     func toolchains(context _: HostCallContext) async throws -> ToolchainListToolResponse {

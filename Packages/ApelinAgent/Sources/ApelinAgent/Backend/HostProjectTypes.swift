@@ -132,3 +132,38 @@ public struct ListedProject: Sendable, Hashable, Codable {
         link = ApelinLink.project(projectID)
     }
 }
+
+/// apelin_project_rename: a project's displayName, by `projectRename`.
+public struct ProjectRenameToolRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var projectID: String
+    public var folder: String
+    public var displayName: String
+    /// Only replace the name Apelin generated (`onlyIfAutomatic`).
+    public var automatic: Bool
+    public init(context: HostCallContext, projectID: String, folder: String, displayName: String, automatic: Bool) {
+        self.context = context
+        self.projectID = projectID
+        self.folder = folder
+        self.displayName = displayName
+        self.automatic = automatic
+    }
+}
+
+public struct ProjectRenameToolResponse: Sendable, Hashable, Codable {
+    public var projectID: String
+    public var folder: String
+    /// The name the sidebar shows now: the new one, or the one an
+    /// automatic rename left in place.
+    public var displayName: String
+    public var changed: Bool
+    /// `apelin://project/<projectID>`, which opens it in the app.
+    public var link: String
+    public init(projectID: String, folder: String, displayName: String, changed: Bool) {
+        self.projectID = projectID
+        self.folder = folder
+        self.displayName = displayName
+        self.changed = changed
+        link = ApelinLink.project(projectID)
+    }
+}

@@ -38,6 +38,7 @@ extension ChatWidgetSnapshot.Chat {
         case "git_push": String(localized: "Push")
         case "apelin_git_set_author", "apelin_git_save_credential", "apelin_git_remove_credential": String(localized: "Git Settings")
         case "apelin_project_create": String(localized: "Create Project")
+        case "apelin_project_rename": String(localized: "Rename Project")
         case "apelin_skill_save": String(localized: "Save Skill")
         case "apelin_skill_remove": String(localized: "Remove Skill")
         case "apelin_screen_interact": String(localized: "Control Screen")

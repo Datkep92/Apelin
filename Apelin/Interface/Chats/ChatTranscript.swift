@@ -499,6 +499,7 @@ struct ChatTranscript {
         case .projectSetEnvironment: return String(localized: "Switch the toolchain or SDK")
         case .templateList: return String(localized: "List project templates")
         case .projectList: return String(localized: "List projects")
+        case .projectRename: return String(localized: "Rename the project")
         case .projectCreate:
             let project = values?["name"]?.stringValue ?? ""
             return project.isEmpty ? String(localized: "Create a project") : String(localized: "Create \(project)")

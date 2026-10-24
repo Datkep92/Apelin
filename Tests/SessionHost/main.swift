@@ -456,7 +456,7 @@ do {
     for operation: AppOperation in [.protectedEditOpen, .protectedEditCommit, .ptyOpen, .ptyAttach, .agentApprove, .agentSteer, .agentCompact,
                                     .toolchainRemove, .sdkRemove, .environmentCancel,
                                     .agentAccountList, .agentAPIConfiguration, .agentModelList, .agentModelActivate, .agentSignIn, .agentSignInRespond, .agentSignInCancel, .agentSignOut,
-                                    .agentCredentialImport, .transferExport, .transferInspect, .transferImport, .projectRename]
+                                    .agentCredentialImport, .transferExport, .transferInspect, .transferImport]
     {
         check(!CallerPolicy.allows(.worker(.agent, instance: "s"), operation), "the agent may not call \(operation.rawValue)")
     }
@@ -2146,6 +2146,68 @@ do {
     check(named == nil, "a build naming a bootstrap is covered by an approval naming it")
     let noSession = await AgentExternalBuildRules.authorize(debug, session: nil, registry: registry)
     check(noSession != nil, "a worker with no session builds nothing")
+}
+
+// MARK: - A project is renamed by its own session, or another as the user approved
+
+do {
+    check(CallerPolicy.allows(.worker(.agent, instance: "s"), .projectRename), "the agent may ask for a rename")
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-rename-tasks"))
+    await registry.load()
+    let home = scratch.appendingPathComponent("rename-home", isDirectory: true)
+    let projects = DataFolder(home: home.path).projects
+    for (name, id) in [("Mine", "p-rename-mine"), ("Theirs", "p-rename-theirs")] {
+        let folder = projects.appendingPathComponent(name, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? Data(#"{"projectID":"\#(id)"}"#.utf8).write(to: folder.appendingPathComponent("apelin-project.json"))
+    }
+    let homePath = CanonicalPath.resolve(home.path)!
+    let sessions = AgentSessionTable.shared
+    func session(_ id: String, mode: ApprovalMode) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: ResolvedProject(id: "p-rename-mine", name: "Mine", path: homePath + "/Documents/wiki.qaq.apelin/Projects/Mine"),
+            mode: mode,
+            createdAt: Date(),
+        )
+        await sessions.add(entry)
+        return entry
+    }
+    let strict = await session("rename-strict", mode: .confirm)
+    func authorized(_ rename: ProjectRenameRequest, _ entry: AgentSessionTable.Entry?) async -> Bool {
+        await AgentProjectRenameRules.authorize(rename, session: entry?.sessionID, home: homePath, registry: registry) == nil
+    }
+    let own = await authorized(ProjectRenameRequest(projectID: "p-rename-mine", displayName: "Clock"), strict)
+    let ownAutomatic = await authorized(ProjectRenameRequest(projectID: "p-rename-mine", displayName: "Clock", onlyIfAutomatic: true), strict)
+    check(own && ownAutomatic, "a session renames its own project, automatically too, without an approval")
+    let theirs = ProjectRenameRequest(projectID: "p-rename-theirs", displayName: "Weather")
+    let unasked = await authorized(theirs, strict)
+    check(!unasked, "another project's rename needs the user's approval under Confirm")
+    await registry.append(strict.task.taskID, kind: "approvalRequested", payload: .object([
+        "approvalID": .string("rename-1"), "tool": .string("apelin_project_rename"),
+        "detail": .object([AgentProjectRenameRules.detailKey: .object([
+            "projectID": .string("p-rename-theirs"), "folder": .string("Theirs"),
+            "currentName": .string("Theirs"), "displayName": .string("Weather"),
+        ])]),
+    ]))
+    let asked = await authorized(theirs, strict)
+    check(!asked, "asking is not approving")
+    await sessions.record(strict.sessionID, approvalID: "rename-1", decision: .approve)
+    let otherName = await authorized(ProjectRenameRequest(projectID: "p-rename-theirs", displayName: "Rain"), strict)
+    check(!otherName, "an approval covers the name it showed only")
+    let approved = await authorized(theirs, strict)
+    check(approved, "the approved rename goes through")
+    let again = await authorized(theirs, strict)
+    check(!again, "once: the next rename asks again")
+    let relaxed = await session("rename-relaxed", mode: .relaxed)
+    let relaxedOther = await authorized(theirs, relaxed)
+    let relaxedAutomatic = await authorized(ProjectRenameRequest(projectID: "p-rename-theirs", displayName: "Weather", onlyIfAutomatic: true), relaxed)
+    check(relaxedOther && !relaxedAutomatic, "Relaxed renames another project, but never automatically")
+    let byFolder = await authorized(ProjectRenameRequest(projectID: "Theirs", displayName: "Weather"), relaxed)
+    check(!byFolder, "a project is named by its id, never its folder")
+    let noSession = await authorized(ProjectRenameRequest(projectID: "p-rename-mine", displayName: "Clock"), nil)
+    check(!noSession, "a worker with no session renames nothing")
 }
 
 // MARK: - Another project's conversations are reached only as the user approved

@@ -87,6 +87,11 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For apelin_skill_save and apelin_skill_remove: the skill, checked
     /// before asking, and what a save writes.
     public var skillChange: SkillChangeApproval?
+    /// For apelin_project_rename of another project than the session's: the
+    /// project and the name; nil for the session's own project.
+    public var projectRename: ProjectRenameApproval?
+    /// The project apelin_project_rename renames, as the backend resolved it.
+    public var renamedProject: ProjectIdentity?
 
     public init(
         tool: Tool,
@@ -226,6 +231,16 @@ public struct ApprovalPolicy: Sendable, Hashable {
         // and packaging are the template's, which the host's ledger records.
         case .projectCreate:
             return .allow(.notRequired)
+
+        // The session's own project's displayName, which the file tools may
+        // write there anyway and no approval digest counts: like an edit.
+        // Another project's asks every time, as any call into one does.
+        case .projectRename:
+            guard let rename = facts.projectRename else { return .allow(.notRequired) }
+            return .ask(
+                reason: "Renames the project \(rename.folder) (shown as “\(rename.currentName)”) to “\(rename.displayName)”. The folder and its identifiers stay. Each rename of another project needs your approval.",
+                detail: .projectRename(rename),
+            )
 
         // The project's own repository, changed in the project: like an
         // edit, and nothing leaves the device. A fetch, pull or clone
