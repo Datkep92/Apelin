@@ -100,7 +100,7 @@ extension ToolRunner {
     ) async throws {
         guard let reference = arguments.argNonEmptyString("project") else {
             if project.isTemporary {
-                throw ToolArgumentError("General Chat has no conversations of its own: name the project with project (its projectID or folder name; apelin_project_create answers both)")
+                throw ToolArgumentError("General Chat has no conversations of its own: name the project with project (its projectID or folder name, as apelin_project_list answers them)")
             }
             return
         }

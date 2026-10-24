@@ -1002,6 +1002,14 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   transfer export (its file is only of use through the app's share sheet),
   project rename (the file tools already edit `displayName`); a
   distribution build is apelin_project_build {configuration: release, bootstrap}.
+  apelin_project_list (2026-10-24), in any chat, a read preset with no
+  host request: the projects under `Projects/` as the conversation tools
+  resolve them (`ChannelHostBackend.projects`: no folder that links out,
+  a manifest a regular file of at most 1 MB with a projectID, nothing
+  hidden, sorted, at most 200), each with its folder, projectID, the name
+  the sidebar shows, `apelin` or `external`, its link and whether it is
+  this session's — the names a `project` argument takes, which General
+  Chat had no other way to learn.
   Conversations (2026-10-22, `AgentConversations`,
   `Session/Agent/AgentConversationRules.swift`), in any chat — General
   Chat names a project, its own chat has no others:

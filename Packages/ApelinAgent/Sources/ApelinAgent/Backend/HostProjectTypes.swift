@@ -97,3 +97,38 @@ public struct ProjectCreateToolResponse: Sendable, Hashable, Codable {
         link = ApelinLink.project(projectID)
     }
 }
+
+/// apelin_project_list: the projects under `Projects/`, by the folder name
+/// and projectID the conversation tools take.
+public struct ProjectListToolResponse: Sendable, Hashable, Codable {
+    public var projects: [ListedProject]
+    /// More projects than the list holds.
+    public var truncated: Bool
+
+    public init(projects: [ListedProject], truncated: Bool) {
+        self.projects = projects
+        self.truncated = truncated
+    }
+}
+
+public struct ListedProject: Sendable, Hashable, Codable {
+    public var folder: String
+    public var projectID: String
+    /// The name the sidebar shows (`displayName`, else the folder).
+    public var displayName: String
+    /// `apelin` (a build description) or `external` (a workspace's own build).
+    public var buildSystem: String
+    /// The project this conversation works in.
+    public var isThisProject: Bool
+    /// `apelin://project/<projectID>`, which opens it in the app.
+    public var link: String
+
+    public init(folder: String, projectID: String, displayName: String, buildSystem: String, isThisProject: Bool) {
+        self.folder = folder
+        self.projectID = projectID
+        self.displayName = displayName
+        self.buildSystem = buildSystem
+        self.isThisProject = isThisProject
+        link = ApelinLink.project(projectID)
+    }
+}

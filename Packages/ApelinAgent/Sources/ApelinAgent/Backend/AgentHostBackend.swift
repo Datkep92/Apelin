@@ -88,6 +88,8 @@ public protocol AgentHostBackend: Sendable {
     /// conversation call that names another project; the host resolves it
     /// again and decides.
     func resolveProject(_ reference: String) async throws -> ProjectIdentity
+    /// The projects under `Projects/`, as `resolveProject` reads them.
+    func projects() async throws -> ProjectListToolResponse
     /// The device's toolchains, and the releases Apple's catalog offers.
     func toolchains(context: HostCallContext) async throws -> ToolchainListToolResponse
     /// The device's SDKs, and the ones the enabled sources offer.
@@ -108,6 +110,10 @@ public protocol AgentHostBackend: Sendable {
 public extension AgentHostBackend {
     func resolveProject(_ reference: String) async throws -> ProjectIdentity {
         throw ToolDeniedError(message: "no project \(reference) is reachable here")
+    }
+
+    func projects() async throws -> ProjectListToolResponse {
+        ProjectListToolResponse(projects: [], truncated: false)
     }
 
     func toolchains(context _: HostCallContext) async throws -> ToolchainListToolResponse {

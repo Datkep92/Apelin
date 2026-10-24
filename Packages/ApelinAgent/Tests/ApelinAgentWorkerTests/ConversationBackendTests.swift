@@ -108,6 +108,35 @@ struct ConversationBackendTests {
     }
 
     @Test
+    func `the project list is every project the conversation tools reach, and only those`() async throws {
+        let fixture = try Fixture(manifest: #"{"projectID":"6f1c5b0e-0000-4000-8000-000000000001","displayName":"Hello Tweak"}"#)
+        let projects = fixture.projectURL.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: projects) }
+        func project(_ name: String, _ manifest: String, in folder: URL? = nil) throws {
+            let url = (folder ?? projects).appendingPathComponent(name, isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try manifest.write(to: url.appendingPathComponent("apelin-project.json"), atomically: true, encoding: .utf8)
+        }
+        try project("Workspace", #"{"projectID":"w-1","kind":"workspace"}"#)
+        try project("Broken", "not json")
+        try project("Unnamed", #"{"displayName":"No id"}"#)
+        try project(".hidden", #"{"projectID":"h-1"}"#)
+        let elsewhere = projects.appendingPathComponent(".elsewhere", isDirectory: true)
+        try project("Outside", #"{"projectID":"o-1"}"#, in: elsewhere)
+        try FileManager.default.createSymbolicLink(at: projects.appendingPathComponent("Linked"), withDestinationURL: elsewhere.appendingPathComponent("Outside"))
+
+        let listed = try await fixture.backend.projects()
+        #expect(listed.projects.map(\.folder) == ["Hello", "Workspace"], "no link out, no unreadable or id-less manifest, nothing hidden")
+        #expect(listed.projects.first == ListedProject(
+            folder: "Hello", projectID: "6f1c5b0e-0000-4000-8000-000000000001", displayName: "Hello Tweak", buildSystem: "apelin", isThisProject: true,
+        ))
+        #expect(listed.projects.last == ListedProject(folder: "Workspace", projectID: "w-1", displayName: "Workspace", buildSystem: "external", isThisProject: false))
+        #expect(listed.projects.last?.link == "apelin://project/w-1")
+        #expect(!listed.truncated)
+        #expect(try await fixture.backend.resolveProject("w-1").name.rawValue == "Workspace", "the list's ids resolve")
+    }
+
+    @Test
     func `a refusal comes back in words, with what to do`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.agentOpen) { _ in throw ApelinError(.conflict, "6 conversations agents opened are already running in this project; stop one first") }

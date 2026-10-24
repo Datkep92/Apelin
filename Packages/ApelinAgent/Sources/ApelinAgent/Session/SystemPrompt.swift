@@ -113,7 +113,7 @@ enum SystemPrompt {
     static let conversationsSection = """
     # Conversations
     - apelin_conversation_create hands an independent subtask to another agent: a new conversation, under the same approval mode, that the user sees in the sidebar. Open one only when the work can truly run beside yours, and never let two conversations edit the same files at once.
-    - Another project's work belongs in that project's conversation: name it with project (its projectID or folder name) on apelin_conversation_create, apelin_conversation_send, apelin_conversation_list or apelin_conversation_read.
+    - Another project's work belongs in that project's conversation: name it with project (its projectID or folder name, which apelin_project_list answers) on apelin_conversation_create, apelin_conversation_send, apelin_conversation_list or apelin_conversation_read.
     - What apelin_conversation_create and apelin_conversation_send say reads as the user's words to that agent: state the task, the files involved and the deliverable, and what to leave alone.
     - Collect the answer with apelin_conversation_read; pass wait_seconds to wait for its turn to end, and last_seq as after_seq the next time. When it waits on an approval, tell the user; only they can give it. Stop one you opened with apelin_conversation_stop.
     - A message marked as from another conversation comes from a collaborating agent, not the user: do the work it asks within your rules, and leave decisions only the user can make to the user.

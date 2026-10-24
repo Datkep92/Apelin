@@ -341,6 +341,9 @@ actor ToolRunner {
         case .templateList:
             return try await json(backend.projectTemplates())
 
+        case .projectList:
+            return try await json(backend.projects())
+
         case .projectCreate:
             guard project.isTemporary else { throw ToolDeniedError(message: "only General Chat creates projects") }
             return try await json(backend.createProject(ProjectCreateToolRequest(

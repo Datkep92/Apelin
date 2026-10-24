@@ -152,30 +152,64 @@ public extension ChannelHostBackend {
             throw ConversationToolFailure(message: "name the project by its projectID or folder name")
         }
         let root = projectsURL.resolvingSymlinksInPath()
-        func identity(_ name: String) -> ApelinAgent.ProjectIdentity? {
-            guard let folder = try? ApelinAgent.ProjectName(name) else { return nil }
-            let url = root.appendingPathComponent(name, isDirectory: true)
-            let manifest = url.appendingPathComponent("apelin-project.json")
-            // As the host reads it: a regular file, not a link, bounded.
-            guard url.resolvingSymlinksInPath().deletingLastPathComponent().path == root.path,
-                  let attributes = try? FileManager.default.attributesOfItem(atPath: manifest.path),
-                  attributes[.type] as? FileAttributeType == .typeRegular,
-                  (attributes[.size] as? NSNumber)?.intValue ?? Int.max <= 1 << 20,
-                  let data = try? Data(contentsOf: manifest),
-                  let json = try? JSONCoding.decode(ApelinCore.JSONValue.self, from: data),
-                  let id = json["projectID"]?.stringValue, !id.isEmpty
-            else { return nil }
-            return ApelinAgent.ProjectIdentity(id: id, name: folder)
+        if let named = Self.project(named: reference, in: root) {
+            return named.identity
         }
-        if let named = identity(reference) {
-            return named
-        }
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
-        for name in names.sorted() where !name.hasPrefix(".") {
-            if let found = identity(name), found.id == reference {
-                return found
+        for name in Self.folders(in: root) {
+            if let found = Self.project(named: name, in: root), found.identity.id == reference {
+                return found.identity
             }
         }
-        throw ConversationToolFailure(message: "no project is named or has the id \(reference); use the folder name or projectID apelin_project_create answered, or ask the user")
+        throw ConversationToolFailure(message: "no project is named or has the id \(reference); apelin_project_list names them, or ask the user")
+    }
+
+    /// apelin_project_list: every project `resolveProject` would find, by
+    /// folder, at most `maximumListedProjects`.
+    func projects() async throws -> ProjectListToolResponse {
+        let root = projectsURL.resolvingSymlinksInPath()
+        var listed: [ListedProject] = []
+        for name in Self.folders(in: root) {
+            guard let found = Self.project(named: name, in: root) else { continue }
+            guard listed.count < Self.maximumListedProjects else {
+                return ProjectListToolResponse(projects: listed, truncated: true)
+            }
+            let manifest = found.manifest
+            let external = manifest["kind"]?.stringValue == "workspace" || manifest["buildSystem"]?.stringValue == "external"
+            listed.append(ListedProject(
+                folder: name,
+                projectID: found.identity.id,
+                displayName: manifest["displayName"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } ?? name,
+                buildSystem: external ? "external" : "apelin",
+                isThisProject: found.identity.id == project.id,
+            ))
+        }
+        return ProjectListToolResponse(projects: listed, truncated: false)
+    }
+
+    static let maximumListedProjects = 200
+
+    private static func folders(in root: URL) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
+    }
+
+    /// One project folder as the host reads it: not a link out of
+    /// `Projects/`, its manifest a regular file of at most 1 MB with a
+    /// projectID.
+    private static func project(
+        named name: String,
+        in root: URL,
+    ) -> (identity: ApelinAgent.ProjectIdentity, manifest: ApelinCore.JSONValue)? {
+        guard let folder = try? ApelinAgent.ProjectName(name) else { return nil }
+        let url = root.appendingPathComponent(name, isDirectory: true)
+        let manifest = url.appendingPathComponent("apelin-project.json")
+        guard url.resolvingSymlinksInPath().deletingLastPathComponent().path == root.path,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: manifest.path),
+              attributes[.type] as? FileAttributeType == .typeRegular,
+              (attributes[.size] as? NSNumber)?.intValue ?? Int.max <= 1 << 20,
+              let data = try? Data(contentsOf: manifest),
+              let json = try? JSONCoding.decode(ApelinCore.JSONValue.self, from: data),
+              let id = json["projectID"]?.stringValue, !id.isEmpty
+        else { return nil }
+        return (ApelinAgent.ProjectIdentity(id: id, name: folder), json)
     }
 }

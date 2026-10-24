@@ -264,7 +264,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
         case .fileRead, .fileList, .fileGrep, .fileFind, .sdkAnalyzeFramework, .sdkReadHeader,
              .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
-             .templateList, .gitStatus, .gitDiff, .gitReadSettings,
+             .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
              .conversationList, .conversationRead, .toolchainList, .sdkList:
             if presets.readTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
