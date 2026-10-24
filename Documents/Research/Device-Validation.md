@@ -224,7 +224,7 @@ console now goes on after a restart only past a successful respring.
 - [ ] The agent's prepared environment: in a project's new chat the first
       message carries `<project-context>` once (its `transcript.json`), the
       model names the installed toolchain and SDK without a tool call,
-      run_code's `sh -c 'command -v clang; echo $SDKROOT
+      shell_run's `sh -c 'command -v clang; echo $SDKROOT
       $IPHONEOS_DEPLOYMENT_TARGET'` answers the prepared ones and
       `clang -arch arm64 hello.c` builds; and the project's terminal, a login
       shell, keeps the toolchain first on `PATH` through
@@ -238,27 +238,49 @@ console now goes on after a restart only past a successful respring.
       rootless bootstrap, and a project's import followed by a build under
       Confirm, which must ask.
 - [ ] The agent's toolchain and SDK tools in a chat (2026-10-22, none has
-      run on a device): toolchain_list and sdk_list without asking;
-      sdk_import and toolchain_setup under Strict, each asking with its
+      run on a device): apelin_toolchain_list and apelin_sdk_list without asking;
+      apelin_sdk_import and apelin_toolchain_setup under Strict, each asking with its
       card (release and size, or source and branch) and running once
       approved, the setup installed through Irisin and self-tested;
-      project_environment_set refusing an SDK newer than the toolchain
+      apelin_project_set_environment refusing an SDK newer than the toolchain
       reads and switching to one it reads, then a build that does not ask;
-      toolchain_self_test; the agent's git_fetch, which reads its task with
+      apelin_toolchain_self_test; the agent's git_fetch, which reads its task with
       `environmentAttach`, now allowed for the tasks a session started.
 - [ ] Conversations across projects (2026-10-22): General Chat's
-      project_create, then conversation_create naming the new project under
+      apelin_project_create, then apelin_conversation_create naming the new project under
       Strict (asks, naming the project and the prompt), the child adopted in
       that project without the selection moving, its `apelin://` link
-      opening it; conversation_read of it; a send without approval refused
+      opening it; apelin_conversation_read of it; a send without approval refused
       by the host.
-- [ ] The agent's notify_user (2026-10-24, none has run on a device):
+- [ ] The agent's apelin_notification_send (notify_user until the rename;
+      2026-10-24, none has run on a device):
       under Strict, with Apelin on the home screen, a chat asked to build
       and then notify posts one banner with Apelin's icon, the
       conversation's title, the notice's title as its subtitle and its body,
       without an approval card; a tap opens that conversation, opening it
       removes the banner, nothing shows while the chat is in front, and a
       fourth in one turn and a reopened session's replay post nothing.
+- [ ] The renamed tools (2026-10-24, none has run on a device): a
+      conversation recorded before the rename, reopened, takes a message
+      through GitHub Copilot with a Claude model and with a GPT model, and
+      through an OpenAI-compatible key, with no provider error; its old
+      calls keep their titles and the trace's file names; a token it saved
+      through git_save_credential stays masked in the replay; and a Strict
+      run reaches every gated tool under its new name (toolchain setup, SDK
+      import, git_push, a git setting, a call into another project, a
+      workspace build, package removal), each card and widget step named.
+- [ ] The skill tools (2026-10-24, none has run on a device): under
+      Strict, apelin_skill_save asks with the whole SKILL.md and no "for
+      this session", the skill shows in Settings ▸ Skills and in the next
+      message's list, apelin_skill_remove asks and takes it away, a
+      built-in's name is refused before asking.
+- [ ] Projects from the agent (2026-10-24, none has run on a device):
+      apelin_project_list in General Chat names the projects; a project's
+      chat creates another without asking and hands it on with a card;
+      apelin_project_rename renames its own project with no card and the
+      sidebar follows, renames another only after a card that names both
+      names, and `automatic: true` after the user's own rename changes
+      nothing.
 - [ ] The running summary's count and the quiet stand-in (2026-10-24,
       none has run on a device): a streaming turn's summary counts the
       tokens received after its title, at once under Reduce Motion; a reply
