@@ -36,7 +36,6 @@ struct EnvironmentToolTests {
         #expect(AgentToolName.projectSetEnvironment.isProjectOnly)
         for tool in Self.tools {
             #expect(!tool.summary.isEmpty)
-            #expect(!tool.isGeneralChatOnly, "\(tool.rawValue)")
         }
     }
 

@@ -938,12 +938,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (descriptor), `crashSymbolicate`, screen/UI → `captureScreen`,
   `readUITree`, `uiAction`, the framework tools' SDK → `sdkList` (the
   project's pinned `environment.sdk.id` first), shell_run → `agentRunCode`;
-  in General Chat only, apelin_template_list → `extensionList` (isolated
-  extensions left out) and apelin_project_create{template, name, values} →
-  `projectCreate`, allowed under Confirm like a project edit, answering
-  the project's link — the new project's chat builds it, which
-  apelin_conversation_create naming the project opens with the task, and this
-  one's file tools stay in its temporary folder. In a project's chat only, git_status, git_diff,
+  in any chat (owner, 2026-10-24; General Chat's alone before),
+  apelin_template_list → `extensionList` (isolated extensions left out)
+  and apelin_project_create{template, name, values} → `projectCreate`,
+  allowed under Confirm like a project edit, answering the project's link
+  — the new project's chat builds it, which apelin_conversation_create
+  naming the project opens with the task (asking under Confirm, as any
+  call into another project does), and this one's file tools stay where
+  they are; a project's chat makes one only for work that is a project of
+  its own, when the user asks or agrees. In a project's chat only, git_status, git_diff,
   git_stage, git_unstage and git_commit → the matching `git*` request,
   git_fetch, git_pull, git_push and git_clone → `gitFetch`, `gitPull`,
   `gitPush` and `gitCloneInto` read to their end; all of them run under

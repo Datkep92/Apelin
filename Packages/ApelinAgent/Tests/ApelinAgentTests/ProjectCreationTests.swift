@@ -4,7 +4,7 @@ import KWWKAgent
 import KWWKAI
 import Testing
 
-@Suite("General Chat creates projects")
+@Suite("Every chat creates projects")
 struct ProjectCreationTests {
     private func runner(_ home: TemporaryHome, project: ProjectIdentity, backend: MockBackend) throws -> ToolRunner {
         try ToolRunner(sessionID: UUID().uuidString, project: project, root: ScopedRoot(home.projectURL),
@@ -29,16 +29,15 @@ struct ProjectCreationTests {
     }
 
     @Test
-    func `only General Chat is offered the project tools`() throws {
+    func `General Chat and a project's chat are both offered the project tools`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let names = { (runner: ToolRunner) in Set(runner.agentTools(mcp: []).map(\.name)) }
-        let project = try names(runner(home, project: home.project, backend: MockBackend()))
-        #expect(!project.contains("apelin_template_list"))
-        #expect(!project.contains("apelin_project_create"))
-        let general = try names(runner(home, project: generalChat(), backend: MockBackend()))
-        #expect(general.contains("apelin_template_list"))
-        #expect(general.contains("apelin_project_create"))
+        for chat in try [home.project, generalChat()] {
+            let offered = try names(runner(home, project: chat, backend: MockBackend()))
+            #expect(offered.contains("apelin_template_list") && offered.contains("apelin_project_create"), "\(chat.id)")
+            #expect(offered.contains("apelin_project_list"))
+        }
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -64,7 +63,7 @@ struct ProjectCreationTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func `apelin_project_create needs a template and refuses a project's own chat`() async throws {
+    func `apelin_project_create needs a template, and a project's chat creates another without asking`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let backend = MockBackend()
@@ -72,11 +71,11 @@ struct ProjectCreationTests {
         await #expect(throws: ToolArgumentError.self) {
             try await general.run(.local(.projectCreate), toolCallID: "call-1", arguments: .object(["name": "Clock"]), cancellation: nil, mcp: nil)
         }
-        let project = try runner(home, project: home.project, backend: backend)
-        await #expect(throws: ToolDeniedError.self) {
-            try await project.run(.local(.projectCreate), toolCallID: "call-2", arguments: .object(["template": "x/y", "name": "Clock"]), cancellation: nil, mcp: nil)
-        }
         #expect(await backend.calls.isEmpty)
+        let project = try runner(home, project: home.project, backend: backend)
+        let created = try await project.run(.local(.projectCreate), toolCallID: "call-2", arguments: .object(["template": "x/y", "name": "Clock"]), cancellation: nil, mcp: nil)
+        #expect(text(created).contains("apelin://project/"))
+        #expect(await backend.calls == [.createProject(template: "x/y", name: "Clock", values: [:])])
     }
 
     @Test

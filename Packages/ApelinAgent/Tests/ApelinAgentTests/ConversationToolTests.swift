@@ -27,7 +27,6 @@ struct ConversationToolTests {
         }
         for tool in Self.tools {
             #expect(!tool.isProjectOnly, "\(tool.rawValue)")
-            #expect(!tool.isGeneralChatOnly, "\(tool.rawValue)")
             #expect(tool.isConversation, "\(tool.rawValue)")
             #expect(!tool.summary.isEmpty)
         }

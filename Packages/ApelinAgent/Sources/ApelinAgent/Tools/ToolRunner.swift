@@ -73,7 +73,7 @@ actor ToolRunner {
 
     /// kwwk tool definitions for the §7 tools plus wrapped MCP tools.
     nonisolated func agentTools(mcp: [AgentTool]) -> [AgentTool] {
-        let offered = AgentToolName.allCases.filter { project.isTemporary ? !$0.isProjectOnly : !$0.isGeneralChatOnly }
+        let offered = AgentToolName.allCases.filter { !project.isTemporary || !$0.isProjectOnly }
         var tools = offered.map { name in
             AgentTool(
                 name: name.rawValue,
@@ -345,7 +345,6 @@ actor ToolRunner {
             return try await json(backend.projects())
 
         case .projectCreate:
-            guard project.isTemporary else { throw ToolDeniedError(message: "only General Chat creates projects") }
             return try await json(backend.createProject(ProjectCreateToolRequest(
                 context: context,
                 templateID: arguments.requireString("template"),

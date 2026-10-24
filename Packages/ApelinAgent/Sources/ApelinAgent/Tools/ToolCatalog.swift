@@ -19,12 +19,6 @@ public enum ToolRisk: String, Sendable, Hashable, Codable {
 /// What each tool does and how far it reaches; the names are
 /// ApelinProtocol's, which the session host and the app read too.
 public extension AgentToolName {
-    /// Only General Chat starts projects: it belongs to none, and a project's
-    /// own chat has no reason to make another.
-    var isGeneralChatOnly: Bool {
-        self == .templateList || self == .projectCreate
-    }
-
     /// The git tools act on the session's project, which General Chat does
     /// not have: the host resolves a project under `Projects/` or refuses.
     /// So does the switch of the project's toolchain and SDK. The
@@ -125,7 +119,7 @@ public extension AgentToolName {
         case .notificationSend: "Show the user a notification from Apelin about something they would want to know while away from this chat: a long build, install, toolchain setup or device check you are waiting on finished or failed, or they must do something on the device (unlock it, open an app) before you can go on. Never for routine progress, never instead of your reply, and not to say you are done: Apelin already notifies them when your turn ends and when an approval waits. Plain text, no Markdown. At most \(AgentNoticeRules.maximumPerTurn) per turn, \(Int(AgentNoticeRules.minimumInterval)) seconds apart; it shows only while Apelin is not in front, and nothing tells you whether they saw it."
         case .projectList: "List the projects on this device: each one's folder name and projectID (what a project argument takes), the name the sidebar shows, whether it builds from Apelin's description or its own script, its link, and which is this conversation's."
         case .templateList: "List the templates a new project can start from, with each template's id, kind and the parameters it asks for."
-        case .projectCreate: "Create a new project from a template id from apelin_template_list. Apelin fills the identifiers, toolchain and SDK; pass values only for parameters the user cares about. The project appears in the Projects menu with its link; this chat stays General Chat and its file tools do not reach it, so hand the work on with apelin_conversation_create naming the project."
+        case .projectCreate: "Create a new project from a template id from apelin_template_list. Apelin fills the identifiers, toolchain and SDK; pass values only for parameters the user cares about. The project appears in the Projects menu with its link; this chat stays where it is and its file tools do not reach the new project, so hand the work on with apelin_conversation_create naming it."
         case .gitStatus: "Show the project repository's branch, HEAD commit and changed files."
         case .gitDiff: "Show a unified diff of the worktree against the index, or with staged: true of the index against HEAD; optionally one path."
         case .gitStage: "Stage project files for the next commit."

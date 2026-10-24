@@ -168,7 +168,7 @@ struct SkillToolTests {
     func `the skill tools are offered in every chat and gated as the plan says`() {
         #expect(AgentToolName.skillList.risk == .readOnly && ApprovalPresets.default.readTools.contains(.skillList))
         for tool in [AgentToolName.skillSave, .skillRemove] {
-            #expect(tool.risk == .system && !tool.isProjectOnly && !tool.isGeneralChatOnly)
+            #expect(tool.risk == .system && !tool.isProjectOnly)
             #expect(!ToolRunner.allowsSessionScope(.local(tool), detail: .none))
         }
     }
