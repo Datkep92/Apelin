@@ -83,7 +83,7 @@ extension BuiltInSkills {
 
         ## Quick rules
         - Opening a bootstrap file from your own code → make it absolute with
-          `ApelinBootstrap.h`'s `BootstrapPath`.
+          `ApelinBootstrap.h`'s `ApelinBootstrapPath`.
         - A system file (`/var/mobile/…`, `/System/…`, a container) from your
           code → use it as it is.
         - A path for a compiler, from a script → relative or
@@ -111,10 +111,10 @@ extension BuiltInSkills {
     // at their real kernel path. A bootstrap path such as
     //   /Library/MobileSubstrate/DynamicLibraries/X.dylib
     // is NOT that: on rootless it is under /var/jb, on roothide under the
-    // randomly named jbroot this image was loaded from. BootstrapPath() makes
-    // it absolute. A SYSTEM path — /System, /usr/lib/libSystem.B.dylib,
+    // randomly named jbroot this image was loaded from. ApelinBootstrapPath()
+    // makes it absolute. A SYSTEM path — /System, /usr/lib/libSystem.B.dylib,
     // /var/mobile/Library/Preferences, an app container — is already real:
-    // pass it as it is, never through BootstrapPath().
+    // pass it as it is, never through ApelinBootstrapPath().
     //
     // This is what roothide's jbroot() and rootless's ROOT_PATH_NS() do; it is
     // here so the one source builds for both without libroothide or libroot.

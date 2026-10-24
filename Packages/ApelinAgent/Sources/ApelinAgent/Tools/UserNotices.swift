@@ -44,6 +44,6 @@ struct UserNotices {
     /// What the model reads once the notice is recorded.
     var sentMessage: String {
         let left = AgentNoticeRules.maximumPerTurn - sentThisTurn
-        return "Sent to Apelin as a notification. It shows only while the user is away from this chat and allows Apelin's notifications, and nothing tells you whether they saw it. \(left) more may go this turn."
+        return "Sent to Apelin as a notification. It shows only while Apelin is not in front and the user allows its notifications, and nothing tells you whether they saw it. \(left) more may go this turn."
     }
 }

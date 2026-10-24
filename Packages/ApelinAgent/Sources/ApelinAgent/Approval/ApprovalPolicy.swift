@@ -170,8 +170,8 @@ public struct ApprovalPolicy: Sendable, Hashable {
             return .allow(.notRequired)
 
         // A banner from Apelin to the user, never a preset to edit away:
-        // it reads, writes and runs nothing, and the host posts it only
-        // while the reader is away, plain, bounded and a few per turn
+        // it reads, writes and runs nothing, and it shows only while Apelin
+        // is not in front, plain, bounded and a few per turn
         // (`AgentNoticeRules`). Asking first would defeat it: the user it
         // is for is not looking.
         case .notifyUser:

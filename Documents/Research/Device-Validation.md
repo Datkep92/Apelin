@@ -259,6 +259,13 @@ console now goes on after a restart only past a successful respring.
       without an approval card; a tap opens that conversation, opening it
       removes the banner, nothing shows while the chat is in front, and a
       fourth in one turn and a reopened session's replay post nothing.
+- [ ] The running summary's count and the quiet stand-in (2026-10-24,
+      none has run on a device): a streaming turn's summary counts the
+      tokens received after its title, at once under Reduce Motion; a reply
+      followed by 1.5 s with nothing gets Thinking… under it, which the
+      next thought or call replaces with no flash; with two chats
+      streaming, the page keeps pace and Stop and the approval card do not
+      move on every batch.
 
 ## SDK and toolchain matrix (2026-10-19)
 

@@ -30,7 +30,7 @@ extension BuiltInSkills {
           user asks for an icon; without it Apelin shows its kind's default.
           It is Apelin's alone and never goes into the package.
         - A path in code, a maintainer script or a plist is spelled as the
-          bootstrap-paths skill says; logging is the logging skill's.
+          bootstrap-paths skill says; logging is the tweak-runtime skill's.
 
         ## Finding the API you hook
         - `analyze_framework` lists a framework's exported symbols and
@@ -104,7 +104,7 @@ extension BuiltInSkills {
           Leave a symbol to load time with `-Wl,-U,_symbol`, one per symbol.
         - A roothide-aware repository's `jbroot(…)` and a rootless one's
           `ROOT_PATH_NS(…)` become the bootstrap-paths skill's
-          `BootstrapPath(…)`.
+          `ApelinBootstrapPath(…)`.
         - An imported repository stays a workspace: its Theos Makefile is
           replaced by a build script of its own that compiles the rewritten
           sources with the toolchain (the external-build skill), reading
