@@ -19,8 +19,8 @@ import Foundation
 /// (TaskResume), and a setup's job record stays for the next setup of the
 /// same release to pick up.
 enum AgentEnvironmentRules {
-    static let setupTool = "toolchain_setup"
-    static let importTool = "sdk_import"
+    static let setupTool = AgentToolName.toolchainSetup.rawValue
+    static let importTool = AgentToolName.sdkImport.rawValue
 
     static func refusal(_ setup: ToolchainSetupRequest, descriptorCount: Int) -> ApelinError? {
         guard descriptorCount == 0, case let .appleCatalog(productID?) = setup.source, !productID.isEmpty else {

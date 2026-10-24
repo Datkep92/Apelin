@@ -1,5 +1,6 @@
 import struct ApelinCore.MemoryStore
 import enum ApelinCore.MemoryStoreError
+import enum ApelinProtocol.AgentToolName
 import enum ApelinProtocol.BuildBootstrap
 import Foundation
 import KWWKAgent

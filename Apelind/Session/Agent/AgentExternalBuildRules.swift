@@ -16,7 +16,7 @@ enum AgentExternalBuildRules {
     /// Whether `asked`, the payload of one of the session's own
     /// `approvalRequested` events, approves exactly this build.
     static func covers(_ build: BuildStartRequest, asked: JSONValue) -> Bool {
-        guard asked["tool"]?.stringValue == "build", let detail = asked["detail"]?[detailKey] else { return false }
+        guard asked["tool"]?.stringValue == AgentToolName.build.rawValue, let detail = asked["detail"]?[detailKey] else { return false }
         return detail["projectID"]?.stringValue == build.projectID
             && detail["configuration"]?.stringValue == build.configuration.rawValue
             && detail["bootstrap"]?.stringValue == build.bootstrap?.rawValue

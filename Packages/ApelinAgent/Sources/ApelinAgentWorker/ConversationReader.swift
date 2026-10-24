@@ -53,7 +53,7 @@ struct ConversationReader {
             if let id = payload?["approvalID"]?.stringValue {
                 pending.append(ConversationApproval(
                     approvalID: id,
-                    tool: payload?["tool"]?.stringValue ?? "",
+                    tool: Self.currentName(payload?["tool"]?.stringValue ?? ""),
                     reason: payload?["reason"]?.stringValue ?? "",
                 ))
                 if seq > afterSeq {
@@ -130,5 +130,11 @@ struct ConversationReader {
             truncated: truncated,
             timedOut: timedOut,
         )
+    }
+
+    /// A tool by today's name, for a conversation recorded under an earlier
+    /// release's: the model calls the tools it has.
+    private static func currentName(_ tool: String) -> String {
+        AgentToolName.canonical(tool)?.rawValue ?? tool
     }
 }

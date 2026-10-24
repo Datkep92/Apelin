@@ -1,14 +1,17 @@
 import ApelinCore
+import enum ApelinProtocol.AgentToolName
 import Foundation
 
 /// Arguments as the task's events record them: the token git_save_credential
 /// carries is replaced, so it reaches the host's keychain request and no
 /// event, transcript or log. The model's own copy is the user's message.
+/// A reopened session relays its whole log again, so a call recorded under
+/// a name an earlier release used is masked as well.
 public enum ToolArgumentRedaction {
     static let mask = "••••••••"
 
     public static func redacted(_ arguments: String, tool: String) -> String {
-        guard tool == AgentToolName.gitSaveCredential.rawValue else { return arguments }
+        guard AgentToolName.canonical(tool) == .gitSaveCredential else { return arguments }
         guard case var .object(fields)? = try? JSONCoding.decode(JSONValue.self, from: Data(arguments.utf8)) else {
             // nothing readable to keep: none of it is shown
             return "{}"

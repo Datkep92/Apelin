@@ -1,5 +1,6 @@
 import struct ApelinCore.MemoryStore
 import enum ApelinProtocol.AgentNoticeRules
+import enum ApelinProtocol.AgentToolName
 import enum ApelinProtocol.BuildBootstrap
 import Foundation
 import KWWKAI
@@ -15,66 +16,12 @@ public enum ToolRisk: String, Sendable, Hashable, Codable {
     case system
 }
 
-/// The local tools of §7 — exactly these, no others.
-public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
-    case writeFile = "write_file"
-    case patchFile = "patch_file"
-    case createFile = "create_file"
-    case readFile = "read_file"
-    case list
-    case grep
-    case find
-    case runCode = "run_code"
-    case analyzeFramework = "analyze_framework"
-    case frameworkHeader = "framework_header"
-    case build
-    case install
-    case removePackage = "remove_package"
-    case respring
-    case confirmLoaded = "confirm_loaded"
-    case readLogs = "read_logs"
-    case listCrashes = "list_crashes"
-    case readCrash = "read_crash"
-    case symbolicateCrash = "symbolicate_crash"
-    case captureScreen = "capture_screen"
-    case readUITree = "read_ui_tree"
-    case uiAction = "ui_action"
-    case memoryList = "memory_list"
-    case memorySave = "memory_save"
-    case memoryDelete = "memory_delete"
-    case readSkill = "read_skill"
-    case notifyUser = "notify_user"
-    case checkDistribution = "check_distribution"
-    case projectTemplateList = "project_template_list"
-    case projectCreate = "project_create"
-    case gitStatus = "git_status"
-    case gitDiff = "git_diff"
-    case gitStage = "git_stage"
-    case gitUnstage = "git_unstage"
-    case gitCommit = "git_commit"
-    case gitFetch = "git_fetch"
-    case gitPull = "git_pull"
-    case gitPush = "git_push"
-    case gitClone = "git_clone"
-    case gitSettings = "git_settings"
-    case gitSetAuthor = "git_set_author"
-    case gitSaveCredential = "git_save_credential"
-    case gitRemoveCredential = "git_remove_credential"
-    case conversationCreate = "conversation_create"
-    case conversationSend = "conversation_send"
-    case conversationList = "conversation_list"
-    case conversationRead = "conversation_read"
-    case conversationStop = "conversation_stop"
-    case toolchainList = "toolchain_list"
-    case sdkList = "sdk_list"
-    case toolchainSetup = "toolchain_setup"
-    case sdkImport = "sdk_import"
-    case toolchainSelfTest = "toolchain_self_test"
-    case projectEnvironmentSet = "project_environment_set"
-
+/// What each tool does and how far it reaches; the names are
+/// ApelinProtocol's, which the session host and the app read too.
+public extension AgentToolName {
     /// Only General Chat starts projects: it belongs to none, and a project's
     /// own chat has no reason to make another.
-    public var isGeneralChatOnly: Bool {
+    var isGeneralChatOnly: Bool {
         self == .projectTemplateList || self == .projectCreate
     }
 
@@ -82,7 +29,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     /// not have: the host resolves a project under `Projects/` or refuses.
     /// So does the switch of the project's toolchain and SDK. The
     /// conversation tools reach General Chat too, naming a project there.
-    public var isProjectOnly: Bool {
+    var isProjectOnly: Bool {
         switch self {
         case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit,
              .gitFetch, .gitPull, .gitPush, .gitClone, .projectEnvironmentSet:
@@ -94,19 +41,19 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
 
     /// Optional parameters whose empty value is an instruction, kept by
     /// `ToolArguments.normalized`: an empty author field clears it.
-    var argumentsWhereEmptyMeansSomething: Set<String> {
+    internal var argumentsWhereEmptyMeansSomething: Set<String> {
         self == .gitSetAuthor ? ["name", "email"] : []
     }
 
     /// The conversation tools, which may name another project.
-    public var isConversation: Bool {
+    var isConversation: Bool {
         switch self {
         case .conversationCreate, .conversationSend, .conversationList, .conversationRead, .conversationStop: true
         default: false
         }
     }
 
-    public var risk: ToolRisk {
+    var risk: ToolRisk {
         switch self {
         // The project's own repository: its index, commits and the refs a
         // fetch, pull or clone brings in. Nothing leaves the device.
@@ -138,11 +85,11 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
 
     /// Read tools whose output is sensitive (the screen, the UI tree): read
     /// only, but not let through by default — §7 configures them apart.
-    public var isSensitiveRead: Bool {
+    var isSensitiveRead: Bool {
         self == .captureScreen || self == .readUITree
     }
 
-    public var summary: String {
+    var summary: String {
         switch self {
         case .writeFile: "Create a file or replace its whole content, inside the project."
         case .patchFile: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set."
@@ -201,7 +148,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
         }
     }
 
-    public var parameters: JSONValue {
+    var parameters: JSONValue {
         switch self {
         case .memoryList, .projectTemplateList, .gitStatus, .gitSettings, .toolchainList, .sdkList:
             Schema.object([:], required: [])
@@ -487,7 +434,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     }
 
     /// The conversation tools' other project.
-    static let projectParameter = Schema.string("Another project, by its projectID or folder name (project_create answers both): required in General Chat, omit for this project. A call that reaches another project asks the user in Strict mode.")
+    internal static let projectParameter = Schema.string("Another project, by its projectID or folder name (project_create answers both): required in General Chat, omit for this project. A call that reaches another project asks the user in Strict mode.")
 }
 
 /// Every tool asks for a short reason, which the app shows while the call

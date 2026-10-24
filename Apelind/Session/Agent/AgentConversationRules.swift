@@ -139,7 +139,7 @@ enum AgentConversationRules {
     /// approves exactly this open in another project: conversation_create
     /// naming `target` with this prompt.
     static func coversOpen(_ open: AgentOpenRequest, target: ResolvedProject, asked: JSONValue) -> Bool {
-        guard asked["tool"]?.stringValue == "conversation_create",
+        guard asked["tool"]?.stringValue == AgentToolName.conversationCreate.rawValue,
               let detail = asked["detail"]?[otherProjectDetail],
               detail["action"]?.stringValue == "create"
         else { return false }
@@ -149,7 +149,7 @@ enum AgentConversationRules {
     /// Whether `asked` approves exactly this message to a conversation of
     /// another project: conversation_send naming it, its project and this text.
     static func coversSend(_ prompt: AgentPromptRequest, target: AgentSessionTable.Entry, asked: JSONValue) -> Bool {
-        guard asked["tool"]?.stringValue == "conversation_send",
+        guard asked["tool"]?.stringValue == AgentToolName.conversationSend.rawValue,
               let detail = asked["detail"]?[otherProjectDetail],
               detail["action"]?.stringValue == "send"
         else { return false }

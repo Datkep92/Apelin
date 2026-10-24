@@ -89,7 +89,7 @@ enum AgentApprovals {
     ) async -> RunCodeGrant? {
         guard approve.scope == .session,
               let asked = await requested(approve.approvalID, entry: entry, registry: registry),
-              asked["tool"]?.stringValue == "run_code", asked["allowsSessionScope"] == .bool(true),
+              asked["tool"]?.stringValue == AgentToolName.runCode.rawValue, asked["allowsSessionScope"] == .bool(true),
               let spec = approvedSpec(asked)
         else { return nil }
         let grant = RunCodeGrant(spec: spec, directory: directoryName(asked["workingDirectory"]?.stringValue))
@@ -197,7 +197,7 @@ enum AgentApprovals {
             // this command in this directory, checked before it is spent so
             // a refused call leaves it alone.
             let asked = await requested(approvalID, entry: entry, registry: registry)
-            guard let asked, asked["tool"]?.stringValue == "run_code" else {
+            guard let asked, asked["tool"]?.stringValue == AgentToolName.runCode.rawValue else {
                 throw ApelinError(.denied, "\(approvalID) is not an approval this session requested for run_code")
             }
             guard let approved = approvedSpec(asked), approved == run.spec,

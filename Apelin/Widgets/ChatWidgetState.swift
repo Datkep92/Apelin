@@ -27,7 +27,9 @@ extension ChatRecord {
                 failed = false
             case "approvalRequested":
                 if let id = payload?["approvalID"]?.stringValue {
-                    waiting.append((id, payload?["tool"]?.stringValue ?? ""))
+                    // By today's name: the widget names only those.
+                    let tool = payload?["tool"]?.stringValue ?? ""
+                    waiting.append((id, AgentToolName.canonical(tool)?.rawValue ?? tool))
                 }
             case "approvalResolved":
                 let id = payload?["approvalID"]?.stringValue

@@ -1,3 +1,4 @@
+import enum ApelinProtocol.AgentToolName
 import KWWKAI
 
 extension ToolRunner {

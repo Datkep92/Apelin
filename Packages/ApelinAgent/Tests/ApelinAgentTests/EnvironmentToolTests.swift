@@ -1,4 +1,5 @@
 @testable import ApelinAgent
+import enum ApelinProtocol.AgentToolName
 import Foundation
 import KWWKAgent
 import KWWKAI

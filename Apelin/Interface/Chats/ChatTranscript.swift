@@ -435,55 +435,69 @@ struct ChatTranscript {
         return String(localized: "From \(title)")
     }
 
+    /// A call's title, by the tool it names: today's name or one an earlier
+    /// release recorded (`AgentToolName.canonical`), so an old conversation
+    /// reads as a new one does. A tool added without a title does not build.
     private static func toolTitle(_ name: String, arguments: String?) -> String {
+        guard let tool = AgentToolName.canonical(name) else {
+            return name.replacingOccurrences(of: "_", with: " ").capitalized
+        }
         let values = arguments.flatMap { try? JSONCoding.decode(JSONValue.self, from: Data($0.utf8)) }
         let path = values?["path"]?.stringValue ?? ""
-        switch name {
-        case "read_file": return path.isEmpty ? String(localized: "Read a file") : String(localized: "Read \(path)")
-        case "write_file", "create_file":
+        switch tool {
+        case .readFile: return path.isEmpty ? String(localized: "Read a file") : String(localized: "Read \(path)")
+        case .writeFile, .createFile:
             return path.isEmpty ? String(localized: "Write a file") : String(localized: "Write \(path)")
-        case "patch_file": return path.isEmpty ? String(localized: "Edit a file") : String(localized: "Edit \(path)")
-        case "list": return String(localized: "List files")
-        case "grep", "find": return String(localized: "Search files")
-        case "run_code": return String(localized: "Run a command")
-        case "build": return String(localized: "Build the project")
-        case "install": return String(localized: "Install the package")
-        case "remove_package": return String(localized: "Remove the package")
-        case "capture_screen": return String(localized: "Capture the screen")
-        case "read_ui_tree": return String(localized: "Inspect the screen")
-        case "ui_action": return String(localized: "Interact with the screen")
-        case "read_logs": return String(localized: "Read logs")
-        case "respring": return String(localized: "Restart SpringBoard")
-        case "git_status": return String(localized: "Check the repository")
-        case "git_diff": return String(localized: "Read the changes")
-        case "git_stage": return String(localized: "Stage changes")
-        case "git_unstage": return String(localized: "Unstage changes")
-        case "git_commit": return String(localized: "Commit changes")
-        case "git_fetch": return String(localized: "Fetch from the remote")
-        case "git_pull": return String(localized: "Pull from the remote")
-        case "git_push": return String(localized: "Push to the remote")
-        case "git_clone": return String(localized: "Import the repository")
-        case "git_settings": return String(localized: "Read the Git settings")
-        case "git_set_author": return String(localized: "Set the commit author")
-        case "git_save_credential": return String(localized: "Save a Git credential")
-        case "git_remove_credential": return String(localized: "Remove a Git credential")
-        case "conversation_create": return String(localized: "Create a chat")
-        case "conversation_send": return String(localized: "Send to a chat")
-        case "conversation_list": return String(localized: "List chats")
-        case "conversation_read": return String(localized: "Read a chat")
-        case "conversation_stop": return String(localized: "Stop a chat")
-        case "notify_user": return String(localized: "Send a notification")
-        case "toolchain_list": return String(localized: "List toolchains")
-        case "sdk_list": return String(localized: "List SDKs")
-        case "toolchain_setup": return String(localized: "Set up a toolchain")
-        case "sdk_import": return String(localized: "Import an SDK")
-        case "toolchain_self_test": return String(localized: "Test the toolchain")
-        case "project_environment_set": return String(localized: "Switch the toolchain or SDK")
-        case "project_template_list": return String(localized: "List project templates")
-        case "project_create":
+        case .patchFile: return path.isEmpty ? String(localized: "Edit a file") : String(localized: "Edit \(path)")
+        case .list: return String(localized: "List files")
+        case .grep, .find: return String(localized: "Search files")
+        case .runCode: return String(localized: "Run a command")
+        case .analyzeFramework, .frameworkHeader: return String(localized: "Read the SDK")
+        case .build: return String(localized: "Build the project")
+        case .install: return String(localized: "Install the package")
+        case .removePackage: return String(localized: "Remove the package")
+        case .confirmLoaded: return String(localized: "Check the tweak loaded")
+        case .captureScreen: return String(localized: "Capture the screen")
+        case .readUITree: return String(localized: "Inspect the screen")
+        case .uiAction: return String(localized: "Interact with the screen")
+        case .readLogs: return String(localized: "Read logs")
+        case .listCrashes, .readCrash: return String(localized: "Read crash reports")
+        case .symbolicateCrash: return String(localized: "Symbolicate a crash")
+        case .respring: return String(localized: "Restart SpringBoard")
+        case .memoryList: return String(localized: "Read memories")
+        case .memorySave: return String(localized: "Save a memory")
+        case .memoryDelete: return String(localized: "Delete a memory")
+        case .readSkill: return String(localized: "Read a skill")
+        case .checkDistribution: return String(localized: "Check for distribution")
+        case .gitStatus: return String(localized: "Check the repository")
+        case .gitDiff: return String(localized: "Read the changes")
+        case .gitStage: return String(localized: "Stage changes")
+        case .gitUnstage: return String(localized: "Unstage changes")
+        case .gitCommit: return String(localized: "Commit changes")
+        case .gitFetch: return String(localized: "Fetch from the remote")
+        case .gitPull: return String(localized: "Pull from the remote")
+        case .gitPush: return String(localized: "Push to the remote")
+        case .gitClone: return String(localized: "Import the repository")
+        case .gitSettings: return String(localized: "Read the Git settings")
+        case .gitSetAuthor: return String(localized: "Set the commit author")
+        case .gitSaveCredential: return String(localized: "Save a Git credential")
+        case .gitRemoveCredential: return String(localized: "Remove a Git credential")
+        case .conversationCreate: return String(localized: "Create a chat")
+        case .conversationSend: return String(localized: "Send to a chat")
+        case .conversationList: return String(localized: "List chats")
+        case .conversationRead: return String(localized: "Read a chat")
+        case .conversationStop: return String(localized: "Stop a chat")
+        case .notifyUser: return String(localized: "Send a notification")
+        case .toolchainList: return String(localized: "List toolchains")
+        case .sdkList: return String(localized: "List SDKs")
+        case .toolchainSetup: return String(localized: "Set up a toolchain")
+        case .sdkImport: return String(localized: "Import an SDK")
+        case .toolchainSelfTest: return String(localized: "Test the toolchain")
+        case .projectEnvironmentSet: return String(localized: "Switch the toolchain or SDK")
+        case .projectTemplateList: return String(localized: "List project templates")
+        case .projectCreate:
             let project = values?["name"]?.stringValue ?? ""
             return project.isEmpty ? String(localized: "Create a project") : String(localized: "Create \(project)")
-        default: return name.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
 
