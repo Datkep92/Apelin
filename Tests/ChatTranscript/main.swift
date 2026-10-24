@@ -57,6 +57,14 @@ precondition(fastThought.messages.count == 1 && fastThought.messages[0].role == 
 precondition(!fastThought.isWorking)
 let orphanTool = ChatTranscript(events: [event(1, "toolCall", ["id": .string("tool"), "tool": .string("list")]), event(2, "finished")]) { _ in nil }
 precondition(orphanTool.messages[0].role == .thinking(seconds: 0, tools: 1), "A tool without supplied thinking still counts once")
+let notified = ChatTranscript(events: [
+    event(1, "toolCall", ["id": .string("n1"), "tool": .string("notify_user"), "arguments": .string("{\"body\":\"Built.\"}")]),
+    event(2, "notice", ["body": .string("Built.")]),
+    event(3, "toolResult", ["id": .string("n1"), "output": .string("Sent to Apelin as a notification.")]),
+    event(4, "finished"),
+]) { _ in nil }.messages
+precondition(notified.count == 1 && notified[0].trace.map(\.text) == ["Send a notification"],
+             "a notice shows only as its call, named in the trace: \(notified.flatMap(\.trace).map(\.text))")
 print("ok: empty thoughts, subsecond reasoning, standalone tools and ended turns")
 
 /// The approval card shows what the decision is bound to: why the gate
