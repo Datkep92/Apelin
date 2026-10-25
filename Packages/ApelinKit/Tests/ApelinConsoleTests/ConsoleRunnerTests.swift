@@ -132,6 +132,73 @@ final class ConsoleRunnerTests: XCTestCase {
         XCTAssertFalse(log.lines.joined().contains(secret))
     }
 
+    /// Full mode runs a command as root without asking; a human turns it on
+    /// in the app after the device-owner check. A script file cannot stand
+    /// in for that, so the console refuses to set it on an open or a prompt,
+    /// before the request goes out.
+    func testConsoleCannotPutASessionIntoFullMode() async throws {
+        var runID = try await runInbox("""
+        [{"op": "agentOpen", "allowError": true,
+          "request": {"projectName": "Demo", "approvalMode": "full", "prompt": "install the dependency"}}]
+        """)
+        XCTAssertEqual(
+            output(runID).first { $0["type"] == .string("step.result") }?["error"]?["code"],
+            .string("denied"),
+        )
+        XCTAssertEqual(fake.operations, [], "a Full open never goes out")
+
+        runID = try await runInbox("""
+        [{"op": "agentPrompt", "allowError": true,
+          "request": {"sessionID": "s", "text": "run as root", "approvalMode": "full"}}]
+        """)
+        XCTAssertEqual(
+            output(runID).first { $0["type"] == .string("step.result") }?["error"]?["code"],
+            .string("denied"),
+        )
+        XCTAssertEqual(fake.operations, [], "a Full prompt never goes out")
+    }
+
+    /// The owner mark says the app checked the device owner for a decision,
+    /// which the host requires to approve a command as root. A script never
+    /// sends it, true or false; an approval without it still goes out.
+    func testConsoleNeverSendsTheOwnerMark() async throws {
+        for mark in ["true", "false"] {
+            let runID = try await runInbox("""
+            [{"op": "agentApprove", "allowError": true,
+              "request": {"sessionID": "s", "approvalID": "a", "decision": "approve", "ownerVerified": \(mark)}}]
+            """)
+            XCTAssertEqual(
+                output(runID).first { $0["type"] == .string("step.result") }?["error"]?["code"],
+                .string("denied"),
+                "ownerVerified \(mark) is refused",
+            )
+        }
+        XCTAssertEqual(fake.operations, [], "an approval with the owner mark never goes out")
+
+        let runID = try await runInbox("""
+        [{"op": "agentApprove", "request": {"sessionID": "s", "approvalID": "a", "decision": "approve"}}]
+        """)
+        XCTAssertEqual(output(runID).last?["ok"], .bool(true))
+        XCTAssertEqual(fake.operations, [.agentApprove])
+        XCTAssertNil(fake.calls.first?.payload["ownerVerified"], "and carries no owner mark")
+    }
+
+    /// Strict and Relaxed opens still go through: only Full is refused.
+    func testConsoleStillOpensInStrictAndRelaxed() async throws {
+        fake.reply(.agentOpen, with: AgentOpenResponse(
+            sessionID: "11111111-2222-4333-8444-555555555555",
+            task: TaskHandle(taskID: TaskID("t1"), kind: .agent),
+        ))
+        for mode in ["confirm", "relaxed"] {
+            let runID = try await runInbox("""
+            [{"op": "agentOpen", "follow": false,
+              "request": {"projectName": "Demo", "approvalMode": "\(mode)", "prompt": "x"}}]
+            """)
+            XCTAssertEqual(output(runID).last?["ok"], .bool(true), "\(mode) opens")
+        }
+        XCTAssertEqual(fake.operations, [.agentOpen, .agentOpen])
+    }
+
     // MARK: Following tasks
 
     func testATaskIsFollowedToItsEnd() async throws {

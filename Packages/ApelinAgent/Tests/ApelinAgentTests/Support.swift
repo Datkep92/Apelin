@@ -162,6 +162,9 @@ actor MockBackend: AgentHostBackend {
 
     /// The evidence of every shell_run call, refused ones included.
     var runCodeEvidence: [ApprovalEvidence] = []
+    /// Every shell_run request that ran, whole: its invocation, working
+    /// directory and whether it asked for root.
+    var runCodeRequests: [RunCodeRequest] = []
     /// Whether this host's preset rule refuses every preset, as the real
     /// host does for a call its own rule does not count.
     var refusesPresets = false
@@ -176,6 +179,7 @@ actor MockBackend: AgentHostBackend {
             throw HostRefusedPresetError(message: "the host does not recognise this command as a preset; ask the user")
         }
         calls.append(.runCode(request.invocation))
+        runCodeRequests.append(request)
         return RunCodeResponse(exitCode: 0, stdout: "ok", stderr: "")
     }
 

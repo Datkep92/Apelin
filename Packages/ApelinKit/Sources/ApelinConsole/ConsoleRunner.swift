@@ -235,6 +235,19 @@ public actor ConsoleRunner {
         guard operation != .gitCredentialSet else {
             throw ApelinError(.denied, "A git credential is saved only in Settings ▸ Git.")
         }
+        // A command as root runs only after the device owner's check in the
+        // app: approving one carries the owner mark, and Full runs one
+        // without asking. A script file cannot stand in for that check, so
+        // the console sends neither.
+        let carriesOwnerMark = operation == .agentApprove && (request["ownerVerified"] ?? .null) != .null
+        guard !carriesOwnerMark else {
+            throw ApelinError(.denied, "A command that runs as root is approved only in the conversation, after the device owner's check.")
+        }
+        let setsFull = [AppOperation.agentOpen, .agentPrompt].contains(operation)
+            && request["approvalMode"]?.stringValue == ApprovalMode.full.rawValue
+        guard !setsFull else {
+            throw ApelinError(.denied, "Full mode is turned on in the app, after the device owner's check; the console does not set it.")
+        }
         let (response, _) = try await service.sendUntyped(operation, request: request)
 
         guard step.follow != false else { return ConsoleStepResult(ok: true, response: response) }

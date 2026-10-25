@@ -275,4 +275,242 @@ func rootRunChecks(scratch: URL, scratchPath: String) async {
         response?.exitCode == 0 && response?.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == String(geteuid()),
         "a root run runs as the host itself, without dropping to mobile: \(String(describing: response))",
     )
+
+    // MARK: A request that does not ask for root runs as mobile (invariant 1)
+
+    // Absent, nil or false `asRoot` all run as mobile, even in Full, which
+    // is where the host would run root without asking if it were asked.
+    let mobileOnly = await session("root-mobile", mode: .full)
+    for flag: Bool? in [nil, false] {
+        let run = AgentRunCodeRequest(sessionID: mobileOnly.sessionID, spec: .argv(["make"]), approval: .relaxed, asRoot: flag)
+        let who = try? await AgentApprovals.authorize(run, entry: mobileOnly, registry: registry, ledger: ledger, installRoot: "/")
+        check(who == .mobile(preset: nil), "asRoot \(String(describing: flag)) runs as mobile, Full or not")
+    }
+    // A request decoded from JSON written before `asRoot` existed has no
+    // such field, and runs as mobile.
+    let older = try? JSONCoding.decode(
+        AgentRunCodeRequest.self,
+        from: Data(
+            #"{"sessionID":"root-mobile","spec":{"argv":{"_0":["make"]}},"workingDirectory":".","timeoutSeconds":120,"approval":{"relaxed":{}}}"#
+                .utf8,
+        ),
+    )
+    check(older?.asRoot == nil, "an older request has no asRoot field")
+    if let older {
+        let who = try? await AgentApprovals.authorize(older, entry: mobileOnly, registry: registry, ledger: ledger, installRoot: "/")
+        check(who == .mobile(preset: nil), "and runs as mobile")
+    } else {
+        check(false, "an older request decodes")
+    }
+    // In every mode and on every kind of evidence — the user's approval of
+    // a root card of this very command included — a request that does not
+    // ask for root (asRoot absent) never runs as root, and leaves that
+    // approval unspent.
+    for mode: ApprovalMode in [.confirm, .relaxed, .full] {
+        let entry = await session("root-never-\(mode.rawValue)", mode: mode)
+        await ask(entry, "never-root", install, root: true)
+        await approve(entry, "never-root")
+        for evidence: RunCodeApproval in [.relaxed, .preset("ls"), .session, .user(approvalID: "never-root")] {
+            let ran = await identity(entry, install, evidence, root: false)
+            check(ran != .root, "\(mode) on \(evidence) without asRoot is never root")
+        }
+        let unspent = await kept(entry, "never-root")
+        check(unspent, "\(mode): the root approval is still the app's to spend")
+    }
+
+    // MARK: The directory the card showed is the one that runs (invariant 7)
+
+    // The card names `.`, the run sends an empty directory: the host spells
+    // both the project root, so they match.
+    let norm = await session("root-norm", mode: .confirm)
+    await ask(norm, "norm-dot", install, root: true, workingDirectory: ".")
+    await approve(norm, "norm-dot")
+    let normEmpty = await identity(norm, install, .user(approvalID: "norm-dot"), in: "")
+    check(normEmpty == .root, "a root approval shown for the project root runs a call whose directory is empty")
+    await ask(norm, "norm-sources", install, root: true, workingDirectory: "Sources")
+    await approve(norm, "norm-sources")
+    let normOther = await identity(norm, install, .user(approvalID: "norm-sources"), in: "Build")
+    check(normOther == nil, "a root approval for one directory runs nothing in another")
+    let normSame = await identity(norm, install, .user(approvalID: "norm-sources"), in: "Sources")
+    check(normSame == .root, "and runs it in the directory it named")
+
+    // The exact JSON apelin-agent writes under detail.rootCommand (the same
+    // shapes as Packages/ApelinAgent/.../RootRequestWireTests.swift): the host
+    // decodes each to the spec it compares with the run, so the command the
+    // card shows is the command that runs. The app's approval is recorded
+    // straight in the table here; the relay and its owner check are above.
+    let wireShapes: [(detail: String, spec: RunCodeSpec)] = [
+        (#"{"argv":{"_0":["irisin-cli","install","--yes","x"]}}"#, .argv(["irisin-cli", "install", "--yes", "x"])),
+        (
+            #"{"shell":{"_0":"irisin-cli install --yes x | tee log"}}"#,
+            .script(interpreter: "sh", source: "irisin-cli install --yes x | tee log"),
+        ),
+        (#"{"script":{"interpreter":"python3","source":"print(1)"}}"#, .script(interpreter: "python3", source: "print(1)")),
+    ]
+    let wire = await session("root-wire", mode: .confirm)
+    for (index, shape) in wireShapes.enumerated() {
+        let id = "wire-\(index)"
+        let detail = (try? JSONCoding.decode(JSONValue.self, from: Data(shape.detail.utf8))) ?? .null
+        await registry.append(wire.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(id),
+            "tool": .string("shell_run"),
+            "workingDirectory": .string("."),
+            "detail": .object([RunCodeApproval.rootCommandDetail: detail]),
+        ]))
+        await sessions.record(wire.sessionID, approvalID: id, decision: .approve)
+        let run = AgentRunCodeRequest(sessionID: wire.sessionID, spec: shape.spec, approval: .user(approvalID: id), asRoot: true)
+        let current = await sessions.entry(wire.sessionID) ?? wire
+        let who = try? await AgentApprovals.authorize(run, entry: current, registry: registry, ledger: ledger, installRoot: "/")
+        check(who == .root, "a root card written as the worker writes it authorises its own spec (\(shape.detail))")
+    }
+
+    // MARK: Forgotten on a session reopen and a host restart (invariant 4)
+
+    let reopened = await session("root-reopen", mode: .confirm)
+    await ask(reopened, "reopen-root", install, root: true)
+    await approve(reopened, "reopen-root")
+    // Reopening the session (AgentHandler.open) replaces its table entry
+    // with a fresh one, so the unspent approval is gone.
+    await sessions.add(AgentSessionTable.Entry(
+        sessionID: reopened.sessionID,
+        task: reopened.task,
+        project: reopened.project,
+        mode: .confirm,
+        createdAt: Date(),
+    ))
+    let afterReopen = await identity(reopened, install, .user(approvalID: "reopen-root"))
+    check(afterReopen == nil, "a root approval does not survive a session reopen")
+
+    // A host restart keeps no session's mode (the ledger's modes are in
+    // memory): a fresh ledger holds a session it never learned to Strict, so
+    // Full does not survive it.
+    let restarted = await session("root-restart", mode: .full)
+    let freshLedger = ApprovalLedger(directory: scratch.appendingPathComponent("root-approvals-fresh"))
+    let afterRestart = try? await AgentApprovals.authorize(
+        AgentRunCodeRequest(sessionID: restarted.sessionID, spec: .argv(install), approval: .relaxed, asRoot: true),
+        entry: restarted,
+        registry: registry,
+        ledger: freshLedger,
+        installRoot: "/",
+    )
+    check(afterRestart == nil, "Full does not survive a host restart")
+    let freshMode = await freshLedger.mode(session: restarted.sessionID)
+    check(freshMode == .confirm, "and a session the ledger never learned is Strict")
+
+    // MARK: Only the app puts a session into Full (invariant 5)
+
+    // An agent's open takes the opener's mode, never the request's: a Strict
+    // session cannot open a Full child, and a Full child is Full only
+    // because the app made the opener Full.
+    let other = ResolvedProject(id: "p-other", name: "Other", path: scratchPath)
+    let homeProject = ResolvedProject(id: "p-home", name: "Home", path: scratchPath)
+    let strictOpener = await AgentSessionTable.Entry(
+        sessionID: "opener-strict",
+        task: registry.create(kind: .agent, owner: .agent, ownerKey: "opener-strict"),
+        project: homeProject,
+        mode: .confirm,
+        createdAt: Date(),
+    )
+    let wantsFull = AgentOpenRequest(approvalMode: .full, prompt: "install the dependency")
+    let strictChild = try? AgentConversationRules.childOpen(wantsFull, opener: strictOpener, target: other)
+    check(strictChild?.approvalMode == .confirm, "an agent's open takes the opener's mode, never the request's Full")
+    let fullOpener = await AgentSessionTable.Entry(
+        sessionID: "opener-full",
+        task: registry.create(kind: .agent, owner: .agent, ownerKey: "opener-full"),
+        project: homeProject,
+        mode: .full,
+        createdAt: Date(),
+    )
+    let fullChild = try? AgentConversationRules.childOpen(
+        AgentOpenRequest(approvalMode: .confirm, prompt: "x"),
+        opener: fullOpener,
+        target: other,
+    )
+    check(fullChild?.approvalMode == .full, "a Full opener's child is Full, from the opener alone")
+
+    // An agent's prompt carries no approval mode: it cannot switch a session
+    // to Full, whatever it sent on the wire.
+    let targetEntry = await AgentSessionTable.Entry(
+        sessionID: "target-sess",
+        task: registry.create(kind: .agent, owner: .agent, ownerKey: "target-sess"),
+        project: other,
+        mode: .confirm,
+        createdAt: Date(),
+    )
+    let childMessage = try? AgentConversationRules.childPrompt(
+        AgentPromptRequest(sessionID: targetEntry.sessionID, text: "run as root", approvalMode: .full),
+        sender: strictOpener,
+        target: targetEntry,
+        descriptorCount: 0,
+    )
+    check(childMessage != nil, "an agent's message to another conversation is built")
+    check(childMessage?.approvalMode == nil, "an agent's prompt carries no approval mode, so it cannot imply Full")
+
+    // MARK: A root run keeps a mobile run's bounds (invariant 8)
+
+    let bounds = ResolvedProject(id: "p-root", name: "Root", path: scratchPath)
+    // The environment differs from a mobile run's by HOME alone: the host
+    // builds it, so a root run inherits nothing more of the worker's.
+    let rootEnvironment = AgentRunCode.environment(preset: nil, project: bounds, installRoot: "/", home: "/var/mobile", asRoot: true)
+    let mobileEnvironment = AgentRunCode.environment(preset: nil, project: bounds, installRoot: "/", home: "/var/mobile")
+    check(
+        Set(rootEnvironment).subtracting(mobileEnvironment) == ["HOME=\(AgentRunCode.rootHome)"]
+            && Set(mobileEnvironment).subtracting(rootEnvironment) == ["HOME=/var/mobile"],
+        "a root run's environment differs from a mobile run's by HOME alone: \(Set(rootEnvironment).symmetricDifference(mobileEnvironment))",
+    )
+
+    // The timeout bounds a root run: a one-second cap kills a longer sleep,
+    // the same as a mobile run.
+    let timed = try? await AgentRunCode.run(
+        AgentRunCodeRequest(sessionID: "root-timeout", spec: .argv(["sleep", "5"]), timeoutSeconds: 1, approval: .relaxed, asRoot: true),
+        as: .root,
+        project: bounds,
+        installRoot: "/",
+        home: NSHomeDirectory(),
+        stopsSeen: AgentRunCode.stopCount(session: "root-timeout"),
+    )
+    check(timed?.timedOut == true && timed?.exitCode == -1, "the timeout kills a root run that overruns: \(String(describing: timed))")
+
+    // The working directory must resolve inside the project, root or not.
+    let escaped = try? await AgentRunCode.run(
+        AgentRunCodeRequest(sessionID: "root-escape", spec: .argv(["id"]), workingDirectory: "../..", approval: .relaxed, asRoot: true),
+        as: .root,
+        project: bounds,
+        installRoot: "/",
+        home: NSHomeDirectory(),
+        stopsSeen: 0,
+    )
+    check(escaped == nil, "a root run cannot leave the project")
+
+    // And the timeout is bounded, as for a mobile run.
+    let ranged = try? await AgentRunCode.run(
+        AgentRunCodeRequest(sessionID: "root-range", spec: .argv(["id"]), timeoutSeconds: 99999, approval: .relaxed, asRoot: true),
+        as: .root,
+        project: bounds,
+        installRoot: "/",
+        home: NSHomeDirectory(),
+        stopsSeen: 0,
+    )
+    check(ranged == nil, "a root run's timeout is bounded")
+
+    // Its output is capped as a mobile run's is: past 256 KiB it is cut and
+    // marked truncated.
+    let loud = try? await AgentRunCode.run(
+        AgentRunCodeRequest(
+            sessionID: "root-loud",
+            spec: .script(interpreter: "sh", source: "yes x | head -c 400000"),
+            timeoutSeconds: 10,
+            approval: .relaxed,
+            asRoot: true,
+        ),
+        as: .root,
+        project: bounds,
+        installRoot: "/",
+        home: NSHomeDirectory(),
+        stopsSeen: 0,
+    )
+    check(
+        loud?.truncated == true && loud?.stdout.utf8.count == 256 * 1024,
+        "a root run's output is capped: \(loud?.stdout.utf8.count ?? -1) bytes, truncated \(String(describing: loud?.truncated))",
+    )
 }
