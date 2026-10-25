@@ -19,6 +19,7 @@ enum BuiltInSkills {
         packagingAndInstall,
         packageDependencies,
         crashTriage,
+        deviceCLI,
         gitWorkflow,
         packageRepository,
     ]

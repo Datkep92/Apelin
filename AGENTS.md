@@ -2057,7 +2057,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   else.
 - **Diagnostics** use `owngoal-dev/icli` for everything it can do — logs,
   crash reports, screenshots, the UI tree and actions, respring — and gaps are
-  filled in icli, not beside it.
+  filled in icli, not beside it. The package depends on the icli CLI too
+  (`com.icli.icli (>= 0.9.2)`, from apt.owngoal.dev; owner, 2026-10-26),
+  which the agent runs through shell_run as the `apelin-icli` skill says —
+  dedicated tools first, mobile's commands only, and, when it is missing,
+  asking the user to install it from `https://apt.owngoal.dev`.
 - **Lists and rich text** follow FlowDown: ListViewKit, MarkdownView, Litext
   and DisplayLink. FlowDown is the owner's own code (Lakr233's Inhouse
   Code; owner, 2026-10-21), so it is brought across as it is, whatever
@@ -2333,6 +2337,21 @@ adding a dated record beside it.
   anywhere in `use(_:)` is enough to bring it back.
 
 
+- **The app was offline while the workers were not.** Sign In with GitHub
+  failed "The Internet connection appears to be offline" on an iPhone where
+  every model provider's sign-in went through: the device flow runs in the
+  app, the provider sign-ins in apelin-agent, and CoreTelephony's per-app
+  data policy (Wireless Data; WLAN & Cellular on a device sold in China)
+  binds apps by bundle ID, never a daemon's children. No prompt asks about
+  an app a package manager installed, so where the system holds it denied
+  the app stays offline. At launch the app reads its own policy and, unless
+  Wi-Fi and cellular are both allowed already, allows both
+  (`NetworkAccess`, the journal says what it found), as Irisin does
+  (`CellularPolicy`) and as icli's `app network repair` does for another
+  app, with `com.apple.CommCenter.fine-grained` `spi` and
+  `data-allowed-write`, which the packager requires.
+
+
 ## Live chat and project UI (2026-10-21)
 
 - `ChatRuntime` keeps one reader per live session while the user switches pages. It persists ordered host events and reattaches after the saved cursor. A save that fails (a full disk, a folder it cannot write) leaves the conversation running in memory: `StorageWarning` says so once — "Storage Almost Full" when less than 512 MB is free, else the error — and not again until a save gets through; the unsaved conversations are written with the next save that works and on every return to the foreground, and the same notice comes at launch or on return when free space is already under 512 MB. Sending text never needs the disk; only attachments are staged. A stopped host can reopen the persisted session ID; the host and worker refuse a different workspace identity. A reopened session comes back as a new task that replays the whole history, renumbered and newly timed, before anything new; the conversation keeps the events it has and reads past that replay (`ChatRecord.reopen(as:)`, `SessionReplay`, saved with the record) to the first user message or compaction it has not seen (Compact… reopens a stopped session with no message after it), so the rows on screen stay as they are. Never empty the events for a new task: the list would collapse to the message being sent and land at the top of the history when the replay came back. Rows are numbered by their event's position, not its seq, since a reopened task's numbering starts again. Stop calls `agentAbort`; approval buttons call `agentApprove` and wait for the authoritative resolved event.
@@ -2506,7 +2525,12 @@ unless the user drives git, `git_commit` with `all`, messages, `.gitignore`,
 github.com through Sign In with GitHub. `apelin-package-repository` is the
 package repository (Distribution repository, below): its layout after
 owngoal-packages, the control fields a package needs, how Publish adds a
-release, and keeping old versions in check.
+release, and keeping old versions in check. `apelin-icli` (owner,
+2026-10-26) is running icli through shell_run: an argv, its help read
+first, Apelin's own tools where they exist, the commands its device
+acceptance ran as mobile, never its package, launchd, respring, uicache or
+reboot commands, roothide's `jbroot` prefix, and pointing the user to
+`https://apt.owngoal.dev` when it is missing.
 Every built-in's name begins `apelin-` (owner, 2026-10-25), so none takes
 the name of a user's skill of the same subject; `BuiltInSkills.legacyNames`
 lets `apelin_skill_read` find one by its old name when no skill has that
@@ -2721,8 +2745,14 @@ fragment. The chat's ListViewKit keeps its own update mechanism.
 - **Links.** `apelin://conversation/<id>` opens a conversation: `<id>` is its
   agent session ID (what the conversation tools return), or the app's own
   chat ID. `apelin://project/<projectID or folder name>` opens a project on
-  its most recent conversation, or a new one. `apelin://` opens the app as it
-  is. The format is fixed — the agent writes these links. `ApelinLink`
+  its most recent conversation, or a new one. `apelin://chat?prompt=<text>`
+  (2026-10-26) opens a new General Chat — the untouched one if there is
+  one — with `<text>` in its composer and the keyboard up, and sends
+  nothing: the reader reads it and taps Send, so a link from anywhere can
+  only suggest a message (≤ 32 KB, no control character but a line break or
+  a tab, else `unknown`; without `prompt` the composer is empty).
+  `apelin://` opens the app as it is. The format is fixed — the agent
+  writes these links. `ApelinLink`
   (`Widgets/Shared/ApelinLink.swift`, Foundation only; `Tests/ApelinLink` in
   `make harness`) parses and builds them; the scheme is declared in the
   partial `Apelin/Resources/Info.plist`. `SceneDelegate` hands an `apelin:`

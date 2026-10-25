@@ -368,6 +368,8 @@ final class RootInterfaceController: UIViewController {
     /// nothing leaves the page as it was and says so. A link before the
     /// conversations are read waits for them, and the launch shows it
     /// instead of the conversation saved; during the welcome it is dropped.
+    /// A prompt goes into a new General Chat's composer with the keyboard
+    /// up, and waits there for the reader's Send.
     func open(_ link: ApelinLink) {
         guard link != .app, !WelcomeFlow.shouldPresent else { return }
         guard chatRuntime.isLoaded else {
@@ -385,12 +387,22 @@ final class RootInterfaceController: UIViewController {
                 return
             }
             restoredChat = true
-            let summary = switch destination {
-            case let .chat(summary): summary
-            case let .newChat(project): chatRuntime.newChat(project: project, preferring: nil)
+            switch destination {
+            case let .chat(summary):
+                sidebar.select(summary)
+                setDrawerOpen(false)
+            case let .newChat(project, draft):
+                let summary = chatRuntime.newChat(project: project, preferring: nil)
+                if let draft {
+                    chatRuntime.saveDraft(ComposerDraft(text: draft), for: summary.id)
+                }
+                sidebar.select(summary)
+                setDrawerOpen(false)
+                guard draft != nil else { return }
+                // the conversation may have been on the page already, untouched
+                chatController.restoreDraft(for: summary.id)
+                chatController.beginTyping()
             }
-            sidebar.select(summary)
-            setDrawerOpen(false)
         }
     }
 

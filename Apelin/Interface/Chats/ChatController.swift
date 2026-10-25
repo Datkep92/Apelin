@@ -54,6 +54,8 @@ final class ChatController: UIViewController {
     /// While `use(_:)` swaps another conversation in: nothing animates, and
     /// the list's opening scroll waits for its rows.
     private var isSwitchingChat = false
+    /// The keyboard waits for the page to be on screen (`beginTyping`).
+    private var typesOnAppear = false
     private var needsInitialScroll = false
     /// Whether the reader was at the latest message when the page last
     /// changed width — the sidebar opening or closing. The rows wrap again
@@ -264,6 +266,14 @@ final class ChatController: UIViewController {
         }
         messageList.snp.makeConstraints { make in
             make.edges.equalToSuperview()
+        }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if typesOnAppear {
+            typesOnAppear = false
+            composer.beginEditing()
         }
     }
 
@@ -618,6 +628,16 @@ extension ChatController {
     func restoreDraft(for id: UUID) {
         guard chat?.id == id, let draft = runtime.records[id]?.draft else { return }
         composer.restore(draft: draft)
+    }
+
+    /// The keyboard up in the composer, now if the page is on screen, else
+    /// once it is: a link's prompt waits there for the reader's Send.
+    func beginTyping() {
+        guard view.window != nil else {
+            typesOnAppear = true
+            return
+        }
+        composer.beginEditing()
     }
 
     /// `text` as the reader's next message, as if typed and sent; during a

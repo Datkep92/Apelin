@@ -180,6 +180,23 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] The app's own network, prompt links, icli and the sign-in buttons in
+      the dark (2026-10-26, build 77). On the iOS 27.0.1 iPad vphone
+      (roothide, Irisin 5.0.0, icli 0.9.2), 0.1.8 → 0.2.0 went in through
+      irisind with the new `com.icli.icli` dependency satisfied, and the app
+      launched; `icli app network get wiki.qaq.apelin` read both policies
+      allowed and the journal had no `Network` line, as it should when
+      nothing needs opening. `uiopen 'apelin://chat?prompt=…'` with the app
+      running, and again from a cold launch: a new General Chat each time
+      (a chat holding a draft is not reused), the text — Chinese too — in
+      the composer with the caret in it, nothing sent. Still to run: on an
+      iPhone where Sign In with GitHub said "The Internet connection appears
+      to be offline", the journal's `Network` line saying what the policy
+      was and that it was opened, then the GitHub code arriving; the
+      keyboard rising on an iPhone (the vphone has a hardware keyboard); a
+      link during the welcome dropped; the agent listing `apelin-icli` and
+      running `icli device info`; in the dark before iOS 26, the GitHub and
+      provider sign-in pages' button reading black on white.
 - [ ] GitHub, git and the package repository (2026-10-25). On the iOS
       27.0.1 iPhone vphone (roothide, Irisin 5.0.0; 0.1.8 → 0.1.9 installed
       through irisind), the smoke suite passed with `git-auto` (a new

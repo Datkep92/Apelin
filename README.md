@@ -67,8 +67,9 @@ Every package comes as a roothide (`iphoneos-arm64e`) and a rootless
 (`iphoneos-arm64`) deb, there and on
 [GitHub Releases](https://github.com/owngoal-dev/Apelin/releases).
 
-- **Apelin** (`wiki.qaq.apelin`) — the IDE itself. It depends on no
-  injection framework.
+- **Apelin** (`wiki.qaq.apelin`) — the IDE itself. It brings Irisin, Fila,
+  iGhostVT and icli (`com.icli.icli`, the device tool the agent drives)
+  with it, and depends on no injection framework.
 - **Development extensions** add project templates. They are recommended
   packages; Apelin also works without them:
   - `wiki.qaq.apelin.dev.app` — UIKit apps in Objective-C, or Swift with

@@ -20,6 +20,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             Self.presentWhenActive(alert, in: application)
         }
         AppJournal.start()
+        NetworkAccess.start()
         ConversationNotices.start()
         // the progress card and the alerts carry the app's icon, as Fila's do
         AlertControllerConfiguration.alertImage = UIImage(named: "AppIconMark")

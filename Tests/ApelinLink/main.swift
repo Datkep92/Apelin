@@ -17,6 +17,10 @@ require(link("apelin:conversation/\(session)") == .conversation(session), "The k
 require(link("apelin://conversation/\(session)?from=widget#top") == .conversation(session), "Query and fragment are ignored")
 require(link("apelin://project/I3%20Chain%20Tweak") == .project("I3 Chain Tweak"), "A folder name is percent-decoded")
 require(link("apelin://project/\(session)") == .project(session), "A project by its projectID")
+require(link("apelin://chat?prompt=Hello%20there") == .chat(prompt: "Hello there"), "A prompt for a new General Chat")
+require(link("apelin://Chat/?prompt=a%26b%3Dc%2B%0Anext") == .chat(prompt: "a&b=c+\nnext"), "Escaped text, a line break")
+require(link("apelin://chat?prompt=%E7%9B%B8%E6%9C%BA&other=1") == .chat(prompt: "相机"), "Other query items are ignored")
+require(link("apelin://chat") == .chat(prompt: ""), "No prompt: an empty composer")
 require(link("apelin://") == .app, "The bare scheme opens the app")
 require(link("apelin:") == .app, "So does the scheme alone")
 for unknown in [
@@ -24,6 +28,8 @@ for unknown in [
     "apelin://conversation/a/b", "apelin://settings/x", "apelin://chat/\(session)",
     "apelin://conversation/..", "apelin://project/.", "apelin://conversation/a%00b",
     "apelin://conversation/a%2Fb", "apelin://project/" + String(repeating: "x", count: 256),
+    "apelin://chat?prompt=a%00b", "apelin://chat?prompt=a%1Bb", "apelin://chat/x?prompt=a",
+    "apelin://chat?prompt=" + String(repeating: "x", count: ApelinLink.maximumPromptLength + 1),
 ] {
     require(link(unknown) == .unknown, "Unknown or malformed: \(unknown)")
 }
@@ -37,6 +43,12 @@ for other in ["https://example.com/conversation/x", "file:///tmp/a.apeproj", "ig
 require(ApelinLink.conversation(session).url.absoluteString == "apelin://conversation/\(session)", "The documented form")
 require(ApelinLink.project("I3 Chain Tweak").url.absoluteString == "apelin://project/I3%20Chain%20Tweak", "Spaces escaped")
 require(ApelinLink.app.url.absoluteString == "apelin://", "The app")
+require(ApelinLink.chat(prompt: "Fix the build").url.absoluteString == "apelin://chat?prompt=Fix%20the%20build", "A prompt")
+require(ApelinLink.chat(prompt: "").url.absoluteString == "apelin://chat", "No prompt")
+for prompt in ["a&b=c+d", "line one\nline two\ttab", "100% 相机 #tag ?q", ""] {
+    require(ApelinLink(url: ApelinLink.chat(prompt: prompt).url) == .chat(prompt: prompt), "Round trip: \(prompt)")
+}
+
 for name in ["I3 Chain Tweak", "相机翻译", "a?b#c;d", "100% done", session] {
     for built in [ApelinLink.conversation(name), .project(name)] {
         require(ApelinLink(url: built.url) == built, "Round trip: \(name)")

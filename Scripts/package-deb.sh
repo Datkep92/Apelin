@@ -376,6 +376,16 @@ done
     echo "error: app Info.plist is missing SBAppUsesLocalNotifications" >&2
     exit 65
 }
+# The app opens its own data policy at launch (NetworkAccess.swift); without
+# both values CoreTelephony refuses, and the app stays offline wherever the
+# system holds that policy denied.
+for value in spi data-allowed-write; do
+    /usr/libexec/PlistBuddy -c 'Print :com.apple.CommCenter.fine-grained' "$app_signed_entitlements" 2>/dev/null \
+        | grep -Eq "^[[:space:]]*$value\$" || {
+        echo "error: app is missing com.apple.CommCenter.fine-grained $value" >&2
+        exit 65
+    }
+done
 for key in com.apple.private.security.no-container \
     wiki.qaq.irisin.client \
     com.apple.private.security.container-required \

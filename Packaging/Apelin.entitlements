@@ -43,6 +43,13 @@
 	both; SKILL.md says why the `exception.files.*` path keys are not part of
 	that set.
 
+	`com.apple.CommCenter.fine-grained` (`spi`, `data-allowed-write`) lets
+	the app read and open its own Wi-Fi and cellular data policy at launch
+	(`NetworkAccess`), which no prompt ever asks about for an app a package
+	manager installed; held denied, every request the app makes is
+	"offline". Irisin carries the same for the same reason, and icli the
+	same two values, with which it reads and repairs another app's.
+
 	`com.apple.security.iokit-user-client-class` names the GPU and what sits
 	beside it. Every app carries it, whether or not it draws with Metal
 	itself: a bootstrap withholds these IOKit classes from an ad-hoc signed
@@ -67,6 +74,11 @@
 <dict>
 	<key>application-identifier</key>
 	<string>wiki.qaq.apelin</string>
+	<key>com.apple.CommCenter.fine-grained</key>
+	<array>
+		<string>spi</string>
+		<string>data-allowed-write</string>
+	</array>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.wiki.qaq.apelin</string>

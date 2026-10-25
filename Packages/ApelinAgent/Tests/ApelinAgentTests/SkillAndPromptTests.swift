@@ -136,7 +136,7 @@ struct SkillAndPromptTests {
         // The device's hard-won rules each have a skill.
         for name in ["apelin-tweak-development", "apelin-bootstrap-paths", "apelin-tweak-runtime", "apelin-preference-bundle",
                      "apelin-project-description", "apelin-external-build", "apelin-packaging-and-install",
-                     "apelin-package-dependencies", "apelin-crash-triage"]
+                     "apelin-package-dependencies", "apelin-crash-triage", "apelin-icli"]
         {
             #expect(names.contains(name), "no built-in skill \(name)")
             #expect(prompt.contains("<skill name=\"\(name)\">"), "the prompt does not list \(name)")

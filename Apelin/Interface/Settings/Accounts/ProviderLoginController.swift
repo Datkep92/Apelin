@@ -99,6 +99,8 @@ final class ProviderLoginController: UIViewController {
         $0.configuration?.cornerStyle = .large
         $0.configuration?.buttonSize = .large
         $0.configuration?.imagePadding = 8
+        // the fill is the tint, white in the dark before iOS 26
+        $0.configuration?.baseForegroundColor = AppAccent.foreground(glass: .white)
         $0.snp.makeConstraints { $0.height.greaterThanOrEqualTo(52) }
     }
 
