@@ -2232,6 +2232,16 @@ adding a dated record beside it.
   refuses a slice like that at its link (`DyldInfo.dropsPointerSignatures`
   in ApelinMachO); a symbol left to load time is named with
   `-Wl,-U,_symbol`, which every release links signed.
+- **A long chat opened in its middle.** `use(_:)` asked for the opening
+  scroll, then restored the composer's draft, whose height update lays the
+  whole window out (`doWithAnimation`), before the new list had its rows.
+  `viewDidLayoutSubviews` ran the opening loop on the empty list, took it
+  for its end and was done; the jump that followed went to the end the
+  44 pt estimates make, and the essays measured there grew below it, so a
+  14-turn chat opened at its 7th turn (iPhone vphone, build 45). The loop
+  waits while `use(_:)` swaps the conversation in (`isSwitchingChat`), and
+  `use(_:)` asks for the pass once the rows are in. A synchronous layout
+  anywhere in `use(_:)` is enough to bring it back.
 
 
 ## Live chat and project UI (2026-10-21)

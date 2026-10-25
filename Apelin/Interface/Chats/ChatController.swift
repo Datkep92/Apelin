@@ -51,6 +51,8 @@ final class ChatController: UIViewController {
     /// Approve does not ask again.
     private var checkingOwner: UUID?
     private var stoppableChat: UUID?
+    /// While `use(_:)` swaps another conversation in: nothing animates, and
+    /// the list's opening scroll waits for its rows.
     private var isSwitchingChat = false
     private var needsInitialScroll = false
     /// Whether the reader was at the latest message when the page last
@@ -279,7 +281,14 @@ final class ChatController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateMessageListInsets()
-        if needsInitialScroll, view.window != nil, messageList.bounds.width > 0, messageList.bounds.height > 0 {
+        // Not while `use(_:)` is still swapping the conversation in:
+        // restoring its draft lays the window out before its rows are in the
+        // list, and a pass then would find the new list empty, take that for
+        // its end, and leave the page where the estimated heights put the
+        // end — a long chat's middle. `use(_:)` asks for the pass after.
+        if needsInitialScroll, !isSwitchingChat, view.window != nil, messageList.bounds.width > 0,
+           messageList.bounds.height > 0
+        {
             needsInitialScroll = false
             // The list measures newly visible rows during layout. Settle
             // those measurements at the end too, before the page is revealed.
@@ -348,6 +357,8 @@ final class ChatController: UIViewController {
         refreshRuntime()
         messageList.scrollToBottom(animated: false)
         updateLatestMessageButton()
+        // the opening pass, now that the rows are in (`viewDidLayoutSubviews`)
+        view.setNeedsLayout()
     }
 
     /// Back in front with this conversation on screen: its banners have
