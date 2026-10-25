@@ -2010,3 +2010,12 @@ prompt (no passcode), and Relaxed was put back. Skills lists the built-ins.
 
 The test projects (with their chats), the skill, the memory and the new
 General Chat conversation were deleted through the app afterwards.
+
+Four changes landed after that round and have not been on a device: the
+received count's arrow moved right of the figure (`e07e868`), the approval
+card rewritten to say the call's reason and a root command as typed
+(`a8cca0a`), a long chat opened at the latest message (`0400b2f`), and the
+system prompt frozen with each message's `<system-state>` (`f74afc1`). They
+passed `make harness`, `make check` and the CI build; 0.1.9 ships them
+unverified on hardware, and the next round should open a long chat, read a
+root card and switch the approval mode mid-chat on the iPhone vphone.
