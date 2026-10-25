@@ -1,11 +1,13 @@
 import UIKit
 
-/// After a running summary's title: a downward arrow and the output tokens
-/// the run has received so far. The figure changes in place, its digits all
-/// one width, as often as a count arrives, apart from the title's own pace.
-/// VoiceOver reads it as the title's value, so the view itself is hidden.
+/// After a running summary's title: the output tokens the run has received
+/// so far, then a downward arrow, "653 ↓"; right to left, the arrow is on
+/// the figure's left, still after it. The figure changes in place, its
+/// digits all one width, as often as a count arrives, apart from the
+/// title's own pace. VoiceOver reads it as the title's value, so the view
+/// itself is hidden.
 final class ReceivedTokensView: UIView {
-    private let symbol = UIImageView(image: UIImage(systemName: "arrow.down.circle.fill"))
+    private let symbol = UIImageView(image: UIImage(systemName: "arrow.down"))
     private let label = UILabel()
     private static let spacing: CGFloat = 3
 
@@ -56,17 +58,24 @@ final class ReceivedTokensView: UIView {
         let symbolSize = symbol.intrinsicContentSize
         let labelSize = label.intrinsicContentSize
         return CGSize(
-            width: ceil(symbolSize.width + Self.spacing + labelSize.width),
+            width: ceil(labelSize.width + Self.spacing + symbolSize.width),
             height: ceil(max(symbolSize.height, font.lineHeight)),
         )
     }
 
+    /// The figure, then the arrow; given less than that, the figure gives
+    /// way and the arrow stays whole.
     override func layoutSubviews() {
         super.layoutSubviews()
         let symbolWidth = symbol.intrinsicContentSize.width
-        symbol.frame = directionalFrame(CGRect(x: 0, y: 0, width: symbolWidth, height: bounds.height))
-        let labelX = symbolWidth + Self.spacing
-        label.frame = directionalFrame(CGRect(x: labelX, y: 0, width: max(0, bounds.width - labelX), height: bounds.height))
+        let labelWidth = max(0, min(label.intrinsicContentSize.width, bounds.width - Self.spacing - symbolWidth))
+        label.frame = directionalFrame(CGRect(x: 0, y: 0, width: labelWidth, height: bounds.height))
+        symbol.frame = directionalFrame(CGRect(
+            x: labelWidth + Self.spacing,
+            y: 0,
+            width: symbolWidth,
+            height: bounds.height,
+        ))
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -74,9 +83,11 @@ final class ReceivedTokensView: UIView {
         font = .preferredFont(forTextStyle: .body)
     }
 
+    /// The arrow is drawn at the figure's font, so the two keep their sizes
+    /// to each other at every text size.
     private func applyFont() {
         label.font = .monospacedDigitSystemFont(ofSize: font.pointSize, weight: .regular)
-        symbol.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: font, scale: .small)
+        symbol.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: label.font)
         setNeedsLayout()
     }
 }
