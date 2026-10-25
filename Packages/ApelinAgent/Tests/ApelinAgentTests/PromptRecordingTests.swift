@@ -6,8 +6,8 @@ import KWWKAI
 import Testing
 
 /// The app shows a sent message from its `prompt` or `queued` event, so the
-/// session records it before reading its system prompt again; the model
-/// still reads the refreshed prompt for that turn.
+/// session records it before reading what changed for its `<system-state>`;
+/// the model still reads that change in the message.
 @Suite("Prompt recording")
 struct PromptRecordingTests {
     @Test(.timeLimit(.minutes(1)))
@@ -17,8 +17,20 @@ struct PromptRecordingTests {
         let faux = await registerFauxProvider()
         defer { faux.unregister() }
         let seen = SystemPrompts()
+        let messages = SystemPrompts()
         faux.setResponses([.factory { context, _, _, _ in
             await seen.add(context.systemPrompt)
+            // the newest user message; kwwk's tool declaration may follow it
+            let user = context.messages.last {
+                if case .user = $0 {
+                    true
+                } else {
+                    false
+                }
+            }
+            if case let .user(user)? = user, case let .text(text)? = user.content.first {
+                await messages.add(text.text)
+            }
             return fauxAssistantMessage("Done.")
         }])
         let session = try await AgentSession(configuration: AgentSessionConfiguration(project: home.project, provider: .registered(faux.getModel()), approval: ApprovalPolicy(mode: .relaxed), dataRoot: home.dataRoot), backend: MockBackend(), digests: MockDigestLedger(), credentials: DeliveredCredentialSource())
@@ -34,7 +46,10 @@ struct PromptRecordingTests {
 
         try await sending.value
         await session.waitForIdle()
-        #expect(await seen.all.last??.contains("fresh-memory-body") == true)
+        // a change after the session opened is the message's delta, never the prompt's
+        #expect(await messages.all.last??.contains("memory added (all chats): ") == true)
+        #expect(await messages.all.last??.contains("fresh-memory-body") == true)
+        #expect(await seen.all.last??.contains("fresh-memory-body") == false)
         await session.close()
     }
 

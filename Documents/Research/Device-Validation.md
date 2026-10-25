@@ -338,17 +338,42 @@ console now goes on after a restart only past a successful respring.
       (at least 80 %; Anthropic over 90 %), and cacheWrite or the uncached
       input is about the newest turn, never the conversation; the second
       message's first request reads the first run's prefix, not only the
-      tools. Then the expected misses, once each and never again on the
-      request after: switching Strict to Relaxed, a memory this project
-      sees saved in another chat (and, where it falls, the first message
-      after midnight). And
-      what must not miss: a memory saved in another project's chat, a
+      tools. None of these may miss, since the system prompt is the
+      session's snapshot and a change is the next message's delta:
+      switching Strict to Relaxed, the first message after midnight, a
+      memory added in Settings ▸ Memories or by another chat, a skill
+      added in Settings ▸ Skills, an edit of the project's AGENTS.md, a
+      toolchain set up, an approval answered within five minutes, and a
       reopened session (`Scripts/device.py kill-host`, then a message under
-      five minutes after the last request), an approval answered within
-      five minutes.
+      five minutes after the last request) when nothing the prompt shows
+      changed since it opened; one that did changes the reopened prompt,
+      which writes the cache once.
       A provider that reports zeros in every field reports no cache at all
       (Copilot may not pass the counts through): note it, not a failure.
       Title completions and compactions are not in the transcript.
+- [ ] The system state (2026-10-25, AGENTS.md ▸ the system prompt; none
+      has run on a device). With the device in English, ask in Chinese
+      ("这个项目是做什么的？"): the reply is Chinese. Ask with only a pasted
+      log or one word (`ls`): the reply is English. Switch the device to
+      Chinese (Simplified) in Settings ▸ General ▸ Language & Region and
+      do the reverse: an English question gets English, a bare log gets
+      Chinese. In both, code, paths and commit messages stay as written.
+      The block is in the transcript, not on screen: `<system-state>` in
+      the user messages of `$DATA/sessions/<id>/transcript.json` (fetched
+      as for Prompt caching), naming that language and region, the local
+      time and time zone, and the mode; none in the chat's bubbles, the
+      title, or an `apelin_conversation_read` of it. Then switch Strict to
+      Relaxed between two messages under five minutes apart: the second
+      message's block says Relaxed, and its first request's cacheRead
+      stays at least 80 % of the prompt (before this, it fell to the tools).
+      A message sent with `apelin_conversation_send` carries its own block
+      in the receiving conversation. Then, while the conversation is open,
+      add a memory in Settings ▸ Memories, a skill in Settings ▸ Skills and
+      a line to the project's AGENTS.md: the next message's block lists
+      each once under "Changed since you were last told", the one after
+      lists none, the agent acts on them, and cacheRead stays at least
+      80 %. A memory the agent saves itself is not listed. After Compact…,
+      the next request writes the cache once and its block lists nothing.
       DeepSeek counts hits in 64-token blocks and may take a request or two
       to warm.
 

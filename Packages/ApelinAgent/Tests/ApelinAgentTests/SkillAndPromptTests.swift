@@ -41,15 +41,16 @@ struct SkillAndPromptTests {
         defer { home.remove() }
         try writeSkill(home, folder: "theme", name: "theme-colours", body: "skill-body-marker")
         let skills = SkillCatalog.load(userDirectory: home.dataRoot.skills).skills
-        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm,
-                                       skills: skills, mcpServers: [],
-                                       date: Date(timeIntervalSince1970: 1_800_000_000))
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
+                                       skills: skills, mcpServers: [])
         #expect(prompt.contains("<skill name=\"theme-colours\" source=\"user\">Use for theme-colours work.</skill>"))
         #expect(prompt.contains("<skill name=\"tweak-development\">"))
         #expect(!prompt.contains("skill-body-marker"))
         #expect(!prompt.contains(BuiltInSkills.all[0].body))
         #expect(prompt.contains("call apelin_skill_read"))
-        #expect(prompt.hasSuffix("Current date: \(Self.day(1_800_000_000))"))
+        // The date and the mode on are each message's (`SystemState`).
+        #expect(!prompt.contains("Current date"))
+        #expect(prompt.hasSuffix("</available_skills>"))
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -129,7 +130,7 @@ struct SkillAndPromptTests {
         let home = try TemporaryHome()
         defer { home.remove() }
         let skills = BuiltInSkills.all
-        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm,
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
                                        skills: skills, mcpServers: [])
         let names = Set(skills.map(\.name))
         // The device's hard-won rules each have a skill.
@@ -173,9 +174,11 @@ struct SkillAndPromptTests {
     func `the responses section forbids pasting tool output and long recaps`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
-        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm,
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
                                        skills: [], mcpServers: [])
         #expect(prompt.contains("# Responses"))
+        #expect(prompt.contains("- Reply in the language the user writes in. When that is unclear (code, a log, a single word, a pasted file), reply in the system language that <system-state> names."))
+        #expect(prompt.contains("Code, identifiers, paths and commit messages stay as the repository has them"))
         #expect(prompt.contains("Do not paste tool output"))
         #expect(prompt.contains("never use a tool just to show"))
         #expect(prompt.contains("progress note is one short line"))
@@ -191,7 +194,7 @@ struct SkillAndPromptTests {
         let id = UUID().uuidString
         let general = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
         for project in [home.project, general] {
-            let prompt = SystemPrompt.make(project: project, projectRoot: home.projectURL.path, mode: .confirm,
+            let prompt = SystemPrompt.make(project: project, projectRoot: home.projectURL.path,
                                            skills: BuiltInSkills.all, mcpServers: [])
             let working = try #require(prompt.range(of: "# Working")?.upperBound)
             let device = try #require(prompt.range(of: "# This device")?.lowerBound)
@@ -215,7 +218,7 @@ struct SkillAndPromptTests {
     func `the prompt keeps apelin_notification_send for what the user would want to know while away`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
-        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .relaxed,
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
                                        skills: [], mcpServers: [])
         let working = try #require(prompt.range(of: "# Working")?.upperBound)
         let device = try #require(prompt.range(of: "# This device")?.lowerBound)
@@ -246,7 +249,7 @@ struct SkillAndPromptTests {
         let instructions = try #require(SystemPrompt.projectInstructions(in: root))
         #expect(instructions == ProjectInstructions(file: "AGENTS.md", text: "agents-marker"))
 
-        let prompt = SystemPrompt.make(project: home.project, projectRoot: root.path, mode: .relaxed, skills: [],
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: root.path, skills: [],
                                        mcpServers: [], projectInstructions: instructions)
         #expect(prompt.contains("# Project instructions (AGENTS.md)"))
         #expect(prompt.contains("agents-marker"))
@@ -262,13 +265,5 @@ struct SkillAndPromptTests {
         try FileManager.default.removeItem(at: home.projectURL.appendingPathComponent("AGENTS.md"))
         try home.write("AGENTS.md", String(repeating: "a", count: SystemPrompt.maxInstructionBytes + 10))
         #expect(SystemPrompt.projectInstructions(in: root)?.text.hasSuffix("… (truncated)") == true)
-    }
-
-    private static func day(_ seconds: TimeInterval) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date(timeIntervalSince1970: seconds))
     }
 }

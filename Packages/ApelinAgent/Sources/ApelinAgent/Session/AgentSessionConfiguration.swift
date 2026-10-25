@@ -22,6 +22,9 @@ public struct AgentSessionConfiguration: Sendable {
     /// the system prompt names with the bootstrap; nil where there is none
     /// (the Mac tests).
     public var installRoot: String?
+    /// The device's language and clock, which each message's
+    /// `<system-state>` names.
+    public var systemState: SystemStateSource
 
     public init(
         id: String = UUID().uuidString,
@@ -35,6 +38,7 @@ public struct AgentSessionConfiguration: Sendable {
         serviceTier: ServiceTier? = nil,
         maxTurns: Int? = nil,
         installRoot: String? = nil,
+        systemState: SystemStateSource = .device,
     ) {
         self.id = id
         self.project = project
@@ -47,5 +51,6 @@ public struct AgentSessionConfiguration: Sendable {
         self.serviceTier = serviceTier
         self.maxTurns = maxTurns
         self.installRoot = installRoot
+        self.systemState = systemState
     }
 }

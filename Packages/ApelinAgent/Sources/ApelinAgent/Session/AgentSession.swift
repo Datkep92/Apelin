@@ -48,7 +48,17 @@ public actor AgentSession {
     private var submitted: Set<UUID> = []
     /// Messages sent while a run was going, oldest first, each until the
     /// run's loop takes it: `injected` is the text the loop is handed.
-    private var queued: [(id: UUID, text: String, attachments: [AgentAttachment], injected: String)] = []
+    /// `told`: what the model had been told before this message's delta,
+    /// put back if the run never takes it.
+    private var queued: [(id: UUID, text: String, attachments: [AgentAttachment], injected: String, told: PromptState)] = []
+    /// What the system prompt showed when the session took it, plus every
+    /// delta a message has carried since (`PromptState`).
+    private var told: PromptState
+    /// A compaction rewrote the conversation: the next run takes the system
+    /// prompt afresh, since its prefix is written anew anyway.
+    private var snapshotStale = false
+    /// This session's own memory and skill calls, until they end, by call id.
+    private var ownCalls: [String: (tool: AgentToolName, arguments: KWWKAI.JSONValue)] = [:]
     /// What the current run has received, for the app's counter.
     private var output = OutputTally()
 
@@ -116,12 +126,8 @@ public actor AgentSession {
         )
         let (mcpManager, mcpTools) = await MCPBridge.connect(configuration.mcpServers)
         let skills = SkillCatalog.load(userDirectory: configuration.dataRoot.skills)
-        let systemPrompt = Self.systemPrompt(
-            configuration,
-            root: root,
-            mode: configuration.approval.mode,
-            skills: skills.skills,
-        )
+        let snapshot = PromptState.read(configuration, root: root, skills: skills.skills)
+        let systemPrompt = Self.systemPrompt(configuration, root: root, state: snapshot)
 
         let agent = Agent(options: AgentOptions(
             initialState: AgentInitialState(
@@ -140,6 +146,7 @@ public actor AgentSession {
         agent.state.serviceTier = configuration.serviceTier
 
         workspace = root
+        told = snapshot
         resolvedFrom = (configuration.provider, resolved.credentials)
         self.configuration = configuration
         self.log = log
@@ -191,48 +198,63 @@ public actor AgentSession {
 
     // MARK: - Control
 
-    /// Each prompt carries the app's current setting, including an existing session.
+    /// Each prompt carries the app's current setting, including an existing
+    /// session. The model reads it in the next message's `<system-state>`;
+    /// the system prompt names every mode and none as the one on.
     public func setApprovalMode(_ mode: ApprovalMode) async {
         guard await runner.setMode(mode) else { return }
-        await refreshSystemPrompt()
         if var metadata = try? await log.readMetadata() {
             metadata.mode = mode
             try? await log.writeMetadata(metadata)
         }
     }
 
-    private func refreshSystemPrompt() async {
-        let mode = await runner.approvalMode
-        let skills = SkillCatalog.load(userDirectory: configuration.dataRoot.skills)
-        agent.state.systemPrompt = Self.systemPrompt(configuration, root: workspace, mode: mode, skills: skills.skills)
+    /// What the system prompt would show now.
+    private func currentState() -> PromptState {
+        PromptState.read(
+            configuration,
+            root: workspace,
+            skills: SkillCatalog.load(userDirectory: configuration.dataRoot.skills).skills,
+        )
     }
 
-    /// Skills, memory, the project's instructions and the environment
-    /// (`EnvironmentPrompt`) are read again each time, so a change to any of
-    /// them applies from the next run. Unchanged, the prompt is the same
-    /// bytes: the provider's cache of the conversation, which starts at the
-    /// tools and this prompt, holds only while it is (`PromptCacheTests`).
+    /// Takes the system prompt afresh: after a compaction, for the run that
+    /// writes the compacted conversation's prefix anyway.
+    private func takeSnapshot() {
+        let snapshot = currentState()
+        agent.state.systemPrompt = Self.systemPrompt(configuration, root: workspace, state: snapshot)
+        told = snapshot
+        snapshotStale = false
+    }
+
+    /// The system prompt a session takes once, when it opens (and after a
+    /// compaction), and keeps byte for byte: the provider's cache of the
+    /// conversation, which starts at the tools and this prompt, holds only
+    /// while it does (`PromptCacheTests`). What changes later — the
+    /// project's instructions, a skill, memory, the environment — reaches
+    /// the model as a delta in the next message's `<system-state>`, and
+    /// the approval mode and the time are each message's.
+    static func systemPrompt(_ configuration: AgentSessionConfiguration, root: ScopedRoot, state: PromptState) -> String {
+        SystemPrompt.make(
+            project: configuration.project,
+            projectRoot: root.path,
+            skills: state.skills,
+            mcpServers: configuration.mcpServers,
+            projectInstructions: state.instructions,
+            buildSystem: state.buildSystem,
+            memory: MemoryTools.prompt(state.memory),
+            environment: state.environment,
+        )
+    }
+
+    /// The system prompt the files give now.
     static func systemPrompt(
         _ configuration: AgentSessionConfiguration,
         root: ScopedRoot,
-        mode: ApprovalMode,
         skills: [SkillDocument],
         device: DeviceFacts = .current,
-        date: Date = Date(),
     ) -> String {
-        let memory = MemoryStore(root: configuration.dataRoot.url)
-        return SystemPrompt.make(
-            project: configuration.project,
-            projectRoot: root.path,
-            mode: mode,
-            skills: skills,
-            mcpServers: configuration.mcpServers,
-            projectInstructions: SystemPrompt.projectInstructions(in: root),
-            buildSystem: ProjectBuildSystem.read(in: root),
-            memory: MemoryTools.prompt(try? memory.read().forProject(configuration.project.id)),
-            environment: EnvironmentPrompt.section(EnvironmentPrompt.inputs(configuration, root: root, device: device)),
-            date: date,
-        )
+        systemPrompt(configuration, root: root, state: PromptState.read(configuration, root: root, skills: skills, device: device))
     }
 
     /// The text the model reads for a message that starts a run: with the
@@ -246,6 +268,22 @@ public actor AgentSession {
         }
         projectContextGiven = true
         return ProjectContext.make(project: configuration.project, root: workspace) + text
+    }
+
+    /// `text` as the model reads it: after this moment's `<system-state>`,
+    /// with what changed since the model was last told when `delta` is set.
+    /// It goes into the message, so the transcript keeps it as sent.
+    /// Answers what the model had been told before.
+    private func withSystemState(_ text: String, delta: Bool) async -> (text: String, toldBefore: PromptState) {
+        let before = told
+        var changes: [String] = []
+        if delta {
+            let now = currentState()
+            changes = now.changes(since: told)
+            told = now
+        }
+        let facts = await SystemState.facts(configuration.systemState, mode: runner.approvalMode, changes: changes)
+        return (SystemState.make(facts) + text, before)
     }
 
     /// A separate, bounded completion uses the conversation's current model and no tools.
@@ -368,11 +406,16 @@ public actor AgentSession {
     /// message only when the run takes it. Returns once it is recorded.
     ///
     /// The message is recorded before anything slower: the app shows it
-    /// from that event. The system prompt is read again after, before the
-    /// run it starts. kwwk takes a run's system prompt and tools once, when
-    /// the run starts, so every request of a run sends the same ones; a
-    /// message queued into a running run is read under the prompt that run
-    /// began with, and what changed applies from the next run.
+    /// from that event. The system prompt is the session's snapshot and
+    /// stays as it is (a compaction aside, after which the run this message
+    /// starts takes it afresh).
+    ///
+    /// The model reads the message after its `<system-state>`: the
+    /// language, time and approval mode when it was sent, and what the
+    /// system prompt shows that changed since the model was last told
+    /// (`SystemState`, `PromptState`). The block is part of the message, so
+    /// the transcript keeps it as it went; the event the app shows, and the
+    /// title, have the text alone.
     ///
     /// `from`: another conversation of the project sent it
     /// (`apelin_conversation_send`). It is recorded as the user's text, marked
@@ -411,13 +454,22 @@ public actor AgentSession {
             .map { ImageContent(data: $0.data.base64EncodedString(), mimeType: $0.mimeType) }
         let paths = attachments.map { "\($0.name): \($0.path)" }.joined(separator: "\n")
         let typed = paths.isEmpty ? text : text + "\n\nAttached files in the workspace:\n" + paths
-        let prompt = sender.map { $0.prefix + "\n" + typed } ?? typed
+        if !queues {
+            // A compaction going rewrites the system prompt for the run
+            // this message starts; the message says what changed after it.
+            while let compaction {
+                await compaction.value
+            }
+            if snapshotStale, runTask == nil || runEnding {
+                takeSnapshot()
+            }
+        }
+        let (prompt, toldBefore) = await withSystemState(sender.map { $0.prefix + "\n" + typed } ?? typed, delta: true)
         let message = UserMessage(content: [.text(TextContent(text: prompt))] + images.map { .image($0) })
-        await refreshSystemPrompt()
         await waitForEndingRun()
         if queues, let messageID {
             if runTask != nil {
-                queued.append((messageID, text, attachments, prompt))
+                queued.append((messageID, text, attachments, prompt, toldBefore))
                 agent.steer(message)
                 return
             }
@@ -458,8 +510,9 @@ public actor AgentSession {
     public func steer(_ text: String) async throws {
         guard runTask != nil else { return try await prompt(text) }
         try await log.append(.steered(text: text))
-        await refreshSystemPrompt()
-        agent.steer(text)
+        // No delta: kwwk drops a steer a stopped run never took, and the
+        // change would go unsaid. The next message carries it.
+        await agent.steer(withSystemState(text, delta: false).text)
     }
 
     /// Compacts the conversation now, as kwwk does on its own when the
@@ -511,6 +564,7 @@ public actor AgentSession {
             aborted ? AgentCompactionResult(outcome: .cancelled) : AgentCompactionResult(outcome: .failed, message: reason)
         }
         if result.outcome == .compacted {
+            snapshotStale = true
             // a reopened session reads the compacted conversation back
             do {
                 try await log.writeTranscript(agent.state.messages)
@@ -617,9 +671,21 @@ public actor AgentSession {
                     message: assistant.errorMessage ?? "The model provider returned an error. Try again.",
                 ))
             }
+        case let .compactEnd(outcome):
+            // kwwk compacted on its own, as the context filled
+            if case .compacted = outcome {
+                snapshotStale = true
+            }
         case let .toolExecutionStart(id, name, args):
+            if let tool = AgentToolName(rawValue: name), Self.ownChangeTools.contains(tool) {
+                ownCalls[id] = (tool, args)
+            }
             await record(.toolCallStarted(ToolCallRecord(id: id, name: name, arguments: args.canonicalJSON)))
         case let .toolExecutionEnd(id, name, result, isError):
+            if let call = ownCalls.removeValue(forKey: id), !isError {
+                // the tool's result told the model; no delta repeats it
+                told = PromptState.absorbing(call.tool, arguments: call.arguments, into: told, now: currentState())
+            }
             await record(.toolCallFinished(ToolResultRecord(
                 id: id,
                 name: name,
@@ -643,6 +709,10 @@ public actor AgentSession {
         }
     }
 
+    /// The tools whose result tells the model what it changed in what the
+    /// system prompt shows.
+    static let ownChangeTools: Set<AgentToolName> = [.memorySave, .memoryDelete, .skillSave, .skillRemove]
+
     /// The largest attachment a message carries, whether sent or a tool's image.
     public static let maximumAttachmentBytes = 32 * 1024 * 1024
 
@@ -660,6 +730,8 @@ public actor AgentSession {
     private func dropQueued() async {
         guard !queued.isEmpty else { return }
         let ids = queued.map(\.id)
+        // The changes the dropped messages carried were never read.
+        told = queued[0].told
         queued.removeAll()
         submitted.subtract(ids)
         await record(.queuedMessagesDropped(ids: ids))

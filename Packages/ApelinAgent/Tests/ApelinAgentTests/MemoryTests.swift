@@ -71,7 +71,7 @@ struct MemoryTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func `new and existing sessions see current memory while other projects stay private`() async throws {
+    func `a new session reads current memory, an open one hears of a change in its next message, and other projects stay private`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let store = MemoryStore(root: home.dataRoot.url)
@@ -98,10 +98,19 @@ struct MemoryTests {
         snapshot = try store.delete(id: local.id, revision: snapshot.revision)
         await session.setApprovalMode(.relaxed)
         provider.setResponses([.factory { context, _, _, _ in
-            #expect(context.systemPrompt?.contains("memory-old-language") == false)
-            #expect(context.systemPrompt?.contains("memory-new-language") == true)
-            #expect(context.systemPrompt?.contains("memory-local-target") == false)
-            #expect(context.systemPrompt?.contains("Approval mode: Relaxed") == true)
+            // The open session's prompt is its snapshot; the change, and the
+            // mode, are the message's.
+            #expect(context.systemPrompt?.contains("memory-old-language") == true)
+            #expect(context.systemPrompt?.contains("memory-new-language") == false)
+            guard case let .user(message)? = context.messages.last, case let .text(text)? = message.content.first else {
+                Issue.record("the request ends with the user's message")
+                return fauxAssistantMessage("No message.")
+            }
+            #expect(text.text.contains("  - memory changed (all chats): Language: memory-new-language"))
+            #expect(text.text.contains("  - memory removed: Target"))
+            #expect(!text.text.contains("memory-unrelated-project"))
+            #expect(text.text.contains("- Approval mode: Relaxed."))
+            #expect(context.systemPrompt?.contains("Approval mode: Relaxed") == false)
             return fauxAssistantMessage("Refreshed memory.")
         }])
         try await session.prompt("Use the updated preferences.")

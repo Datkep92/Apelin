@@ -198,7 +198,8 @@ struct EnvironmentContextTests {
         #expect(texts.count == 3)
         let first = try #require(texts.first?.first)
         #expect(first.hasPrefix("<project-context>\n"))
-        #expect(first.hasSuffix("</project-context>\n\nhello"), "the user's words follow the context")
+        #expect(first.contains("</project-context>\n\n<system-state>\n"), "the moment follows the context")
+        #expect(first.hasSuffix("</system-state>\n\nhello"), "the user's words follow both")
         #expect(first.contains("Project Hello (id \(home.project.id))"))
         #expect(first.contains("- Kind: tweak; Objective-C; deployment target 15.0; architectures roothide arm64e, rootless arm64 arm64e"))
         #expect(first.contains("- Template: wiki.qaq.apelin.dev.tweak tweak 1.0.0"))
@@ -216,8 +217,9 @@ struct EnvironmentContextTests {
         for call in texts {
             #expect(call.joined().components(separatedBy: "<project-context>").count == 2, "the context is in the conversation exactly once")
         }
-        #expect(texts[1].last == "next" && texts[2].last == "after reopening", "later messages are as typed")
-        #expect(texts[2].count == 3 && texts[2][1] == "next", "a reopened session reads every earlier run back, not just the last")
+        let typed = "</system-state>\n\n"
+        #expect(texts[1].last?.hasSuffix(typed + "next") == true && texts[2].last?.hasSuffix(typed + "after reopening") == true, "later messages are as typed, after their own moment")
+        #expect(texts[2].count == 3 && texts[2][1] == texts[1].last, "a reopened session reads every earlier run back as it went, not just the last")
         let shown = events.compactMap { event -> String? in
             if case let .userMessage(_, text, _) = event {
                 return text
@@ -268,7 +270,9 @@ struct EnvironmentContextTests {
         try await session.prompt("hi", messageID: UUID())
         await session.waitForIdle()
         await session.close()
-        #expect(await calls.userTexts.first == ["hi"])
+        let first = try #require(await calls.userTexts.first)
+        #expect(first.count == 1 && first[0].hasPrefix("<system-state>\n") && first[0].hasSuffix("</system-state>\n\nhi"))
+        #expect(!first[0].contains("<project-context>"))
         #expect(await calls.systemPrompts.first?.contains("# Environment") == true)
     }
 }

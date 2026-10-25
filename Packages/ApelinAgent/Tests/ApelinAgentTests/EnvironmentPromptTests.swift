@@ -14,7 +14,7 @@ struct EnvironmentPromptTests {
         let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot, installRoot: home.home.path + "/jb")
         let root = try ScopedRoot(home.projectURL)
         let device = DeviceFacts(osVersion: "17.3.1", machine: "iPhone16,1", arm64e: true, cpuFeatures: ["FEAT_LRCPC": true, "FEAT_SHA3": false, "FEAT_DotProd": true])
-        let prompt = AgentSession.systemPrompt(configuration, root: root, mode: .confirm, skills: [], device: device)
+        let prompt = AgentSession.systemPrompt(configuration, root: root, skills: [], device: device)
         #expect(prompt.contains("- Device: iPhone16,1 (arm64e), iOS 17.3.1; CPU features: FEAT_DotProd, FEAT_LRCPC; missing FEAT_SHA3."))
         #expect(prompt.contains("- Bootstrap: rootless, install root \(home.home.path)/jb."))
         #expect(prompt.contains("- Toolchains: none installed."))
@@ -32,7 +32,7 @@ struct EnvironmentPromptTests {
         defer { home.remove() }
         let jbroot = home.home.deletingLastPathComponent().path
         let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot, installRoot: jbroot)
-        let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(home.projectURL), mode: .confirm, skills: [])
+        let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(home.projectURL), skills: [])
         #expect(prompt.contains("- Bootstrap: roothide, install root \(jbroot)."))
         #expect(prompt.contains("print `/var/mobile/…` or `/rootfs/…` for a path the toolchain's compilers know by another name"))
     }
@@ -67,7 +67,7 @@ struct EnvironmentPromptTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let identity = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
         let configuration = AgentSessionConfiguration(project: identity, temporaryID: id, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot)
-        let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(folder), mode: .confirm, skills: [])
+        let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(folder), skills: [])
         #expect(prompt.contains("Default, prepared."))
         #expect(!prompt.contains("This project's") && !prompt.contains("This project binds"))
         #expect(prompt.contains("IPHONEOS_DEPLOYMENT_TARGET=16.0 (Apelin's default; this chat has no project)"))
@@ -80,11 +80,10 @@ struct EnvironmentPromptTests {
         try EnvironmentContextTests.register(in: home)
         let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot)
         let root = try ScopedRoot(home.projectURL)
-        let day = Date(timeIntervalSince1970: 1_800_000_000)
-        let first = AgentSession.systemPrompt(configuration, root: root, mode: .confirm, skills: [], date: day)
+        let first = AgentSession.systemPrompt(configuration, root: root, skills: [])
         // Written again, touched later: the same records read the same.
         try EnvironmentContextTests.register(in: home)
-        let second = AgentSession.systemPrompt(configuration, root: root, mode: .confirm, skills: [], date: day)
+        let second = AgentSession.systemPrompt(configuration, root: root, skills: [])
         #expect(first == second)
     }
 

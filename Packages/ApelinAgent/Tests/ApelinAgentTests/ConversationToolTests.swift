@@ -271,14 +271,13 @@ struct ConversationToolTests {
     func `both prompts explain conversations; General Chat's hands a new project its first one, with links`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
-        let project = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm, skills: [], mcpServers: [])
+        let project = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [], mcpServers: [])
         #expect(project.contains("# Conversations"))
         #expect(project.contains("apelin_conversation_create") && project.contains("not the user"))
         let id = UUID().uuidString
         let general = try SystemPrompt.make(
             project: ProjectIdentity(id: "temporary:" + id, name: ProjectName(id)),
             projectRoot: home.projectURL.path,
-            mode: .confirm,
             skills: [],
             mcpServers: [],
         )

@@ -54,7 +54,9 @@ struct MemoryTools {
         return ToolArgumentError("No memory has id \(id); apelin_memory_list shows the ids.\(hint)")
     }
 
-    static func prompt(_ snapshot: MemorySnapshot?) -> String {
+    /// The section for `records`, the ones this session sees; nil when the
+    /// store could not be read.
+    static func prompt(_ records: [MemoryRecord]?) -> String {
         // Sorted keys: the same memories give the same bytes, so the system
         // prompt, and the provider's cache of it, stays the same. Only the
         // records this session sees go in, never the revision: that changes
@@ -63,7 +65,7 @@ struct MemoryTools {
         // cache again. apelin_memory_list answers the revision a change needs.
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let contents = snapshot.flatMap { try? encoder.encode(PromptRecords(records: $0.records)) }
+        let contents = records.flatMap { try? encoder.encode(PromptRecords(records: $0)) }
             .map { String(decoding: $0, as: UTF8.self) }
             ?? "Memory storage is unavailable. Do not invent saved memories."
         return """

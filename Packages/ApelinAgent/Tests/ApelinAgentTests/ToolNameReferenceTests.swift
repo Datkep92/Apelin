@@ -31,19 +31,20 @@ struct ToolNameReferenceTests {
             device: .current,
         ))
         var prompts: [String] = []
-        for mode in [ApprovalMode.relaxed, .confirm] {
-            for (project, buildSystem) in [(home.project, ProjectBuildSystem.apelin), (home.project, .external), (temporary, .apelin)] {
-                prompts.append(SystemPrompt.make(
-                    project: project,
-                    projectRoot: home.projectURL.path,
-                    mode: mode,
-                    skills: BuiltInSkills.all,
-                    mcpServers: [server],
-                    buildSystem: buildSystem,
-                    memory: MemoryTools.prompt(nil),
-                    environment: environment,
-                ))
-            }
+        for (project, buildSystem) in [(home.project, ProjectBuildSystem.apelin), (home.project, .external), (temporary, .apelin)] {
+            prompts.append(SystemPrompt.make(
+                project: project,
+                projectRoot: home.projectURL.path,
+                skills: BuiltInSkills.all,
+                mcpServers: [server],
+                buildSystem: buildSystem,
+                memory: MemoryTools.prompt(nil),
+                environment: environment,
+            ))
+        }
+        // and the block before each message, in every mode
+        for mode in [ApprovalMode.relaxed, .confirm, .full] {
+            prompts.append(SystemState.make(SystemState.facts(.device, mode: mode)))
         }
         // The note that old names may be met is the one place they are named.
         return prompts.map { $0.replacingOccurrences(of: SystemPrompt.renamedToolsNote, with: "") }

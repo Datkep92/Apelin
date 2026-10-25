@@ -82,10 +82,10 @@ struct ProjectCreationTests {
     func `General Chat's prompt says how to start a project`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
-        let general = try SystemPrompt.make(project: generalChat(), projectRoot: home.projectURL.path, mode: .confirm, skills: [], mcpServers: [])
+        let general = try SystemPrompt.make(project: generalChat(), projectRoot: home.projectURL.path, skills: [], mcpServers: [])
         #expect(general.contains("# General Chat"))
         #expect(general.contains("apelin_template_list"))
-        let project = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm, skills: [], mcpServers: [])
+        let project = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [], mcpServers: [])
         #expect(!project.contains("# General Chat"))
     }
 }

@@ -244,8 +244,8 @@ struct GitToolTests {
     func `the prompt carries the git rule, and the workspace section only for a workspace`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
-        func prompt(_ buildSystem: ProjectBuildSystem, mode: ApprovalMode = .relaxed) -> String {
-            SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: mode, skills: [], mcpServers: [], buildSystem: buildSystem)
+        func prompt(_ buildSystem: ProjectBuildSystem) -> String {
+            SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [], mcpServers: [], buildSystem: buildSystem)
         }
         let tweak = prompt(.apelin)
         #expect(tweak.contains("only through the git_* tools"))
@@ -260,7 +260,7 @@ struct GitToolTests {
         #expect(workspace.contains("git_clone"))
         #expect(workspace.contains("Settings ▸ Git"))
 
-        #expect(prompt(.apelin, mode: .confirm).contains("git_push"))
+        #expect(prompt(.apelin).contains("git_push"))
     }
 
     // MARK: Settings
