@@ -302,6 +302,39 @@ console now goes on after a restart only past a successful respring.
       two chats streaming at once, with Stop and the approval card holding
       still on every batch; the newest call's line under the summary, back
       in `80fb07a`.
+- [ ] Prompt caching (2026-10-24, AGENTS.md ▸ Prompt caching; none has run
+      on a device). The usage of every request is in the session's
+      transcript, rewritten when each run ends: `$DATA/sessions/<session
+      id>/transcript.json` (the id is `agentList`'s `sessionID`, or the
+      newest folder: `Scripts/device.py exec 'ls -t "$DATA/sessions" | head
+      -3'`), one assistant message per request, its `usage` {input,
+      cacheRead, cacheWrite, output}, `input` the uncached rest, so the
+      prompt is input + cacheRead + cacheWrite. Fetch it with
+      `Scripts/device.py exec 'cat "$DATA/sessions/<id>/transcript.json"' >
+      build/Device/transcript.json` and print one line a request:
+      `python3 -I -c 'import json,sys;[print(m["model"],"prompt",u.get("input",0)+u.get("cacheRead",0)+u.get("cacheWrite",0),"read",u.get("cacheRead",0),"write",u.get("cacheWrite",0)) for m in json.load(open(sys.argv[1])) if m["role"]=="assistant" for u in [m["usage"]]]' build/Device/transcript.json`.
+      In a project's chat, per provider at hand (Copilot with a Claude and
+      with a GPT model, an Anthropic key or Claude Pro/Max, Codex, DeepSeek
+      through an OpenAI-compatible key, OpenRouter, Kimi): one message that
+      runs three or more tools, a second under five minutes after the first
+      run ends. A pass:
+      from the run's second request on, cacheRead is most of the prompt
+      (at least 80 %; Anthropic over 90 %), and cacheWrite or the uncached
+      input is about the newest turn, never the conversation; the second
+      message's first request reads the first run's prefix, not only the
+      tools. Then the expected misses, once each and never again on the
+      request after: switching Strict to Relaxed, a memory this project
+      sees saved in another chat (and, where it falls, the first message
+      after midnight). And
+      what must not miss: a memory saved in another project's chat, a
+      reopened session (`Scripts/device.py kill-host`, then a message under
+      five minutes after the last request), an approval answered within
+      five minutes.
+      A provider that reports zeros in every field reports no cache at all
+      (Copilot may not pass the counts through): note it, not a failure.
+      Title completions and compactions are not in the transcript.
+      DeepSeek counts hits in 64-token blocks and may take a request or two
+      to warm.
 
 ## SDK and toolchain matrix (2026-10-19)
 

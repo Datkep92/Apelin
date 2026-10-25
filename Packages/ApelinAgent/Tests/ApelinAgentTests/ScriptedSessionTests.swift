@@ -85,6 +85,50 @@ struct ScriptedSessionTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func `a fenced title is read, and a model that never names the chat is asked only a few times`() async throws {
+        #expect(AgentSession.unfenced("```json\n{\"title\":\"A\"}\n```") == "{\"title\":\"A\"}")
+        #expect(AgentSession.unfenced("```\n{\"title\":\"A\"}\n```") == "{\"title\":\"A\"}")
+        #expect(AgentSession.unfenced("{\"title\":\"A\"}") == "{\"title\":\"A\"}")
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let provider = await registerFauxProvider()
+        defer { provider.unregister() }
+        let asked = Counter()
+        let unnamed = FauxResponseStep.factory { _, _, _, _ in
+            await asked.add()
+            return fauxAssistantMessage("```\nnot a title\n```")
+        }
+        provider.setResponses(Array(repeating: unnamed, count: AgentSession.maximumTitleMisses + 2))
+        let session = try await AgentSession(configuration: AgentSessionConfiguration(
+            project: home.project, provider: .registered(provider.getModel()), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot,
+        ),
+        backend: MockBackend(), digests: MockDigestLedger(), credentials: DeliveredCredentialSource())
+        for _ in 0 ..< AgentSession.maximumTitleMisses + 2 {
+            await session.generateTitle(for: "Explain the title view")
+            await session.waitForTitle()
+        }
+        #expect(await asked.value == AgentSession.maximumTitleMisses)
+
+        provider.setResponses([.message(fauxAssistantMessage("```json\n{\"title\":\"Title view\",\"projectName\":null}\n```"))])
+        let named = try await AgentSession(configuration: AgentSessionConfiguration(
+            project: home.project, provider: .registered(provider.getModel()), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot,
+        ),
+        backend: MockBackend(), digests: MockDigestLedger(), credentials: DeliveredCredentialSource())
+        await named.generateTitle(for: "Explain the title view")
+        await named.waitForTitle()
+        #expect(try await named.log.records(afterSeq: 0).contains { $0.event == .titleUpdated("Title view") })
+        await session.close()
+        await named.close()
+    }
+
+    private actor Counter {
+        private(set) var value = 0
+        func add() {
+            value += 1
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func `titles use the current model without entering the conversation`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }

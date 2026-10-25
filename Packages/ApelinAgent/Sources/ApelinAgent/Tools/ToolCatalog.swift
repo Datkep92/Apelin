@@ -175,7 +175,7 @@ public extension AgentToolName {
             Schema.object([
                 "session_id": Schema.string("Session id from apelin_conversation_create or apelin_conversation_list."),
                 "after_seq": Schema.integer("Only messages after this point: last_seq from the previous read. Omit for the whole conversation."),
-                "wait_seconds": Schema.integer("Wait up to this long, 0 to \(ConversationReadToolRequest.maximumWaitSeconds), for a turn after after_seq to finish. Default 0."),
+                "wait_seconds": Schema.integer("Wait up to this long, 0 to \(ConversationReadToolRequest.maximumWaitSeconds), for a turn after after_seq to finish; to wait longer, read again. Default 0."),
                 "project": Self.projectParameter,
             ], required: ["session_id"])
         case .toolchainSetup:

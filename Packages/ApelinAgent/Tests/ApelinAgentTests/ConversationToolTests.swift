@@ -229,7 +229,7 @@ struct ConversationToolTests {
             .conversationCreate(prompt: "Check the filter", title: nil),
             .conversationSend(sessionID: "child-session", text: "Also the changelog"),
             .conversationList,
-            .conversationRead(sessionID: "child-session", afterSeq: 12, waitSeconds: 600),
+            .conversationRead(sessionID: "child-session", afterSeq: 12, waitSeconds: ConversationReadToolRequest.maximumWaitSeconds),
             .conversationRead(sessionID: "child-session", afterSeq: nil, waitSeconds: 0),
             .conversationStop(sessionID: "child-session", close: false),
             .conversationStop(sessionID: "child-session", close: true),

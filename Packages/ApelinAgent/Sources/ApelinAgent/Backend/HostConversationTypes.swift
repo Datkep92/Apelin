@@ -123,8 +123,13 @@ public struct ConversationListToolResponse: Sendable, Hashable, Codable {
 }
 
 public struct ConversationReadToolRequest: Sendable, Hashable, Codable {
-    /// apelin_conversation_read waits at most ten minutes.
-    public static let maximumWaitSeconds = 600
+    /// apelin_conversation_read waits at most three minutes. The provider
+    /// keeps a conversation's prompt cached for five minutes from the start
+    /// of the request that last used it (Anthropic's default; OpenAI's is
+    /// about as short), and a longer wait makes the reader's next request
+    /// write its whole conversation into the cache again. Waiting again
+    /// costs a read of that cache instead.
+    public static let maximumWaitSeconds = 180
 
     public var context: HostCallContext
     public var sessionID: String

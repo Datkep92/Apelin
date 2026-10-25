@@ -1050,7 +1050,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the start (`ConversationReader`: state running, waitingForApproval,
   idle or ended, the approvals still waiting, the assistant's `message`
   and `error` texts after `after_seq`, cut at 32 KiB with `last_seq`
-  where the next read goes on), and with `wait_seconds` (0–600) attaching
+  where the next read goes on), and with `wait_seconds` (0–180, under the
+  provider's five-minute cache: Prompt caching, below) attaching
   again, 5 s at a time, until a turn after `after_seq` finishes, a new
   approval is asked, it ends or the time runs out; apelin_conversation_stop
   {close?} → `agentAbort`, then `agentClose` when asked, of a session the
@@ -2237,7 +2238,7 @@ adding a dated record beside it.
 
 - `ChatRuntime` keeps one reader per live session while the user switches pages. It persists ordered host events and reattaches after the saved cursor. A save that fails (a full disk, a folder it cannot write) leaves the conversation running in memory: `StorageWarning` says so once — "Storage Almost Full" when less than 512 MB is free, else the error — and not again until a save gets through; the unsaved conversations are written with the next save that works and on every return to the foreground, and the same notice comes at launch or on return when free space is already under 512 MB. Sending text never needs the disk; only attachments are staged. A stopped host can reopen the persisted session ID; the host and worker refuse a different workspace identity. A reopened session comes back as a new task that replays the whole history, renumbered and newly timed, before anything new; the conversation keeps the events it has and reads past that replay (`ChatRecord.reopen(as:)`, `SessionReplay`, saved with the record) to the first user message or compaction it has not seen (Compact… reopens a stopped session with no message after it), so the rows on screen stay as they are. Never empty the events for a new task: the list would collapse to the message being sent and land at the top of the history when the replay came back. Rows are numbered by their event's position, not its seq, since a reopened task's numbering starts again. Stop calls `agentAbort`; approval buttons call `agentApprove` and wait for the authoritative resolved event.
 - `agentPrompt` accepts an optional message UUID and descriptor-indexed attachments (at most eight, at most 32 MiB each). The worker saves them under random workspace-relative `Attachments/` paths; filenames remain display metadata. The session log records the message UUID and relative attachments, deduplicates a retried send, and supplies image content to the provider. Tool-returned images are saved the same way and replay into the image album UI.
-- Every app prompt also carries the current approval mode. The host updates its ledger before forwarding; the session updates its tool policy and metadata, records the message (its `prompt` or `queued` event), then reads its system prompt again before the model sees the message. A prompt naming the provider and model the session already resolved, with the same stored sign-in, keeps that resolution: no token exchange before the message is recorded, and a signed-out provider is still refused. An existing pending approval is not silently accepted. A bounded, tool-free completion on the current model summarizes the first user message into a `title` event; title failure leaves the local fallback and does not fail the turn.
+- Every app prompt also carries the current approval mode. The host updates its ledger before forwarding; the session updates its tool policy and metadata, records the message (its `prompt` or `queued` event), then reads its system prompt again for the run it starts (a queued message joins a run under the prompt that run began with). A prompt naming the provider and model the session already resolved, with the same stored sign-in, keeps that resolution: no token exchange before the message is recorded, and a signed-out provider is still refused. An existing pending approval is not silently accepted. A bounded, tool-free completion on the current model summarizes the first user message into a `title` event; title failure leaves the local fallback and does not fail the turn; a later message asks again, until three completions have named nothing (`maximumTitleMisses`) or, while the project keeps its generated name, on every message. A JSON answer in one Markdown fence is read as the JSON.
 - `ChatRuntime.transcript` brings a conversation's rows up to date only when they would differ (`ChatTranscriptCache`, kept for the followed conversations and the page's). `ChatTranscript` is a fold: new events (`ChatRecord.events` are only appended to) are read onto the rows the earlier ones made (`append`), and the rows shown are made afresh from those, as a build from every event at once at the same `now` makes them (`Tests/ChatTranscript/TranscriptFold.swift` compares the two over random logs). A change to the messages it is sending, or a `quietDeadline` passed since it was shown, shows the rows again, so the refresh `ChatQuietWatch` asks for at the deadline adds the stand-in; only a sender's new title builds it again from every event. A row equal to one shown before is that very value, so the page's comparison stops at its storage. The composer is told of its approval request and its Stop only when either changes, a long-poll that ran out with nothing writes nothing, and a conversation is written once at a time, then once more with what changed meanwhile.
 - Working state comes from session events, never a late send acknowledgement. Completed zero-second, zero-tool thought rows are omitted. A positive duration without tools shows only the duration; tools without a positive duration show only their count; “and” joins the clauses only when both values are positive. Thought headers use Litext numeric transitions, with reduced motion respected. User messages and reply text are selectable.
 - The conversation alternates a single thinking summary with response content. Consecutive thinking steps merge across tools and approvals. Tool calls and completed approvals stay out of the main transcript; tapping the summary opens their ordered trace in a form sheet, including provider-supplied thinking text, all of it plain text. Headers use body-size 50% primary text aligned to the body margin, with a sentence for duration and tool count. Pending approval still replaces the composer.
@@ -2325,7 +2326,12 @@ greeting answered with a greeting (no tools, no survey of the project), then the
 checks actually run and any real blocker. `# Responses` makes concision bite —
 match the length to the task, and do not paste tool output, files, diffs or
 logs back, narrate the steps or recap at the end; a progress note is one short
-line (owner, 2026-10-24). `# Working` keeps apelin_notification_send for what the reader
+line (owner, 2026-10-24). `# Working` opens with what a model's general
+knowledge gets wrong: an Apelin tweak is plain Objective-C hooked with
+`MSHookMessageEx` (the template's `Sources/Tweak.m`), with no Logos or Theos,
+and Apelin-specific work, a question included, starts from the matching skill
+(on a device, General Chat answered from memory that the template was a
+Logos `Tweak.x`). It keeps apelin_notification_send for what the reader
 would want to know while away (a long build, install or setup ended, something
 to do on the device), never routine progress, the reply or the turn's end. It
 asks for independent tool calls in
@@ -2449,6 +2455,51 @@ session neither repeats nor loses it, and it stays out of the system prompt,
 where a changing tree would break the cache. General Chat gets the
 environment only.
 
+**Prompt caching** (audited 2026-10-24 against kwwk 0.1.100, `fb74cf5`).
+Every provider caches a prefix of the request: the tools and the system
+prompt, then the messages. kwwk takes a run's system prompt and tools once, when the run
+starts (`Agent.snapshotContext`), so every request of a run sends the same
+ones; the tool list is `AgentToolName`'s order and static text, fixed per
+process; every request carries the session ID as `sessionId`, which kwwk
+sends as `prompt_cache_key` (OpenAI's Responses API, Copilot's GPT route),
+Codex's `session-id`/`thread-id`, OpenRouter's `x-session-id` and Grok's
+`x-grok-conv-id`; Anthropic (API key, Claude Pro/Max, Copilot's Claude
+route, Kimi For Coding) gets `cache_control` on the last tool, the system
+prompt and the last message block; DeepSeek, Gemini and other
+OpenAI-compatible endpoints cache prefixes on their own. kwwk's request
+encoders sort JSON keys. `received` and `notice` are events, never
+messages: the transcript is kwwk's `messages` alone, changed only by a
+compaction and, once, the tool-name migration. The system prompt is read again for each run
+and changes only when what it shows does — the approval mode, the date (at
+midnight), the project's `AGENTS.md`, a skill, a memory this chat sees, the
+environment — and each such change makes the next request write the whole
+conversation into the cache again, once; that is the price of a Settings
+edit reaching a running conversation, and it is accepted. Nothing that
+changes per message goes in (the project context is the first message's,
+and the memory section carries no revision). Anthropic's cache lives five
+minutes from the start of the request that last used it, OpenAI's five to
+ten of disuse (kwwk's loop pins
+`cacheRetention: nil`, so Anthropic's 1-hour TTL and OpenAI's 24-hour one
+are out of reach without wrapping `AgentOptions.streamFn`, an owner
+decision): a tool call or an approval that outlasts it costs one such write
+too, which is why `apelin_conversation_read` waits at most 180 s and is
+called again rather than waiting ten minutes. Extra requests: a title
+completion (no tools, at most 3000 characters in and 160 tokens out) for the
+first message, for later ones until it names the chat (three that name
+nothing at most), and on every message while the project still has its
+generated name; compaction, automatic at 75 % of the window or
+`agentCompact`; nothing at reopen, where
+the transcript is read back (the tool-name migration is idempotent) and the
+next request finds the prefix the last one cached. Known in kwwk, not
+worked around: `ProviderImageBudget.clamp` drops the oldest image one at a
+time past a provider's limit (5 for Copilot, Kimi and OpenAI-compatible
+endpoints, 90 for Anthropic, 200 for OpenAI and Codex), so each later image
+moves the change point and rewrites the cache from there; and its native
+compaction requests (`AnthropicProvider.swift`, `OpenAIResponsesProvider.swift`)
+are encoded without sorted keys, so they probably miss the conversation's
+cache. The device check is `Documents/Research/Device-Validation.md` ▸
+Still to run ▸ Prompt caching.
+
 ## Long-term agent memory
 
 `MemoryStore` in ApelinCore owns `memories.json` and `memories.lock` directly
@@ -2473,7 +2524,9 @@ characters, bodies to 2,000, with at most 64 records and 32,768 content bytes.
 `apelin_memory_list`, `apelin_memory_save` and `apelin_memory_delete` are local agent tools and run
 without an approval prompt. They can see all-chat records and the current
 project's records only. Every new prompt or steer refreshes the saved context
-from disk, including existing sessions. Memory is explicitly untrusted fact
+from disk, including existing sessions. The prompt carries the records the
+session sees and never the revision, which every write changes, another
+project's included (`PromptCacheTests`). Memory is explicitly untrusted fact
 and preference data, never instructions or authorization. The agent is told to
 maintain only durable useful facts, avoid secrets and transient conversation,
 and not recreate user-deleted facts from older context. Cross-session memory

@@ -79,7 +79,7 @@ Project chats only (`isProjectOnly`), not General Chat:
 | `conversation_create {prompt, title?}` | `agentOpen` with this session's provider, model and effort; returns `{session_id, task_id}` without waiting | project edit, no ask |
 | `conversation_send {session_id, text}` | `agentPrompt` (queues while the target runs) | project edit, no ask |
 | `conversation_list {}` | `agentList`: id, title, state, parent, updated | read |
-| `conversation_read {session_id, after_seq?, wait_seconds?}` | find the task with `agentList`, read with attach; state (running / waitingForApproval / idle / ended), the assistant's `message` texts in the range, pending approvals, last seq; `wait_seconds` 0–600 long-polls to the next `finished`, `waitingForApproval` or timeout; output capped (~32 KiB, marked truncated) | read |
+| `conversation_read {session_id, after_seq?, wait_seconds?}` | find the task with `agentList`, read with attach; state (running / waitingForApproval / idle / ended), the assistant's `message` texts in the range, pending approvals, last seq; `wait_seconds` 0–180 long-polls to the next `finished`, `waitingForApproval` or timeout; output capped (~32 KiB, marked truncated) | read |
 | `conversation_stop {session_id}` | `agentAbort`, own children only | project edit, no ask |
 
 The opened conversation runs under the same Confirm, so its own risky steps

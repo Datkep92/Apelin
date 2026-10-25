@@ -36,6 +36,11 @@ public actor AgentSession {
     private var resolvedFrom: (provider: ProviderConfiguration, credentials: OAuthCredentials?)
     private var titleTask: Task<Void, Never>?
     private var hasTitle = false
+    /// Title completions that named nothing. Each prompt asks again until
+    /// one does, so a model that never answers in the shape asked for is
+    /// asked only `maximumTitleMisses` times, not once a message.
+    private var titleMisses = 0
+    static let maximumTitleMisses = 3
     /// The project's context went with a message that started a run.
     private var projectContextGiven = false
     private var aborted = false
@@ -204,7 +209,9 @@ public actor AgentSession {
 
     /// Skills, memory, the project's instructions and the environment
     /// (`EnvironmentPrompt`) are read again each time, so a change to any of
-    /// them applies from the next prompt; unchanged, the prompt is the same.
+    /// them applies from the next run. Unchanged, the prompt is the same
+    /// bytes: the provider's cache of the conversation, which starts at the
+    /// tools and this prompt, holds only while it is (`PromptCacheTests`).
     static func systemPrompt(
         _ configuration: AgentSessionConfiguration,
         root: ScopedRoot,
@@ -243,7 +250,7 @@ public actor AgentSession {
 
     /// A separate, bounded completion uses the conversation's current model and no tools.
     public func generateTitle(for text: String) {
-        guard !hasTitle || projectStillNeedsName,
+        guard (!hasTitle && titleMisses < Self.maximumTitleMisses) || projectStillNeedsName,
               titleTask == nil, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let model = agent.state.model
         let authResolver = agent.authResolver
@@ -277,7 +284,7 @@ public actor AgentSession {
                 try Task.checkCancellation()
                 try cancellation.throwIfCancelled()
                 let text = Self.text(of: response.content).trimmingCharacters(in: .whitespacesAndNewlines)
-                if let generated = try? JSONDecoder().decode(GeneratedTitle.self, from: Data(text.utf8)) {
+                if let generated = try? JSONDecoder().decode(GeneratedTitle.self, from: Data(Self.unfenced(text).utf8)) {
                     let title = generated.title.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !title.isEmpty {
                         await self?.saveTitle(
@@ -309,6 +316,18 @@ public actor AgentSession {
         var projectName: String?
     }
 
+    /// The JSON inside one Markdown code fence, which some models put
+    /// around it although asked not to; any other text as it is.
+    static func unfenced(_ text: String) -> String {
+        guard text.hasPrefix("```"), text.hasSuffix("```"), text.count > 6 else { return text }
+        var inner = text.dropFirst(3).dropLast(3)
+        // the fence's language tag, `json`, up to the line's end
+        if let newline = inner.firstIndex(where: \.isNewline), inner[..<newline].allSatisfy(\.isLetter) {
+            inner = inner[inner.index(after: newline)...]
+        }
+        return inner.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var projectStillNeedsName: Bool {
         guard let path = try? workspace.resolveExisting(ProjectBuildSystem.manifestFile),
               let file = FileHandle(forReadingAtPath: path) else { return false }
@@ -333,6 +352,14 @@ public actor AgentSession {
 
     private func titleFinished() {
         titleTask = nil
+        if !hasTitle {
+            titleMisses += 1
+        }
+    }
+
+    /// Returns once the title completion going, if any, has ended.
+    func waitForTitle() async {
+        await titleTask?.value
     }
 
     /// Starts a run with `text`, or, while one is running, steers it: the
@@ -341,8 +368,11 @@ public actor AgentSession {
     /// message only when the run takes it. Returns once it is recorded.
     ///
     /// The message is recorded before anything slower: the app shows it
-    /// from that event. The system prompt is read again after, still
-    /// before the model sees the message.
+    /// from that event. The system prompt is read again after, before the
+    /// run it starts. kwwk takes a run's system prompt and tools once, when
+    /// the run starts, so every request of a run sends the same ones; a
+    /// message queued into a running run is read under the prompt that run
+    /// began with, and what changed applies from the next run.
     ///
     /// `from`: another conversation of the project sent it
     /// (`apelin_conversation_send`). It is recorded as the user's text, marked

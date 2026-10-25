@@ -181,6 +181,36 @@ struct SkillAndPromptTests {
         #expect(prompt.contains("progress note is one short line"))
     }
 
+    /// On a device, General Chat asked how to make a tweak with Apelin was
+    /// answered from what the model knew of Theos: a Logos `Tweak.x` with
+    /// `%hook`, and no skill read.
+    @Test
+    func `every chat is told an Apelin tweak is plain Objective-C and to read the skill before explaining`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let id = UUID().uuidString
+        let general = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
+        for project in [home.project, general] {
+            let prompt = SystemPrompt.make(project: project, projectRoot: home.projectURL.path, mode: .confirm,
+                                           skills: BuiltInSkills.all, mcpServers: [])
+            let working = try #require(prompt.range(of: "# Working")?.upperBound)
+            let device = try #require(prompt.range(of: "# This device")?.lowerBound)
+            let section = prompt[working ..< device]
+            #expect(section.contains("An Apelin tweak is plain Objective-C: hooks installed with MSHookMessageEx"))
+            #expect(section.contains("There is no Logos (%hook, .x files) and no Theos here."))
+            #expect(section.contains("a question included, read the matching skill with apelin_skill_read"))
+        }
+        // The file the prompt names is the tweak template's.
+        let repository = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let template = repository.appendingPathComponent(
+            "Extensions/Development/wiki.qaq.apelin.dev.tweak/templates/objc-hook/Sources/Tweak.m",
+        )
+        let source = try String(contentsOf: template, encoding: .utf8)
+        #expect(source.contains("MSHookMessageEx"))
+    }
+
     @Test
     func `the prompt keeps apelin_notification_send for what the user would want to know while away`() throws {
         let home = try TemporaryHome()
