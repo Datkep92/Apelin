@@ -206,7 +206,10 @@ struct ScriptedSessionTests {
         await session.waitForIdle()
 
         #expect(try home.read("Sources/Tweak.m") == "static BOOL enabled = YES;\n")
-        let calls = await backend.calls
+        // the first message's context asked for the repository first
+        var calls = await backend.calls
+        #expect(calls.first == .gitStatus)
+        calls.removeAll { $0 == .gitStatus }
         #expect(calls.count == 3)
         guard calls.count == 3 else { return }
         #expect(calls[0] == .build(digest: "build-template", evidence: .templateMatch(digest: "build-template")))
@@ -305,7 +308,7 @@ struct ScriptedSessionTests {
             }
         }
         #expect(sawFinish == .aborted)
-        #expect(await backend.calls.isEmpty)
+        #expect(await backend.calls == [.gitStatus], "only the first message's repository state, nothing the call would do")
         #expect(await session.pendingApprovals.isEmpty)
         await session.close()
     }

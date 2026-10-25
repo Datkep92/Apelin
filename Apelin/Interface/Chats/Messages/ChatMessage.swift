@@ -57,10 +57,14 @@ struct ChatMessage: Identifiable, Hashable {
     var awaitsResult = false
     /// On a running summary, the calls in its trace still waiting for a result.
     var runningTools = 0
-    /// On a running summary, the output tokens the run has received so far
-    /// (the session's `received`); nil before the first count, and for a
-    /// session older than the count.
+    /// On the turn's latest summary while the run goes, the output tokens
+    /// the run has received so far (the session's `received`); nil before
+    /// the first count, once the run has ended, and for a session older
+    /// than the count.
     var receivedTokens: Int?
+    /// The summary's count belongs to a reply the run is writing after it:
+    /// the figure settles in half a second, not five (`TokenClimb`).
+    var receivedSettles = false
     /// An approval of a command that runs as root (`ApprovalCardText`):
     /// the card says so, and Approve checks the device owner first.
     var runsAsRoot = false

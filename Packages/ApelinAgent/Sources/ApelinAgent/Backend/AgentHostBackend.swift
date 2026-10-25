@@ -58,6 +58,8 @@ public protocol AgentHostBackend: Sendable {
     func gitUnstage(_ request: GitPathsToolRequest) async throws -> GitPathsToolResponse
     /// A local commit; the author is the host's setting, never the agent's.
     func gitCommit(_ request: GitCommitToolRequest) async throws -> GitCommitToolResponse
+    /// A repository on main for a project that has none.
+    func gitInit(_ request: GitInitToolRequest) async throws -> GitInitToolResponse
     /// The remote's branches into remote-tracking refs, read to the end.
     func gitFetch(_ request: GitRemoteToolRequest) async throws -> GitTaskToolResponse
     /// Fetch, then fast-forward only, read to the end.

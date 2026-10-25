@@ -25,8 +25,9 @@ import Foundation
 /// Full mode or the user's approval of that root request lets it); apelin_template_list →
 /// `extensionList`, isolated extensions left out; apelin_project_create →
 /// `projectCreate`; git_status / git_diff / git_stage / git_unstage /
-/// git_commit → `gitStatus` / `gitDiff` / `gitStage` / `gitUnstage` /
-/// `gitCommit` on the session's project (no author: the host's settings);
+/// git_commit, git_init → `gitStatus` / `gitDiff` / `gitStage` /
+/// `gitUnstage` / `gitCommit` / `gitInit` on the session's project (no
+/// author: the host's settings);
 /// git_fetch / git_pull / git_push / git_clone → `gitFetch` / `gitPull` /
 /// `gitPush` / `gitCloneInto`, each task read to its end;
 /// apelin_conversation_create → `agentOpen` with this session's provider, model
@@ -432,9 +433,18 @@ public struct ChannelHostBackend: AgentHostBackend {
 
     public func gitCommit(_ request: GitCommitToolRequest) async throws -> GitCommitToolResponse {
         let response = try await git("git commit") {
-            try await service.gitCommit(GitCommitRequest(projectID: project.id, message: request.message))
+            try await service.gitCommit(GitCommitRequest(
+                projectID: project.id,
+                message: request.message,
+                all: request.all ? true : nil,
+            ))
         }
         return GitCommitToolResponse(commitID: response.commitID)
+    }
+
+    public func gitInit(_: GitInitToolRequest) async throws -> GitInitToolResponse {
+        let response = try await git("git init") { try await service.gitInit(projectID: project.id) }
+        return GitInitToolResponse(branch: response.branch)
     }
 
     public func gitFetch(_ request: GitRemoteToolRequest) async throws -> GitTaskToolResponse {

@@ -399,6 +399,16 @@ harness:
 		-o "$$harness_dir/message-image-layout" && \
 	"$$harness_dir/message-image-layout" && \
 	xcrun --sdk macosx swiftc -swift-version 5 \
+		"$(ROOT_DIR)/Apelin/Interface/Chats/Messages/TokenClimb.swift" \
+		"$(ROOT_DIR)/Tests/TokenClimb/main.swift" \
+		-o "$$harness_dir/token-climb" && \
+	"$$harness_dir/token-climb" && \
+	xcrun --sdk macosx swiftc -swift-version 5 -target arm64-apple-macos13.0 \
+		"$(ROOT_DIR)/Apelin/Interface/Settings/Git/GitHubDeviceFlow.swift" \
+		"$(ROOT_DIR)/Tests/GitHubDeviceFlow/main.swift" \
+		-o "$$harness_dir/github-device-flow" && \
+	"$$harness_dir/github-device-flow" && \
+	xcrun --sdk macosx swiftc -swift-version 5 \
 		"$(ROOT_DIR)/Apelin/Interface/Chats/Composer/ComposerDropPolicy.swift" \
 		"$(ROOT_DIR)/Tests/ComposerDrop/main.swift" \
 		-o "$$harness_dir/composer-drop" && \

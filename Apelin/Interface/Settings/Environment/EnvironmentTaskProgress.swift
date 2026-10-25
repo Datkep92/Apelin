@@ -19,6 +19,10 @@ struct EnvironmentTaskProgress {
         case transferExport
         /// Reading one and bringing in what it holds.
         case transferImport(TransferKind)
+        /// The package repository: made on GitHub, linked, published to.
+        case distributionCreate
+        case distributionLink
+        case distributionPublish
 
         /// In the order the worker goes through them (`ToolchainStage`,
         /// `SDKManager`). An SDK import skips what its source does not
@@ -41,6 +45,12 @@ struct EnvironmentTaskProgress {
                 ["reading", "inspecting", "registering"]
             case .transferImport(.project):
                 ["reading", "placing"]
+            case .distributionCreate:
+                ["creating", "preparing", "pushing", "publishing"]
+            case .distributionLink:
+                ["fetching", "preparing", "pushing", "publishing"]
+            case .distributionPublish:
+                ["fetching", "preparing", "pushing"]
             }
         }
     }
@@ -234,6 +244,10 @@ extension EnvironmentTaskProgress {
         case "verifying": String(localized: "Checking File")
         case "reading": String(localized: "Reading File")
         case "placing": String(localized: "Adding Project")
+        case "creating": String(localized: "Creating Repository")
+        case "preparing": String(localized: "Adding Files")
+        case "pushing": String(localized: "Pushing")
+        case "publishing": String(localized: "Turning On GitHub Pages")
         default: stage.capitalized
         }
     }

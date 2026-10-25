@@ -1,6 +1,7 @@
-// The git service on a project: clone, status, diff, stage, unstage, local
-// commit, fetch, a fast-forward pull and push, and the settings behind
-// them — the commit author and one HTTPS credential per host.
+// The git service on a project: clone, init, status, diff, stage, unstage,
+// local commit, fetch, a fast-forward pull and push, and the settings behind
+// them — the commit author and one HTTPS credential per host. A project
+// Apelin makes starts as a repository on `main` with no commit.
 // Served by apelin-environment (Workers/Environment; ApelinGit, libgit2).
 //
 // `projectID` is the `projectID` in a project's apelin-project.json, or, for
@@ -107,12 +108,22 @@ public struct GitCommitRequest: OperationRequest {
     public var message: String
     public var authorName: String?
     public var authorEmail: String?
+    /// Stages every change first, as `git add --all` does: new, changed and
+    /// deleted files, ignored ones left out. Absent is false.
+    public var all: Bool?
 
-    public init(projectID: String, message: String, authorName: String? = nil, authorEmail: String? = nil) {
+    public init(
+        projectID: String,
+        message: String,
+        authorName: String? = nil,
+        authorEmail: String? = nil,
+        all: Bool? = nil,
+    ) {
         self.projectID = projectID
         self.message = message
         self.authorName = authorName
         self.authorEmail = authorEmail
+        self.all = all
     }
 }
 
@@ -120,6 +131,27 @@ public struct GitCommitResponse: Codable, Sendable, Equatable {
     public var commitID: String
     public init(commitID: String) {
         self.commitID = commitID
+    }
+}
+
+/// Makes a repository in a project that has none: HEAD on `main`, no
+/// commit, as `git init -b main` leaves it. A project with a `.git` already
+/// is `conflict`.
+public struct GitInitRequest: OperationRequest {
+    public typealias Response = GitInitResponse
+    public static let operation = AppOperation.gitInit
+    public var projectID: String
+
+    public init(projectID: String) {
+        self.projectID = projectID
+    }
+}
+
+public struct GitInitResponse: Codable, Sendable, Equatable {
+    public var branch: String
+
+    public init(branch: String) {
+        self.branch = branch
     }
 }
 
@@ -318,6 +350,10 @@ public extension ApelinService {
 
     func gitCommit(_ request: GitCommitRequest) async throws -> GitCommitResponse {
         try await send(request)
+    }
+
+    func gitInit(projectID: String) async throws -> GitInitResponse {
+        try await send(GitInitRequest(projectID: projectID))
     }
 
     /// Starts a clone; follow it with `events(of:)`.

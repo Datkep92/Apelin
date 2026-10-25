@@ -424,6 +424,11 @@ error, or on `ok: false` where the exact refusal is the worker's to choose.
 - `transfer-toolchain.json` — by name only: exports the first toolchain as
   an `.apetc` (a GB or more, minutes; RootHide's runtime brand undone),
   inspects it (already set up here) and is refused an import of it.
+- `distribution.json` — no network: `distributionRepositoryList` without
+  GitHub, a bad repository name, a bad `owner/name` and a package outside
+  `Builds/` each refused `badRequest` before a task starts,
+  `distributionRepositoryUnlink`, then the list with no link. The harness
+  keeps `Settings/distribution.json` and puts it back.
 - `tool-host.json` — needs the disassembler agent tool extension.
   `toolHostOpen`, `toolHostCall` of `symbols` on dyld, an undeclared tool
   refused, `toolHostClose`, a second close `notFound`, a missing extension
@@ -444,8 +449,9 @@ error, or on `ok: false` where the exact refusal is the worker's to choose.
   climbing out and a plain-HTTP URL are refused.
 - `i2-git.json` — needs github.com. Clones one branch of
   `libgit2/TestGitRepository` into `Projects/I2GitCheck/` (`gitClone`), then
-  status, diff, stage, unstage; an empty commit, a path out of the project
-  and a second clone into the same name are refused.
+  status, diff, stage, unstage; an empty commit, `gitInit` of a project that
+  has a repository, a path out of the project and a second clone into the
+  same name are refused.
 - `i2-git-commit.json` — after `i2-git.json`, with a file `i2-note.txt`
   written into `Projects/I2GitCheck/` (the console writes no files): status,
   stage, staged diff, commit, clean tree.

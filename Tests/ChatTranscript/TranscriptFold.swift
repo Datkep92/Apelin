@@ -27,6 +27,7 @@ private struct FoldCoverage {
     var waitingForQuiet = 0
     var standingInForQuiet = 0
     var counting = 0
+    var settling = 0
     var compacting = 0
     var queued = 0
     var onTheirWay = 0
@@ -43,6 +44,7 @@ private struct FoldCoverage {
         waitingForQuiet += transcript.quietDeadline == nil ? 0 : 1
         standingInForQuiet += wentQuiet ? 1 : 0
         counting += rows.contains { $0.receivedTokens != nil } ? 1 : 0
+        settling += rows.contains(where: \.receivedSettles) ? 1 : 0
         compacting += transcript.isCompacting ? 1 : 0
         queued += rows.contains { row in row.isQueued && !sending.contains { $0.id == row.id } } ? 1 : 0
         onTheirWay += sending.contains { draft in rows.contains { $0.id == draft.id && $0.text == draft.text } } ? 1 : 0
@@ -57,7 +59,7 @@ private struct FoldCoverage {
 
     func expectEverything() {
         let counts = [
-            waitingForQuiet, standingInForQuiet, counting, compacting, queued, onTheirWay, decided, senders, attached,
+            waitingForQuiet, standingInForQuiet, counting, settling, compacting, queued, onTheirWay, decided, senders, attached,
             bannered,
         ]
         precondition(!counts.contains(0), "the random logs reach every part of a transcript: \(self)")

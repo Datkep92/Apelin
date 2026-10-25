@@ -2,7 +2,7 @@ import enum ApelinProject.ProjectValidation
 
 extension BuiltInSkills {
     static let projectDescription = SkillDocument(
-        name: "project-description",
+        name: "apelin-project-description",
         description: "Every member of apelin-project.json, the build description Apelin's build reads: products, flags, steps, package, layout, tweak filter, the macros the build defines, and what asks the user.",
         body: """
         # The project description
@@ -92,7 +92,7 @@ extension BuiltInSkills {
           maps them for rootless and roothide. Never write `/var/jb` or a
           jbroot path. `mode` is `0644` or `0755`; `substitutePrefix: true`
           fills `@PREFIX@` and `@ROOTFS@` in a file, such as a launch daemon
-          plist (the bootstrap-paths skill).
+          plist (the apelin-bootstrap-paths skill).
         - `tweakFilter` (tweak only): `{dylib: <product id>, bundles?,
           executables?, classes?}`. The packager writes the filter plist
           beside the dylib, which must be laid out under
@@ -102,7 +102,7 @@ extension BuiltInSkills {
           a project file. Only `@PREFIX@` and `@ROOTFS@` are substituted;
           `sh -n` must pass. They run as root and the install card shows
           them in full: add one only when the task needs it, written as the
-          packaging-and-install skill says.
+          apelin-packaging-and-install skill says.
 
         ## What the build defines
         On every C and Objective-C compile: `APELIN_BUILD_ID`,

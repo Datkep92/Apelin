@@ -73,8 +73,7 @@ enum BasebinCrashDecoder {
 
         mutating func consume(_ line: String) {
             // Greedy captures over a line no reporter writes; the raw text keeps it.
-            guard line.utf8.count <= 4096 else { return }
-            guard !beginsSection(line) else { return }
+            guard line.utf8.count <= 4096, !beginsSection(line) else { return }
             switch mode {
             case .fields: field(line)
             // "Stripped State" is pc, lr, sp and fp again with the pointer

@@ -1,5 +1,6 @@
 import enum ApelinCore.ProjectDisplayName
 import enum ApelinProtocol.AgentToolName
+import Foundation
 import KWWKAI
 
 extension ToolRunner {
@@ -67,6 +68,11 @@ extension ToolRunner {
             facts.gitSettings = "the commit author"
         case .gitSaveCredential:
             let host = arguments.argString("host") ?? ""
+            // github.com is the user's Sign In with GitHub, never a token
+            // passed through the conversation; refused before anyone is asked.
+            guard host.trimmingCharacters(in: .whitespaces).lowercased() != "github.com" else {
+                throw ToolArgumentError("github.com takes no token here: ask the user to sign in with Sign In with GitHub in Settings ▸ Git.")
+            }
             let username = arguments.argString("username") ?? ""
             facts.gitSettings = "the credential for \(host) (user \(username))"
         case .gitRemoveCredential:
@@ -226,8 +232,25 @@ extension ToolRunner {
     }
 
     /// A context for reads made while gathering facts, before any approval.
-    private var probeContext: HostCallContext {
+    private nonisolated var probeContext: HostCallContext {
         HostCallContext(sessionID: sessionID, project: project, toolCallID: "", approval: .notRequired)
+    }
+
+    /// The project's repository for the first message's context: nil when
+    /// it has none, or when the host has not answered within `seconds`,
+    /// which is as long as the message waits for it.
+    nonisolated func repositoryStatus(within seconds: Double) async -> GitStatusToolResponse? {
+        let backend = backend
+        let context = probeContext
+        let answer = FirstAnswer<GitStatusToolResponse?>()
+        return await withCheckedContinuation { continuation in
+            answer.continuation = continuation
+            Task { await answer.give(try? backend.gitStatus(GitStatusToolRequest(context: context))) }
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                answer.give(nil)
+            }
+        }
     }
 
     /// `.outside` when resolution refuses the path as leaving the project
@@ -246,5 +269,27 @@ extension ToolRunner {
         } catch {
             return .inside
         }
+    }
+}
+
+/// Resumes its continuation with the first value given, once.
+private final class FirstAnswer<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiting: CheckedContinuation<Value, Never>?
+    private var answered = false
+
+    var continuation: CheckedContinuation<Value, Never>? {
+        get { lock.withLock { waiting } }
+        set { lock.withLock { waiting = newValue } }
+    }
+
+    func give(_ value: Value) {
+        let continuation: CheckedContinuation<Value, Never>? = lock.withLock {
+            guard !answered, let waiting else { return nil }
+            answered = true
+            self.waiting = nil
+            return waiting
+        }
+        continuation?.resume(returning: value)
     }
 }

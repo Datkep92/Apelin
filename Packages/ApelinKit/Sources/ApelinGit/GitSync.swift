@@ -238,7 +238,7 @@ public extension GitRepository {
     }
 
     /// Adds the remote `name` fetching from `url` with git's default refspec.
-    internal func addRemote(_ name: String, url: String) throws {
+    func addRemote(_ name: String, url: String) throws {
         var remote: OpaquePointer?
         try GitError.check(git_remote_create(&remote, pointer, name, url), "add the remote \(name)")
         git_remote_free(remote)

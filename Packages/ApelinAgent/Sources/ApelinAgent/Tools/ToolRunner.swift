@@ -522,7 +522,14 @@ actor ToolRunner {
             guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ToolArgumentError("the commit message is empty")
             }
-            return try await json(backend.gitCommit(GitCommitToolRequest(context: context, message: message)))
+            return try await json(backend.gitCommit(GitCommitToolRequest(
+                context: context,
+                message: message,
+                all: arguments.argBool("all") ?? false,
+            )))
+
+        case .gitInit:
+            return try await json(backend.gitInit(GitInitToolRequest(context: context)))
 
         case .gitFetch, .gitPull:
             // No remote named is the host's default, `origin`.

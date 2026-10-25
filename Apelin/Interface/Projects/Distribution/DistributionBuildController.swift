@@ -9,7 +9,9 @@ import UIKit
 /// `.deb` it made, or Retry. A workspace's build runs its own script, and
 /// what the build finds in the package it wrote (a placeholder identifier,
 /// a version packaged before, another package for the other target) is
-/// listed under the outcome. The `…` menu holds the build's whole log.
+/// listed under the outcome. The `…` menu holds the build's whole log and,
+/// once the package is ready, Publish, which adds it to the linked package
+/// repository (Settings ▸ Git ▸ Publishing) and pushes it.
 @MainActor
 final class DistributionBuildController: TableController {
     private enum Stage: Int {
@@ -74,17 +76,26 @@ final class DistributionBuildController: TableController {
         title: String(localized: "Export Package"),
         primaryAction: UIAction { [weak self] _ in self?.exportPackage() },
     )
-    private lazy var moreButton = UIBarButtonItem(
-        image: UIImage(systemName: "ellipsis"),
-        menu: UIMenu(children: [
-            UIAction(
-                title: String(localized: "Build Log"),
-                image: UIImage(systemName: "doc.plaintext"),
-            ) { [weak self] _ in
+    private lazy var moreButton = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: moreMenu)
+        .then { $0.accessibilityLabel = String(localized: "More") }
+
+    /// The log always; Publish once there is a package.
+    private var moreMenu: UIMenu {
+        var items = [
+            UIAction(title: String(localized: "Build Log"), image: UIImage(systemName: "doc.plaintext")) { [weak self] _ in
                 self?.openLog()
             },
-        ]),
-    ).then { $0.accessibilityLabel = String(localized: "More") }
+        ]
+        if artifact != nil, work == nil {
+            items.append(UIAction(
+                title: String(localized: "Publish to Package Repository"),
+                image: UIImage(systemName: "shippingbox"),
+            ) { [weak self] _ in
+                self?.publish()
+            })
+        }
+        return UIMenu(children: items)
+    }
 
     init(projectName: String, target: BuildBootstrap, method: ProjectBuildMethod) {
         self.projectName = projectName
@@ -195,6 +206,7 @@ final class DistributionBuildController: TableController {
                 primaryAction: UIAction { [weak self] _ in self?.start() },
             )
         }
+        moreButton.menu = moreMenu
         // the right bar's items run from the trailing edge in
         navigationItem.rightBarButtonItems = [primary, moreButton]
     }
@@ -298,6 +310,29 @@ final class DistributionBuildController: TableController {
         navigationController?.pushViewController(page, animated: true)
     }
 
+    /// The build's package where the build left it, with the bytes it
+    /// recorded; read off the main thread.
+    private static func verifiedPackage(_ artifact: BuildArtifact) async throws -> URL {
+        try await Task.detached {
+            guard let path = artifact.path, let canonical = CanonicalPath.resolve(path),
+                  let builds = CanonicalPath.resolve(DataFolder.app.root.appendingPathComponent("Builds").path),
+                  CanonicalPath.isCanonical(canonical, inside: builds)
+            else {
+                throw ApelinError(
+                    .notFound,
+                    String(localized: "The package is no longer available. Build it again."),
+                )
+            }
+            let url = URL(fileURLWithPath: canonical)
+            let digest = try "sha256:"
+                + SHA256.hash(data: Data(contentsOf: url)).map { String(format: "%02x", $0) }.joined()
+            guard digest == artifact.digest else {
+                throw ApelinError(.conflict, String(localized: "The package changed after it was built. Build it again before exporting."))
+            }
+            return url
+        }.value
+    }
+
     private func exportPackage() {
         guard let artifact, artifact.bootstrap == target.rawValue, exportButton.isEnabled else { return }
         exportButton.isEnabled = false
@@ -305,24 +340,7 @@ final class DistributionBuildController: TableController {
             guard let self else { return }
             defer { exportButton.isEnabled = true }
             do {
-                let url = try await Task.detached {
-                    guard let path = artifact.path, let canonical = CanonicalPath.resolve(path),
-                          let builds = CanonicalPath.resolve(DataFolder.app.root.appendingPathComponent("Builds").path),
-                          CanonicalPath.isCanonical(canonical, inside: builds)
-                    else {
-                        throw ApelinError(
-                            .notFound,
-                            String(localized: "The package is no longer available. Build it again."),
-                        )
-                    }
-                    let url = URL(fileURLWithPath: canonical)
-                    let digest = try "sha256:"
-                        + SHA256.hash(data: Data(contentsOf: url)).map { String(format: "%02x", $0) }.joined()
-                    guard digest == artifact.digest else {
-                        throw ApelinError(.conflict, String(localized: "The package changed after it was built. Build it again before exporting."))
-                    }
-                    return url
-                }.value
+                let url = try await Self.verifiedPackage(artifact)
                 guard self.artifact == artifact else { return }
                 let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
                 sheet.popoverPresentationController?.barButtonItem = exportButton
@@ -330,6 +348,52 @@ final class DistributionBuildController: TableController {
             } catch {
                 guard self.artifact == artifact else { return }
                 presentNotice(title: "Unable to Export", message: error.readableMessage)
+            }
+        }
+    }
+
+    /// The package into the linked package repository: checked as an export
+    /// is, confirmed with where it goes, then followed as a task.
+    private func publish() {
+        guard let artifact, artifact.bootstrap == target.rawValue, work == nil else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let url = try await Self.verifiedPackage(artifact)
+                guard let linked = try await ApelinService.app.distributionRepositoryList(repositories: false).linked else {
+                    presentNotice(
+                        title: "No Package Repository",
+                        message: "Create or link one in Settings ▸ Git ▸ Publishing first.",
+                    )
+                    return
+                }
+                presentConfirmation(
+                    title: "Publish to \(linked.fullName)?",
+                    message: "The package is added to the repository's debs folder, committed and pushed. Devices with \(linked.sourceURL) see it within a few minutes.",
+                    confirmTitle: "Publish",
+                ) { [weak self] in
+                    self?.startPublishing(url)
+                }
+            } catch {
+                presentNotice(title: "Unable to Publish", message: error.readableMessage)
+            }
+        }
+    }
+
+    private func startPublishing(_ package: URL) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let handle = try await ApelinService.app.distributionPublish(files: [package.path])
+                let page = EnvironmentTaskController(
+                    handle: handle,
+                    work: .distributionPublish,
+                    title: String(localized: "Publishing Package"),
+                    doneTitle: String(localized: "Published"),
+                )
+                navigationController?.pushViewController(page, animated: true)
+            } catch {
+                presentNotice(title: "Unable to Publish", message: error.readableMessage)
             }
         }
     }

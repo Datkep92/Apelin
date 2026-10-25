@@ -26,7 +26,7 @@ public extension AgentToolName {
     /// conversation tools reach General Chat too, naming a project there.
     var isProjectOnly: Bool {
         switch self {
-        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit,
+        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit,
              .gitFetch, .gitPull, .gitPush, .gitClone, .projectSetEnvironment:
             true
         default:
@@ -59,7 +59,7 @@ public extension AgentToolName {
         // A notice is a few words to the user, which the host bounds. A
         // project's displayName is a label, outside every approval digest.
         case .fileWrite, .fileEdit, .fileCreate, .memorySave, .memoryDelete, .projectCreate, .projectRename,
-             .gitStage, .gitUnstage, .gitCommit, .gitFetch, .gitPull, .gitClone,
+             .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitFetch, .gitPull, .gitClone,
              .conversationCreate, .conversationSend, .conversationStop, .projectSetEnvironment, .notificationSend:
             .writeProject
         case .fileRead, .fileList, .fileGrep, .fileFind, .sdkAnalyzeFramework, .sdkReadHeader,
@@ -96,7 +96,7 @@ public extension AgentToolName {
         case .fileList: "List a project folder."
         case .fileGrep: "Search project files with a regular expression."
         case .fileFind: "Find project files whose names match a glob."
-        case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, only for a step that truly needs uid 0, such as irisin-cli install for a dependency (package-dependencies skill); it asks every time unless the mode is Full, and what it writes is root's."
+        case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, only for a step that truly needs uid 0, such as irisin-cli install for a dependency (apelin-package-dependencies skill); it asks every time unless the mode is Full, and what it writes is root's."
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
         case .sdkReadHeader: "Read one header of a framework in the registered SDK."
         case .projectBuild: "Build the project; returns structured diagnostics and artifacts with their digests."
@@ -127,14 +127,15 @@ public extension AgentToolName {
         case .gitDiff: "Show a unified diff of the worktree against the index, or with staged: true of the index against HEAD; optionally one path."
         case .gitStage: "Stage project files for the next commit."
         case .gitUnstage: "Take project files out of the index, keeping their changes."
-        case .gitCommit: "Commit the staged changes locally. The author is the one set in Apelin's settings."
+        case .gitCommit: "Commit the staged changes locally, or with all: true every change in the project. The author is the one set in Apelin's settings."
+        case .gitInit: "Make the project a git repository on branch main, with no commit yet, when it has none. Projects Apelin makes start as one."
         case .gitFetch: "Fetch a remote's branches into its remote-tracking refs; the worktree is left alone."
         case .gitPull: "Fetch, then fast-forward the checked-out branch to its upstream. Never merges or rebases; a diverged branch or a local change in the way fails and changes nothing."
         case .gitPush: "Push a branch (default the checked-out one) to the branch of the same name on a remote (default origin). Never forced; a rejected update fails."
         case .gitClone: "Import a repository into this workspace over HTTPS: origin is set to url, and branch (default the remote's) checked out without overwriting files already there."
         case .gitReadSettings: "Read Apelin's git settings: the commit author, and the hosts with a saved HTTPS credential and their usernames. Tokens are never shown."
         case .gitSetAuthor: "Set the commit author Apelin uses for every project; an empty field is cleared."
-        case .gitSaveCredential: "Save the HTTPS credential for one host, replacing any it had: a username and a personal access token the user gave you. It is kept in the device's keychain and offered only to remotes on exactly that host."
+        case .gitSaveCredential: "Save the HTTPS credential for one host other than github.com, replacing any it had: a username and a personal access token the user gave you. It is kept in the device's keychain and offered only to remotes on exactly that host. github.com is signed in to by the user in Settings ▸ Git."
         case .gitRemoveCredential: "Remove the saved HTTPS credential for one host."
         case .projectCheckDistribution: "Before a distribution build, list what the package should not carry yet: the template's name, description, author or first version, a local identifier, an app without an icon, a version already packaged for the target, and any error that would stop the build. A workspace's package is checked by its release build instead."
         case .conversationCreate: "Open another conversation, in this project or the one project names, with a first message, and return at once with its session id and link. Another agent works on it in parallel, under the same approval mode, and the user sees it in the sidebar. Collect its answer with apelin_conversation_read."
@@ -153,7 +154,8 @@ public extension AgentToolName {
 
     var parameters: JSONValue {
         switch self {
-        case .memoryList, .skillList, .templateList, .projectList, .gitStatus, .gitReadSettings, .toolchainList, .sdkList:
+        case .memoryList, .skillList, .templateList, .projectList, .gitStatus, .gitInit, .gitReadSettings, .toolchainList,
+             .sdkList:
             Schema.object([:], required: [])
         case .conversationList:
             Schema.object([
@@ -234,6 +236,7 @@ public extension AgentToolName {
         case .gitCommit:
             Schema.object([
                 "message": Schema.string("The commit message: a short summary line, then a blank line and details if needed."),
+                "all": Schema.boolean("Stage every change first, as git add --all does: new, changed and deleted files, ignored ones left out."),
             ], required: ["message"])
         case .gitFetch, .gitPull:
             Schema.object([

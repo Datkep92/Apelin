@@ -40,7 +40,7 @@ final class WelcomeProvidersPage: WelcomeListPage {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = String(localized: "Add a Model Provider")
-        next { [weak self] in self?.flow.showProject() }
+        next { [weak self] in self?.flow.showGitHub() }
         updateRows()
     }
 

@@ -11,6 +11,24 @@ target. Once it succeeds, Export Package opens the system share sheet with its
 one `.deb` file. Go back, choose the other target and tap Build to make a
 separate package. Exporting does not install either package.
 
+## Publishing to a package repository
+
+A package repository is an APT source in a GitHub repository of the user's,
+indexed by GitHub Actions and served by GitHub Pages at
+`https://<owner>.github.io/<name>/`. Settings ▸ Git ▸ Publishing (or the
+GitHub welcome page) creates one from Apelin's template, laid out after
+owngoal-dev/owngoal-packages, or links one the user has, adding what the
+template has and it lacks. Its clone is a workspace project, which its own
+conversation maintains (the agent's `apelin-package-repository` skill).
+
+Once a release build succeeds, the build page's `…` menu has **Publish to
+Package Repository**: the package, checked against its digest as Export
+checks it, goes into the repository's `debs/` as
+`<Package>_<Version>_<Architecture>.deb`, is committed and pushed, and the
+workflow indexes it; sources that added the address see it within a few
+minutes. Publishing the same package again does nothing; a different
+package under a published version is refused, so raise the version first.
+
 ## Before distributing
 
 The first page lists what a package for other people should not carry yet,
@@ -43,7 +61,7 @@ build.
 
 The project must have a valid `apelin-project.json`, an SDK and toolchain binding,
 and architectures for the chosen bootstrap — or be a workspace that declares its
-own build script (`external`; see the agent's external-build skill). A manifest
+own build script (`external`; see the agent's apelin-external-build skill). A manifest
 with no `build`, and a workspace with no script, have nothing to package:
 **Distribute…** in the menu is disabled and says which is missing, and the
 distribution page, if it is open when that is found, offers no target and says

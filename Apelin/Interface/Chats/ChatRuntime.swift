@@ -476,8 +476,8 @@ final class ChatRuntime {
                     }
                     if let proposed = batch.events
                         .last(where: { $0.kind == "projectNameSuggested" })?.payload?["name"]?.stringValue,
-                        let project = records[id]?.summary.projectName,
-                        let name = ProjectDisplayName.candidate(proposed)
+                       let project = records[id]?.summary.projectName,
+                       let name = ProjectDisplayName.candidate(proposed)
                     {
                         Task {
                             if let response = try? await ApelinService.app.projectRename(

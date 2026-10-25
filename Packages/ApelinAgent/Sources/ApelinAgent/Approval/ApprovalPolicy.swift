@@ -268,8 +268,8 @@ public struct ApprovalPolicy: Sendable, Hashable {
         // The project's own repository, changed in the project: like an
         // edit, and nothing leaves the device. A fetch, pull or clone
         // only brings commits in; pull never merges, clone never
-        // overwrites.
-        case .gitStage, .gitUnstage, .gitCommit, .gitFetch, .gitPull, .gitClone:
+        // overwrites; init makes an empty repository where there is none.
+        case .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitFetch, .gitPull, .gitClone:
             return .allow(.notRequired)
 
         // Another conversation of the project, opened, sent to or stopped:

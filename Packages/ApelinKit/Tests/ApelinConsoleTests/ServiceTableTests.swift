@@ -167,6 +167,16 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: ack) { try await $0.agentSignInCancel(taskID: id) }
         case .agentSignOut:
             return Row(reply: ack) { try await $0.agentSignOut(provider: .anthropic) }
+        case .distributionRepositoryList:
+            return Row(reply: DistributionRepositoryListResponse()) { _ = try await $0.distributionRepositoryList() }
+        case .distributionRepositoryCreate:
+            return Row(reply: handle) { _ = try await $0.distributionRepositoryCreate(name: "packages") }
+        case .distributionRepositoryLink:
+            return Row(reply: handle) { _ = try await $0.distributionRepositoryLink(fullName: "someone/packages") }
+        case .distributionRepositoryUnlink:
+            return Row(reply: ack) { try await $0.distributionRepositoryUnlink() }
+        case .distributionPublish:
+            return Row(reply: handle) { _ = try await $0.distributionPublish(files: ["/tmp/a.deb"]) }
         case .transferExport:
             return Row(reply: handle) { _ = try await $0.transferExport(kind: .sdk, id: "sdk", createdBy: "Apelin") }
         case .transferInspect:
@@ -194,6 +204,8 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: ack) { try await $0.gitUnstage(projectID: "p", paths: ["f"]) }
         case .gitCommit:
             return Row(reply: GitCommitResponse(commitID: "c")) { _ = try await $0.gitCommit(GitCommitRequest(projectID: "p", message: "m")) }
+        case .gitInit:
+            return Row(reply: GitInitResponse(branch: "main")) { _ = try await $0.gitInit(projectID: "p") }
         case .gitClone:
             return Row(reply: handle) { _ = try await $0.gitClone(url: "https://example.com/r.git", branch: "main", projectName: "R") }
         case .gitCloneInto:

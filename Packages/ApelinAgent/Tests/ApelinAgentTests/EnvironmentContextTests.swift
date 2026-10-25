@@ -205,7 +205,7 @@ struct EnvironmentContextTests {
         #expect(first.contains("- Template: wiki.qaq.apelin.dev.tweak tweak 1.0.0"))
         #expect(first.contains("- Build: Apelin's build tool, 2 steps; products Tweak (dylib)"))
         #expect(first.contains("- Package: local.apelin.hello 0.0.1"))
-        #expect(first.contains("- Git: on branch main; git_status has the changes."))
+        #expect(first.contains("- Git: on branch main at abc123; nothing to commit."), "as the host's git status answered")
         let tree = first.components(separatedBy: "\n")
         for line in ["Sources/", "  Tweak.x", "Resources/", "  Info.plist", "apelin-project.json", ".gitignore", "keep.log", "outside@"] {
             #expect(tree.contains(line), "the tree lists \(line)")

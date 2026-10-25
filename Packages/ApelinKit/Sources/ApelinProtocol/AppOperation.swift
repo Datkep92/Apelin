@@ -87,6 +87,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case gitStage
     case gitUnstage
     case gitCommit
+    case gitInit
     case gitClone
     case gitCloneInto
     case gitFetch
@@ -97,6 +98,11 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case gitCredentialSet
     case gitCredentialRemove
 
+    case distributionRepositoryList
+    case distributionRepositoryCreate
+    case distributionRepositoryLink
+    case distributionRepositoryUnlink
+    case distributionPublish
     case transferExport
     case transferInspect
     case transferImport
@@ -122,10 +128,14 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
              .agentModelActivate, .agentSignIn, .agentSignInRespond, .agentSignInCancel, .agentSignOut:
             .agent
         case .toolHostOpen, .toolHostClose, .toolHostCall: .toolHost
-        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitClone, .gitCloneInto, .gitFetch, .gitPull,
+        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitClone, .gitCloneInto, .gitFetch,
+             .gitPull,
              .gitPush, .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove:
             .git
         case .transferExport, .transferInspect, .transferImport: .transfer
+        case .distributionRepositoryList, .distributionRepositoryCreate, .distributionRepositoryLink,
+             .distributionRepositoryUnlink, .distributionPublish:
+            .distribution
         }
     }
 
@@ -198,6 +208,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .gitStage: GitStageRequest.self
         case .gitUnstage: GitUnstageRequest.self
         case .gitCommit: GitCommitRequest.self
+        case .gitInit: GitInitRequest.self
         case .gitClone: GitCloneRequest.self
         case .gitCloneInto: GitCloneIntoRequest.self
         case .gitFetch: GitFetchRequest.self
@@ -207,6 +218,11 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .gitAuthorSet: GitAuthorSetRequest.self
         case .gitCredentialSet: GitCredentialSetRequest.self
         case .gitCredentialRemove: GitCredentialRemoveRequest.self
+        case .distributionRepositoryList: DistributionRepositoryListRequest.self
+        case .distributionRepositoryCreate: DistributionRepositoryCreateRequest.self
+        case .distributionRepositoryLink: DistributionRepositoryLinkRequest.self
+        case .distributionRepositoryUnlink: DistributionRepositoryUnlinkRequest.self
+        case .distributionPublish: DistributionPublishRequest.self
         case .transferExport: TransferExportRequest.self
         case .transferInspect: TransferInspectRequest.self
         case .transferImport: TransferImportRequest.self
@@ -231,6 +247,7 @@ public enum OperationDomain: String, Codable, CaseIterable, Sendable {
     case toolHost
     case git
     case transfer
+    case distribution
 }
 
 /// A request on the wire. Each operation has exactly one request type, and

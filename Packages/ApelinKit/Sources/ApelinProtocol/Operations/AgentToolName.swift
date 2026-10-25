@@ -50,6 +50,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case gitStage = "git_stage"
     case gitUnstage = "git_unstage"
     case gitCommit = "git_commit"
+    case gitInit = "git_init"
     case gitFetch = "git_fetch"
     case gitPull = "git_pull"
     case gitPush = "git_push"

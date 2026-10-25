@@ -110,13 +110,22 @@ final class ExtensionAndProjectTests: XCTestCase {
                 XCTAssertEqual(created.baseline.packaging.digest, expected["packaging"]?["digest"]?.stringValue, template.id)
                 XCTAssertEqual(created.baseline.build.canonical, expected["build"]?["canonical"]?.stringValue, template.id)
                 try assertSameTree(created.root, reference, template.id)
+                // the repository is Apelin's, not the template's
+                XCTAssertEqual(
+                    try String(contentsOf: created.root.appendingPathComponent(".git/HEAD"), encoding: .utf8),
+                    "ref: refs/heads/main\n",
+                    template.id,
+                )
             }
         }
     }
 
+    /// The template's files, both ways; the repository a project starts
+    /// with is left out.
     private func assertSameTree(_ a: URL, _ b: URL, _ label: String) throws {
         func files(_ root: URL) -> [String] {
             (FileManager.default.enumerator(atPath: root.path)?.allObjects as? [String] ?? []).filter { path in
+                guard path != ".git", !path.hasPrefix(".git/") else { return false }
                 var isDirectory: ObjCBool = false
                 FileManager.default.fileExists(atPath: root.appendingPathComponent(path).path, isDirectory: &isDirectory)
                 return !isDirectory.boolValue

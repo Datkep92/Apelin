@@ -398,10 +398,7 @@ enum AgentHandler: DomainHandler {
         host: SessionHost,
         prepare: () async -> Void = {},
     ) async -> HostReply {
-        guard await AgentSessionTable.shared.entry(id) != nil else {
-            return request.fail(ApelinError(.notFound, "This chat is no longer running."))
-        }
-        guard let worker = await host.workers.existing(.agent, instance: id), !worker.channel.isClosed else {
+        guard await AgentSessionTable.shared.entry(id) != nil, let worker = await host.workers.existing(.agent, instance: id), !worker.channel.isClosed else {
             return request.fail(ApelinError(.notFound, "This chat is no longer running."))
         }
         await prepare()

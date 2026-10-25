@@ -168,10 +168,7 @@ public struct MemoryStore: Sendable {
         defer { close(descriptor); unlinkat(directory, temporary, 0) }
         let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: false)
         try handle.write(contentsOf: data)
-        guard fsync(descriptor) == 0, renameat(directory, temporary, directory, "memories.json") == 0 else {
-            throw posixError()
-        }
-        guard fsync(directory) == 0 else { throw posixError() }
+        guard fsync(descriptor) == 0, renameat(directory, temporary, directory, "memories.json") == 0, fsync(directory) == 0 else { throw posixError() }
     }
 
     private func checkRegular(_ descriptor: Int32) throws {

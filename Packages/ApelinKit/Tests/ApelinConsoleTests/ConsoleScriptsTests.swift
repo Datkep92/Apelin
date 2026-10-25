@@ -14,7 +14,7 @@ final class ConsoleScriptsTests: XCTestCase {
     /// unless a script truly cannot reach one.
     private static let notScripted: [AppOperation: String] = [
         .agentAPIConfiguration: "Only the editing form may read saved API keys; the console refuses it before sending.",
-        .gitCredentialSet: "A git token is typed only in Settings ▸ Git; the console refuses it before sending.",
+        .gitCredentialSet: "A git credential comes only from Sign In with GitHub in Settings ▸ Git; the console refuses it before sending.",
     ]
 
     private static func consoleFolder(_ name: String) -> URL {

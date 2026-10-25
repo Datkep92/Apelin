@@ -217,9 +217,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `agentRunCode`, `agentCredentialImport`, `agentAccountList`, `agentSkillList`, `agentAPIConfiguration`, `agentModelList`, `agentModelActivate`, `agentSignIn`,
   `agentSignInRespond`, `agentSignInCancel`, `agentSignOut`; `toolHostOpen`, `toolHostClose`,
   `toolHostCall`;
-  `gitStatus`, `gitDiff`, `gitStage`, `gitUnstage`, `gitCommit`, `gitClone`,
-  `gitCloneInto`, `gitFetch`, `gitPull`, `gitPush`, `gitSettings`,
+  `gitStatus`, `gitDiff`, `gitStage`, `gitUnstage`, `gitCommit`, `gitInit`,
+  `gitClone`, `gitCloneInto`, `gitFetch`, `gitPull`, `gitPush`, `gitSettings`,
   `gitAuthorSet`, `gitCredentialSet`, `gitCredentialRemove`;
+  `distributionRepositoryList`, `distributionRepositoryCreate`,
+  `distributionRepositoryLink`, `distributionRepositoryUnlink`,
+  `distributionPublish`;
   `transferExport`, `transferInspect`, `transferImport`. Every one is
   in the list today; most answer `unimplemented` until their domain lands.
   The envelope (protocol version 2) carries `op`, `protocolVersion`,
@@ -561,7 +564,14 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   resolved to exactly one component below the realpath of `Projects/`;
   every path is plain, literal (never a pathspec glob) and resolves inside.
   A commit's author is the request's, else `Settings/git.json`, else the
-  repository's config. SSH would exec `ssh`; HTTPS is the only transport.
+  repository's config; `gitCommit{all: true}` stages every change first,
+  as `git add --all` does (ignored files left out). Every project Apelin
+  makes starts as a repository on `main` with no commit (owner,
+  2026-10-25): apelin-build, which has no libgit2, writes what
+  `git init -b main` leaves into the staging folder (`EmptyRepository`
+  in ApelinProject), so project and repository arrive together; `gitInit`
+  makes one on `main` for a project that has none (`conflict` when it has
+  a `.git`). SSH would exec `ssh`; HTTPS is the only transport.
   Remotes (2026-10-22): `gitFetch`, `gitPull` (fetch, then a fast-forward
   only: a diverged branch or a worktree change it would overwrite is
   `conflict` and nothing changes) and `gitPush` (one branch to the branch
@@ -570,7 +580,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   workspace project — the repository initialised in the folder, `origin`
   fetched in full, the branch checked out without overwriting a file
   already there (a clash fails and leaves the folder as it was), Apelin's
-  own files kept out through `.git/info/exclude`. Credentials are one per
+  own files kept out through `.git/info/exclude`. The untouched repository
+  a new workspace starts with (`GitRepository.isUntouched`: HEAD unborn, no
+  reference, remote or staged entry) is replaced, and put back on its
+  branch when the import fails; any other `.git` is `conflict`. Credentials are one per
   host (lowercased, with `:port` when named): a username and a token
   (`GitCredentialStore`, keychain service and access group
   `wiki.qaq.apelin.git`, `keychain-access-groups` on apelin-environment
@@ -581,7 +594,22 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `gitAuthorSet`, `gitCredentialSet` and `gitCredentialRemove` are the
   app's and the agent's (Settings ▸ Git, `Apelin/Interface/Settings/Git/`): the list names
   hosts and usernames, never a token, and the console refuses
-  `gitCredentialSet` before sending it. An agent's git call is checked by
+  `gitCredentialSet` before sending it. github.com is signed in to with a
+  code, the device flow `gh auth login` runs (owner, 2026-10-25;
+  `GitHubDeviceFlow`, after cli/cli `internal/authflow` and cli/oauth
+  `device`, tested in `Tests/GitHubDeviceFlow`): in the app, which has the
+  network, with GitHub CLI's OAuth app (`178c6fc778ccc68e1d6a`, public in
+  gh's source, no secret needed; GitHub's page asks to authorize GitHub
+  CLI, which the page says first) and scopes `repo` and `workflow`; each
+  poll waits a fifth longer than GitHub's interval, a `slow_down` takes its
+  new one with two fifths; the token is gh's non-expiring kind, saved with
+  the account's login (`GET /user`) through `gitCredentialSet`, never kept
+  by the app. There is no token form any more: Settings ▸ Git ▸ GitHub
+  signs in and out, another host's credential is one an agent saved
+  (apelin_git_save_credential, which refuses github.com), listed under
+  Other Hosts for removal. Sign In with GitHub is also a welcome page, after
+  Model Providers (`WelcomeGitHubPage`), with the package repository's
+  Create and Link under it. An agent's git call is checked by
   `GitHandler` to name its own session's project before it is forwarded.
   An empty workspace's manifest says `"buildSystem": "external"` (one
   without the key is read the same way): Apelin has no build description
@@ -948,21 +976,27 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   call into another project does), and this one's file tools stay where
   they are; a project's chat makes one only for work that is a project of
   its own, when the user asks or agrees. In a project's chat only, git_status, git_diff,
-  git_stage, git_unstage and git_commit → the matching `git*` request,
+  git_stage, git_unstage, git_commit (`all: true` stages every change)
+  and git_init → the matching `git*` request,
   git_fetch, git_pull, git_push and git_clone → `gitFetch`, `gitPull`,
   `gitPush` and `gitCloneInto` read to their end; all of them run under
   Confirm like a project edit except git_push, which asks every time for
   the remote and branch it names (the checked-out branch read first when
   none is given, then sent explicitly), never with a session grant. A
-  failure names its fix: a token in Settings ▸ Git, an author there, a
-  fetch before a rejected push, never a forced one. apelin_git_read_settings, apelin_git_set_author,
+  failure names its fix: Sign In with GitHub in Settings ▸ Git for
+  github.com, a token the user gives for another host, an author there, a
+  fetch before a rejected push, never a forced one. The agent keeps the
+  history itself (owner, 2026-10-25; the `apelin-git-workflow` skill, one
+  line in the prompt): unless the user drives git, it commits on its own
+  once a change builds, and pushes only when asked. apelin_git_read_settings, apelin_git_set_author,
   apelin_git_save_credential and apelin_git_remove_credential → `gitSettings`,
   `gitAuthorSet`, `gitCredentialSet` and `gitCredentialRemove`, in any chat:
   reading needs nothing, every change asks under Confirm (the card names
   the host and user, never the token, and never a session grant), and the
   token is masked in the `toolCall` and `approvalRequested` events
   (`ToolArgumentRedaction`); `GitHandler` skips its project check for
-  these four. On a workspace, apelin_project_build runs the script its `external`
+  these four. apelin_git_save_credential refuses github.com before
+  anyone is asked: that host is the user's Sign In with GitHub. On a workspace, apelin_project_build runs the script its `external`
   declares (Workspace builds, below) and asks under Confirm every time,
   never with a session grant; one that declares none answers how to
   declare it instead of asking.
@@ -1680,7 +1714,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (an `SPIndicator` says so). Deny never checks.
   The runtime reads that mode when opening a session, and reads the global model, effort and tier on each send (changes apply between runs). The transport's explicit approval mode and host safeguards remain authoritative. A single summary groups consecutive thinking and tool steps, with body-size labels at 50% label
   colour; an unfinished thought shimmers unless Reduce Motion is on, a
-  finished one names seconds and tool count. Tapping opens a live-updating trace form sheet with the thinking, tool calls and approval records, all without icons and aligned to the text margin; a thought's text and a call's arguments and output are plain, selectable body text (Litext's `TextLabelView`, never Markdown). A call's arguments arrive as one line of JSON, so they are decoded for the row (`ToolCallDetail`, tested in `Tests/ChatTranscript`): each argument's name on a line of its own, set smaller in the secondary colour, its value under it — a string as itself, line breaks and quotes and all, so a written file reads as the file, anything else as compact JSON —, the reason first unless it only repeats the title, then the short values, then the long ones, by name within each, and last the result under "Result". Arguments that are not a JSON object show as they came. `TraceBody` builds the text and measures it once per text, text size and width, for `height(for:)` and the layout alike, so a long file is decoded and laid out once, never cut short. Main transcript headers have no icons either, except the running summary's count: after its title, the output tokens the run has received (`received`; `ReceivedTokensView`), grouped as the locale groups them, its digits one width, then a plain `arrow.down` drawn at the figure's font — "Thinking… 653 ↓" (owner, 2026-10-25) —, both at the title's 50% label colour. Right to left the whole count sits on the title's left, the arrow on the figure's left, so it still follows the figure; short of room the figure is cut, never the arrow. It changes as counts arrive, apart from the title's once-a-second rule, follows the title when the title rolls to another width, fades in and out on the same summary (at once under Reduce Motion), and is the title's `accessibilityValue` ("1,234 tokens received"), the view itself hidden from VoiceOver. A session from before the count shows none. Under a running summary, the line of its newest call (Live chat and project UI ▸ `ToolCallBannerView`). Only provider-supplied reasoning
+  finished one names seconds and tool count. Tapping opens a live-updating trace form sheet with the thinking, tool calls and approval records, all without icons and aligned to the text margin; a thought's text and a call's arguments and output are plain, selectable body text (Litext's `TextLabelView`, never Markdown). A call's arguments arrive as one line of JSON, so they are decoded for the row (`ToolCallDetail`, tested in `Tests/ChatTranscript`): each argument's name on a line of its own, set smaller in the secondary colour, its value under it — a string as itself, line breaks and quotes and all, so a written file reads as the file, anything else as compact JSON —, the reason first unless it only repeats the title, then the short values, then the long ones, by name within each, and last the result under "Result". Arguments that are not a JSON object show as they came. `TraceBody` builds the text and measures it once per text, text size and width, for `height(for:)` and the layout alike, so a long file is decoded and laid out once, never cut short. Main transcript headers have no icons either, except the count on the turn's latest summary: at the trailing end of its title line, the output tokens the run has received (`received`; `ReceivedTokensView`), grouped as the locale groups them, its digits one width, then a plain `arrow.down` drawn at the figure's font — "653 ↓" at the row's right edge (owner, 2026-10-25) —, both at the title's 50% label colour; right to left the arrow is at the left edge and the figure on its right. The title's first line fades out over 20 pt before it (a mask on the title's own container, the shimmer staying the title's mask), so a long title runs under the count instead of into it. The figure climbs rather than jumps (`TokenClimb`, tested in `Tests/TokenClimb`): straight from what it shows to each new count, arriving five seconds after the count came while the summary runs, and half a second once the reply after it has begun — the transcript keeps the count on the summary above the reply the run is writing (`ChatMessage.receivedSettles`) until the run ends —; it is drawn again at most ten times a second with Litext's numeric roll, starts from nothing when it appears on the same summary, and on another summary, off screen or under Reduce Motion is there at once. It fades in and out with the summary's run, and is the title's `accessibilityValue` ("1,234 tokens received", the count it is climbing to), the view itself hidden from VoiceOver. A session from before the count shows none. Under a running summary, the line of its newest call (Live chat and project UI ▸ `ToolCallBannerView`). Only provider-supplied reasoning
   belongs in those entries. `ChatMarkdownView` uses a 16 pt block gap shared with the gap between cells,
   removes extra heading top space and the trailing empty paragraph so gaps
   match between cells. Pending approvals use `ComposerApprovalSection`
@@ -1904,6 +1938,53 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   device: `Documents/Console/scripts/i3-chain.json` (create → check → build →
   install → confirmLoaded with `trigger: respring`; delete
   `Projects/I3 Chain Tweak` before running it again).
+- **Distribution repository** (owner, 2026-10-25;
+  `Operations/Distribution.swift`, `ApelinEnvironment/Distribution/`,
+  `Apelind/Dispatch/DistributionHandler.swift`,
+  `Apelin/Interface/Settings/Git/DistributionRepository*`). The user's own
+  package repository: a GitHub repository of theirs that GitHub Actions
+  indexes and GitHub Pages serves as an APT source
+  (`https://<owner>.github.io/<name>/`), laid out after
+  owngoal-dev/owngoal-packages trimmed to committed packages
+  (`DistributionTemplate`: `debs/`, `depictions/`, `index.html`,
+  `sileo-featured.json`, `scripts/update-repository.sh` indexing `debs/`
+  with apt-ftparchive, and `.github/workflows/update-repository.yml`
+  building and deploying Pages on every push to the repository's branch).
+  apelin-environment serves it, holding the github.com sign-in: GitHub's
+  API (`GitHubAPI`: the account, its own repositories, creating one, Pages
+  with `build_type: workflow`) is called with that token, and the clone
+  fetches and pushes with it as any remote does. Its clone is an ordinary
+  workspace project, so its conversation maintains it with the file and
+  git tools (the `apelin-package-repository` skill); the link is
+  `Settings/distribution.json`, read only while its project is there.
+  `distributionRepositoryCreate{name}` (a task: `creating`, `preparing`,
+  `pushing`, `publishing`) makes a public repository, the project with the
+  template, its first commit and push, then Pages, and links it; once
+  GitHub has the repository a failure says Link finishes the setup.
+  `distributionRepositoryLink{fullName}` (`fetching` first) takes the
+  project whose origin it already is, else clones it into a new workspace
+  — an empty repository is set up as a new one —, adds the template files
+  it lacks without overwriting any, commits and pushes those, switches or
+  turns on Pages and links it. A Pages refusal (a private repository on a
+  free plan) is a warning; the repository is set up either way.
+  `distributionPublish{files}` (`fetching`, `preparing`, `pushing`) takes
+  `.deb` files under the data folder's `Builds/` (≤ 16, each ≤ 100 MB,
+  which GitHub caps), fast-forwards the clone, copies each into `debs/` as
+  `<Package>_<Version>_<Architecture>.deb` (the epoch's colon `%3a`, as
+  dpkg-name spells it) — the same bytes again are skipped, other bytes
+  under that name `conflict` —, commits "Publish …" and pushes.
+  `distributionRepositoryList{repositories}` answers the account, the link
+  and, asking GitHub, the account's own repositories;
+  `distributionRepositoryUnlink` forgets the link only. The app's alone
+  (no worker may call them); their tasks are not resumed. Settings ▸ Git ▸
+  Publishing and the GitHub welcome page create or link one; the
+  distribution build page's `…` menu publishes its verified package
+  (Publish to Package Repository). Tested by `DistributionTests` (a fake
+  GitHub and bare repositories on disk: create, link with a file of the
+  user's kept and a branch-built site switched, an empty repository,
+  publish once and refuse a changed package, the refusals); on a device by
+  `Documents/Console/scripts/distribution.json` (refusals and unlink only:
+  nothing reaches GitHub).
 
 ### Product (decided 2026-10-16)
 
@@ -1954,7 +2035,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   or against one single-use approval bound to that exact command and
   directory as a *root* request (`detail.rootCommand`, never
   `detail.command`). Full is for a dependency install
-  (`irisin-cli install --yes <id>` at euid 0, package-dependencies skill),
+  (`irisin-cli install --yes <id>` at euid 0, apelin-package-dependencies skill),
   not the project's own build. Switching into Full is a confirmation that
   says root will run without asking, plus the same owner check; leaving it
   asks nothing. The wire value is `full` and old stored values still decode;
@@ -2260,7 +2341,7 @@ adding a dated record beside it.
 - `ChatRuntime.transcript` brings a conversation's rows up to date only when they would differ (`ChatTranscriptCache`, kept for the followed conversations and the page's). `ChatTranscript` is a fold: new events (`ChatRecord.events` are only appended to) are read onto the rows the earlier ones made (`append`), and the rows shown are made afresh from those, as a build from every event at once at the same `now` makes them (`Tests/ChatTranscript/TranscriptFold.swift` compares the two over random logs). A change to the messages it is sending, or a `quietDeadline` passed since it was shown, shows the rows again, so the refresh `ChatQuietWatch` asks for at the deadline adds the stand-in; only a sender's new title builds it again from every event. A row equal to one shown before is that very value, so the page's comparison stops at its storage. The composer is told of its approval request and its Stop only when either changes, a long-poll that ran out with nothing writes nothing, and a conversation is written once at a time, then once more with what changed meanwhile.
 - Working state comes from session events, never a late send acknowledgement. Completed zero-second, zero-tool thought rows are omitted. A positive duration without tools shows only the duration; tools without a positive duration show only their count; “and” joins the clauses only when both values are positive. Thought headers use Litext numeric transitions, with reduced motion respected. User messages and reply text are selectable.
 - The conversation alternates a single thinking summary with response content. Consecutive thinking steps merge across tools and approvals. Tool calls and completed approvals stay out of the main transcript; tapping the summary opens their ordered trace in a form sheet, including provider-supplied thinking text, all of it plain text. Headers use body-size 50% primary text aligned to the body margin, with a sentence for duration and tool count. Pending approval still replaces the composer.
-- Every agent tool, MCP tools included, requires a short `reason` (`ToolReason`), stripped from the arguments before the approval gate, the fingerprint, the tool or the host sees them; the `toolCall` event keeps it. The file tools end their result's first line with `+a -b` lines added and removed. While a turn runs, its trailing summary stays unfinished across calls and approvals, its title followed by the run's received tokens. Once the summary has a call, `ToolCallBannerView` shows one line under it, at the reading width, between hairlines on a 5% grey ground drawn out to the row's edges: the newest call in its trace (`ToolCallBanner`), by its reason, or its title for a call made without one, and for a file tool (`ToolCallBanner.fileTools`) the file's name first, then the lines added in green and removed in red once its result is in, read from the result's first line (a failed call has none), so truncation takes the end of the reason, never the numbers. Thinking after a call leaves that call there; nothing of the thinking shows (owner, 2026-10-24: no thinking tail, typing or character fade). On the same summary, a new call, or its counts coming in, fades in over 0.2 s; the line's first call, a row taken over by another summary and everything under Reduce Motion show at once. VoiceOver reads the line after the title: the reason, then the file and its counts in words as its value. Only the running summary in the transcript has it; the trace sheet lists every call whole. The running summary reads “Executing N tools…” only while N calls await a result, “Thinking…” otherwise, and its title changes at most once a second: the first change at once, the latest of the rest when the second is up. A running summary stands in under a prompt, or under images a tool returned, until the turn shows something, with the id its next thought takes, and `toolCallPreparing` starts one while the model writes a call's arguments, so a turn never shows a gap. One stands in under the turn's last reply (or error) too once the running turn has gone `ChatTranscript.quietInterval` (1.5 s) without an event — the model may be writing a call it has not announced, or the provider has stalled —, never under a running summary or a waiting approval. The transcript is given the time (`now`) and answers `quietDeadline`; the page builds its rows again once, then (`ChatQuietWatch`), and nothing polls. The reply's next thought, call or message start takes the stand-in's id, so it becomes that row with no flash, and more of the reply ends it. Transcript content is centred in at most 730 pt, the composer card's widest, so the two edges line up; the list itself stays full width, so its margins scroll.
+- Every agent tool, MCP tools included, requires a short `reason` (`ToolReason`), stripped from the arguments before the approval gate, the fingerprint, the tool or the host sees them; the `toolCall` event keeps it. The file tools end their result's first line with `+a -b` lines added and removed. While a turn runs, its trailing summary stays unfinished across calls and approvals, the run's received tokens climbing at the trailing end of its title line (and of the summary above the reply while the reply streams). Once the summary has a call, `ToolCallBannerView` shows one line under it, at the reading width, between hairlines on a 5% grey ground drawn out to the row's edges: the newest call in its trace (`ToolCallBanner`), by its reason, or its title for a call made without one, and for a file tool (`ToolCallBanner.fileTools`) the file's name first, then the lines added in green and removed in red once its result is in, read from the result's first line (a failed call has none), so truncation takes the end of the reason, never the numbers. Thinking after a call leaves that call there; nothing of the thinking shows (owner, 2026-10-24: no thinking tail, typing or character fade). On the same summary, a new call, or its counts coming in, fades in over 0.2 s; the line's first call, a row taken over by another summary and everything under Reduce Motion show at once. VoiceOver reads the line after the title: the reason, then the file and its counts in words as its value. Only the running summary in the transcript has it; the trace sheet lists every call whole. The running summary reads “Executing N tools…” only while N calls await a result, “Thinking…” otherwise, and its title changes at most once a second: the first change at once, the latest of the rest when the second is up. A running summary stands in under a prompt, or under images a tool returned, until the turn shows something, with the id its next thought takes, and `toolCallPreparing` starts one while the model writes a call's arguments, so a turn never shows a gap. One stands in under the turn's last reply (or error) too once the running turn has gone `ChatTranscript.quietInterval` (1.5 s) without an event — the model may be writing a call it has not announced, or the provider has stalled —, never under a running summary or a waiting approval. The transcript is given the time (`now`) and answers `quietDeadline`; the page builds its rows again once, then (`ChatQuietWatch`), and nothing polls. The reply's next thought, call or message start takes the stand-in's id, so it becomes that row with no flash, and more of the reply ends it. Transcript content is centred in at most 730 pt, the composer card's widest, so the two edges line up; the list itself stays full width, so its margins scroll.
 - `ProjectPickerController` lists real projects; `NewProjectController` chooses a catalog template, using its default parameters and calls `projectCreate`. Settings includes a read-only Templates catalog with single-line names with source-file byte counts at the trailing edge, no subtitles and no disclosure navigation. The built-in `wiki.qaq.apelin.workspace/empty` template creates only a workspace identity manifest, atomically and without SDK/toolchain requirements. It supplies no build or install baseline; a build requires a real build description.
 
 - Templates are a single read-only release catalog, with additions and corrections submitted as repository pull requests. There is no create/delete action or separate user template library. `make template-archive` validates and reproducibly packs sources, support files and licenses as `Apelin_<version>_Templates.tar.zst`; CI records its checksum and Release publishes that exact artifact without rebuilding.
@@ -2391,34 +2472,45 @@ Apelin's own templates and pipeline, the sibling apps (Irisin's installer,
 icli, Xrash, iGhostVT, Fila, LookInside's tweak) and roothide's developer
 notes, and a claim nobody has seen hold on a device stays out.
 A built-in skill may carry files of its own (`SkillDocument.files`):
-`project-description` is every member of `apelin-project.json`, the macros the
+`apelin-project-description` is every member of `apelin-project.json`, the macros the
 build defines and what asks the user, with the embedded schema as its file
 `apelin-project.schema.json` (`ProjectValidation.schemaText`); a test fails
-when the schema gains a member the guide never names. `tweak-development`
+when the schema gains a member the guide never names. `apelin-tweak-development`
 is the edit-build loop and how to live beside other tweaks (hooks that chain,
 `static` names, prefixed added methods and classes), and says Theos is not
 supported (owner, 2026-10-23): a Theos tweak's Logos is rewritten as plain
 Objective-C in the template's style, never built with Theos, which is never
 installed; an imported repository keeps building with a script of its own.
-`bootstrap-paths` (owner, 2026-10-24) is roothide and rootless path spelling —
+`apelin-bootstrap-paths` (owner, 2026-10-24) is roothide and rootless path spelling —
 jbroot vs `/var/jb`, `/rootfs`, `@PREFIX@`/`@ROOTFS@`, `@loader_path/.jbroot`,
 the compiler-vs-shell split — and carries `ApelinBootstrap.h`, a
 jbroot()/ROOT_PATH_NS() helper written so one source builds for both
 bootstraps (compiled by hand for roothide arm64e and rootless arm64 with the
 template's flags; a test holds that the skill ships the header).
-`tweak-runtime` is logging (os_log under the package id, `%{public}`, the live
+`apelin-tweak-runtime` is logging (os_log under the package id, `%{public}`, the live
 log apelin_log_read reads), the sandbox an injected dylib inherits, reading a
 setting, and signalling another process with a payload-free Darwin
-notification. `preference-bundle` is the Settings pane: `PSListController`,
+notification. `apelin-preference-bundle` is the Settings pane: `PSListController`,
 `Root.plist`, the PreferenceLoader entry and the domain the tweak reads.
-`package-dependencies` is how a package is installed — the project's own build
+`apelin-package-dependencies` is how a package is installed — the project's own build
 through `apelin_package_install`, a dependency through the user in Irisin — and why
 shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
 `irisin-cli` (root-only, and the daemon takes an external client only at euid
-0) do not work for the agent. `packaging-and-install` and `crash-triage` cover
-install/respring/confirm and reading a crash. `external-build` is the workspace
+0) do not work for the agent. `apelin-packaging-and-install` and `apelin-crash-triage` cover
+install/respring/confirm and reading a crash. `apelin-external-build` is the workspace
 build: the declaration, what the script gets and must write, and how its
-package is installed.
+package is installed. `apelin-git-workflow` (owner, 2026-10-25) is keeping the
+project's history for the user: commit on your own once a change builds
+unless the user drives git, `git_commit` with `all`, messages, `.gitignore`,
+`git_init` for a project without a repository, push only when asked, and
+github.com through Sign In with GitHub. `apelin-package-repository` is the
+package repository (Distribution repository, below): its layout after
+owngoal-packages, the control fields a package needs, how Publish adds a
+release, and keeping old versions in check.
+Every built-in's name begins `apelin-` (owner, 2026-10-25), so none takes
+the name of a user's skill of the same subject; `BuiltInSkills.legacyNames`
+lets `apelin_skill_read` find one by its old name when no skill has that
+name now, for transcripts, memories and instructions written before.
 Skills, memory and the project instructions are the session's snapshot
 (Prompt caching, below): an open session hears of a change as a delta in its
 next message's `<system-state>`. Skills are global (owner, 2026-10-23): the built-ins and the skills folder,
@@ -2491,7 +2583,10 @@ its first run (`Session/ProjectContext.swift`): a `<project-context>` block
 before the user's text, which the model sees and the app's event does not —
 name, ID, kind and language, deployment target, architectures, template,
 build system with its steps and products, package, binding, git in one line
-read from `.git` itself — and a breadth-first tree (`ProjectTree`: at most
+— the host's `gitStatus` (branch, HEAD, the changes as `git status --short`
+spells them, at most 12 then counted, and `origin` without any credential),
+asked before the run starts and waited for at most 3 s, else read from
+`.git` itself, naming git_init when there is none — and a breadth-first tree (`ProjectTree`: at most
 200 entries, 6 levels, 2000 names a folder, 20,000 names in all; `.git`,
 `.DS_Store`, the top-level `Builds`, Apelin's temporary files and what the
 `.gitignore` files name left out; `Attachments` shown, not opened; links

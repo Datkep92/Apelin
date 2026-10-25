@@ -33,10 +33,8 @@ public enum ToolSchemaValidator {
             for name in rules["required"]?.arrayValue?.compactMap(\.stringValue) ?? [] where object[name] == nil {
                 return "\(path).\(name) is required"
             }
-            if rules["additionalProperties"] == .bool(false) {
-                if let extra = object.keys.sorted().first(where: { properties[$0] == nil }) {
-                    return "\(path).\(extra) is not a parameter"
-                }
+            if rules["additionalProperties"] == .bool(false), let extra = object.keys.sorted().first(where: { properties[$0] == nil }) {
+                return "\(path).\(extra) is not a parameter"
             }
             for (name, member) in object.sorted(by: { $0.key < $1.key }) {
                 if let rule = properties[name], let problem = problem(with: member, against: rule, at: "\(path).\(name)") {

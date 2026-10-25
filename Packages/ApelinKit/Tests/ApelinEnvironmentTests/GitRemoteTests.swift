@@ -1,6 +1,7 @@
 import ApelinCore
 @testable import ApelinEnvironment
 @testable import ApelinGit
+import ApelinProject
 @testable import ApelinProtocol
 import Foundation
 import XCTest
@@ -94,10 +95,115 @@ final class GitRemoteServiceTests: XCTestCase {
         git.acceptsLocalRemotes = true
         XCTAssertNoThrow(try git.checkCloneInto(GitCloneIntoRequest(projectID: space, url: "/tmp/a.git")))
 
-        _ = try GitRepository.create(at: root)
+        // The untouched repository a new workspace starts with is taken; one
+        // with a commit is not.
+        let repository = try GitRepository.create(at: root)
+        XCTAssertTrue(repository.isUntouched)
+        XCTAssertNoThrow(try git.checkCloneInto(GitCloneIntoRequest(projectID: space, url: "https://example.com/a.git")))
+        try Data("x\n".utf8).write(to: root.appendingPathComponent("x"))
+        try repository.stage(["x"])
+        XCTAssertFalse(repository.isUntouched, "something staged")
+        try repository.commit(message: "Mine", author: author)
         XCTAssertThrowsError(try git.checkCloneInto(GitCloneIntoRequest(projectID: space, url: "https://example.com/a.git"))) {
             XCTAssertEqual(($0 as? ApelinError)?.code, .conflict)
         }
+    }
+
+    func testCloneIntoReplacesTheUntouchedRepositoryANewWorkspaceHas() throws {
+        let home = try TemporaryHome(self)
+        let (url, seed) = try bareRemote(home)
+        let id = "8a6f3c1e-0000-4000-8000-000000000106"
+        let root = try project(home, name: "Space", id: id, kind: "workspace")
+        _ = try GitRepository.create(at: root)
+        let git = service(home)
+        let request = GitCloneIntoRequest(projectID: id, url: url)
+        let result = try git.cloneInto(request, into: git.checkCloneInto(request), reporter: .silent)
+        XCTAssertEqual(result["commit"]?.stringValue, seed.head().commit)
+        XCTAssertEqual(try GitRepository(at: root).remoteURL(), url)
+    }
+
+    func testCloneIntoThatClashesPutsTheUntouchedRepositoryBack() throws {
+        let home = try TemporaryHome(self)
+        let (url, _) = try bareRemote(home)
+        let id = "8a6f3c1e-0000-4000-8000-000000000107"
+        let root = try project(home, name: "Space", id: id, kind: "workspace")
+        _ = try GitRepository.create(at: root)
+        try Data("mine\n".utf8).write(to: root.appendingPathComponent("README"))
+        let git = service(home)
+        let request = GitCloneIntoRequest(projectID: id, url: url)
+        XCTAssertThrowsError(try git.cloneInto(request, into: git.checkCloneInto(request), reporter: .silent)) {
+            XCTAssertEqual(($0 as? ApelinError)?.code, .conflict, "\($0)")
+        }
+        let back = try GitRepository(at: root)
+        XCTAssertTrue(back.isUntouched)
+        XCTAssertEqual(back.head().branch, "main")
+        XCTAssertNil(back.remoteURL())
+    }
+
+    // MARK: Init and commit everything
+
+    /// A project Apelin makes is a repository on main from the start, which
+    /// libgit2 opens as git init would have left it, and a workspace's can
+    /// still take an import.
+    func testANewProjectStartsAsAnUntouchedRepositoryOnMain() throws {
+        let home = try TemporaryHome(self)
+        let created = try ProjectStore(dataFolder: home.layout.data).createEmpty(name: "Fresh")
+        let root = URL(fileURLWithPath: created.path, isDirectory: true)
+        let repository = try GitRepository(at: root)
+        XCTAssertTrue(repository.isUntouched)
+        XCTAssertEqual(repository.head(), GitHead(branch: "main", commit: nil))
+        let git = service(home)
+        let status = try git.status(GitStatusRequest(projectID: created.projectID))
+        XCTAssertEqual(status.branch, "main")
+        XCTAssertEqual(status.entries.map(\.path), ["apelin-project.json"])
+        XCTAssertNoThrow(try git.checkCloneInto(GitCloneIntoRequest(projectID: created.projectID, url: "/tmp/a.git")))
+    }
+
+    func testInitMakesARepositoryOnMainOnce() throws {
+        let home = try TemporaryHome(self)
+        let id = "8a6f3c1e-0000-4000-8000-000000000108"
+        let root = try project(home, name: "Plain", id: id, kind: "tweak")
+        let git = service(home)
+        XCTAssertThrowsError(try git.status(GitStatusRequest(projectID: id))) {
+            XCTAssertEqual(($0 as? ApelinError)?.code, .notFound)
+        }
+        XCTAssertEqual(try git.initialize(GitInitRequest(projectID: id)), GitInitResponse(branch: "main"))
+        XCTAssertEqual(try git.status(GitStatusRequest(projectID: id)).branch, "main")
+        XCTAssertTrue(try GitRepository(at: root).isUntouched)
+        XCTAssertThrowsError(try git.initialize(GitInitRequest(projectID: id))) {
+            XCTAssertEqual(($0 as? ApelinError)?.code, .conflict)
+        }
+    }
+
+    func testCommitAllStagesNewChangedAndDeletedFilesButNotIgnoredOnes() throws {
+        let home = try TemporaryHome(self)
+        let id = "8a6f3c1e-0000-4000-8000-000000000109"
+        let root = try project(home, name: "Plain", id: id, kind: "tweak")
+        let git = service(home)
+        _ = try git.initialize(GitInitRequest(projectID: id))
+        try Data("build/\n".utf8).write(to: root.appendingPathComponent(".gitignore"))
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("build"), withIntermediateDirectories: true)
+        try Data("o".utf8).write(to: root.appendingPathComponent("build/out.o"))
+        try Data("a\n".utf8).write(to: root.appendingPathComponent("a.m"))
+        try Data("b\n".utf8).write(to: root.appendingPathComponent("b.m"))
+        let commit = { (message: String) in
+            try git.commit(GitCommitRequest(
+                projectID: id, message: message, authorName: "A", authorEmail: "a@apelin.invalid", all: true,
+            ))
+        }
+        _ = try commit("First")
+        XCTAssertEqual(try git.status(GitStatusRequest(projectID: id)).entries, [], "everything but build/ went in")
+        try Data("a2\n".utf8).write(to: root.appendingPathComponent("a.m"))
+        try FileManager.default.removeItem(at: root.appendingPathComponent("b.m"))
+        try Data("c\n".utf8).write(to: root.appendingPathComponent("c.m"))
+        _ = try commit("Second")
+        XCTAssertEqual(try git.status(GitStatusRequest(projectID: id)).entries, [], "the change, the removal and the new file")
+        XCTAssertThrowsError(try commit("Nothing")) { XCTAssertEqual(($0 as? ApelinError)?.code, .badRequest, "\($0)") }
+        // without all, only what was staged
+        try Data("a3\n".utf8).write(to: root.appendingPathComponent("a.m"))
+        XCTAssertThrowsError(try git.commit(GitCommitRequest(
+            projectID: id, message: "Staged only", authorName: "A", authorEmail: "a@apelin.invalid",
+        )))
     }
 
     func testCloneIntoThatClashesLeavesTheWorkspace() throws {

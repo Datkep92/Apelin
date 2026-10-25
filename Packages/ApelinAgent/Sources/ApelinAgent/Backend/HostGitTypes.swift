@@ -78,9 +78,26 @@ public struct GitPathsToolResponse: Sendable, Hashable, Codable {
 public struct GitCommitToolRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext
     public var message: String
-    public init(context: HostCallContext, message: String) {
+    /// Stage every change first, as `git add --all` does.
+    public var all: Bool
+    public init(context: HostCallContext, message: String, all: Bool = false) {
         self.context = context
         self.message = message
+        self.all = all
+    }
+}
+
+public struct GitInitToolRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public init(context: HostCallContext) {
+        self.context = context
+    }
+}
+
+public struct GitInitToolResponse: Sendable, Hashable, Codable {
+    public var branch: String
+    public init(branch: String) {
+        self.branch = branch
     }
 }
 

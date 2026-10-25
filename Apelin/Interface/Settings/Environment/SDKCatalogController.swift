@@ -212,8 +212,7 @@ final class SDKCatalogController: TableController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard let entry = dataSource.value(at: indexPath) else { return }
-        guard !entry.installed else { return }
+        guard let entry = dataSource.value(at: indexPath), !entry.installed else { return }
         importSDK(.repository(url: entry.source.url, branch: entry.branch))
     }
 

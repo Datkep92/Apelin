@@ -56,9 +56,26 @@ public struct GitService: Sendable {
         let repository = try open(request.projectID).repository
         let author = try author(name: request.authorName, email: request.authorEmail, repository: repository)
         return try GitCommitResponse(commitID: mapped {
-            try repository.commit(message: request.message, author: author)
+            if request.all == true {
+                try repository.stageAll()
+            }
+            return try repository.commit(message: request.message, author: author)
         })
     }
+
+    /// A repository for a project that has none, on `main`.
+    public func initialize(_ request: GitInitRequest) throws -> GitInitResponse {
+        let project = try projects.locate(request.projectID)
+        var metadata = stat()
+        guard lstat(project.root.appendingPathComponent(".git").path, &metadata) != 0 else {
+            throw ApelinError(.conflict, "\(project.name) already has a repository")
+        }
+        let repository = try mapped { try GitRepository.create(at: project.root, initialBranch: Self.initialBranch) }
+        return GitInitResponse(branch: repository.head().branch ?? Self.initialBranch)
+    }
+
+    /// The branch a repository Apelin makes starts on.
+    static let initialBranch = "main"
 
     /// Validates a clone request before the task is accepted.
     public func checkClone(_ request: GitCloneRequest) throws -> URL {
@@ -166,8 +183,9 @@ public struct GitService: Sendable {
     ]
 
     /// Validates a clone-into request before the task is accepted: the
-    /// project is an empty workspace's kind, has no repository yet, and the
-    /// URL is HTTPS. Answers the project folder.
+    /// project is an empty workspace's kind, has no repository yet, or only
+    /// the untouched one it was made with, and the URL is HTTPS. Answers the
+    /// project folder.
     public func checkCloneInto(_ request: GitCloneIntoRequest) throws -> URL {
         let project = try projects.locate(request.projectID)
         guard project.kind == "workspace" else {
@@ -177,8 +195,10 @@ public struct GitService: Sendable {
             )
         }
         var metadata = stat()
-        guard lstat(project.root.appendingPathComponent(".git").path, &metadata) != 0 else {
-            throw ApelinError(.conflict, "\(project.name) already has a repository")
+        if lstat(project.root.appendingPathComponent(".git").path, &metadata) == 0 {
+            guard let repository = try? GitRepository(at: project.root), repository.isUntouched else {
+                throw ApelinError(.conflict, "\(project.name) already has a repository")
+            }
         }
         try checkRemoteURL(request.url)
         if let branch = request.branch, !GitRepository.isValidBranchName(branch) {
@@ -534,7 +554,7 @@ public struct GitService: Sendable {
 
     /// The request's author, else the settings file's, else the repository
     /// configuration's `user.name` / `user.email`.
-    private func author(name: String?, email: String?, repository: GitRepository) throws -> GitSignature {
+    func author(name: String?, email: String?, repository: GitRepository) throws -> GitSignature {
         let settings = (try? JSONFile.read(SettingsFile.self, at: layout.gitSettings)) ?? nil
         let configured = repository.configuredSignature()
         let name = [name, settings?.authorName, configured?.name].compactMap(\.self).first { !$0.isEmpty }
@@ -553,6 +573,15 @@ public struct GitService: Sendable {
             return try body()
         } catch {
             throw Self.apelinError(error)
+        }
+    }
+
+    /// `body`, its failure as an ApelinError.
+    static func mapping<T>(_ body: () throws -> T) throws -> T {
+        do {
+            return try body()
+        } catch {
+            throw apelinError(error)
         }
     }
 

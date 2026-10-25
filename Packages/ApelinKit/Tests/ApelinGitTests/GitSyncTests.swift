@@ -224,11 +224,31 @@ final class GitSyncTests: XCTestCase {
     func testCloneIntoRefusesAFolderWithARepository() throws {
         let remote = try remote()
         let folder = remote.base.appendingPathComponent("taken", isDirectory: true)
-        _ = try GitRepository.create(at: folder)
+        let repository = try GitRepository.create(at: folder)
+        try write("mine\n", "mine.txt", in: folder)
+        try repository.stage(["mine.txt"])
+        try repository.commit(message: "Mine", author: author)
         XCTAssertThrowsError(try GitClone.into(folder, url: remote.url)) { XCTAssertEqual(($0 as? GitError)?.kind, .conflict) }
         XCTAssertThrowsError(try GitClone.into(remote.base.appendingPathComponent("absent"), url: remote.url)) {
             XCTAssertEqual(($0 as? GitError)?.kind, .notFound)
         }
+    }
+
+    /// The untouched repository a new project starts with is replaced, and
+    /// put back on its branch when the import fails.
+    func testCloneIntoTakesTheUntouchedRepositoryOfANewProject() throws {
+        let remote = try remote()
+        let folder = remote.base.appendingPathComponent("fresh", isDirectory: true)
+        _ = try GitRepository.create(at: folder, initialBranch: "main")
+        _ = try GitClone.into(folder, url: remote.url)
+        XCTAssertEqual(try GitRepository(at: folder).remoteURL(), remote.url)
+
+        let stopped = remote.base.appendingPathComponent("fresh-stopped", isDirectory: true)
+        _ = try GitRepository.create(at: stopped, initialBranch: "trunk")
+        XCTAssertThrowsError(try GitClone.into(stopped, url: remote.url, progress: { _ in false }))
+        let back = try GitRepository(at: stopped)
+        XCTAssertTrue(back.isUntouched)
+        XCTAssertEqual(back.head().branch, "trunk")
     }
 
     func testStoppedCloneIntoRemovesItsRepository() throws {

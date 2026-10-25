@@ -319,12 +319,27 @@ struct ChatTranscript {
     /// this the title would flip between "Thought for…" and the running one.
     /// It carries the run's output so far and the newest call in its trace.
     private static func keepTrailingSummaryRunning(_ rows: inout [ChatMessage], receivedTokens: Int?) {
-        guard let index = rows.lastIndex(where: { !$0.role.needsApproval }),
-              case let .thinking(_, tools) = rows[index].role else { return }
+        guard let index = rows.lastIndex(where: { !$0.role.needsApproval }) else { return }
+        guard case let .thinking(_, tools) = rows[index].role else {
+            settleCount(&rows, reply: index, receivedTokens: receivedTokens)
+            return
+        }
         rows[index].role = .thinking(seconds: nil, tools: tools)
         rows[index].runningTools = rows[index].trace.count(where: \.awaitsResult)
         rows[index].receivedTokens = receivedTokens
         rows[index].banner = rows[index].trace.last { $0.role == .tool }?.banner
+    }
+
+    /// While the run writes a reply, the summary just above it is finished
+    /// and keeps the run's count, which settles there; never a summary above
+    /// the turn's own message.
+    private static func settleCount(_ rows: inout [ChatMessage], reply: Int, receivedTokens: Int?) {
+        guard receivedTokens != nil, rows[reply].role == .assistant,
+              let summary = rows[..<reply].lastIndex(where: { $0.role != .assistant }),
+              case .thinking = rows[summary].role
+        else { return }
+        rows[summary].receivedTokens = receivedTokens
+        rows[summary].receivedSettles = true
     }
 
     /// The running summary that stands in under `row` until the turn shows
@@ -490,6 +505,7 @@ struct ChatTranscript {
         case .gitStage: return String(localized: "Stage changes")
         case .gitUnstage: return String(localized: "Unstage changes")
         case .gitCommit: return String(localized: "Commit changes")
+        case .gitInit: return String(localized: "Create repository")
         case .gitFetch: return String(localized: "Fetch from the remote")
         case .gitPull: return String(localized: "Pull from the remote")
         case .gitPush: return String(localized: "Push to the remote")

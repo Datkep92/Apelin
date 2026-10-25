@@ -193,7 +193,7 @@ final class SettingsViewController: TableController {
         case .agent: AgentPermissions.explanation
         case .environment: String(localized: "Toolchains, SDKs and project templates available on this device.")
         case .git:
-            String(localized: "The author of your commits, and the credentials used to clone and push over HTTPS.")
+            String(localized: "The author of your commits, your GitHub account, and the package repository your releases are published to.")
         case .about: nil
         }
     }

@@ -235,7 +235,7 @@ final class ToolchainServiceTests: XCTestCase {
 
         // What apelin-build reads, and what a project binds.
         let stores = try EnvironmentStoresReader(home: home).toolchains()
-        XCTAssertEqual(stores, [record.id: "sha256:" + record.contentDigest!])
+        XCTAssertEqual(stores, try [record.id: "sha256:" + XCTUnwrap(record.contentDigest)])
 
         // Set up again: the registered install is reused, not repeated.
         _ = try await service.setup(service.prepare(ToolchainSetupRequest()), taskID: TaskID("t2"), installer: installer, reporter: .silent)

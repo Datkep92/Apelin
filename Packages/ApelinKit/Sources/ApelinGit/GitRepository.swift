@@ -253,6 +253,37 @@ public final class GitRepository: @unchecked Sendable {
         try GitError.check(git_index_write(index), "write the index")
     }
 
+    /// Stages every change in the work tree, as `git add --all` does: new
+    /// and changed files no ignore rule names (`.gitignore`,
+    /// `.git/info/exclude`), and the removal of deleted ones.
+    public func stageAll() throws {
+        var index: OpaquePointer?
+        try GitError.check(git_repository_index(&index, pointer), "open the index")
+        defer { git_index_free(index) }
+        try GitError.check(
+            git_index_add_all(index, nil, GIT_INDEX_ADD_DEFAULT.rawValue, nil, nil),
+            "stage every change",
+        )
+        try GitError.check(git_index_update_all(index, nil, nil, nil), "stage the removed files")
+        try GitError.check(git_index_write(index), "write the index")
+    }
+
+    /// Whether the repository is as a new project's was made: HEAD on a
+    /// branch with no commit, no reference, no remote and nothing staged.
+    public var isUntouched: Bool {
+        guard git_repository_head_unborn(pointer) == 1 else { return false }
+        var references = git_strarray()
+        defer { git_strarray_dispose(&references) }
+        guard git_reference_list(&references, pointer) == 0, references.count == 0 else { return false }
+        var remotes = git_strarray()
+        defer { git_strarray_dispose(&remotes) }
+        guard git_remote_list(&remotes, pointer) == 0, remotes.count == 0 else { return false }
+        var index: OpaquePointer?
+        guard git_repository_index(&index, pointer) == 0 else { return false }
+        defer { git_index_free(index) }
+        return git_index_entrycount(index) == 0
+    }
+
     /// Puts each path's index entry back to HEAD's (or drops it, before the
     /// first commit). The work tree is not touched.
     public func unstage(_ paths: [String]) throws {

@@ -93,7 +93,8 @@ actor MockBackend: AgentHostBackend {
         case gitDiff(path: String?, staged: Bool)
         case gitStage([String])
         case gitUnstage([String])
-        case gitCommit(String)
+        case gitCommit(String, all: Bool = false)
+        case gitInit
         case gitFetch(remote: String?)
         case gitPull(remote: String?)
         case gitPush(remote: String?, branch: String?, evidence: ApprovalEvidence)
@@ -289,8 +290,13 @@ actor MockBackend: AgentHostBackend {
     }
 
     func gitCommit(_ request: GitCommitToolRequest) -> GitCommitToolResponse {
-        calls.append(.gitCommit(request.message))
+        calls.append(.gitCommit(request.message, all: request.all))
         return GitCommitToolResponse(commitID: "def456")
+    }
+
+    func gitInit(_: GitInitToolRequest) -> GitInitToolResponse {
+        calls.append(.gitInit)
+        return GitInitToolResponse(branch: "main")
     }
 
     func gitFetch(_ request: GitRemoteToolRequest) -> GitTaskToolResponse {

@@ -257,18 +257,25 @@ public actor AgentSession {
         systemPrompt(configuration, root: root, state: PromptState.read(configuration, root: root, skills: skills, device: device))
     }
 
-    /// The text the model reads for a message that starts a run: with the
-    /// project's context before it when the conversation is still empty
-    /// (`ProjectContext`), once per conversation. A queued or steered
-    /// message joins a run already going, and a reopened conversation has
-    /// its transcript, so neither gets it.
-    private func withProjectContext(_ text: String) -> String {
-        guard !configuration.project.isTemporary, !projectContextGiven, agent.state.messages.isEmpty else {
-            return text
-        }
-        projectContextGiven = true
-        return ProjectContext.make(project: configuration.project, root: workspace) + text
+    /// Whether the message that starts the next run carries the project's
+    /// context: once per conversation, while it is still empty. A queued or
+    /// steered message joins a run already going, and a reopened
+    /// conversation has its transcript, so neither gets it.
+    private var needsProjectContext: Bool {
+        !configuration.project.isTemporary && !projectContextGiven && agent.state.messages.isEmpty
     }
+
+    /// The text the model reads for a message that starts a run: with the
+    /// project's context before it when it is due (`ProjectContext`), its
+    /// repository as the host's `gitStatus` answered it.
+    private func withProjectContext(_ text: String, repository: GitStatusToolResponse?) -> String {
+        guard needsProjectContext else { return text }
+        projectContextGiven = true
+        return ProjectContext.make(project: configuration.project, root: workspace, repository: repository) + text
+    }
+
+    /// How long a first message waits for the repository's state.
+    private static let repositoryStatusWait: Double = 3
 
     /// `text` as the model reads it: after this moment's `<system-state>`,
     /// with what changed since the model was last told when `delta` is set.
@@ -464,6 +471,10 @@ public actor AgentSession {
                 takeSnapshot()
             }
         }
+        // asked before the last wait below, which nothing may follow
+        let repository = !queues && needsProjectContext
+            ? await runner.repositoryStatus(within: Self.repositoryStatusWait)
+            : nil
         let (prompt, toldBefore) = await withSystemState(sender.map { $0.prefix + "\n" + typed } ?? typed, delta: true)
         let message = UserMessage(content: [.text(TextContent(text: prompt))] + images.map { .image($0) })
         await waitForEndingRun()
@@ -487,7 +498,7 @@ public actor AgentSession {
         }
         aborted = false
         let agent = agent
-        let opening = withProjectContext(prompt)
+        let opening = withProjectContext(prompt, repository: repository)
         runTask = Task { [weak self] in
             do {
                 try await agent.prompt(opening, images: images)

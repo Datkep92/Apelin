@@ -19,5 +19,24 @@ enum BuiltInSkills {
         packagingAndInstall,
         packageDependencies,
         crashTriage,
+        gitWorkflow,
+        packageRepository,
+    ]
+
+    /// Every built-in's name begins `apelin-` (owner, 2026-10-25), so none
+    /// is taken for a user's skill of the same subject. Transcripts,
+    /// memories and project instructions from before name them without it;
+    /// `apelin_skill_read` still finds them by the old name when no skill
+    /// has it now.
+    static let legacyNames: [String: String] = [
+        "tweak-development": "apelin-tweak-development",
+        "bootstrap-paths": "apelin-bootstrap-paths",
+        "tweak-runtime": "apelin-tweak-runtime",
+        "preference-bundle": "apelin-preference-bundle",
+        "project-description": "apelin-project-description",
+        "external-build": "apelin-external-build",
+        "packaging-and-install": "apelin-packaging-and-install",
+        "package-dependencies": "apelin-package-dependencies",
+        "crash-triage": "apelin-crash-triage",
     ]
 }

@@ -161,6 +161,10 @@ struct NoHostBackend: AgentHostBackend {
         throw Unexpected()
     }
 
+    func gitInit(_: GitInitToolRequest) async throws -> GitInitToolResponse {
+        throw Unexpected()
+    }
+
     func gitFetch(_: GitRemoteToolRequest) async throws -> GitTaskToolResponse {
         throw Unexpected()
     }

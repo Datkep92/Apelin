@@ -1,0 +1,359 @@
+import ApelinCore
+import ApelinDebArchive
+import ApelinDebian
+@testable import ApelinEnvironment
+@testable import ApelinGit
+import ApelinProject
+@testable import ApelinProtocol
+import Foundation
+import XCTest
+
+/// The package repository: GitHub's API answered by a fake, the repository
+/// itself a bare one on disk, the github.com sign-in in memory.
+final class DistributionTests: XCTestCase {
+    /// GitHub as far as a package repository asks it: the account, its
+    /// repositories, and Pages, noting each request.
+    final class FakeGitHub: @unchecked Sendable {
+        private let lock = NSLock()
+        var login = "someone"
+        var repositories: [String: [String: Any]] = [:]
+        var pages: [String: [String: Any]] = [:]
+        var refusePages = false
+        private(set) var requests: [(method: String, path: String, body: [String: Any]?)] = []
+
+        func repository(_ name: String, defaultBranch: String = "main") -> [String: Any] {
+            [
+                "name": name, "full_name": "\(login)/\(name)", "owner": ["login": login], "private": false,
+                "description": NSNull(), "html_url": "https://github.com/\(login)/\(name)",
+                "clone_url": "https://github.com/\(login)/\(name).git", "default_branch": defaultBranch,
+                "has_pages": false, "permissions": ["push": true],
+            ]
+        }
+
+        var exchange: GitHubAPI.Exchange {
+            { request in try self.answer(request) }
+        }
+
+        private func answer(_ request: URLRequest) throws -> (Data, HTTPURLResponse) {
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer gho_token")
+            let method = request.httpMethod ?? "GET"
+            let path = request.url!.path
+            let body = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            return lock.withLock {
+                requests.append((method, path, body))
+                func reply(_ status: Int, _ object: Any) -> (Data, HTTPURLResponse) {
+                    let data = try! JSONSerialization.data(withJSONObject: object)
+                    return (data, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!)
+                }
+                switch (method, path) {
+                case ("GET", "/user"):
+                    return reply(200, ["login": login])
+                case ("GET", "/user/repos"):
+                    return reply(200, Array(repositories.values))
+                case ("POST", "/user/repos"):
+                    let name = body?["name"] as? String ?? ""
+                    guard repositories["\(login)/\(name)"] == nil else {
+                        return reply(422, ["message": "Repository creation failed.", "errors": [["message": "name already exists on this account"]]])
+                    }
+                    repositories["\(login)/\(name)"] = repository(name)
+                    return reply(201, repositories["\(login)/\(name)"]!)
+                default:
+                    break
+                }
+                let parts = path.split(separator: "/").map(String.init)
+                guard parts.count >= 3, parts[0] == "repos" else { return reply(404, ["message": "Not Found"]) }
+                let fullName = parts[1] + "/" + parts[2]
+                guard let repository = repositories[fullName] else { return reply(404, ["message": "Not Found"]) }
+                if parts.count == 3, method == "GET" {
+                    return reply(200, repository)
+                }
+                guard parts.count == 4, parts[3] == "pages" else { return reply(404, ["message": "Not Found"]) }
+                let site = ["html_url": "https://\(login).github.io/\(parts[2])/", "build_type": body?["build_type"] as? String ?? "workflow"]
+                switch method {
+                case "GET":
+                    return pages[fullName].map { reply(200, $0) } ?? reply(404, ["message": "Not Found"])
+                case "POST":
+                    if refusePages {
+                        return reply(422, ["message": "Your current plan does not support GitHub Pages for this repository."])
+                    }
+                    pages[fullName] = site
+                    return reply(201, site)
+                case "PUT":
+                    pages[fullName] = site
+                    return reply(204, [String: Any]())
+                default:
+                    return reply(404, ["message": "Not Found"])
+                }
+            }
+        }
+    }
+
+    private struct Fixture {
+        let home: TemporaryHome
+        let github = FakeGitHub()
+        let service: DistributionService
+        let remotes: URL
+
+        init(_ test: XCTestCase, signedIn: Bool = true) throws {
+            home = try TemporaryHome(test)
+            remotes = home.home.appendingPathComponent("remotes", isDirectory: true)
+            let store = MemoryGitCredentialStore()
+            if signedIn {
+                try store.save(GitCredential(username: "someone", token: "gho_token"), forHost: "github.com")
+            }
+            var git = GitService(layout: home.layout, credentials: store)
+            git.acceptsLocalRemotes = true
+            var service = DistributionService(layout: home.layout, git: git, credentials: store)
+            service.exchange = github.exchange
+            let remotes = remotes
+            service.remoteURL = { remotes.appendingPathComponent($0 + ".git").path }
+            self.service = service
+        }
+
+        /// The bare repository GitHub would hold for `owner/name`.
+        func bare(_ fullName: String) throws -> URL {
+            let url = remotes.appendingPathComponent(fullName + ".git", isDirectory: true)
+            try GitRepository.createBare(at: url)
+            return url
+        }
+
+        func project(_ name: String) -> URL {
+            home.layout.data.projects.appendingPathComponent(name, isDirectory: true)
+        }
+
+        /// A package as a build leaves it, under `Builds/`.
+        func build(_ package: String, version: String, architecture: String = "iphoneos-arm64", marker: UInt8 = 1) throws -> URL {
+            var control = DebianControlFile(package: package, version: version, architecture: architecture, description: "Test")
+            control["Section"] = "Tweaks"
+            var writer = DebPackageWriter(control: control)
+            writer.controlCompression = .gzip
+            writer.entries = [.file("/var/jb/usr/share/test/\(package)", contents: Data([marker]))]
+            let folder = home.layout.data.root.appendingPathComponent("Builds/p/\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let url = folder.appendingPathComponent("out.deb")
+            try writer.write(toPath: url.path)
+            return url
+        }
+    }
+
+    /// The subjects of the bare repository's main, newest first, as git
+    /// itself reads them.
+    private func commits(in bare: URL) throws -> [String] {
+        let git = Process()
+        git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        git.arguments = ["--git-dir=\(bare.path)", "log", "--format=%s", "main"]
+        let output = Pipe()
+        git.standardOutput = output
+        git.standardError = FileHandle.nullDevice
+        try git.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        git.waitUntilExit()
+        guard git.terminationStatus == 0 else { return [] }
+        return String(decoding: data, as: UTF8.self).split(separator: "\n").map(String.init)
+    }
+
+    // MARK: Create
+
+    func testCreateMakesTheRepositoryProjectCommitPagesAndLink() async throws {
+        let fixture = try Fixture(self)
+        let bare = try fixture.bare("someone/packages")
+        let name = try fixture.service.prepareCreate(DistributionRepositoryCreateRequest(name: "packages"))
+        let log = EventLog()
+        let result = try await fixture.service.create(DistributionRepositoryCreateRequest(name: name), name: name, reporter: log.reporter)
+
+        let stages = log.events.filter { $0.0 == "stage" }.compactMap { $0.1?["stage"]?.stringValue }
+        XCTAssertEqual(stages, ["creating", "preparing", "pushing", "publishing"])
+        let root = fixture.project("packages")
+        for path in [DistributionTemplate.workflowPath, "scripts/update-repository.sh", "index.html", "README.md", "debs/README.md"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(path).path), path)
+        }
+        let workflow = try String(contentsOf: root.appendingPathComponent(DistributionTemplate.workflowPath), encoding: .utf8)
+        XCTAssertTrue(workflow.contains("- main\n"), "the workflow runs on the branch packages go to")
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("scripts/update-repository.sh").path))
+        XCTAssertEqual(try commits(in: bare), ["Set up the package repository"])
+        let status = try GitService(layout: fixture.home.layout).status(GitStatusRequest(projectID: "packages"))
+        XCTAssertEqual(status.entries, [], "Apelin's own files stay out of the repository")
+
+        let pages = fixture.github.requests.filter { $0.path == "/repos/someone/packages/pages" && $0.method == "POST" }
+        XCTAssertEqual(pages.first?.body?["build_type"] as? String, "workflow")
+        let linked = try XCTUnwrap(result["repository"]?.decode(DistributionRepository.self))
+        XCTAssertEqual(linked.fullName, "someone/packages")
+        XCTAssertEqual(linked.sourceURL, "https://someone.github.io/packages/")
+        XCTAssertEqual(linked.projectName, "packages")
+        let listed = try await fixture.service.list(DistributionRepositoryListRequest(repositories: true))
+        XCTAssertEqual(listed.account, "someone")
+        XCTAssertEqual(listed.linked, linked)
+        XCTAssertEqual(listed.repositories.map(\.fullName), ["someone/packages"])
+    }
+
+    func testCreateIsCheckedBeforeItStarts() throws {
+        let fixture = try Fixture(self)
+        for name in ["", "two words", "a/b", "..", "x.git", String(repeating: "a", count: 101)] {
+            XCTAssertThrowsError(try fixture.service.prepareCreate(DistributionRepositoryCreateRequest(name: name)), name) {
+                XCTAssertEqual(($0 as? ApelinError)?.code, .badRequest, name)
+            }
+        }
+        _ = try ProjectStore(dataFolder: fixture.home.layout.data).createEmpty(name: "taken")
+        XCTAssertThrowsError(try fixture.service.prepareCreate(DistributionRepositoryCreateRequest(name: "taken"))) {
+            XCTAssertEqual(($0 as? ApelinError)?.code, .conflict)
+        }
+        let signedOut = try Fixture(self, signedIn: false)
+        XCTAssertThrowsError(try signedOut.service.prepareCreate(DistributionRepositoryCreateRequest(name: "packages"))) {
+            XCTAssertEqual(($0 as? ApelinError)?.code, .denied)
+            XCTAssertEqual(($0 as? ApelinError)?.reason?.rawValue, "authenticationRequired")
+        }
+    }
+
+    func testAPagesRefusalIsAWarningAndTheLinkIsKept() async throws {
+        let fixture = try Fixture(self)
+        _ = try fixture.bare("someone/private-packages")
+        fixture.github.refusePages = true
+        let log = EventLog()
+        let result = try await fixture.service.create(
+            DistributionRepositoryCreateRequest(name: "private-packages"),
+            name: "private-packages",
+            reporter: log.reporter,
+        )
+        guard case let .array(warnings)? = result["warnings"] else { return XCTFail("no warnings") }
+        XCTAssertEqual(warnings.count, 1)
+        XCTAssertTrue(warnings[0].stringValue?.contains("GitHub Actions") == true)
+        XCTAssertEqual(log.kinds.filter { $0 == "warning" }.count, 1)
+        XCTAssertNotNil(fixture.service.linked())
+    }
+
+    // MARK: Link
+
+    func testLinkClonesAddsWhatTheTemplateHasAndKeepsWhatIsThere() async throws {
+        let fixture = try Fixture(self)
+        let bare = try fixture.bare("someone/apt")
+        // the user's repository, with an index page of its own
+        let seed = try GitRepository.create(at: fixture.home.home.appendingPathComponent("seed", isDirectory: true))
+        try Data("mine\n".utf8).write(to: seed.workdir.appendingPathComponent("index.html"))
+        try seed.stage(["index.html"])
+        try seed.commit(message: "My page", author: GitSignature(name: "Someone", email: "someone@apelin.invalid"))
+        try seed.addRemote("origin", url: bare.path)
+        _ = try seed.push()
+        fixture.github.repositories["someone/apt"] = fixture.github.repository("apt")
+        fixture.github.pages["someone/apt"] = ["html_url": "https://someone.github.io/apt/", "build_type": "legacy"]
+
+        try fixture.service.prepareLink(DistributionRepositoryLinkRequest(fullName: "someone/apt"))
+        let result = try await fixture.service.link(DistributionRepositoryLinkRequest(fullName: "someone/apt"), reporter: .silent)
+        let root = fixture.project("apt")
+        XCTAssertEqual(try String(contentsOf: root.appendingPathComponent("index.html"), encoding: .utf8), "mine\n")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(DistributionTemplate.workflowPath).path))
+        XCTAssertEqual(try commits(in: bare), ["Add the package index and its GitHub Pages workflow", "My page"])
+        XCTAssertTrue(fixture.github.requests.contains { $0.method == "PUT" && $0.path == "/repos/someone/apt/pages" },
+                      "a branch-built site is switched to the workflow")
+        XCTAssertEqual(try result["repository"]?.decode(DistributionRepository.self).projectName, "apt")
+
+        // linked again: the same project, nothing to add or push
+        _ = try await fixture.service.link(DistributionRepositoryLinkRequest(fullName: "someone/apt"), reporter: .silent)
+        XCTAssertEqual(try commits(in: bare).count, 2)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.project("apt 2").path))
+    }
+
+    func testLinkSetsUpAnEmptyRepository() async throws {
+        let fixture = try Fixture(self)
+        let bare = try fixture.bare("someone/empty")
+        fixture.github.repositories["someone/empty"] = fixture.github.repository("empty")
+        _ = try await fixture.service.link(DistributionRepositoryLinkRequest(fullName: "someone/empty"), reporter: .silent)
+        XCTAssertEqual(try commits(in: bare), ["Add the package index and its GitHub Pages workflow"])
+        XCTAssertEqual(fixture.service.linked()?.fullName, "someone/empty")
+    }
+
+    func testLinkIsCheckedBeforeItStarts() throws {
+        let fixture = try Fixture(self)
+        for name in ["", "someone", "a/b/c", "someone/two words"] {
+            XCTAssertThrowsError(try fixture.service.prepareLink(DistributionRepositoryLinkRequest(fullName: name)), name) {
+                XCTAssertEqual(($0 as? ApelinError)?.code, .badRequest, name)
+            }
+        }
+    }
+
+    // MARK: Publish
+
+    func testPublishCopiesCommitsAndPushesEachPackageOnce() async throws {
+        let fixture = try Fixture(self)
+        let bare = try fixture.bare("someone/packages")
+        _ = try await fixture.service.create(DistributionRepositoryCreateRequest(name: "packages"), name: "packages", reporter: .silent)
+        let rootless = try fixture.build("com.example.tweak", version: "1:1.0")
+        let roothide = try fixture.build("com.example.tweak", version: "1:1.0", architecture: "iphoneos-arm64e")
+        let (linked, files) = try fixture.service.preparePublish(DistributionPublishRequest(files: [rootless.path, roothide.path]))
+        let result = try await fixture.service.publish(linked, files: files, reporter: .silent)
+        let names = ["com.example.tweak_1%3a1.0_iphoneos-arm64.deb", "com.example.tweak_1%3a1.0_iphoneos-arm64e.deb"]
+        XCTAssertEqual(result["published"], .array(names.map(JSONValue.string)))
+        for name in names {
+            XCTAssertTrue(FileManager.default.contentsEqual(
+                atPath: fixture.project("packages").appendingPathComponent("debs/\(name)").path,
+                andPath: (name.hasSuffix("arm64e.deb") ? roothide : rootless).path,
+            ))
+        }
+        XCTAssertEqual(try commits(in: bare), ["Publish com.example.tweak 1:1.0", "Set up the package repository"])
+
+        // the same bytes again are skipped; other bytes under the name are refused
+        let again = try await fixture.service.publish(linked, files: [rootless], reporter: .silent)
+        XCTAssertEqual(again["skipped"], .array([.string(names[0])]))
+        XCTAssertNil(again["commit"])
+        let changed = try fixture.build("com.example.tweak", version: "1:1.0", marker: 2)
+        do {
+            _ = try await fixture.service.publish(linked, files: [changed], reporter: .silent)
+            XCTFail("a changed package under a published name must be refused")
+        } catch {
+            XCTAssertEqual((error as? ApelinError)?.code, .conflict, "\(error)")
+        }
+        XCTAssertEqual(try commits(in: bare).count, 2)
+    }
+
+    func testPublishTakesOnlyBuiltPackagesAndNeedsALink() throws {
+        let fixture = try Fixture(self)
+        let outside = fixture.home.home.appendingPathComponent("elsewhere.deb")
+        try Data("x".utf8).write(to: outside)
+        for files in [[], [outside.path], ["/etc/hosts"], Array(repeating: outside.path, count: 17)] {
+            XCTAssertThrowsError(try fixture.service.preparePublish(DistributionPublishRequest(files: files))) {
+                XCTAssertEqual(($0 as? ApelinError)?.code, .badRequest)
+            }
+        }
+        let built = try fixture.build("com.example.tweak", version: "1.0")
+        XCTAssertThrowsError(try fixture.service.preparePublish(DistributionPublishRequest(files: [built.path]))) {
+            XCTAssertEqual(($0 as? ApelinError)?.code, .notFound, "no link yet")
+        }
+    }
+
+    // MARK: Pieces
+
+    func testAnOriginIsTheSameRepositoryHoweverItIsSpelled() {
+        let forms = ["https://github.com/Someone/apt.git", "https://github.com/someone/apt", "https://github.com/someone/apt/"]
+        XCTAssertEqual(Set(forms.map(DistributionService.comparable)).count, 1)
+        XCTAssertNotEqual(DistributionService.comparable("https://github.com/someone/apt2"), DistributionService.comparable(forms[0]))
+    }
+
+    func testNamesAndAddresses() throws {
+        XCTAssertEqual(DistributionService.sourceURL(owner: "Someone", name: "packages"), "https://someone.github.io/packages/")
+        XCTAssertEqual(DistributionService.sourceURL(owner: "Someone", name: "someone.github.io"), "https://someone.github.io/")
+        XCTAssertEqual(
+            try DistributionService.packageFileName(package: "com.a.b", version: "2:1.0~beta+1", architecture: "iphoneos-arm64"),
+            "com.a.b_2%3a1.0~beta+1_iphoneos-arm64.deb",
+        )
+        XCTAssertThrowsError(try DistributionService.packageFileName(package: "../x", version: "1", architecture: "a"))
+        XCTAssertThrowsError(try DistributionService.packageFileName(package: "x", version: "1 2", architecture: "a"))
+    }
+
+    func testGitHubRefusalsBecomeApelinErrors() {
+        func refusal(_ status: Int, _ body: String) -> ApelinError? {
+            let response = HTTPURLResponse(url: GitHubAPI.base, statusCode: status, httpVersion: nil, headerFields: nil)!
+            do {
+                try GitHubAPI.check(response, Data(body.utf8))
+                return nil
+            } catch {
+                return error as? ApelinError
+            }
+        }
+        XCTAssertNil(refusal(204, ""))
+        XCTAssertEqual(refusal(401, #"{"message":"Bad credentials"}"#)?.reason?.rawValue, "authenticationRequired")
+        XCTAssertEqual(refusal(404, "")?.code, .notFound)
+        let taken = refusal(422, #"{"message":"Repository creation failed.","errors":[{"message":"name already exists on this account"}]}"#)
+        XCTAssertEqual(taken?.code, .conflict)
+        XCTAssertTrue(taken?.message.contains("name already exists") == true)
+        XCTAssertEqual(refusal(502, "<html>")?.code, .unavailable)
+    }
+}

@@ -1,6 +1,6 @@
 extension BuiltInSkills {
     static let crashTriage = SkillDocument(
-        name: "crash-triage",
+        name: "apelin-crash-triage",
         description: "When the target crashes or resprings after an install: find the report, symbolicate it against this build's dSYM, read it before changing code.",
         body: """
         # Crash triage
@@ -35,10 +35,10 @@ extension BuiltInSkills {
              you called; check with `apelin_sdk_analyze_framework` and guard it.
            - Termination reason `FRONTBOARD` / watchdog: the main thread was
              blocked. A tweak that waits in its constructor or on the main
-             thread of SpringBoard does this (tweak-development).
+             thread of SpringBoard does this (apelin-tweak-development).
         5. `apelin_log_read` for what the tweak logs: the log is live and holds no
            history, so it hears only what happens while it listens (the
-           tweak-runtime skill); ask the user to reproduce during the call.
+           apelin-tweak-runtime skill); ask the user to reproduce during the call.
         6. Fix, rebuild, reinstall, respring, then `apelin_package_confirm_loaded` and check
            that no new report appears.
 

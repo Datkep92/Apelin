@@ -180,6 +180,28 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] GitHub, git and the package repository (2026-10-25). On the iOS
+      27.0.1 iPhone vphone (roothide, Irisin 5.0.0; 0.1.8 → 0.1.9 installed
+      through irisind), the smoke suite passed with `git-auto` (a new
+      workspace on `main`, `gitInit` refused, a commit with `all` leaving it
+      clean), `distribution` and `i2-git` (`gitInit` on a clone refused);
+      the welcome flow's GitHub page and Settings ▸ Git drew as designed,
+      Publishing greyed out while signed out; Sign In with GitHub fetched a
+      real code from github.com and opened GitHub's sign-in page in the
+      sign-in browser. Still to run, which needs a GitHub account: the
+      approval finishing the sign-in, the account listed, a private clone
+      and a push with it, and Sign Out. A new project's first conversation
+      saying "on branch main, no commits yet", and the agent committing
+      after a build without being asked (needs a model provider). Create Distribution Repository: the
+      repository on GitHub, its workflow's first run green and the source at
+      `https://<owner>.github.io/<name>/` added in Sileo and Irisin; Link of
+      an existing repository; a release build's Publish to Package
+      Repository showing the package in the source within ten minutes.
+- [ ] The climbing token count (2026-10-25; needs a model provider, which
+      the iOS 27 vphone had none of): at the summary row's right
+      edge, rising over five seconds while a turn thinks and catching up in
+      half a second once the reply streams; a long finished title fading
+      under it on an iPhone; right to left with the arrow at the left edge.
 - [ ] Root agent commands and Full mode (2026-10-24, root round). On the
       iOS 26.4 iPhone vphone, which has no passcode, build 45 ran it in
       Strict (▸ Final device round): the notice's "Root Approval Required"
@@ -1730,7 +1752,7 @@ process left a crash report.
 The roothide build 23 of `446b337` went onto the iOS 26.4 iPhone vphone over
 0.1.2 build 19 through `irisin-cli install --yes`; the app registered and
 came up as the verified foreground app, and the installed apelin-agent
-carries the project-description skill. No agent session was run on it, and
+carries the apelin-project-description skill. No agent session was run on it, and
 `i1-smoke` was not: the guest sits behind its host's NAT, which has no
 Python for `Scripts/device.py`. A probe as mobile checked what the
 environment section now states: git and ldid are on the search path; make,
@@ -1900,10 +1922,10 @@ about five times a second, screenshots):
   one with Apelin?" got 279 words, no tool call, and described the tweak
   template as Logos (`Tweak.x`, `%hook`); the template is plain
   Objective-C (`objc-hook/Sources/Tweak.m`) and Logos is not built. The
-  model did not read tweak-development.
-- Settings ▸ Agent ▸ Skills lists bootstrap-paths, tweak-runtime,
-  preference-bundle and package-dependencies among the nine built-ins, and
-  bootstrap-paths opens its body.
+  model did not read apelin-tweak-development.
+- Settings ▸ Agent ▸ Skills lists apelin-bootstrap-paths, apelin-tweak-runtime,
+  apelin-preference-bundle and apelin-package-dependencies among the nine built-ins, and
+  apelin-bootstrap-paths opens its body.
 
 On the iPad, which has no model account, Apelin launches and Skills lists
 the same nine with none of the user's. It has no conversation with a trace
@@ -1990,7 +2012,7 @@ accessibility tree, screenshots):
   to Full (13 %). Removing the skill and going back to Strict missed
   nothing (98.5 %, 98.8 %): the earlier prefixes were still cached.
 - "What is a tweak, and how would I make one with Apelin?" in a new General
-  Chat read tweak-development first (apelin_skill_read in the trace) and
+  Chat read apelin-tweak-development first (apelin_skill_read in the trace) and
   answered that Apelin's tweak is plain Objective-C, no Logos or Theos:
   hooks installed with MSHookMessageEx in a constructor, the original
   called instead of `%orig`, the filter plist, then template, build,

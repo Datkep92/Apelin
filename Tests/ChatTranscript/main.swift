@@ -255,6 +255,32 @@ precondition(ChatTranscript(events: running) { _ in nil }.messages.map(\.id)
     "a count adds no row")
 print("ok: a running summary stays running across calls and carries the run's received tokens")
 
+/// Once the reply after it has begun, the summary is finished and keeps the
+/// run's count, settling, until the run ends; a turn that replies without a
+/// summary of its own leaves the last turn's summary without one.
+let replying = patched + [
+    event(8, "messageStarted"), event(9, "text", ["text": .string("Done: the hook is on.")]),
+    received(10, 1400),
+]
+let settlingRows = ChatTranscript(events: replying) { _ in nil }.messages
+precondition(settlingRows.last?.role == .assistant, "the reply is the last row")
+let summaryAbove = settlingRows[settlingRows.count - 2]
+precondition(!summaryAbove.role.isThinking && summaryAbove.receivedTokens == 1400 && summaryAbove.receivedSettles,
+             "the summary above the reply keeps the count, settling")
+precondition(!ChatTranscript(events: running) { _ in nil }.messages.contains(where: \.receivedSettles),
+             "a running summary does not settle")
+let endedReply = ChatTranscript(events: replying + [event(11, "message", ["text": .string("Done: the hook is on.")]),
+                                                    event(12, "finished")]) { _ in nil }.messages
+precondition(endedReply.allSatisfy { $0.receivedTokens == nil && !$0.receivedSettles }, "an ended run has no count")
+let directReply = replying + [
+    event(11, "message", ["text": .string("Done: the hook is on.")]), event(12, "finished"),
+    event(13, "prompt", ["text": .string("Thanks")]), event(14, "messageStarted"),
+    event(15, "text", ["text": .string("You're welcome.")]), received(16, 5),
+]
+precondition(ChatTranscript(events: directReply) { _ in nil }.messages.allSatisfy { $0.receivedTokens == nil },
+             "no count goes above the turn's own message")
+print("ok: the count stays, settling, on the summary above the reply the run is writing")
+
 /// The line under a running summary is its newest call: the reason the agent
 /// gave, a file edit's name and, once its result is in, the lines it added
 /// and removed. Thinking after a call leaves the call there; nothing of the

@@ -1,6 +1,6 @@
 extension BuiltInSkills {
     static let packagingAndInstall = SkillDocument(
-        name: "packaging-and-install",
+        name: "apelin-packaging-and-install",
         description: "From a successful build to a confirmed load: the package artifact, install through the system installer, maintainer scripts, respring, apelin_package_confirm_loaded, and removal.",
         body: """
         # Packaging and install
@@ -25,14 +25,14 @@ extension BuiltInSkills {
           `apelin_package_remove`.
         - Installation goes through Irisin's installer. There is no `dpkg` or
           `apt` for you to call, and `shell_run` must not try; the
-          package-dependencies skill covers what installs a dependency.
+          apelin-package-dependencies skill covers what installs a dependency.
 
         ## Maintainer scripts
         Add one only when the task needs it (postinst, prerm, …), as a project
         file named in `package.maintainerScripts`. They run as **root**, in
         the bootstrap, and the install card shows each in full:
         - Spell paths `@PREFIX@/…` (bootstrap) and `@ROOTFS@/…` (system), the
-          only tokens substituted, as the bootstrap-paths skill says; `sh -n`
+          only tokens substituted, as the apelin-bootstrap-paths skill says; `sh -n`
           must pass.
         - A daemon your package ships is loaded by its postinst: boot the
           label out of `system/`, `user/501/` and `gui/501/` (roothide's
@@ -46,7 +46,7 @@ extension BuiltInSkills {
           the parents root-owned): make each level with `mkdir -m 0755` and
           `chown -h 501:501`, skipping a level that exists and never following
           a symlink.
-        - A link you ship or create is relative (bootstrap-paths).
+        - A link you ship or create is relative (apelin-bootstrap-paths).
 
         ## Respring and confirm
         - A tweak loaded into SpringBoard needs `apelin_device_respring`. Apps can instead be

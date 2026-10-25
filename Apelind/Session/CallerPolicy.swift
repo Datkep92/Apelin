@@ -51,7 +51,7 @@ enum CallerPolicy {
         .logStream, .crashList, .crashOpen, .crashSymbolicate,
         .confirmLoaded, .confirmLoadedAttach, .captureScreen, .readUITree, .uiAction,
         .toolHostOpen, .toolHostClose, .toolHostCall,
-        .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit,
+        .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit,
         .gitCloneInto, .gitFetch, .gitPull, .gitPush,
         .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove,
         .agentRunCode,

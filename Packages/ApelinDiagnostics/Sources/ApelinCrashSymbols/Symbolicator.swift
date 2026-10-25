@@ -146,33 +146,31 @@ public actor Symbolicator {
 
         if let url = dsyms.url(forUUID: image.uuid),
            let handle = try? FileHandle(forReadingFrom: url),
-           let data = try? Data.mapping(handle)
+           let data = try? Data.mapping(handle),
+           let slice = MachOSlice.slice(of: data, uuid: uuid)
         {
-            if let slice = MachOSlice.slice(of: data, uuid: uuid) {
-                return Resolver(
-                    symbols: slice.symbolTable(),
-                    lines: Self.lineTable(of: slice),
-                    textVMAddress: slice.textVMAddress,
-                    source: .dsym,
-                )
-            }
+            return Resolver(
+                symbols: slice.symbolTable(),
+                lines: Self.lineTable(of: slice),
+                textVMAddress: slice.textVMAddress,
+                source: .dsym,
+            )
         }
 
         if !image.path.isEmpty,
            let handle = try? await openImage(image.path),
-           let data = try? Data.mapping(handle)
+           let data = try? Data.mapping(handle),
+           // A UUID that does not match means the binary was replaced since
+           // the crash — an update, a rebuild — and its addresses now name
+           // other functions. Better nothing than a plausible wrong answer.
+           let slice = MachOSlice.slice(of: data, uuid: uuid)
         {
-            // A UUID that does not match means the binary was replaced since
-            // the crash — an update, a rebuild — and its addresses now name
-            // other functions. Better nothing than a plausible wrong answer.
-            if let slice = MachOSlice.slice(of: data, uuid: uuid) {
-                return Resolver(
-                    symbols: slice.symbolTable(),
-                    lines: nil,
-                    textVMAddress: slice.textVMAddress,
-                    source: .binary,
-                )
-            }
+            return Resolver(
+                symbols: slice.symbolTable(),
+                lines: nil,
+                textVMAddress: slice.textVMAddress,
+                source: .binary,
+            )
         }
 
         return nil

@@ -10,7 +10,7 @@ enum GitHandler: DomainHandler {
             return request.fail(refusal)
         }
         switch request.operation {
-        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit,
+        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit,
              .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove:
             return await host.forward(request, to: .environment)
         case .gitClone:
