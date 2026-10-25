@@ -68,17 +68,29 @@ struct GitHubAPI: Sendable {
         try await send("GET", "/user", as: Owner.self).login
     }
 
-    /// The account's own repositories, most recently updated first.
+    /// The account's own repositories and its organizations', most recently
+    /// updated first.
     func repositories() async throws -> [Repository] {
-        try await send("GET", "/user/repos?affiliation=owner&sort=updated&per_page=100", as: [Repository].self)
+        try await send(
+            "GET",
+            "/user/repos?affiliation=owner,organization_member&sort=updated&per_page=100",
+            as: [Repository].self,
+        )
+    }
+
+    /// The organizations the account belongs to. With only the `repo` scope
+    /// GitHub may leave out a membership the organization keeps private.
+    func organizations() async throws -> [String] {
+        try await send("GET", "/user/orgs?per_page=100", as: [Owner].self).map(\.login)
     }
 
     func repository(_ fullName: String) async throws -> Repository {
         try await send("GET", "/repos/\(fullName)", as: Repository.self)
     }
 
-    /// A new public repository on the account, with nothing in it.
-    func createRepository(name: String, description: String?) async throws -> Repository {
+    /// A new public repository on the account, or in `organization`, with
+    /// nothing in it.
+    func createRepository(name: String, description: String?, organization: String? = nil) async throws -> Repository {
         var body: [String: Any] = [
             "name": name, "private": false, "auto_init": false,
             "has_issues": true, "has_wiki": false, "has_projects": false,
@@ -86,7 +98,8 @@ struct GitHubAPI: Sendable {
         if let description {
             body["description"] = description
         }
-        return try await send("POST", "/user/repos", body: body, as: Repository.self)
+        let path = organization.map { "/orgs/\($0)/repos" } ?? "/user/repos"
+        return try await send("POST", path, body: body, as: Repository.self)
     }
 
     /// The repository's Pages site, nil when it has none.

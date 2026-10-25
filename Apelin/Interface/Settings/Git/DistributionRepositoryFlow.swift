@@ -3,7 +3,8 @@ import SPIndicator
 import UIKit
 
 /// The package repository's flows, from Settings ▸ Git and from the welcome
-/// pages alike: Create asks for a name and follows the creation; Link picks
+/// pages alike: Create asks whose it is when the account is in an
+/// organization, then for a name, and follows the creation; Link picks
 /// one of the account's repositories (`DistributionRepositoryPickerController`)
 /// and follows the link; Unlink asks first. Each task is followed on
 /// `EnvironmentTaskController`, pushed onto the presenter's navigation, and
@@ -18,11 +19,48 @@ final class DistributionRepositoryFlow {
         self.onChange = onChange
     }
 
-    /// The name field, filled with a name that reads as a source.
+    /// The account or one of its organizations, when it has any, then the name.
     func create() {
+        Task { [weak self] in
+            // without the list (no network, say) the account is the owner
+            let answer = try? await ApelinService.app.distributionRepositoryList(repositories: true)
+            guard let self else { return }
+            guard let account = answer?.account, let organizations = answer?.organizations, !organizations.isEmpty else {
+                askName(owner: nil)
+                return
+            }
+            chooseOwner(account: account, organizations: organizations)
+        }
+    }
+
+    private func chooseOwner(account: String, organizations: [String]) {
+        let alert = UIAlertController(
+            title: String(localized: "Choose an Owner"),
+            message: String(localized: "Create the repository on your account or in one of your organizations."),
+            preferredStyle: .alert,
+        )
+        alert.addAction(UIAlertAction(title: account, style: .default) { [weak self] _ in
+            self?.askName(owner: nil)
+        })
+        for organization in organizations {
+            alert.addAction(UIAlertAction(title: organization, style: .default) { [weak self] _ in
+                self?.askName(owner: organization)
+            })
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        presenter?.present(alert, animated: true)
+    }
+
+    /// The name field, filled with a name that reads as a source.
+    private func askName(owner: String?) {
+        let message = if let owner {
+            String(localized: "A public repository in the organization \(owner), published with GitHub Pages as a package source.")
+        } else {
+            String(localized: "A public repository on your GitHub account, published with GitHub Pages as a package source.")
+        }
         let alert = UIAlertController(
             title: String(localized: "Create Distribution Repository"),
-            message: String(localized: "A public repository on your GitHub account, published with GitHub Pages as a package source."),
+            message: message,
             preferredStyle: .alert,
         )
         alert.addTextField {
@@ -42,7 +80,7 @@ final class DistributionRepositoryFlow {
                 work: .distributionCreate,
                 title: String(localized: "Creating Repository"),
                 doneTitle: String(localized: "Repository Ready"),
-            ) { try await ApelinService.app.distributionRepositoryCreate(name: name) }
+            ) { try await ApelinService.app.distributionRepositoryCreate(name: name, owner: owner) }
         })
         presenter?.present(alert, animated: true)
     }

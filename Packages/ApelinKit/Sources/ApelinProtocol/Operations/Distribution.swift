@@ -63,22 +63,37 @@ public struct DistributionRepositoryListResponse: Codable, Sendable, Equatable {
     /// The login of the github.com credential, as saved.
     public var account: String?
     public var linked: DistributionRepository?
-    /// Most recently updated first.
+    /// The account's own and its organizations', each one it can push to,
+    /// most recently updated first.
     public var repositories: [DistributionRepositoryCandidate]
+    /// With `repositories`, the organizations a repository can be created
+    /// in: those GitHub lists for the account and the owners of the
+    /// organization repositories it listed, by name.
+    public var organizations: [String]
 
     public init(
         account: String? = nil,
         linked: DistributionRepository? = nil,
         repositories: [DistributionRepositoryCandidate] = [],
+        organizations: [String] = [],
     ) {
         self.account = account
         self.linked = linked
         self.repositories = repositories
+        self.organizations = organizations
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        account = try container.decodeIfPresent(String.self, forKey: .account)
+        linked = try container.decodeIfPresent(DistributionRepository.self, forKey: .linked)
+        repositories = try container.decode([DistributionRepositoryCandidate].self, forKey: .repositories)
+        organizations = try container.decodeIfPresent([String].self, forKey: .organizations) ?? []
     }
 }
 
-/// A task: makes `name` on the signed-in account, public, from Apelin's
-/// template, as a new workspace project; commits and pushes it, turns on
+/// A task: makes `name` on the signed-in account, or in the organization
+/// `owner` names, public, from Apelin's template, as a new workspace project; commits and pushes it, turns on
 /// GitHub Pages with the workflow as its source and links it. Stages
 /// `creating`, `preparing`, `pushing`, `publishing`; the final `state`
 /// carries `result` {repository: DistributionRepository, warnings}.
@@ -87,10 +102,13 @@ public struct DistributionRepositoryCreateRequest: OperationRequest {
     public static let operation = AppOperation.distributionRepositoryCreate
     public var name: String
     public var description: String?
+    /// An organization's login; nil, or the account's own, for the account.
+    public var owner: String?
 
-    public init(name: String, description: String? = nil) {
+    public init(name: String, description: String? = nil, owner: String? = nil) {
         self.name = name
         self.description = description
+        self.owner = owner
     }
 }
 
@@ -141,8 +159,8 @@ public extension ApelinService {
     }
 
     /// Starts the creation; follow it with `events(of:)`.
-    func distributionRepositoryCreate(name: String, description: String? = nil) async throws -> TaskHandle {
-        try await send(DistributionRepositoryCreateRequest(name: name, description: description))
+    func distributionRepositoryCreate(name: String, description: String? = nil, owner: String? = nil) async throws -> TaskHandle {
+        try await send(DistributionRepositoryCreateRequest(name: name, description: description, owner: owner))
     }
 
     /// Starts the link; follow it with `events(of:)`.

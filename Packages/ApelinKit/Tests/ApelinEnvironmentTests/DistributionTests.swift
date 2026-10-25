@@ -19,14 +19,16 @@ final class DistributionTests: XCTestCase {
         var repositories: [String: [String: Any]] = [:]
         var pages: [String: [String: Any]] = [:]
         var refusePages = false
+        var organizations: [String] = []
         private(set) var requests: [(method: String, path: String, body: [String: Any]?)] = []
 
-        func repository(_ name: String, defaultBranch: String = "main") -> [String: Any] {
-            [
-                "name": name, "full_name": "\(login)/\(name)", "owner": ["login": login], "private": false,
-                "description": NSNull(), "html_url": "https://github.com/\(login)/\(name)",
-                "clone_url": "https://github.com/\(login)/\(name).git", "default_branch": defaultBranch,
-                "has_pages": false, "permissions": ["push": true],
+        func repository(_ name: String, owner: String? = nil, defaultBranch: String = "main", push: Bool = true) -> [String: Any] {
+            let owner = owner ?? login
+            return [
+                "name": name, "full_name": "\(owner)/\(name)", "owner": ["login": owner], "private": false,
+                "description": NSNull(), "html_url": "https://github.com/\(owner)/\(name)",
+                "clone_url": "https://github.com/\(owner)/\(name).git", "default_branch": defaultBranch,
+                "has_pages": false, "permissions": ["push": push],
             ]
         }
 
@@ -50,6 +52,8 @@ final class DistributionTests: XCTestCase {
                     return reply(200, ["login": login])
                 case ("GET", "/user/repos"):
                     return reply(200, Array(repositories.values))
+                case ("GET", "/user/orgs"):
+                    return reply(200, organizations.map { ["login": $0] })
                 case ("POST", "/user/repos"):
                     let name = body?["name"] as? String ?? ""
                     guard repositories["\(login)/\(name)"] == nil else {
@@ -61,6 +65,11 @@ final class DistributionTests: XCTestCase {
                     break
                 }
                 let parts = path.split(separator: "/").map(String.init)
+                if method == "POST", parts.count == 3, parts[0] == "orgs", parts[2] == "repos" {
+                    let name = body?["name"] as? String ?? ""
+                    repositories["\(parts[1])/\(name)"] = repository(name, owner: parts[1])
+                    return reply(201, repositories["\(parts[1])/\(name)"]!)
+                }
                 guard parts.count >= 3, parts[0] == "repos" else { return reply(404, ["message": "Not Found"]) }
                 let fullName = parts[1] + "/" + parts[2]
                 guard let repository = repositories[fullName] else { return reply(404, ["message": "Not Found"]) }
@@ -68,7 +77,7 @@ final class DistributionTests: XCTestCase {
                     return reply(200, repository)
                 }
                 guard parts.count == 4, parts[3] == "pages" else { return reply(404, ["message": "Not Found"]) }
-                let site = ["html_url": "https://\(login).github.io/\(parts[2])/", "build_type": body?["build_type"] as? String ?? "workflow"]
+                let site = ["html_url": "https://\(parts[1].lowercased()).github.io/\(parts[2])/", "build_type": body?["build_type"] as? String ?? "workflow"]
                 switch method {
                 case "GET":
                     return pages[fullName].map { reply(200, $0) } ?? reply(404, ["message": "Not Found"])
@@ -184,6 +193,37 @@ final class DistributionTests: XCTestCase {
         XCTAssertEqual(listed.account, "someone")
         XCTAssertEqual(listed.linked, linked)
         XCTAssertEqual(listed.repositories.map(\.fullName), ["someone/packages"])
+    }
+
+    func testCreateInAnOrganizationAndListItsRepositories() async throws {
+        let fixture = try Fixture(self)
+        fixture.github.organizations = ["OwnGoal"]
+        fixture.github.repositories["Readers/notes"] = fixture.github.repository("notes", owner: "Readers", push: false)
+        fixture.github.repositories["Team/site"] = fixture.github.repository("site", owner: "Team")
+        let bare = try fixture.bare("OwnGoal/packages")
+        let request = DistributionRepositoryCreateRequest(name: "packages", owner: "OwnGoal")
+        let name = try fixture.service.prepareCreate(request)
+        let result = try await fixture.service.create(request, name: name, reporter: EventLog().reporter)
+
+        XCTAssertTrue(fixture.github.requests.contains { $0.method == "POST" && $0.path == "/orgs/OwnGoal/repos" })
+        XCTAssertFalse(fixture.github.requests.contains { $0.method == "POST" && $0.path == "/user/repos" })
+        XCTAssertEqual(try commits(in: bare), ["Set up the package repository"])
+        let linked = try XCTUnwrap(result["repository"]?.decode(DistributionRepository.self))
+        XCTAssertEqual(linked.fullName, "OwnGoal/packages")
+        XCTAssertEqual(linked.sourceURL, "https://owngoal.github.io/packages/")
+
+        let listed = try await fixture.service.list(DistributionRepositoryListRequest(repositories: true))
+        XCTAssertEqual(Set(listed.repositories.map(\.fullName)), ["OwnGoal/packages", "Team/site"], "one it cannot push to is left out")
+        XCTAssertEqual(listed.organizations, ["OwnGoal", "Team"])
+
+        // the account's own login is the account, not an organization
+        let own = DistributionRepositoryCreateRequest(name: "own", owner: "someone")
+        _ = try fixture.bare("someone/own")
+        _ = try await fixture.service.create(own, name: fixture.service.prepareCreate(own), reporter: EventLog().reporter)
+        XCTAssertTrue(fixture.github.requests.contains { $0.method == "POST" && $0.path == "/user/repos" })
+        for owner in ["", "-team", "a--b", "has space", String(repeating: "a", count: 40)] {
+            XCTAssertThrowsError(try fixture.service.prepareCreate(DistributionRepositoryCreateRequest(name: "x", owner: owner)), owner)
+        }
     }
 
     func testCreateIsCheckedBeforeItStarts() throws {

@@ -7,7 +7,7 @@ import UIKit
 /// the GitHub account, signed in with a code as gh does
 /// (`GitHubLoginController`), whose token goes to apelin-environment's
 /// keychain and never comes back; the package repository it publishes to
-/// (`DistributionRepositoryFlow`); and the credentials of other hosts an
+/// (`DistributionRepositoryFlow`) and its card (`RepositoryCardController`); and the credentials of other hosts an
 /// agent saved, each removed with a trailing swipe after a confirmation.
 final class GitSettingsController: TableController {
     private enum Section: Hashable {
@@ -28,6 +28,8 @@ final class GitSettingsController: TableController {
         case gitHubAccount(String)
         case gitHubSignIn
         case repository(DistributionRepository)
+        /// The card a camera scans to add the source in Irisin.
+        case repositoryCard(DistributionRepository)
         /// Publishing needs the GitHub account first.
         case createRepository(enabled: Bool)
         case linkRepository(enabled: Bool)
@@ -176,7 +178,7 @@ final class GitSettingsController: TableController {
         var sections: [(Section, [Row])] = [
             (.author, [.name, .email]),
             (.gitHub, [gitHubAccount.map { .gitHubAccount($0.username) } ?? .gitHubSignIn]),
-            linked.map { (.published, [.repository($0)]) }
+            linked.map { (.published, [.repository($0), .repositoryCard($0)]) }
                 ?? (.publishing, [.createRepository(enabled: signedIn), .linkRepository(enabled: signedIn)]),
         ]
         let others = settings.credentials.filter { $0.host != GitHubDeviceFlow.host }
@@ -272,6 +274,10 @@ final class GitSettingsController: TableController {
         }
     }
 
+    private func showCard(of repository: DistributionRepository) {
+        navigationController?.pushViewController(RepositoryCardController(repository: repository), animated: true)
+    }
+
     private func open(_ repository: DistributionRepository) {
         guard let url = URL(string: repository.url) else { return }
         UIApplication.shared.open(url)
@@ -350,12 +356,13 @@ final class GitSettingsController: TableController {
             return cell
         case let .credential(credential):
             return valueCell(credential.host, credential.username)
-        case .gitHubSignIn, .createRepository, .linkRepository:
+        case .gitHubSignIn, .createRepository, .linkRepository, .repositoryCard:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             var content = cell.defaultContentConfiguration()
             content.text = switch row {
             case .gitHubSignIn: String(localized: "Sign In with GitHub…")
             case .createRepository: String(localized: "Create Distribution Repository…")
+            case .repositoryCard: String(localized: "Repository Card…")
             default: String(localized: "Link Distribution Repository…")
             }
             let enabled = switch row {
@@ -386,7 +393,7 @@ final class GitSettingsController: TableController {
 
     override func tableView(_: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
         switch dataSource.value(at: indexPath) {
-        case .gitHubSignIn?, .repository?, .createRepository(enabled: true)?, .linkRepository(enabled: true)?: true
+        case .gitHubSignIn?, .repository?, .repositoryCard?, .createRepository(enabled: true)?, .linkRepository(enabled: true)?: true
         default: false
         }
     }
@@ -399,6 +406,8 @@ final class GitSettingsController: TableController {
         case let .repository(repository)?:
             UIPasteboard.general.string = repository.sourceURL
             SPIndicator.present(title: String(localized: "Copied"), preset: .done, haptic: .success)
+        case let .repositoryCard(repository)?:
+            showCard(of: repository)
         case .createRepository(enabled: true)?:
             flow.create()
         case .linkRepository(enabled: true)?:
@@ -421,6 +430,9 @@ final class GitSettingsController: TableController {
                 },
                 UIAction(title: String(localized: "Open on GitHub"), image: UIImage(systemName: "safari")) { _ in
                     self?.open(repository)
+                },
+                UIAction(title: String(localized: "Repository Card…"), image: UIImage(systemName: "qrcode")) { _ in
+                    self?.showCard(of: repository)
                 },
                 UIAction(
                     title: String(localized: "Unlink"),

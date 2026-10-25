@@ -181,7 +181,8 @@ private final class ProgressCardController: UIViewController {
         separator.snp.makeConstraints { $0.height.equalTo(1 / UIScreen.main.scale) }
 
         // the library fills a card's only action, so the card's only button
-        // is filled
+        // is filled, and as tall as the library's: its title and 8 pt above
+        // and below
         var button = UIButton.Configuration.plain()
         button.title = String(localized: "Cancel")
         button.baseForegroundColor = AlertControllerConfiguration.accentForegroundColor
@@ -204,7 +205,6 @@ private final class ProgressCardController: UIViewController {
             onCancel()
             close()
         }, for: .touchUpInside)
-        cancelButton.snp.makeConstraints { $0.height.greaterThanOrEqualTo(44) }
 
         let stack = UIStackView(arrangedSubviews: [
             artwork, titleLabel, subtitleLabel, separator, gauge, countLabel, cancelButton,

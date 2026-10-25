@@ -1957,8 +1957,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   workspace project, so its conversation maintains it with the file and
   git tools (the `apelin-package-repository` skill); the link is
   `Settings/distribution.json`, read only while its project is there.
-  `distributionRepositoryCreate{name}` (a task: `creating`, `preparing`,
-  `pushing`, `publishing`) makes a public repository, the project with the
+  `distributionRepositoryCreate{name, owner?}` (a task: `creating`,
+  `preparing`, `pushing`, `publishing`) makes a public repository — on the
+  account, or in the organization `owner` names (`POST /orgs/<owner>/repos`),
+  which the app asks for first when the account has any —, the project with the
   template, its first commit and push, then Pages, and links it; once
   GitHub has the repository a failure says Link finishes the setup.
   `distributionRepositoryLink{fullName}` (`fetching` first) takes the
@@ -1974,8 +1976,17 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   dpkg-name spells it) — the same bytes again are skipped, other bytes
   under that name `conflict` —, commits "Publish …" and pushes.
   `distributionRepositoryList{repositories}` answers the account, the link
-  and, asking GitHub, the account's own repositories;
-  `distributionRepositoryUnlink` forgets the link only. The app's alone
+  and, asking GitHub, the repositories it can push to, its own and its
+  organizations', with those organizations (`/user/orgs`, which the `repo`
+  scope may not fill, and every organization owner the list names);
+  `distributionRepositoryUnlink` forgets the link only. Its card (Repository
+  Card…, `Apelin/Interface/Settings/Git/RepositoryCard/`) is a badge the
+  Camera scans to add the source in Irisin: icon, title, the source address,
+  a QR code of `irisin://repository/add?url=<source address>` (Irisin's
+  `IrisinLink`) and `@<owner>`, every line the body size in SF Rounded,
+  bold or regular at half opacity, always light. Save writes it to Photos
+  (`NSPhotoLibraryAddUsageDescription`); `…` chooses the icon and edits the
+  title, kept per repository in the app's defaults. The app's alone
   (no worker may call them); their tasks are not resumed. Settings ▸ Git ▸
   Publishing and the GitHub welcome page create or link one; the
   distribution build page's `…` menu publishes its verified package

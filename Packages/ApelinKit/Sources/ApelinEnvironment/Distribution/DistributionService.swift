@@ -42,8 +42,11 @@ public struct DistributionService: Sendable {
     public func list(_ request: DistributionRepositoryListRequest) async throws -> DistributionRepositoryListResponse {
         let account = try? credentials.credential(forHost: GitHubHost.name)
         var response = DistributionRepositoryListResponse(account: account?.username, linked: linked())
-        guard request.repositories, account != nil else { return response }
-        response.repositories = try await api().repositories().map {
+        guard request.repositories, let account else { return response }
+        let api = try api()
+        // one the account can only read could never be published to
+        let repositories = try await api.repositories().filter { $0.permissions?.push != false }
+        response.repositories = repositories.map {
             DistributionRepositoryCandidate(
                 fullName: $0.fullName,
                 isPrivate: $0.isPrivate,
@@ -51,6 +54,12 @@ public struct DistributionService: Sendable {
                 hasPages: $0.hasPages ?? false,
             )
         }
+        let listed = await (try? api.organizations()) ?? []
+        let owners = repositories.map(\.owner.login)
+        var seen = Set([account.username.lowercased()])
+        response.organizations = (listed + owners)
+            .filter { seen.insert($0.lowercased()).inserted }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         return response
     }
 
@@ -88,6 +97,9 @@ public struct DistributionService: Sendable {
                 "Use letters, digits, hyphens, underscores and periods for the repository's name, at most 100.",
             )
         }
+        if let owner = request.owner, !Self.isOwnerName(owner) {
+            throw ApelinError(.badRequest, "Name the organization by its GitHub login.")
+        }
         _ = try git.projects.newProjectRoot(named: name)
         _ = try api()
         return name
@@ -105,9 +117,11 @@ public struct DistributionService: Sendable {
         let api = try api()
         reporter.stage("creating")
         let login = try await api.login()
+        let organization = request.owner.flatMap { $0.lowercased() == login.lowercased() ? nil : $0 }
         let created = try await api.createRepository(
             name: name,
             description: request.description ?? "Packages for jailbroken iOS, published with Apelin.",
+            organization: organization,
         )
         do {
             try reporter.checkCancelled()
@@ -446,6 +460,14 @@ public struct DistributionService: Sendable {
     }
 
     /// What GitHub takes for a repository's name.
+    /// A GitHub login: letters, digits and single hyphens, at most 39, no
+    /// hyphen at either end.
+    static func isOwnerName(_ name: String) -> Bool {
+        let allowed = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-")
+        return (1 ... 39).contains(name.count) && name.allSatisfy(allowed.contains)
+            && !name.hasPrefix("-") && !name.hasSuffix("-") && !name.contains("--")
+    }
+
     static func isRepositoryName(_ name: String) -> Bool {
         let allowed = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
         return (1 ... 100).contains(name.count) && name.allSatisfy(allowed.contains)
