@@ -40,6 +40,9 @@ struct ChatTranscript {
     private var thinkingStarted: Date?
     private var assistant: Int?
     private var toolRows: [String: Int] = [:]
+    /// The reason the agent gave each call (`ToolReason`), by call ID: what
+    /// an approval card says first.
+    private var callReasons: [String: String] = [:]
     /// The row the turn has shown nothing after yet: its prompt, or images a
     /// tool returned. A running summary stands in under it, under the id the
     /// next thought takes, so the one becomes the other with no gap.
@@ -166,6 +169,9 @@ struct ChatTranscript {
                     row.detail = arguments ?? ""
                     row.banner = ToolCallBanner(tool: name, arguments: arguments, title: row.text)
                     row.awaitsResult = true
+                    if let reason = Self.reason(arguments) {
+                        callReasons[toolID] = reason
+                    }
                     add(row)
                 }
             case "toolResult":
@@ -195,19 +201,13 @@ struct ChatTranscript {
                         payload?["tool"]?.stringValue ?? "",
                         arguments: payload?["arguments"]?.stringValue,
                     )
-                    // Why the gate asked, a changed description's diff, and
-                    // the call's arguments read by name (the exact command a
-                    // root run spends Face ID on) through the same
-                    // `ToolCallDetail` the trace sheet shows.
-                    let arguments = (payload?["arguments"]?.stringValue)
-                        .map { ToolCallDetail(detail: $0, title: title).text }
-                    let detail = [
-                        payload?["reason"]?.stringValue,
-                        payload?["detail"]?["descriptionChanged"]?["diff"]?.stringValue,
-                        arguments,
-                    ].compactMap(\.self).filter { !$0.isEmpty }.joined(separator: "\n\n")
+                    let detail = ApprovalCardText.detail(
+                        payload,
+                        title: title,
+                        callReason: payload?["toolCallID"]?.stringValue.flatMap { callReasons[$0] },
+                    )
                     var request = ChatMessage(id: rowID, role: .approval(nil), text: title + "\n\n" + detail)
-                    request.runsAsRoot = RootApprovalText.isRoot(payload)
+                    request.runsAsRoot = ApprovalCardText.isRoot(payload)
                     add(request)
                 }
             case "approvalResolved":
@@ -439,6 +439,13 @@ struct ChatTranscript {
     static func senderLine(_ title: String?) -> String {
         guard let title, !title.isEmpty else { return String(localized: "From another chat") }
         return String(localized: "From \(title)")
+    }
+
+    /// The reason in a call's arguments, trimmed; nil when it gave none.
+    private static func reason(_ arguments: String?) -> String? {
+        let values = arguments.flatMap { try? JSONCoding.decode(JSONValue.self, from: Data($0.utf8)) }
+        let reason = values?["reason"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return reason.isEmpty ? nil : reason
     }
 
     /// A call's title, by the tool it names: today's name or one an earlier

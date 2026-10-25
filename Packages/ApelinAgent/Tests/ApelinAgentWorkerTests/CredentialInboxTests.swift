@@ -160,7 +160,7 @@ struct EventRelayMappingTests {
     /// A command as root goes in its own `detail.rootCommand` key, which the
     /// host binds a root approval to and the app's card reads; the ordinary
     /// `command` key is absent, so neither approval can stand in for the
-    /// other (`AgentApprovals.isRootRequest`, `RootApprovalText`).
+    /// other (`AgentApprovals.isRootRequest`, `ApprovalCardText`).
     @Test
     func `a root shell_run request carries its command under rootCommand`() {
         let invocation = RunCodeInvocation.argv(["irisin-cli", "install", "--yes", "mobilesubstrate"])

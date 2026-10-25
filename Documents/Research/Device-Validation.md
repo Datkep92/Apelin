@@ -193,6 +193,13 @@ console now goes on after a restart only past a successful respring.
       "Not Approved" indicator; an ordinary approval and a session grant
       never running a root command (covered on the Mac by `RootRunChecks`
       in `make harness`).
+- [ ] The approval card after the 2026-10-25 polish (build 45's card said
+      the root sentence twice, listed `root: true` and showed argv as JSON):
+      a root card and an ordinary shell_run card each show the agent's
+      reason first, the command as its command line (`id -u`), and a root
+      card the red line once with no `root` row; VoiceOver reads title,
+      red line, then the text. The text is covered on the Mac by
+      `Tests/ChatTranscript`.
 - [ ] A rootless bootstrap: install, hello, `i1-smoke`, `t1`, `i3-chain`.
 - [ ] Real hardware (not a vphone): the same, plus a real respring and
       confirmLoaded. Toolchain setup and removal, SDK import and builds

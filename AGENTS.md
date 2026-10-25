@@ -1661,11 +1661,19 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   confirmation when changing into Relaxed from Strict, and, for Full, a
   confirmation that root runs without asking followed by `DeviceOwnerCheck`
   (Face ID, Touch ID or the passcode; a device with no passcode passes);
-  leaving Full asks nothing. The composer's approval card reads a call's
-  arguments by name through the same `ToolCallDetail` the trace sheet uses,
-  so a root command reads the same on the card as in the trace — the exact
-  command the reader confirms before Face ID. It marks a root
-  request with a red *Runs as root* line (VoiceOver reads it; the row's
+  leaving Full asks nothing. The composer's approval card
+  (`ApprovalCardText`) says, under its title, the reason the agent gave the
+  call (from its `toolCall`), why the gate asks, a changed description's
+  diff, then the arguments by name through the same `ToolCallDetail` the
+  trace sheet uses — a shell_run's argv as its command line
+  (`CommandLineText`: plain words as they are, the rest single-quoted, a
+  character that does not show escaped in `$'…'`, so two argvs never read
+  the same). Display only: the approval stays bound to `detail.command` or
+  `detail.rootCommand` and `workingDirectory`, and the command and directory
+  the card shows are those, never the call's own arguments where they
+  differ. It marks a root
+  request with a red *Runs as root* line, which stands for the gate's
+  sentence and the `root` argument, both left out (VoiceOver reads it; the row's
   accessibility value is "Root Approval Required"), and Approve on it runs
   `DeviceOwnerCheck` before `agentApprove` carries `ownerVerified`; on a
   failed or cancelled check nothing is sent and the request stays pending

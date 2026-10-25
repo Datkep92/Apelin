@@ -91,32 +91,92 @@ precondition(
 )
 print("ok: an approval card carries the reason and the description diff before the arguments")
 
-/// A command that runs as root marks its card (`runsAsRoot`) and shows the
-/// exact command by name, so the reader reads it before Face ID.
+/// A command that runs as root marks its card (`runsAsRoot`). The card says
+/// the root sentence once (the red line; the gate's own sentence is left
+/// out), why the agent made the call first, then the command as the line the
+/// reader would type, with no `root` row: what they read before Face ID.
+let rootGateReason = "Runs as root, with full control of this device. Each command that runs as root needs your approval."
 let rootApproval = ChatTranscript(events: [
     event(1, "prompt", ["text": .string("Install the dependency")]),
-    event(2, "approvalRequested", [
-        "approvalID": .string("r1"), "tool": .string("shell_run"),
-        "arguments": .string("{\"argv\":[\"irisin-cli\",\"install\",\"--yes\",\"mobilesubstrate\"],\"root\":true}"),
-        "reason": .string("Runs as root, with full control of this device."),
+    event(2, "toolCall", ["id": .string("c1"), "tool": .string("shell_run"),
+                          "arguments": .string("{\"argv\":[\"id\",\"-u\"],\"reason\":\"以 root 身份运行 id -u 查看 uid\",\"root\":true}")]),
+    event(3, "approvalRequested", [
+        "approvalID": .string("r1"), "toolCallID": .string("c1"), "tool": .string("shell_run"),
+        "arguments": .string("{\"argv\":[\"id\",\"-u\"],\"root\":true}"),
+        "reason": .string(rootGateReason),
         "detail": .object(["rootCommand": .object([
-            "argv": .object(["_0": .array([.string("irisin-cli"), .string("install")])]),
+            "argv": .object(["_0": .array([.string("id"), .string("-u")])]),
         ])]),
     ]),
 ]) { _ in nil }.messages.first { $0.role.needsApproval }
+let rootDetail = rootApproval?.approvalDetail ?? ""
 precondition(rootApproval?.runsAsRoot == true, "a root command's card is marked")
-precondition(
-    (rootApproval?.approvalDetail ?? "").contains("irisin-cli") && (rootApproval?.approvalDetail ?? "").contains("mobilesubstrate"),
-    "the card shows the exact root command: \(rootApproval?.approvalDetail ?? "")",
-)
+precondition(!rootDetail.contains("Runs as root"), "the root sentence is said once, by the red line: \(rootDetail)")
+precondition(rootDetail.hasPrefix("以 root 身份运行 id -u 查看 uid"), "the agent's reason comes first: \(rootDetail)")
+precondition(rootDetail.contains("argv\nid -u"), "the command reads as its command line: \(rootDetail)")
+precondition(!rootDetail.contains("[\"id\""), "not as a JSON array: \(rootDetail)")
+precondition(!rootDetail.contains("root\ntrue"), "and no root row, the red line says it: \(rootDetail)")
+
+/// An ordinary command's card keeps the gate's sentence, and gets the
+/// agent's reason and the command line too.
+let shellGateReason = "This command is not in your approved presets. Review it before running."
 let plainShell = ChatTranscript(events: [
     event(1, "prompt", ["text": .string("x")]),
-    event(2, "approvalRequested", [
-        "approvalID": .string("s1"), "tool": .string("shell_run"), "arguments": .string("{\"argv\":[\"make\"]}"),
-        "detail": .object(["command": .object(["argv": .object(["_0": .array([.string("make")])])])]),
+    event(2, "toolCall", ["id": .string("c2"), "tool": .string("shell_run"),
+                          "arguments": .string("{\"argv\":[\"make\",\"-C\",\"My Tweak\"],\"reason\":\"Build the tweak\"}")]),
+    event(3, "approvalRequested", [
+        "approvalID": .string("s1"), "toolCallID": .string("c2"), "tool": .string("shell_run"),
+        "arguments": .string("{\"argv\":[\"make\",\"-C\",\"My Tweak\"]}"),
+        "reason": .string(shellGateReason),
+        "detail": .object(["command": .object(["argv": .object(["_0": .array([
+            .string("make"), .string("-C"), .string("My Tweak"),
+        ])])])]),
     ]),
 ]) { _ in nil }.messages.first { $0.role.needsApproval }
+let shellDetail = plainShell?.approvalDetail ?? ""
 precondition(plainShell?.runsAsRoot == false, "an ordinary command's card is not marked as root")
+let shellPositions = ["Build the tweak", shellGateReason, "make -C 'My Tweak'"].compactMap { shellDetail.range(of: $0)?.lowerBound }
+precondition(
+    shellPositions.count == 3 && shellPositions == shellPositions.sorted(),
+    "the agent's reason, the gate's, then the command line: \(shellDetail)",
+)
+
+/// The card shows the command and directory the approval is bound to, the
+/// request's `detail.rootCommand` and `workingDirectory`, even where the
+/// call's arguments say otherwise.
+let mismatched = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("x")]),
+    event(2, "approvalRequested", [
+        "approvalID": .string("m1"), "tool": .string("shell_run"), "workingDirectory": .string("Sources"),
+        "arguments": .string("{\"argv\":[\"id\",\"-u\"],\"cwd\":\".\",\"root\":true}"),
+        "detail": .object(["rootCommand": .object(["argv": .object(["_0": .array([
+            .string("rm"), .string("-rf"), .string("/var/mobile"),
+        ])])])]),
+    ]),
+]) { _ in nil }.messages.first { $0.role.needsApproval }
+let mismatchedDetail = mismatched?.approvalDetail ?? ""
+precondition(
+    mismatchedDetail.contains("argv\nrm -rf /var/mobile") && !mismatchedDetail.contains("id -u"),
+    "the bound command is shown, not the arguments' own: \(mismatchedDetail)",
+)
+precondition(mismatchedDetail.contains("cwd\nSources"), "in the bound directory: \(mismatchedDetail)")
+
+/// The command line is display only and never ambiguous: each distinct argv
+/// reads differently, whatever its words hold.
+let argvs: [[String]] = [
+    ["id", "-u"], ["id -u"], ["id", "", "-u"], ["id", " -u"], ["a'b"], ["a\\'b"], ["*"], ["\\*"],
+    ["a\tb"], ["a b"], ["a\nb"], ["a\u{200B}b"], ["ab"], ["a\u{00A0}b"], ["~"], ["$HOME"], ["'$HOME'"],
+    [""], ["", ""], ["x=1", "id"], ["x=1 id"],
+]
+let lines = argvs.map(CommandLineText.quoted)
+precondition(Set(lines).count == argvs.count, "two argvs read the same: \(lines)")
+precondition(CommandLineText.quoted(["id", "-u"]) == "id -u")
+precondition(CommandLineText.quoted(["make", "-C", "My Tweak"]) == "make -C 'My Tweak'")
+precondition(CommandLineText.quoted([""]) == "''", "an empty word is shown")
+precondition(CommandLineText.quoted(["it's"]) == #"'it'\''s'"#)
+precondition(CommandLineText.quoted(["*.m"]) == "'*.m'", "a glob is quoted")
+precondition(CommandLineText.quoted(["a\u{200B}b"]) == "$'a\\u200Bb'", "a character that does not show is escaped")
+precondition(CommandLineText.quoted(["a\nb"]) == #"$'a\nb'"#)
 print("ok: a root command's card is marked and shows the command")
 
 let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("apelin-chat-store-\(UUID())")
