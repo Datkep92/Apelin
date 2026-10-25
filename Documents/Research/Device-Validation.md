@@ -180,21 +180,19 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
-- [ ] Root agent commands and Full mode (2026-10-24, root round). On a
-      device with Irisin and a signed-in provider: in Strict and Relaxed, a
-      `shell_run` with `asRoot` (e.g. `irisin-cli install --yes <id>` for a
-      declared dependency) posts a notice whose subtitle is "Root Approval
-      Required"; the composer card shows the red "Runs as root" line;
-      Approve raises Face ID / Touch ID (and, on a device with no passcode,
-      runs without a prompt), a cancel or failure leaves it pending with the
-      "Not Approved" indicator; after it passes the command runs at euid 0
-      (confirm with `id -u`). Then Settings ▸ Permission Mode ▸ Full asks to
-      confirm and raises the owner check; in Full the same root command runs
-      with no card. Check an approval of an ordinary (non-root) command, and
-      a session grant, never run a root command. Run on an iPhone (Face ID
-      or Touch ID), an iPad, and a device with no passcode set. The host
-      gating is covered on the Mac (`RootRunChecks` in `make harness`); the
-      LocalAuthentication prompt and the real euid-0 run are device-only.
+- [ ] Root agent commands and Full mode (2026-10-24, root round). On the
+      iOS 26.4 iPhone vphone, which has no passcode, build 45 ran it in
+      Strict (▸ Final device round): the notice's "Root Approval Required"
+      subtitle, the card's red "Runs as root" line, Approve running `id -u`
+      at euid 0 with no prompt, Deny running nothing, Full's confirmation
+      and the same command in Full with no card, and Strict asking again.
+      Still to run: the same in Relaxed; a real dependency
+      (`irisin-cli install --yes <id>`); on an iPhone (Face ID or Touch ID)
+      and an iPad with a passcode, Approve and the switch to Full raising
+      the owner check, and a cancel or failure leaving it pending with the
+      "Not Approved" indicator; an ordinary approval and a session grant
+      never running a root command (covered on the Mac by `RootRunChecks`
+      in `make harness`).
 - [ ] A rootless bootstrap: install, hello, `i1-smoke`, `t1`, `i3-chain`.
 - [ ] Real hardware (not a vphone): the same, plus a real respring and
       confirmLoaded. Toolchain setup and removal, SDK import and builds
@@ -270,40 +268,51 @@ console now goes on after a restart only past a successful respring.
 - [ ] The agent's apelin_notification_send (notify_user until the rename;
       2026-10-24): the banner, its tap, nothing in front and the third
       notice's "0 more" ran as notify_user on build 37, in Relaxed (▸ Turn
-      display and notices). Still to run, under the new name: under Strict,
-      the banner with no approval card; opening the conversation removes its
-      banner; a fourth call in one turn refused by the tool and the host;
-      a reopened session's replay posts nothing.
-- [ ] The renamed tools (2026-10-24, none has run on a device): a
-      conversation recorded before the rename, reopened, takes a message
-      through GitHub Copilot with a Claude model and with a GPT model, and
-      through an OpenAI-compatible key, with no provider error; its old
-      calls keep their titles and the trace's file names; a token it saved
-      through git_save_credential stays masked in the replay; and a Strict
-      run reaches every gated tool under its new name (toolchain setup, SDK
+      display and notices); under the new name and Strict, the banner with
+      no approval card and its tap ran on build 45 (▸ Final device round).
+      Still to run: opening the conversation removes its banner; a fourth
+      call in one turn refused by the tool and the host; a reopened
+      session's replay posts nothing.
+- [ ] The renamed tools (2026-10-24): a conversation recorded on build 37,
+      before the rename, took a message through an OpenAI-compatible key
+      with no provider error, and its old calls keep their titles, on
+      build 45 (▸ Final device round). Still to run: the same through GitHub
+      Copilot with a Claude model and with a GPT model; the trace's file
+      names for its old file calls; a token it saved through
+      git_save_credential stays masked in the replay; and a Strict run
+      reaches every gated tool under its new name (toolchain setup, SDK
       import, git_push, a git setting, a call into another project, a
       workspace build, package removal), each card and widget step named.
-- [ ] The skill tools (2026-10-24, none has run on a device): under
-      Strict, apelin_skill_save asks with the whole SKILL.md and no "for
-      this session", the skill shows in Settings ▸ Skills and in the next
-      message's list, apelin_skill_remove asks and takes it away, a
-      built-in's name is refused before asking.
-- [ ] Projects from the agent (2026-10-24, none has run on a device):
-      apelin_project_list in General Chat names the projects; a project's
-      chat creates another without asking and hands it on with a card;
-      apelin_project_rename renames its own project with no card and the
-      sidebar follows, renames another only after a card that names both
-      names, and `automatic: true` after the user's own rename changes
-      nothing.
+- [ ] The skill tools (2026-10-24): under Strict, apelin_skill_save asking
+      with the whole SKILL.md and no "for this session", the skill in
+      Settings ▸ Skills, and apelin_skill_remove asking and taking it away
+      ran on build 45 (▸ Final device round). Still to run: a built-in's
+      name refused before asking, and the saved skill read back from the
+      next message's list.
+- [ ] Projects from the agent (2026-10-24): apelin_project_list from a
+      project's chat, a project's chat creating another without asking and
+      answering with its link, and apelin_project_rename renaming its own
+      project with no card while the sidebar follows ran on build 45
+      (▸ Final device round). Still to run: apelin_project_list in General
+      Chat; a rename of another project only after a card that names both
+      names; `automatic: true` after the user's own rename changing nothing.
 - [ ] The running summary's count and the quiet stand-in (2026-10-24):
       the count, and a stand-in forced by pausing the agent worker, ran on
-      build 37 (▸ Turn display and notices). Still to run: the count under
-      Reduce Motion; a stand-in after a real pause in a provider's stream;
-      two chats streaming at once, with Stop and the approval card holding
-      still on every batch; the newest call's line under the summary, back
-      in `80fb07a`.
-- [ ] Prompt caching (2026-10-24, AGENTS.md ▸ Prompt caching; none has run
-      on a device). The usage of every request is in the session's
+      build 37 (▸ Turn display and notices), and again with the newest
+      call's line under the summary on build 45 (▸ Final device round).
+      Still to run: the count as the figure then a plain arrow (`653 ↓`,
+      `e07e868`); the count under Reduce Motion; a stand-in after a real
+      pause in a provider's stream; two chats streaming at once, with Stop
+      and the approval card holding still on every batch.
+- [ ] Prompt caching (2026-10-24, AGENTS.md ▸ Prompt caching). DeepSeek
+      through an OpenAI-compatible key passed on build 45 (▸ Final device
+      round): from the second request on, every request but the expected
+      misses read 92–99.6 % of its prompt from the cache; a memory saved in
+      another project's chat and an approval answered at once missed
+      nothing; a mode switch and a skill saved missed once each. Still to
+      run: every other provider below; a memory this project sees saved in
+      another chat, which misses once; the first message after midnight; a
+      reopened session. The usage of every request is in the session's
       transcript, rewritten when each run ends: `$DATA/sessions/<session
       id>/transcript.json` (the id is `agentList`'s `sessionID`, or the
       newest folder: `Scripts/device.py exec 'ls -t "$DATA/sessions" | head
@@ -1868,3 +1877,104 @@ On the iPad, which has no model account, Apelin launches and Skills lists
 the same nine with none of the user's. It has no conversation with a trace
 or a run, and no replay is linked into the app, so neither the summary nor
 the trace was seen there.
+
+## Final device round (2026-10-25, CI build 45 of `2d226a3`)
+
+The roothide package CI built for `2d226a3` (build 45, SHA-256 checked
+against its `SHA256SUMS`) went onto all four vphones through `irisin-cli
+install --yes`, each on the first try: the iOS 26.4 iPhone and the iPadOS
+26.4 iPad over build 37, the iOS 27.0.1 iPhone and the iPadOS 27.0.1 iPad
+over 0.1.0. On both 27.0.1 guests `uicache` printed "Unable to register"
+(▸ AGENTS.md, Gotchas); the app was registered and opened, on its welcome
+page, and its installed `Info.plist` was the package's byte for byte. The
+smoke suite ran on all four by the shell stand-in and every script ended
+`ok` (`files` skipped on the iPads, which have no tweak extension). No
+crash report for Apelin, apelind or a worker came out of the round on any
+of the four.
+
+On the iPhone, with its deepseek-v4-pro account (an OpenAI-compatible key),
+driven through vphoned (taps, `input.type`, the home button, the
+accessibility tree, screenshots):
+
+- The running summary: the title, `arrow.down.circle.fill` and the count
+  growing from the turn's first `received` (23, 62, 106 … 653, 780 through
+  a turn of four calls), the title going from `Thinking…` to `Executing 1
+  tool…` while a call ran. Under it the newest call's line: `hello.c +45
+  −0` and its reason for the file_write, `hello.c +1 −1` for the file_edit,
+  the reason alone for the shell_run; no thinking text, no typing. The
+  count as the figure then a plain arrow (`e07e868`) has not run on a
+  device.
+- The trace sheet: the thinking as plain text, then each call's arguments
+  by name, one to a line, the value under it: the file_write's `content`
+  reads as the C file it wrote, line breaks and all; the file_edit's
+  `new_text`, `old_text` and `path`; shell_run's `argv` as compact JSON;
+  then the result (the edit's unified diff, the command's JSON).
+- The quiet stand-in: with the agent workers stopped (`SIGSTOP`) for 7 s
+  in the middle of an essay, `Thinking… ⬇648` stood under the reply until
+  the text came back.
+- The accessibility tree now carries each assistant reply as one text
+  element with its whole text; build 37's tree had none. Replies written
+  on build 37 read the same way.
+- The new tool names: file_write, file_edit, file_read, shell_run,
+  apelin_skill_read, apelin_template_list, apelin_project_create,
+  apelin_project_list, apelin_project_rename, apelin_memory_save,
+  apelin_skill_save, apelin_skill_remove and apelin_notification_send all
+  ran. A conversation recorded on build 37 (notify_user and run_code calls)
+  still titles them "Send a notification" and "Run a command" in its
+  trace, and a new message in it ran shell_run with no provider error.
+- Under Strict: apelin_project_list from a project's chat answered without
+  asking. apelin_skill_save asked with a card holding the description, the
+  name and the whole body, Deny and Approve and no session grant; approved,
+  the skill was listed in Settings ▸ Agent ▸ Skills under Your Skills.
+  apelin_skill_remove asked naming it and, approved, left the skills folder
+  empty. apelin_project_create from a project's chat created a second
+  workspace without asking and answered with its link, which opened it.
+  apelin_project_rename renamed its own project with no card, the sidebar's
+  title followed, and it renamed it back.
+- Root, in Strict: a shell_run with `root: true` (`id -u`) asked with the
+  card's red line "Runs as root, with full control of this device", then
+  `argv` and `root` by name. With Apelin on the home screen the banner's
+  subtitle read "Root Approval Required" under the conversation's title,
+  and the Dynamic Island's count turned amber. Approve ran it at once —
+  this vphone has no passcode, so nothing was asked — and stdout was `0`.
+  Denying the next (`whoami`) ran nothing: the call ended "the user
+  declined this call". Settings ▸ Permission Mode ▸ Full asked "Enable Full
+  Mode?" with its warning and, confirmed, raised no prompt; the same root
+  command then ran with no card. Back in Strict the next root call asked
+  again, and was denied. The vphone was left in Strict.
+- apelin_notification_send under Strict, with Apelin on the home screen:
+  the banner came with the conversation's title, the notice's title as
+  subtitle and its body, and no approval card; the turn's own end banner
+  followed. A banner tapped while Apelin had another conversation open
+  opened Apelin on the notice's conversation.
+- Prompt caching, in a project's chat, 34 requests over 13 messages
+  (`usage` from `transcript.json`; DeepSeek reports no cacheWrite): the
+  first request read nothing (15,492 prompt tokens); every later one read
+  92–99.6 % of its prompt from the cache, the second message's first
+  request 99.0 %. A project memory saved in another project's chat cost
+  nothing (the next request 99.6 %), nor did an approval answered within a
+  minute. The misses were the expected ones, once each: Relaxed to Strict
+  (0 % read, then 94 %), the skill saved (13 %, the tools alone) and Strict
+  to Full (13 %). Removing the skill and going back to Strict missed
+  nothing (98.5 %, 98.8 %): the earlier prefixes were still cached.
+- "What is a tweak, and how would I make one with Apelin?" in a new General
+  Chat read tweak-development first (apelin_skill_read in the trace) and
+  answered that Apelin's tweak is plain Objective-C, no Logos or Theos:
+  hooks installed with MSHookMessageEx in a constructor, the original
+  called instead of `%orig`, the filter plist, then template, build,
+  install and confirm. The same question in the build-37 conversation,
+  whose earlier answer had described Logos, got Logos again and no skill
+  read.
+- Scrolling a conversation of 14 turns, six of them essays, drew every row,
+  at 10–18 % of a core and a 47–60 MB footprint.
+- Opening that conversation, from the sidebar, twice in one launch, put it
+  at the start of its seventh turn (the C essay), not at its end; the
+  chevron showed and took it to the last reply. A short conversation
+  opened at its end.
+
+On the iPad, which has no model account: Settings ▸ Permission Mode ▸ Full
+asks the same; Cancel kept Relaxed, Enable Full Mode selected Full with no
+prompt (no passcode), and Relaxed was put back. Skills lists the built-ins.
+
+The test projects (with their chats), the skill, the memory and the new
+General Chat conversation were deleted through the app afterwards.
