@@ -1,7 +1,7 @@
 extension BuiltInSkills {
     static let deviceCLI = SkillDocument(
         name: "apelin-icli",
-        description: "Running icli, the device's command-line tool, through shell_run: apps, URLs, files, preferences, processes, launchd, packages, the screen and input, when no dedicated Apelin tool does it. What runs as mobile, what is never yours to run, roothide paths, and what to tell the user when icli is missing.",
+        description: "Running icli, the device's command-line tool, through shell_run: apps, URLs, files, preferences, processes, launchd, packages, the screen and input, when no dedicated Apelin tool does it, and icli probe, a JavaScriptCore script with Objective-C reflection for probing what the device has. What runs as mobile, what is never yours to run, roothide paths, and what to tell the user when icli is missing.",
         body: """
         # icli
 
@@ -42,6 +42,37 @@ extension BuiltInSkills {
           `screen ocr`, `screen tap`, `screen swipe`, `input type`; read
           `screen info` first, since coordinates are points in the
           orientation shown
+
+        ## Probing with JavaScript
+        When no command answers a question about the device — whether a
+        class or a private method exists, what an object returns, what a
+        framework reports — `icli probe` (icli 0.10.0 and later) evaluates a
+        JavaScriptCore script in the icli process and prints one JSON line,
+        `{"ok": true, "result": …, "output": …}` or `{"ok": false, "error":
+        …, "output": …}`, exiting non-zero on `ok: false`:
+        `{"argv": ["icli", "probe", "-e", "ObjC.use('UIDevice').currentDevice().systemVersion()"]}`.
+        A longer script goes in a file in the project (`icli probe
+        probe.js`), or on stdin with `-`. What a script has:
+        - `ObjC.use('NSProcessInfo')` or `ObjC.classes.NSProcessInfo`, and
+          methods by name, a colon written as `_`
+          (`stringWithUTF8String_`), or by selector
+          (`obj['setValue:forKey:'](v, k)`); a string, number, boolean or
+          date comes back as a JavaScript value, `NSNull` as `null`, any
+          other object as a handle with `$value`, `$class` and `$isClass`.
+          Structs, non-null pointers and blocks are refused.
+        - `fs.ls`, `fs.read`, `fs.write`, `fs.stat`; `console.log` and
+          `print`, collected into `output`; `sleep(ms)`.
+        - `api(method, params)`, a read-only set of icli's own answers:
+          `env.info`, `device.info`, `screen.info`, `svc.list`,
+          `svc.status`, `app.list`, `proc.list`.
+        It runs inline, as mobile like any shell_run: a crash or hang takes
+        that icli process down, and the script cannot start a process
+        (`proc.run`) or call `exit()`. Probe to read and understand;
+        changing the device stays with the commands and tools above, under
+        the same rules. A thrown script is `ok: false`, not a crash. Never
+        run `icli probe repl`: it is interactive and shell_run has no
+        terminal. An icli older than 0.10.0 has no `probe`; say so and
+        point the user to `https://apt.owngoal.dev` for the update.
 
         ## As mobile, and never as root
         shell_run runs as mobile, and the commands above work so. Never run
