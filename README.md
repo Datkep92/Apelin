@@ -2,164 +2,81 @@
 
 # Apelin
 
-An on-device IDE for jailbroken iOS and iPadOS 16.0 or later. A code editor,
-a terminal and an agent that writes, builds, packages, installs and debugs
-tweaks, apps, command-line tools and preference bundles on the device
-itself — no Mac in the loop.
+## Write. Build. Install. On the device.
 
-Apelin is part of the OwnGoal series and is named after the exercise-induced
-peptide hormone.
+Apelin is an IDE for jailbroken iPhone and iPad on iOS and iPadOS 16 or later. Its agent writes, builds, installs and debugs tweaks, apps, command-line tools and preference bundles on the device itself, with no Mac needed. It works with both rootless jailbreaks, such as Dopamine, and roothide.
 
-> **Status:** 0.1.0, the first public release. The whole chain — toolchain
-> setup, SDKs, projects, build, sign, package, install, respring and a check
-> that the tweak loaded — runs on device, and every step can also be driven
-> headless through the [console](Documents/Console.md).
+## Features
 
-## What it does
+- Designed for both iPhone and iPad
+- Sets up Apple's Command Line Tools on the device, for C, C++ and Objective-C, with Swift as an option. You don't need Xcode or an Apple ID
+- Downloads and checks the iPhoneOS SDKs, or imports one from a file
+- Templates for tweaks, apps, command-line tools and preference bundles, or an empty workspace that keeps your project's own build script
+- Builds, signs, packages and installs through Irisin, then resprings and checks that your tweak loaded
+- An agent that edits your project, builds and installs it, and reads logs and crash reports. Sign in with GitHub Copilot, Claude, ChatGPT, OpenRouter and many other providers, or use an API key
+- Choose how much the agent may do on its own: Strict asks before anything beyond a project edit, and every command as root asks unless you turn on Full
+- A code editor, a terminal and git, with Sign In with GitHub
+- Publish your packages to your own package repository on GitHub Pages, and share it as a card anyone can scan to add it in Irisin
+- Read the live log, symbolicate crash reports against your own builds, and take screenshots
+- Move a toolchain, an SDK or a project to your other device as one file
+- Available in 13 languages
+- Open source under the MIT License
 
-- **A real toolchain on the device.** Apelin downloads Apple's Command Line
-  Tools package itself (no Xcode, no Apple ID), unpacks it and retargets the
-  compilers to iOS on the device. Nothing Apple ships is redistributed.
-  C, C++ and Objective-C come with every supported release; Swift is
-  optional. [Compatibility](Documents/Compatibility.md) lists the releases,
-  CPUs and OS versions each one runs on.
-- **An SDK manager.** iPhoneOS SDKs are downloaded from
-  [owngoal-dev/iOS-SDKs](https://github.com/owngoal-dev/iOS-SDKs) or another
-  source you add, or imported from a file; each is checked and identified
-  before it is registered.
-- **Projects from templates.** The development extensions bring templates
-  for tweaks, UIKit apps, command-line tools and preference bundles. An
-  empty workspace takes any build system you bring.
-- **Build, sign, package, install.** Builds run under the registered
-  toolchain and SDK, are signed in process (byte for byte what
-  `ldid -S` writes), packaged as a `.deb` and installed through Irisin's
-  daemon.
-- **Diagnostics.** The live log, crash reports with symbolication against
-  your own builds' dSYMs, screenshots, the UI tree and UI actions, and a
-  load check that watches for the tweak's marker across a respring.
-- **An agent.** It edits the project, builds, installs, reads logs and
-  crashes and uses git, with every step shown as it happens. It signs in to
-  GitHub Copilot, Claude, ChatGPT Codex, OpenRouter and many other
-  subscription and API-key providers. In *Strict* mode anything beyond a
-  project edit or a read-only preset waits for your approval.
-- **A terminal and git.** A full terminal (libghostty) in the project, and
-  git over HTTPS (libgit2) with a token per host kept in the keychain.
-- **Transfer files.** A toolchain, an SDK or a project moves to your other
-  device as one file, checked again on arrival.
+## Installation
 
-## Requirements
+Add **[apt.owngoal.dev](https://apt.owngoal.dev/)** in your preferred package manager, or download the package for your jailbreak from [Releases](https://github.com/owngoal-dev/Apelin/releases):
 
-- A jailbroken iPhone or iPad on iOS / iPadOS 16.0 or later, with a
-  **roothide** (`iphoneos-arm64e`) or **rootless** (`iphoneos-arm64`)
-  bootstrap.
-- [Irisin](https://github.com/Lakr233/Irisin) 4.7.3 or later, whose daemon
-  installs the packages Apelin builds.
-- A compiler-capable CPU: A12 or later for C, C++ and Objective-C; Swift
-  depends on the release (see [Compatibility](Documents/Compatibility.md)).
+| Jailbreak | Package |
+| --- | --- |
+| roothide | `iphoneos-arm64e` |
+| rootless (`/var/jb`) | `iphoneos-arm64` |
 
-## Install
+Apelin needs [Irisin](https://github.com/Lakr233/Irisin) 4.7.3 or later, which installs the packages you build, and an A12 or later for the compilers. Which iOS versions and CPUs can run Swift depends on the toolchain release: [Compatibility](Documents/Compatibility.md) lists them.
 
-Add the OwnGoal Studio repository in your preferred package manager:
+The development extensions add the project templates and come with Apelin by default; Apelin still works if you remove one. The tweak template depends on an injection framework, which Apelin itself does not.
 
-**[apt.owngoal.dev](https://apt.owngoal.dev/)**
+| Extension | Adds |
+| --- | --- |
+| `wiki.qaq.apelin.dev.app` | UIKit apps in Objective-C or Swift |
+| `wiki.qaq.apelin.dev.tweak` | Tweaks |
+| `wiki.qaq.apelin.dev.cli` | Command-line tools in C or Objective-C |
+| `wiki.qaq.apelin.dev.preferences` | Preference bundles |
+| `wiki.qaq.apelin.agent-tools.disassembler` | A disassembler for the agent, on Capstone |
+| `wiki.qaq.apelin.agent-tools.assembler` | An assembler for the agent, on Keystone (GPL-2.0; its source is published with each release) |
 
-Every package comes as a roothide (`iphoneos-arm64e`) and a rootless
-(`iphoneos-arm64`) deb, there and on
-[GitHub Releases](https://github.com/owngoal-dev/Apelin/releases).
+## Report a Problem
 
-- **Apelin** (`wiki.qaq.apelin`) — the IDE itself. It brings Irisin, Fila,
-  iGhostVT and icli (`com.icli.icli`, the device tool the agent drives)
-  with it, and depends on no injection framework.
-- **Development extensions** add project templates. They are recommended
-  packages; Apelin also works without them:
-  - `wiki.qaq.apelin.dev.app` — UIKit apps in Objective-C, or Swift with
-    the toolchain's Swift component
-  - `wiki.qaq.apelin.dev.tweak` — tweaks; depends on an injection framework
-  - `wiki.qaq.apelin.dev.cli` — command-line tools in C or Objective-C
-  - `wiki.qaq.apelin.dev.preferences` — preference bundles
-- **Agent tool extensions** add optional tools. Install the ones you need;
-  each runs in its own process and includes its licenses:
-  - `wiki.qaq.apelin.agent-tools.disassembler` — disassembly and symbols,
-    on Capstone
-  - `wiki.qaq.apelin.agent-tools.assembler` — assembly, on Keystone
-    (GPL-2.0); its corresponding source is published beside it in each
-    release
+Choose Report a Problem in Settings, or [open an issue on GitHub](https://github.com/owngoal-dev/Apelin/issues/new). Search the existing issues first to avoid duplicates.
 
-## How it works
-
-The app runs as `mobile`. The privileged half is `apelind`, a launchd job
-that starts on demand and exits when idle. It authenticates the app by
-audit token, entitlements and the executable on disk before it decodes a
-single request, and forwards a closed list of typed operations — none of
-them "run this command" — to a session host. The session host keeps every
-long task on disk, so a build or an install survives the app going away,
-and hands work to small workers (environment, build, agent, diagnostics),
-most of which drop to `mobile` before they run.
-
-If the daemon is not installed, the app still works under its own OS
-permissions. [AGENTS.md](AGENTS.md) records every design decision in
-detail; [CHECKLIST.md](CHECKLIST.md) is the list they came from.
-
-## Building from source
-
-You need a Mac with the newest Xcode (the project tracks the iOS 27 SDK),
-plus `dpkg`, `ldid` and `zstd` for packaging and, before committing Swift,
-`swiftformat`. Install them with your preferred package manager. There is
-no Simulator build: the app runs on devices only.
-
-```sh
-make harness        # host tests on the Mac; run this first
-make check          # project, packaging, string and accessibility gates
-make build          # unsigned app, daemon and workers for iPhoneOS
-make deb-all        # roothide and rootless debs, then every extension
-make install DEVICE_HOST=<address> DEVICE_PORT=22 FLAVOR=roothide
-```
-
-`make help` lists the rest. Packages are ad-hoc signed with `ldid`, so no
-developer account is needed; to sign from Xcode, copy
-`Configuration/Developer.xcconfig.example` to `Configuration/Developer.xcconfig`
-(ignored by git). `make install` copies the package to the device over SSH
-and installs it through Irisin's installer.
-
-## Repository layout
-
-```
-Apelin/          the app (UIKit)
-Apelind/         the daemon and its session host
-Workers/         the workers the session host spawns
-Packages/        the Swift packages everything is built from
-Extensions/      development templates and agent tool extensions
-Shared/          what the app and the daemon both compile
-Packaging/       entitlements, launchd plist, maintainer scripts
-Scripts/         packaging, the device harness and the gates
-Documents/       design notes, schemas, console scripts, release notes
-Licenses/        reviewed third-party notices
-```
-
-## Contributing
-
-Issues and pull requests are welcome. Before opening one, run
-`make harness` and `make check`, and `make format` if you touched Swift.
-New or corrected project templates are pull requests against
-`Extensions/Development/`; the formats are in
-[Documents/Schemas](Documents/Schemas/README.md).
+If Apelin crashes or a build or an installation fails, include the log from Settings ▸ Logs. The log may contain your project names, paths and repository addresses, so review it before you share it.
 
 ## Privacy
 
-Agent and git credentials are stored in the keychain, on this device only,
-and never synchronised. Apelin has no telemetry: a conversation goes only
-to the model provider you signed in to, and a transfer file only where you
-share it.
+Agent and git credentials are kept in the keychain, on this device only, and never synced. Apelin has no telemetry: your conversations go only to the model provider you signed in to.
 
-## License
+## Build from Source
 
-Apelin is released under the MIT License; see [LICENSE](LICENSE).
+Open `Apelin.xcodeproj` in the newest Xcode. To build the packages:
 
-Third-party components keep their own licenses. Their notices are in
-[Licenses/](Licenses/) and are shown in the app under Settings ▸ Open Source
-Licenses.
-The assembler extension links Keystone and is distributed under GPL-2.0.
-Apple's Command Line Tools and iPhoneOS SDKs remain Apple's, under Apple's
-terms; Apelin never ships them. The SDK repository credits
-[xybp888/iOS-SDKs](https://github.com/xybp888/iOS-SDKs), from which it was
-forked.
+```sh
+make harness      # run the tests on the Mac
+make check        # project, packaging, string and accessibility checks
+make deb-all      # build the roothide and rootless packages
+make install DEVICE_HOST=<address> FLAVOR=roothide
+```
+
+You need `dpkg`, `ldid`, `zstd` and `swiftformat` from your preferred package manager. There is no Simulator build. Notes for contributors are in [AGENTS.md](AGENTS.md), and you can drive the app headless through the [console](Documents/Console.md).
+
+## Acknowledgements
+
+Apple's Command Line Tools and iPhoneOS SDKs remain Apple's, under Apple's terms. Apelin never ships them. The SDK repository [owngoal-dev/iOS-SDKs](https://github.com/owngoal-dev/iOS-SDKs) is forked from [xybp888/iOS-SDKs](https://github.com/xybp888/iOS-SDKs).
+
+Third-party components keep their own licenses. Their notices are in [Licenses/](Licenses/) and in the app under Settings ▸ Open Source Licenses.
+
+## Sponsor
+
+[LookInside](https://lookinside-app.com/) lets you inspect the interface of a running iOS or macOS app from your Mac.
+
+---
+
+Copyright © 2026 OwnGoal Studio. Released under the [MIT License](LICENSE).
