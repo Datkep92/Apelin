@@ -2155,6 +2155,7 @@ Tests/                   the harness's host tests (RoothideRoot, ExecutableWatch
                          SessionHost)
 Licenses/                reviewed notices: review.json, Compatibility.md, one folder per component
 Documents/               Icon/ (the .icon source, in no target), Site/ (Pages), Releases/,
+                         Banner/ (the banner's template and make-banner.sh), screenshots.jpg,
                          Plan/ (Milestone-1, Handoff), Research/ (Device-Validation, the
                          toolchain retarget, ApelinHello), Console.md, Console/ (scripts/,
                          device-harness.json, fixtures/, demo/: the capture scripts and
@@ -2227,7 +2228,13 @@ an icon Pages serves.
 
 `Documents/Site/depiction.json` is the native depiction page. Keep its Details
 copy accurate and use the largest banner referenced by the README as
-`headerImage`. The Pages workflow refreshes its Changelog from published GitHub
+`headerImage`. That banner is `Documents/screenshots.jpg`, as Fila's is, made by
+`Documents/Banner/make-banner.sh` from `Template.fig`: iPhone screenshots of
+the demo conversations in `demo-data.py`, taken on the iOS Simulator by a
+screenshot-only build (the one simulator build there is; nothing ships from
+it), put into the template's named slots and rendered at 2x
+(`Documents/Banner/README.md`). Never draw or lay it out by hand: change the
+data or the slots and run the script again. The Pages workflow refreshes its Changelog from published GitHub
 releases using the shared updater pinned in that workflow; never maintain a
 second changelog implementation or edit generated release notes by hand.
 The copied publishing workflow must be named `Release` so Pages refreshes after

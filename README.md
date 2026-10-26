@@ -4,7 +4,9 @@
 
 ## Write. Build. Install. On the device.
 
-Apelin is an IDE for jailbroken iPhone and iPad on iOS and iPadOS 16 or later. Its agent writes, builds, installs and debugs tweaks, apps, command-line tools and preference bundles on the device itself, with no Mac needed. It works with both rootless jailbreaks, such as Dopamine, and roothide.
+Apelin is an IDE for iPhone and iPad running custom firmware on iOS and iPadOS 16 or later. Its agent writes, builds, installs and debugs tweaks, apps, command-line tools and preference bundles on the device itself, with no Mac needed. It works with both rootless and roothide bootstraps.
+
+![Preview](Documents/screenshots.jpg)
 
 ## Features
 
@@ -24,9 +26,9 @@ Apelin is an IDE for jailbroken iPhone and iPad on iOS and iPadOS 16 or later. I
 
 ## Installation
 
-Add **[apt.owngoal.dev](https://apt.owngoal.dev/)** in your preferred package manager, or download the package for your jailbreak from [Releases](https://github.com/owngoal-dev/Apelin/releases):
+Add **[apt.owngoal.dev](https://apt.owngoal.dev/)** in your preferred package manager, or download the package for your bootstrap from [Releases](https://github.com/owngoal-dev/Apelin/releases):
 
-| Jailbreak | Package |
+| Bootstrap | Package |
 | --- | --- |
 | roothide | `iphoneos-arm64e` |
 | rootless (`/var/jb`) | `iphoneos-arm64` |
