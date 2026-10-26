@@ -1995,8 +1995,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   a QR code of `irisin://repository/add?url=<source address>` (Irisin's
   `IrisinLink`) and `@<owner>`, every line the body size in SF Rounded,
   bold or regular at half opacity, always light. Save writes it to Photos
-  (`NSPhotoLibraryAddUsageDescription`); `…` chooses the icon and edits the
-  title, kept per repository in the app's defaults. The app's alone
+  (`NSPhotoLibraryAddUsageDescription`); `…` opens the source in Irisin on
+  this device (nothing under the card: an iPad's form sheet has no height
+  for it), chooses the icon and edits the title, kept per repository in the
+  app's defaults. The app's alone
   (no worker may call them); their tasks are not resumed. Settings ▸ Git ▸
   Publishing and the GitHub welcome page create or link one; the
   distribution build page's `…` menu publishes its verified package
