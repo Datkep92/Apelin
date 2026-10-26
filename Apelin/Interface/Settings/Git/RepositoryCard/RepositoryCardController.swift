@@ -9,29 +9,65 @@ import UIKit
 
 /// Settings ▸ Git ▸ the package repository ▸ Repository Card…: a card
 /// someone points the Camera at to add the source in Irisin. Save writes
-/// it to Photos; `…` chooses its icon and edits its title, kept per
-/// repository (`RepositoryCardStyle`).
+/// it to Photos; `…` chooses its icon (or removes it, back to Apelin's)
+/// and edits its title, kept per
+/// repository (`RepositoryCardStyle`). Open in Irisin… under the card adds
+/// the source on this device through the same link the card's code holds.
 final class RepositoryCardController: UIViewController, PHPickerViewControllerDelegate {
     private let repository: DistributionRepository
     private var style: RepositoryCardStyle
     private let cardView = RepositoryCardView()
+
+    /// The accent's colour and an underline, as a link reads.
+    private lazy var openInIrisinButton = UIButton(type: .system).then {
+        $0.setAttributedTitle(NSAttributedString(
+            string: String(localized: "Open in Irisin…"),
+            attributes: [
+                .font: UIFont.preferredFont(forTextStyle: .body),
+                .foregroundColor: AppAccent.color(glass: .tintColor),
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+            ],
+        ), for: .normal)
+        $0.titleLabel?.adjustsFontForContentSizeCategory = true
+        $0.addAction(UIAction { [weak self] _ in self?.openInIrisin() }, for: .touchUpInside)
+    }
 
     private lazy var saveItem = UIBarButtonItem(
         title: String(localized: "Save"),
         primaryAction: UIAction { [weak self] _ in self?.saveToPhotos() },
     )
 
+    /// Remove Icon only while the card has an icon of the user's own.
     private lazy var moreItem = UIBarButtonItem(
         image: UIImage(systemName: "ellipsis"),
-        menu: UIMenu(children: [
+        menu: UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
+            completion(self?.menuActions() ?? [])
+        }]),
+    ).then { $0.accessibilityLabel = String(localized: "More") }
+
+    private func menuActions() -> [UIMenuElement] {
+        var actions: [UIMenuElement] = [
             UIAction(title: String(localized: "Choose Icon…"), image: UIImage(systemName: "photo")) { [weak self] _ in
                 self?.chooseIcon()
             },
-            UIAction(title: String(localized: "Edit Title…"), image: UIImage(systemName: "character.cursor.ibeam")) { [weak self] _ in
-                self?.editTitle()
-            },
-        ]),
-    ).then { $0.accessibilityLabel = String(localized: "More") }
+        ]
+        if style.icon != nil {
+            actions.append(UIAction(
+                title: String(localized: "Remove Icon"),
+                image: UIImage(systemName: "trash"),
+                attributes: .destructive,
+            ) { [weak self] _ in
+                self?.change { $0.icon = nil }
+            })
+        }
+        actions.append(UIAction(
+            title: String(localized: "Edit Title…"),
+            image: UIImage(systemName: "character.cursor.ibeam"),
+        ) { [weak self] _ in
+            self?.editTitle()
+        })
+        return actions
+    }
 
     init(repository: DistributionRepository) {
         self.repository = repository
@@ -51,13 +87,20 @@ final class RepositoryCardController: UIViewController, PHPickerViewControllerDe
         // Save rightmost, `…` beside it
         navigationItem.rightBarButtonItems = [saveItem, moreItem]
         view.addSubview(cardView)
+        view.addSubview(openInIrisinButton)
+        openInIrisinButton.snp.makeConstraints { make in
+            make.centerX.equalTo(view.safeAreaLayoutGuide)
+            make.bottom.equalTo(view.safeAreaLayoutGuide).offset(-16)
+        }
         let canvas = RepositoryCardView.canvas
         cardView.snp.makeConstraints { make in
-            make.center.equalTo(view.safeAreaLayoutGuide)
+            make.centerX.equalTo(view.safeAreaLayoutGuide)
+            make.centerY.equalTo(view.safeAreaLayoutGuide).priority(.high)
+            make.top.greaterThanOrEqualTo(view.safeAreaLayoutGuide).offset(24)
+            make.bottom.lessThanOrEqualTo(openInIrisinButton.snp.top).offset(-16)
             make.width.equalTo(cardView.snp.height).multipliedBy(canvas.width / canvas.height)
             make.width.lessThanOrEqualTo(canvas.width)
             make.width.lessThanOrEqualTo(view.safeAreaLayoutGuide).offset(-48)
-            make.height.lessThanOrEqualTo(view.safeAreaLayoutGuide).offset(-48)
             make.width.equalTo(canvas.width).priority(.high)
         }
         updateCard()
@@ -71,6 +114,12 @@ final class RepositoryCardController: UIViewController, PHPickerViewControllerDe
         edit(&style)
         style.save(for: repository)
         updateCard()
+    }
+
+    /// Irisin is a dependency of Apelin's, so it is there to take the link.
+    private func openInIrisin() {
+        guard let url = URL(string: RepositoryCard.irisinLink(source: repository.sourceURL)) else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - Title and icon

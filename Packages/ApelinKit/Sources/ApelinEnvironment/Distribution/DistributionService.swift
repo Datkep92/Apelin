@@ -215,11 +215,19 @@ public struct DistributionService: Sendable {
         let repository = try GitRepository(at: project.root)
         let source = Self.sourceURL(owner: remote.owner.login, name: remote.name)
         let branch = repository.head().branch ?? remote.defaultBranch ?? EmptyRepositoryBranch.name
-        let added = try Self.addTemplate(to: project.root, repository: remote.fullName, sourceURL: source, branch: branch)
+        let added = try Self.addTemplate(
+            to: project.root,
+            repository: remote.fullName,
+            sourceURL: source,
+            branch: branch,
+            overwrite: request.overwrite,
+        )
         if !added.isEmpty {
             try repository.stage(added)
             try repository.commit(
-                message: "Add the package index and its GitHub Pages workflow",
+                message: request.overwrite
+                    ? "Update the package repository from Apelin's template"
+                    : "Add the package index and its GitHub Pages workflow",
                 author: author(repository, login: login),
             )
         }
@@ -422,7 +430,16 @@ public struct DistributionService: Sendable {
 
     /// The template's files the project does not have, written without
     /// following a link and never over a file; answers the paths written.
-    static func addTemplate(to root: URL, repository: String, sourceURL: String, branch: String) throws -> [String] {
+    /// Writes each template file the repository lacks, and with `overwrite`
+    /// replaces a maintained one whose bytes differ, by a rename over it
+    /// from beside it, never through a link. Answers the paths it wrote.
+    static func addTemplate(
+        to root: URL,
+        repository: String,
+        sourceURL: String,
+        branch: String,
+        overwrite: Bool = false,
+    ) throws -> [String] {
         var written: [String] = []
         for file in DistributionTemplate.files(repository: repository, sourceURL: sourceURL, branch: branch) {
             let parts = file.path.split(separator: "/").map(String.init)
@@ -439,17 +456,39 @@ public struct DistributionService: Sendable {
                 }
             }
             let path = root.appendingPathComponent(file.path).path
+            let mode: mode_t = file.executable ? 0o755 : 0o644
             var metadata = stat()
-            guard lstat(path, &metadata) != 0 else { continue }
-            let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, file.executable ? 0o755 : 0o644)
-            guard descriptor >= 0 else {
-                throw ApelinError(.internal, "could not write \(file.path): \(String(cString: strerror(errno)))")
+            if lstat(path, &metadata) == 0 {
+                guard overwrite, DistributionTemplate.maintained.contains(file.path) else { continue }
+                guard metadata.st_mode & S_IFMT == S_IFREG else {
+                    throw ApelinError(.conflict, "\(file.path) is not a regular file, so it was not replaced.")
+                }
+                if FileManager.default.contents(atPath: path) == file.contents {
+                    continue
+                }
+                let temporary = folder.appendingPathComponent(".\(parts.last ?? "file").apelin-\(UUID().uuidString)").path
+                try writeNewFile(file.contents, to: temporary, mode: mode, name: file.path)
+                guard rename(temporary, path) == 0 else {
+                    let reason = String(cString: strerror(errno))
+                    Darwin.unlink(temporary)
+                    throw ApelinError(.internal, "could not replace \(file.path): \(reason)")
+                }
+            } else {
+                try writeNewFile(file.contents, to: path, mode: mode, name: file.path)
             }
-            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-            try handle.write(contentsOf: Data(file.contents.utf8))
             written.append(file.path)
         }
         return written
+    }
+
+    /// A new file at `path`, made exclusively and never through a link.
+    private static func writeNewFile(_ contents: Data, to path: String, mode: mode_t, name: String) throws {
+        let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
+        guard descriptor >= 0 else {
+            throw ApelinError(.internal, "could not write \(name): \(String(cString: strerror(errno)))")
+        }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        try handle.write(contentsOf: contents)
     }
 
     /// GitHub Pages' address for a repository: the account's own site for

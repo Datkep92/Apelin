@@ -117,14 +117,26 @@ public struct DistributionRepositoryCreateRequest: OperationRequest {
 /// files it lacks without overwriting one, commits and pushes them when it
 /// added any, turns on GitHub Pages with the workflow as its source and
 /// links it. Stages `fetching`, `preparing`, `pushing`, `publishing`.
+/// With `overwrite`, the files the template maintains — the home page,
+/// README, icon, workflow and index script — are replaced with the
+/// template's as well (Update Repository…); packages, depictions and
+/// banners are never touched.
 public struct DistributionRepositoryLinkRequest: OperationRequest {
     public typealias Response = TaskHandle
     public static let operation = AppOperation.distributionRepositoryLink
     /// `owner/name`.
     public var fullName: String
+    public var overwrite: Bool
 
-    public init(fullName: String) {
+    public init(fullName: String, overwrite: Bool = false) {
         self.fullName = fullName
+        self.overwrite = overwrite
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        fullName = try container.decode(String.self, forKey: .fullName)
+        overwrite = try container.decodeIfPresent(Bool.self, forKey: .overwrite) ?? false
     }
 }
 
@@ -164,8 +176,8 @@ public extension ApelinService {
     }
 
     /// Starts the link; follow it with `events(of:)`.
-    func distributionRepositoryLink(fullName: String) async throws -> TaskHandle {
-        try await send(DistributionRepositoryLinkRequest(fullName: fullName))
+    func distributionRepositoryLink(fullName: String, overwrite: Bool = false) async throws -> TaskHandle {
+        try await send(DistributionRepositoryLinkRequest(fullName: fullName, overwrite: overwrite))
     }
 
     func distributionRepositoryUnlink() async throws {

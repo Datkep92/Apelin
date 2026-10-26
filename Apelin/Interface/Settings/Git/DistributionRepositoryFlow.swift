@@ -6,7 +6,8 @@ import UIKit
 /// pages alike: Create asks whose it is when the account is in an
 /// organization, then for a name, and follows the creation; Link picks
 /// one of the account's repositories (`DistributionRepositoryPickerController`)
-/// and follows the link; Unlink asks first. Each task is followed on
+/// and follows the link; Update overwrites the files the template maintains
+/// after a warning; Unlink asks first. Each task is followed on
 /// `EnvironmentTaskController`, pushed onto the presenter's navigation, and
 /// `onChange` is told when anything may have changed.
 @MainActor
@@ -104,6 +105,23 @@ final class DistributionRepositoryFlow {
                 title: String(localized: "Linking Repository"),
                 doneTitle: String(localized: "Repository Linked"),
             ) { try await ApelinService.app.distributionRepositoryLink(fullName: candidate.fullName) }
+        }
+    }
+
+    /// Apelin's current template over the files it maintains, after a
+    /// warning that whatever the user changed in them is replaced.
+    func confirmUpdate(_ repository: DistributionRepository) {
+        presenter?.presentConfirmation(
+            title: "Update \(repository.fullName)?",
+            message: "This overwrites the repository's home page, README, icon, GitHub Pages workflow and index script with Apelin's current template, replacing any changes made to them, then commits and pushes. Packages, depictions and banners stay as they are.",
+            confirmTitle: "Update",
+            destructive: true,
+        ) { [weak self] in
+            self?.start(
+                work: .distributionLink,
+                title: String(localized: "Updating Repository"),
+                doneTitle: String(localized: "Repository Updated"),
+            ) { try await ApelinService.app.distributionRepositoryLink(fullName: repository.fullName, overwrite: true) }
         }
     }
 

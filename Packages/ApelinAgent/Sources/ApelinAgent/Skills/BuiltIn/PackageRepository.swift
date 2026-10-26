@@ -6,7 +6,7 @@ extension BuiltInSkills {
         # Maintaining a package repository
 
         A package repository is an APT source the user's devices and other
-        people add in Sileo, Zebra or Irisin. Apelin keeps one in a GitHub
+        people add in Irisin. Apelin keeps one in a GitHub
         repository of the user's, set up from Settings ▸ Git ▸ Publishing:
         Create Distribution Repository makes it from Apelin's template, and
         Link Distribution Repository takes one the user has, adding what the
@@ -21,12 +21,12 @@ extension BuiltInSkills {
           `<Package>_<Version>_<Architecture>.deb`. No two files have the same
           name, nor the same Package, Version and Architecture.
         - `depictions/<package id>/`: optional, per package: `index.html` (the
-          web depiction), `depiction.json` (Sileo's native depiction),
+          web depiction), `depiction.json` (the native depiction Irisin shows),
           `icon.png` and `banner.png`. Pages serves them at
           `<source>/depictions/<package id>/…`, the addresses a package's
           `Depiction`, `SileoDepiction` and `Icon` fields name.
         - `index.html`: the source's home page; `CydiaIcon.png`: its icon.
-        - `sileo-featured.json`: the banners Sileo shows at the top of the
+        - `sileo-featured.json`: the banners Irisin shows at the top of the
           source, each naming a package and an image under `depictions/`.
         - `scripts/update-repository.sh` and
           `.github/workflows/update-repository.yml`: on every push to `main`,
@@ -43,7 +43,7 @@ extension BuiltInSkills {
           to ten more.
         - A package's control file needs `Package`, `Name`, `Version`,
           `Architecture`, `Description`, `Maintainer`, `Author` and `Section`
-          (Sileo's category: Tweaks, Applications, Utilities, Themes…); the
+          (the package's category: Tweaks, Applications, Utilities, Themes…); the
           workflow fails without `Section`. A project sets them in its
           apelin-project.json (the apelin-project-description skill), not here.
         - A new version is a new file. Never replace a published file under

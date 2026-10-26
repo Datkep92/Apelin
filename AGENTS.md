@@ -1947,9 +1947,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (`https://<owner>.github.io/<name>/`), laid out after
   owngoal-dev/owngoal-packages trimmed to committed packages
   (`DistributionTemplate`: `debs/`, `depictions/`, `index.html`,
-  `sileo-featured.json`, `scripts/update-repository.sh` indexing `debs/`
-  with apt-ftparchive, and `.github/workflows/update-repository.yml`
-  building and deploying Pages on every push to the repository's branch).
+  `CydiaIcon.png` (Apelin's icon), `sileo-featured.json` (a file name
+  Irisin reads too), `scripts/update-repository.sh` indexing `debs/` with
+  apt-ftparchive and drawing the home page's QR code with qrencode for the
+  address `configure-pages` answers, and
+  `.github/workflows/update-repository.yml` building and deploying Pages
+  on every push to the repository's branch). The home page is the
+  repository's card as the app draws it, centred, with Open in Irisin…
+  under it; everything the template writes points to Irisin alone (owner,
+  2026-10-26: no Sileo or Zebra).
   apelin-environment serves it, holding the github.com sign-in: GitHub's
   API (`GitHubAPI`: the account, its own repositories, creating one, Pages
   with `build_type: workflow`) is called with that token, and the clone
@@ -1967,7 +1973,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   project whose origin it already is, else clones it into a new workspace
   — an empty repository is set up as a new one —, adds the template files
   it lacks without overwriting any, commits and pushes those, switches or
-  turns on Pages and links it. A Pages refusal (a private repository on a
+  turns on Pages and links it. With `overwrite` (Update Repository…, after
+  a warning that it replaces them) it also replaces the files the template
+  maintains (`DistributionTemplate.maintained`: the home page, README,
+  icon, workflow and index script) whose bytes differ, by a rename over
+  each, never through a link; packages, depictions and banners are left. A Pages refusal (a private repository on a
   free plan) is a warning; the repository is set up either way.
   `distributionPublish{files}` (`fetching`, `preparing`, `pushing`) takes
   `.deb` files under the data folder's `Builds/` (≤ 16, each ≤ 100 MB,
@@ -2069,10 +2079,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
 - **Diagnostics** use `owngoal-dev/icli` for everything it can do — logs,
   crash reports, screenshots, the UI tree and actions, respring — and gaps are
   filled in icli, not beside it. The package depends on the icli CLI too
-  (`com.icli.icli (>= 0.9.2)`, from apt.owngoal.dev; owner, 2026-10-26),
+  (`com.icli.icli (>= 0.10.0)`, from apt.owngoal.dev; owner, 2026-10-26),
   which the agent runs through shell_run as the `apelin-icli` skill says —
-  dedicated tools first, mobile's commands only, and, when it is missing,
-  asking the user to install it from `https://apt.owngoal.dev`.
+  dedicated tools first, mobile's commands only, `icli probe` (a
+  JavaScriptCore script with Objective-C reflection, in process, read-only
+  `api()`, no `proc.run` or `exit()`, never `probe repl`) to look into what
+  the device has, and, when it is missing, asking the user to install it
+  from `https://apt.owngoal.dev`.
 - **Lists and rich text** follow FlowDown: ListViewKit, MarkdownView, Litext
   and DisplayLink. FlowDown is the owner's own code (Lakr233's Inhouse
   Code; owner, 2026-10-21), so it is brought across as it is, whatever

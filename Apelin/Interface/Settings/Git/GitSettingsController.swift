@@ -30,6 +30,8 @@ final class GitSettingsController: TableController {
         case repository(DistributionRepository)
         /// The card a camera scans to add the source in Irisin.
         case repositoryCard(DistributionRepository)
+        /// Apelin's current template over the files it maintains.
+        case updateRepository(DistributionRepository)
         /// Publishing needs the GitHub account first.
         case createRepository(enabled: Bool)
         case linkRepository(enabled: Bool)
@@ -118,7 +120,7 @@ final class GitSettingsController: TableController {
             case .publishing:
                 String(localized: "A package repository is an APT source on GitHub Pages: Distribute… publishes a project's release builds to it.")
             case .published:
-                String(localized: "Add this address in Sileo, Zebra or Irisin. Tap to copy it.")
+                String(localized: "Add this address in Irisin. Tap to copy it.")
             case .credentials:
                 String(localized: "Credentials an agent saved for other hosts.")
             }
@@ -178,7 +180,7 @@ final class GitSettingsController: TableController {
         var sections: [(Section, [Row])] = [
             (.author, [.name, .email]),
             (.gitHub, [gitHubAccount.map { .gitHubAccount($0.username) } ?? .gitHubSignIn]),
-            linked.map { (.published, [.repository($0), .repositoryCard($0)]) }
+            linked.map { (.published, [.repository($0), .repositoryCard($0), .updateRepository($0)]) }
                 ?? (.publishing, [.createRepository(enabled: signedIn), .linkRepository(enabled: signedIn)]),
         ]
         let others = settings.credentials.filter { $0.host != GitHubDeviceFlow.host }
@@ -356,13 +358,14 @@ final class GitSettingsController: TableController {
             return cell
         case let .credential(credential):
             return valueCell(credential.host, credential.username)
-        case .gitHubSignIn, .createRepository, .linkRepository, .repositoryCard:
+        case .gitHubSignIn, .createRepository, .linkRepository, .repositoryCard, .updateRepository:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             var content = cell.defaultContentConfiguration()
             content.text = switch row {
             case .gitHubSignIn: String(localized: "Sign In with GitHub…")
             case .createRepository: String(localized: "Create Distribution Repository…")
             case .repositoryCard: String(localized: "Repository Card…")
+            case .updateRepository: String(localized: "Update Repository…")
             default: String(localized: "Link Distribution Repository…")
             }
             let enabled = switch row {
@@ -393,7 +396,7 @@ final class GitSettingsController: TableController {
 
     override func tableView(_: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
         switch dataSource.value(at: indexPath) {
-        case .gitHubSignIn?, .repository?, .repositoryCard?, .createRepository(enabled: true)?, .linkRepository(enabled: true)?: true
+        case .gitHubSignIn?, .repository?, .repositoryCard?, .updateRepository?, .createRepository(enabled: true)?, .linkRepository(enabled: true)?: true
         default: false
         }
     }
@@ -408,6 +411,8 @@ final class GitSettingsController: TableController {
             SPIndicator.present(title: String(localized: "Copied"), preset: .done, haptic: .success)
         case let .repositoryCard(repository)?:
             showCard(of: repository)
+        case let .updateRepository(repository)?:
+            flow.confirmUpdate(repository)
         case .createRepository(enabled: true)?:
             flow.create()
         case .linkRepository(enabled: true)?:
@@ -433,6 +438,9 @@ final class GitSettingsController: TableController {
                 },
                 UIAction(title: String(localized: "Repository Card…"), image: UIImage(systemName: "qrcode")) { _ in
                     self?.showCard(of: repository)
+                },
+                UIAction(title: String(localized: "Update Repository…"), image: UIImage(systemName: "arrow.triangle.2.circlepath")) { _ in
+                    self?.flow.confirmUpdate(repository)
                 },
                 UIAction(
                     title: String(localized: "Unlink"),

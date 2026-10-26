@@ -46,18 +46,34 @@ final class RepositoryCardView: UIView {
         ].joined(separator: ", ")
     }
 
-    /// The card as a PNG-ready image, transparent outside its corners and
-    /// through its slot, at three pixels a point.
+    /// The card as Save writes it, at three pixels a point: on the page's
+    /// grey with a margin and a soft shadow, so that alone in Photos it
+    /// still reads as a card, its slot showing the grey through.
     static func image(of card: RepositoryCard) -> UIImage {
+        let margin: CGFloat = 40
+        let size = CGSize(width: canvas.width + margin * 2, height: canvas.height + margin * 2)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 3
-        format.opaque = false
-        return UIGraphicsImageRenderer(size: canvas, format: format).image { _ in draw(card) }
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            page.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let cg = context.cgContext
+            cg.translateBy(x: margin, y: margin)
+            cg.saveGState()
+            cg.setShadow(offset: CGSize(width: 0, height: 4), blur: 24, color: UIColor.black.withAlphaComponent(0.08).cgColor)
+            UIColor.white.setFill()
+            shape.fill()
+            cg.restoreGState()
+            draw(card)
+        }
     }
 
     // MARK: - Drawing
 
     private static let ink = UIColor(red: 0.12, green: 0.14, blue: 0.17, alpha: 1)
+    /// The grey a saved card sits on, the light grouped background's.
+    private static let page = UIColor(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255, alpha: 1)
 
     private static func font(_ weight: UIFont.Weight) -> UIFont {
         let system = UIFont.systemFont(ofSize: 17, weight: weight)
@@ -65,11 +81,17 @@ final class RepositoryCardView: UIView {
         return UIFont(descriptor: rounded, size: 17)
     }
 
+    /// The card's outline with the badge's slot cut out of it.
+    private static var shape: UIBezierPath {
+        let bounds = CGRect(origin: .zero, size: canvas)
+        let path = UIBezierPath(roundedRect: bounds, cornerRadius: 24)
+        path.append(UIBezierPath(roundedRect: CGRect(x: bounds.midX - 30, y: 20, width: 60, height: 11), cornerRadius: 5.5))
+        path.usesEvenOddFillRule = true
+        return path
+    }
+
     private static func draw(_ card: RepositoryCard) {
         let bounds = CGRect(origin: .zero, size: canvas)
-        let shape = UIBezierPath(roundedRect: bounds, cornerRadius: 24)
-        shape.append(UIBezierPath(roundedRect: CGRect(x: bounds.midX - 30, y: 20, width: 60, height: 11), cornerRadius: 5.5))
-        shape.usesEvenOddFillRule = true
         UIColor.white.setFill()
         shape.fill()
 

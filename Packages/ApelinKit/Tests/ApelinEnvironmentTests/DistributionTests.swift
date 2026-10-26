@@ -292,6 +292,41 @@ final class DistributionTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.project("apt 2").path))
     }
 
+    func testUpdateReplacesWhatTheTemplateMaintainsAndKeepsTheRest() async throws {
+        let fixture = try Fixture(self)
+        let bare = try fixture.bare("someone/apt")
+        let seed = try GitRepository.create(at: fixture.home.home.appendingPathComponent("seed", isDirectory: true))
+        try FileManager.default.createDirectory(at: seed.workdir.appendingPathComponent("debs"), withIntermediateDirectories: true)
+        let mine: [(String, String)] = [
+            ("index.html", "old page\n"), ("README.md", "old readme\n"),
+            ("sileo-featured.json", "{\"banners\": []}\n"), ("debs/a_1_iphoneos-arm64.deb", "deb\n"),
+        ]
+        for (path, text) in mine {
+            try Data(text.utf8).write(to: seed.workdir.appendingPathComponent(path))
+        }
+        try seed.stage(mine.map(\.0))
+        try seed.commit(message: "Old template", author: GitSignature(name: "Someone", email: "someone@apelin.invalid"))
+        try seed.addRemote("origin", url: bare.path)
+        _ = try seed.push()
+        fixture.github.repositories["someone/apt"] = fixture.github.repository("apt")
+
+        _ = try await fixture.service.link(DistributionRepositoryLinkRequest(fullName: "someone/apt", overwrite: true), reporter: .silent)
+        let root = fixture.project("apt")
+        let page = try String(contentsOf: root.appendingPathComponent("index.html"), encoding: .utf8)
+        XCTAssertTrue(page.contains("Open in Irisin"), "the page is the template's")
+        XCTAssertFalse(page.contains("Sileo"))
+        XCTAssertNotEqual(try String(contentsOf: root.appendingPathComponent("README.md"), encoding: .utf8), "old readme\n")
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("CydiaIcon.png")), DistributionTemplate.icon)
+        XCTAssertEqual(try String(contentsOf: root.appendingPathComponent("sileo-featured.json"), encoding: .utf8), "{\"banners\": []}\n",
+                       "the user's banners stay")
+        XCTAssertEqual(try String(contentsOf: root.appendingPathComponent("debs/a_1_iphoneos-arm64.deb"), encoding: .utf8), "deb\n")
+        XCTAssertEqual(try commits(in: bare), ["Update the package repository from Apelin's template", "Old template"])
+
+        // already up to date: nothing to commit
+        _ = try await fixture.service.link(DistributionRepositoryLinkRequest(fullName: "someone/apt", overwrite: true), reporter: .silent)
+        XCTAssertEqual(try commits(in: bare).count, 2)
+    }
+
     func testLinkSetsUpAnEmptyRepository() async throws {
         let fixture = try Fixture(self)
         let bare = try fixture.bare("someone/empty")

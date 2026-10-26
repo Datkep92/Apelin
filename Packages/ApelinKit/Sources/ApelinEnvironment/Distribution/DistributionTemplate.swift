@@ -12,25 +12,35 @@ enum DistributionTemplate {
     /// whatever of the template it lacks.
     static let workflowPath = ".github/workflows/update-repository.yml"
 
+    /// The files Apelin keeps up to date and Update Repository… replaces;
+    /// every other template file is the user's once it exists.
+    static let maintained: Set<String> = [
+        workflowPath, "scripts/update-repository.sh", "index.html", "README.md", "CydiaIcon.png",
+    ]
+
     static func files(
         repository: String,
         sourceURL: String,
         branch: String,
-    ) -> [(path: String, contents: String, executable: Bool)] {
+    ) -> [(path: String, contents: Data, executable: Bool)] {
         let fill = { (text: String) in
-            text.replacingOccurrences(of: "__REPOSITORY__", with: repository)
-                .replacingOccurrences(of: "__SOURCE_URL__", with: sourceURL)
-                .replacingOccurrences(of: "__BRANCH__", with: branch)
+            Data(
+                text.replacingOccurrences(of: "__REPOSITORY__", with: repository)
+                    .replacingOccurrences(of: "__SOURCE_URL__", with: sourceURL)
+                    .replacingOccurrences(of: "__BRANCH__", with: branch)
+                    .utf8,
+            )
         }
         return [
             (workflowPath, fill(workflow), false),
-            ("scripts/update-repository.sh", updateScript, true),
+            ("scripts/update-repository.sh", Data(updateScript.utf8), true),
             ("index.html", fill(indexPage), false),
+            ("CydiaIcon.png", icon, false),
             ("README.md", fill(readme), false),
-            ("debs/README.md", debsReadme, false),
-            ("depictions/README.md", depictionsReadme, false),
-            ("sileo-featured.json", featured, false),
-            (".gitignore", gitignore, false),
+            ("debs/README.md", Data(debsReadme.utf8), false),
+            ("depictions/README.md", Data(depictionsReadme.utf8), false),
+            ("sileo-featured.json", Data(featured.utf8), false),
+            (".gitignore", Data(gitignore.utf8), false),
         ]
     }
 
@@ -68,16 +78,18 @@ enum DistributionTemplate {
           - name: Install repository tools
             run: |
               sudo apt-get update
-              sudo apt-get install --yes apt-utils xz-utils
+              sudo apt-get install --yes apt-utils xz-utils qrencode
+
+          - name: Configure GitHub Pages
+            id: pages
+            uses: actions/configure-pages@v5
 
           - name: Build repository
             env:
               REPOSITORY_NAME: ${{ github.event.repository.name }}
               REPOSITORY_OWNER: ${{ github.repository_owner }}
+              SOURCE_URL: ${{ steps.pages.outputs.base_url }}
             run: ./scripts/update-repository.sh
-
-          - name: Configure GitHub Pages
-            uses: actions/configure-pages@v5
 
           - name: Upload GitHub Pages artifact
             uses: actions/upload-pages-artifact@v3
@@ -135,7 +147,7 @@ enum DistributionTemplate {
       : > "$work_dir/Packages"
     fi
 
-    # Sileo files a package with no Section under nothing; refuse it here.
+    # A package with no Section is filed under nothing; refuse it here.
     awk '
       BEGIN { RS = ""; FS = "\n" }
       {
@@ -145,7 +157,7 @@ enum DistributionTemplate {
           if ($field ~ /^Section: /) section = substr($field, 10)
         }
         if (package != "" && section == "") {
-          printf "Package %s has no Section field, which Sileo needs.\n", package > "/dev/stderr"
+          printf "Package %s has no Section field, which package managers file it by.\n", package > "/dev/stderr"
           exit 1
         }
       }
@@ -177,6 +189,15 @@ enum DistributionTemplate {
         cp "$file" "$site_dir/"
       fi
     done
+    # The home page's QR code: Irisin's add-source link for the address
+    # Pages serves, which the Camera opens in Irisin. Left out without
+    # qrencode or an address, and the page shows the card without it.
+    source_url="${SOURCE_URL:-}"
+    if [[ -n "$source_url" ]] && command -v qrencode >/dev/null 2>&1; then
+      [[ "$source_url" == */ ]] || source_url="$source_url/"
+      qrencode -t SVG --svg-path -m 0 --foreground=1F232B -o "$site_dir/qr.svg" \
+        "irisin://repository/add?url=$source_url"
+    fi
     if [[ -d depictions ]]; then
       cp -R depictions "$site_dir/depictions"
     fi
@@ -190,6 +211,10 @@ enum DistributionTemplate {
 
     """#
 
+    /// The source's home page: the repository's card as Apelin draws it
+    /// (Repository Card…), centred on the page, with Open in Irisin… under
+    /// it. Every line is the body size in a rounded face, set apart by
+    /// weight and half opacity; the card stays light whatever the system is.
     static let indexPage = """
     <!doctype html>
     <html lang="en">
@@ -198,56 +223,51 @@ enum DistributionTemplate {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>__REPOSITORY__</title>
     <style>
-    :root { color-scheme: light dark; --muted: #6e6e73; --line: rgba(127, 127, 127, 0.25); }
-    body { margin: 0; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
-    main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; }
-    h1 { font-size: 28px; margin: 0 0 4px; }
-    p { margin: 0 0 16px; color: var(--muted); }
-    code { display: block; padding: 12px; border: 1px solid var(--line); border-radius: 10px; word-break: break-all; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 32px; }
-    .actions a { padding: 8px 14px; border-radius: 999px; background: #0a84ff; color: #fff; text-decoration: none; }
-    li { list-style: none; padding: 12px 0; border-bottom: 1px solid var(--line); }
-    ul { padding: 0; }
-    li span { color: var(--muted); }
+    :root { color-scheme: light; --ink: #1f232b; --page: #f2f2f7; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; padding: 24px; background: var(--page); color: var(--ink);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      font: 17px/22px ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    }
+    .card {
+      position: relative; width: min(400px, 100%); padding: 65px 32px 36px;
+      background: #fff; border-radius: 24px; text-align: center;
+    }
+    .card::before {
+      content: ""; position: absolute; top: 20px; left: 50%; width: 60px; height: 11px;
+      margin-left: -30px; border-radius: 5.5px; background: var(--page);
+    }
+    .card img.icon { display: block; width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 15px; }
+    .card p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card .title { font-weight: 700; margin-bottom: 3px; }
+    .card .dim { opacity: 0.5; }
+    .card img.qr { display: block; width: 248px; max-width: 100%; margin: 18px auto 30px; }
+    a.open { color: #007aff; text-decoration: underline; }
     </style>
     </head>
     <body>
-    <main>
-    <h1>__REPOSITORY__</h1>
-    <p>Add this source to your package manager:</p>
-    <code id="source"></code>
-    <div class="actions">
-    <a id="sileo">Add to Sileo</a>
-    <a id="zebra">Add to Zebra</a>
-    </div>
-    <ul id="packages"></ul>
+    <main class="card">
+    <img class="icon" src="CydiaIcon.png" alt="">
+    <p class="title" id="title"></p>
+    <p class="dim" id="address"></p>
+    <img class="qr" id="qr" src="qr.svg" alt="">
+    <p class="dim">Scan with Camera to add in Irisin</p>
+    <p class="dim" id="owner"></p>
     </main>
+    <a class="open" id="open">Open in Irisin…</a>
     <script>
+    const repository = "__REPOSITORY__";
     const source = new URL(".", location.href).href;
-    document.getElementById("source").textContent = source;
-    document.getElementById("sileo").href = "sileo://source/" + source;
-    document.getElementById("zebra").href = "zbra://sources/add/" + source;
-    fetch("Packages").then(response => response.ok ? response.text() : "").then(text => {
-      const newest = new Map();
-      for (const block of text.split(/\\n\\n+/)) {
-        const fields = {};
-        for (const line of block.split("\\n")) {
-          const match = /^([A-Za-z-]+): (.*)$/.exec(line);
-          if (match) fields[match[1]] = match[2];
-        }
-        if (fields.Package) newest.set(fields.Package, fields);
-      }
-      const list = document.getElementById("packages");
-      for (const fields of newest.values()) {
-        const item = document.createElement("li");
-        const name = document.createElement("strong");
-        name.textContent = (fields.Name || fields.Package) + " " + (fields.Version || "");
-        const description = document.createElement("span");
-        description.textContent = fields.Description ? " — " + fields.Description : "";
-        item.append(name, description);
-        list.append(item);
-      }
-    });
+    const [owner, name] = repository.split("/");
+    document.getElementById("title").textContent = name || repository;
+    document.getElementById("address").textContent = source.replace(/^https?:[/][/]/, "").replace(/[/]+$/, "");
+    document.getElementById("owner").textContent = "@" + owner;
+    document.getElementById("open").href = "irisin://repository/add?url=" + encodeURIComponent(source);
+    for (const image of document.querySelectorAll("img")) {
+      image.addEventListener("error", () => { image.style.display = "none"; });
+    }
     </script>
     </body>
     </html>
@@ -259,7 +279,7 @@ enum DistributionTemplate {
 
     An APT source for jailbroken iOS, published with Apelin.
 
-    Add `__SOURCE_URL__` in Sileo, Zebra or Irisin.
+    Add `__SOURCE_URL__` in Irisin.
 
     ## How it works
 
@@ -271,7 +291,7 @@ enum DistributionTemplate {
       `Packages.xz` and `Release`, and publishes the site to GitHub Pages.
       Never commit those indexes or `_site/`.
     - `depictions/<package id>/` holds a package's depiction, icon and
-      banner; `sileo-featured.json` the banners Sileo shows at the top of the
+      banner; `sileo-featured.json` the banners Irisin shows at the top of the
       source; `CydiaIcon.png`, when present, the source's icon.
 
     Pages may serve the previous index for up to ten minutes after a push.
@@ -297,7 +317,7 @@ enum DistributionTemplate {
     Section: Tweaks
     ```
 
-    `Section` is Sileo's category (Tweaks, Applications, Utilities,
+    `Section` is the package's category (Tweaks, Applications, Utilities,
     Themes…); the index refuses a package without it. `Depiction`,
     `SileoDepiction` and `Icon` may point into `depictions/<package id>/`.
     Rootless packages are `iphoneos-arm64`, roothide ones `iphoneos-arm64e`.
@@ -308,7 +328,7 @@ enum DistributionTemplate {
     # Depictions
 
     Optional, one folder per package id: `index.html` (the web depiction),
-    `depiction.json` (Sileo's native depiction), `icon.png` and
+    `depiction.json` (the native depiction Irisin shows), `icon.png` and
     `banner.png`. They are published at
     `<source>/depictions/<package id>/…`.
 
