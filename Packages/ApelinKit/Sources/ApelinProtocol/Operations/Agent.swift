@@ -344,8 +344,8 @@ public struct AgentAbortRequest: OperationRequest {
 /// The app's alone, between runs: refused `conflict` while a run goes or
 /// another compaction does. The answer comes once it has started; the
 /// session's task says how it went, `compactionStarted` then
-/// `compactionFinished` {outcome, messagesCompacted?, message?}, and
-/// `agentAbort` stops it.
+/// `compactionFinished` {outcome, messagesCompacted?, message?, summary?},
+/// and `agentAbort` stops it.
 public struct AgentCompactRequest: OperationRequest {
     public typealias Response = Acknowledged
     public static let operation = AppOperation.agentCompact
@@ -371,11 +371,17 @@ public struct AgentCompactionResult: Codable, Sendable, Hashable {
     public var messagesCompacted: Int?
     /// Why it failed, in the provider's words where it gave any.
     public var message: String?
+    /// When compacted, the summary the conversation now goes on from, as
+    /// the reader sees it: kwwk's recap without its markup. Bounded by the
+    /// recap's own budget, about 1,800 tokens. Absent from events recorded
+    /// before it was kept.
+    public var summary: String?
 
-    public init(outcome: Outcome, messagesCompacted: Int? = nil, message: String? = nil) {
+    public init(outcome: Outcome, messagesCompacted: Int? = nil, message: String? = nil, summary: String? = nil) {
         self.outcome = outcome
         self.messagesCompacted = messagesCompacted
         self.message = message
+        self.summary = summary
     }
 }
 

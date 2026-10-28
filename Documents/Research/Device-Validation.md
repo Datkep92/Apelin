@@ -426,6 +426,22 @@ console now goes on after a restart only past a successful respring.
       the next request writes the cache once and its block lists nothing.
       DeepSeek counts hits in 64-token blocks and may take a request or two
       to warm.
+- [ ] The Compacted row and the native compaction fallback (2026-10-28,
+      AGENTS.md ▸ Agent sessions and ▸ the chat's More menu; none has run
+      on a device). Compact… on a long chat: once the card closes, a
+      "Compacted" line (已压缩) stands after the last reply; a tap, and
+      VoiceOver's double-tap on it read as a button, opens Summary with the
+      text the next message goes on from, selectable, no markup; the row
+      is still there after a relaunch and after a reopen
+      (`Scripts/device.py kill-host`, then Compact… again: one more row,
+      none repeated). A chat compacted on 0.2.4 shows its row with nothing
+      to open. Then, with Claude Pro/Max or an Anthropic key on Claude
+      Sonnet 5.5 — the only routes kwwk sends Anthropic's native compaction
+      on, so the ones that can answer "context is too large and compaction
+      failed: Anthropic compaction returned no summary" —: a chat past 55k
+      tokens compacts, from the menu and on its own at 75 % of the window,
+      with no such error, kwwk's own summary where Anthropic's came back
+      empty.
 
 ## SDK and toolchain matrix (2026-10-19)
 

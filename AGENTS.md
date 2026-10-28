@@ -912,7 +912,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   kwwk's own compactor, as it does when the context fills — natively where
   the provider can —, answers once begun (`conflict` while a run or
   another compaction goes), writes the transcript when done, holds back a
-  message sent meanwhile until it ends, and stops on `agentAbort`. Task events: `prompt`, `title` {text},
+  message sent meanwhile until it ends, and stops on `agentAbort`. Both
+  compactions put `NativeCompactionFallback` in front of kwwk's native
+  one (2026-10-28): a native reply that brings no summary back — kwwk's
+  "Anthropic compaction returned no summary", for the 200 whose
+  `compaction` block is null, which Anthropic documents for a tool called
+  in place of the summary — falls back to kwwk's own summary, where kwwk
+  alone failed the compaction and, with the context full, the run ("context
+  is too large and compaction failed: …"); a status, a transport failure, a
+  refusal and anything kwwk retries stay errors. Task events: `prompt`, `title` {text},
   `projectNameSuggested` {name} (only a concrete project intent),
   `steer`, `queued` {id, text, attachments} (a message sent while a run
   goes, handed to the run as a steer and recorded as its `prompt` of the
@@ -938,7 +946,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   it, Notifications above; the transcript shows only the call), `error`
   {message}, `finished` {reason}, `compactionStarted` and
   `compactionFinished` {outcome: compacted, tooShort, cancelled or failed,
-  messagesCompacted?, message?} (`AgentCompactionResult`). A failure kwwk
+  messagesCompacted?, message?, summary?} (`AgentCompactionResult`; only
+  `agentCompact` records them — kwwk's own compaction as the context fills
+  is no event). `summary` (2026-10-28), when compacted, is what the
+  conversation goes on from as the reader reads it: the history and
+  current-turn sections of kwwk's recap, unescaped, without its markup or
+  its file ledger (`CompactionRecap`; a recap of another shape whole),
+  bounded by the recap's budget, about 1,800 tokens; it stays in the
+  session's log, so a reopened session's replay carries it, and an event
+  recorded before it has none. A failure kwwk
   kept as an NSError's whole `description` (`Error Domain=… Code=…
   "…" UserInfo={…}`, a lost connection) is cut to its localized
   description, the quoted sentence, in `error` and in a failed
@@ -2452,7 +2468,18 @@ or being sent); it asks first, then shows a cancellable progress card while
 `agentCompact` runs and follows the task to `compactionFinished`, which also
 marks the conversation working meanwhile (Stop stops it). Compacted says so
 in an `SPIndicator`; too short and failed say so in a notice, the failure
-in the provider's words. Distribute… builds a project
+in the provider's words. A compaction that compacted is also a row of the
+transcript where it happened (2026-10-28): `ChatTranscript` makes a
+`.compaction` row of its `compactionFinished`, its id from the event like
+any row, its text the event's `summary`; `ChatCompactionRow` is one quiet
+line, "Compacted" at the body size in 50% label colour like a summary's
+title and with no icon, an accessibility element with the button trait,
+and a tap opens the summary as plain selectable text in a form sheet
+(`ChatCompactionController`, not the trace sheet). It comes between turns,
+with none to follow, so a reader at the latest message is scrolled to it.
+A compaction recorded
+before the summary was kept has its row, which opens nothing and is no
+button. Distribute… builds a project
 from its description or a workspace from its own script (`ProjectBuildMethod`;
 owner, 2026-10-24); it is disabled, saying what is missing, for a manifest
 with no `build` and for a workspace with no `external` script, and the

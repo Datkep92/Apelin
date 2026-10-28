@@ -36,6 +36,14 @@ struct CompactionTests {
         #expect(result.outcome == .compacted, "\(result)")
         #expect((result.messagesCompacted ?? 0) > 0)
         #expect(try await session.log.readTranscript().count < before)
+        // the summary the conversation goes on from, without the recap's markup
+        #expect(result.summary == "The user built a tweak; the hook loads.")
+        // and in the log, which a reopened session replays
+        let logged = try await session.log.records(afterSeq: 0).compactMap { record -> AgentCompactionResult? in
+            guard case let .compactionFinished(result) = record.event else { return nil }
+            return result
+        }
+        #expect(logged == [result])
 
         try await session.prompt("four")
         await session.waitForIdle()
@@ -64,6 +72,7 @@ struct CompactionTests {
 
         try await session.compact()
         let result = try #require(await Self.compaction(from: &events))
+        // nothing compacted, so no summary either
         #expect(result == AgentCompactionResult(outcome: .tooShort))
         #expect(try await session.log.readTranscript() == before)
         await session.close()

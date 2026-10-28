@@ -9,6 +9,10 @@ struct ChatMessage: Identifiable, Hashable {
         case thinking(seconds: Int?, tools: Int)
         case tool
         case approval(ApprovalDecision?)
+        /// Where the reader's Compact… compacted the conversation; the
+        /// row's text is the summary it goes on from, empty for a session
+        /// that did not keep it.
+        case compaction
 
         var isActivity: Bool {
             switch self {

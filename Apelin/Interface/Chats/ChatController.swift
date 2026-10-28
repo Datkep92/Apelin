@@ -231,6 +231,15 @@ final class ChatController: UIViewController {
                         }
                     }
                 }
+            ListRow(ChatCompactionRow.self)
+                .when { $0.role == .compaction }
+                .height { message, context in ChatCompactionRow.height(for: message, width: context.width) }
+                .configure { [weak self] row, message, _ in
+                    row.show(message)
+                    row.onOpen = { [weak self] in
+                        self?.presentPageAsFormSheet(ChatCompactionController(summary: message.text))
+                    }
+                }
             ListRow(ChatMessageRow.self)
                 .height { [weak self] message, context in
                     ChatMessageRow.height(
@@ -452,6 +461,10 @@ final class ChatController: UIViewController {
     /// (`followTurn`), timing its reply as it streams.
     private func updateMessages(_ items: [ChatMessage]) {
         guard messages != items else { return }
+        // A compaction's row comes between turns, with none to follow: a
+        // reader at the latest message is shown it.
+        let revealsCompaction = followedTurn == nil && distanceFromLatestMessage <= 2
+            && items.last?.role == .compaction && items.last?.id != messages.last?.id
         messages = items
         let message = TurnFollowing.turnMessage(in: items)
         if message != turnMessage {
@@ -464,6 +477,9 @@ final class ChatController: UIViewController {
         }
         showTranscript(items)
         followTurn()
+        if revealsCompaction {
+            revealLatestMessage()
+        }
         updateLatestMessageButton()
     }
 

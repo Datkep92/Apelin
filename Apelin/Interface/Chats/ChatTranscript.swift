@@ -231,6 +231,11 @@ struct ChatTranscript {
                 isCompacting = true
             case "compactionFinished":
                 isCompacting = false
+                if payload?["outcome"]?.stringValue == AgentCompactionResult.Outcome.compacted.rawValue {
+                    // text after it is a reply of its own, under it
+                    assistant = nil
+                    add(ChatMessage(id: id, role: .compaction, text: payload?["summary"]?.stringValue ?? ""))
+                }
             case TaskEvent.stateKind:
                 if let state = payload?["state"]?.stringValue.flatMap(TaskState.init(rawValue:)), state.isTerminal {
                     finishThinking(at: event.time)
@@ -395,7 +400,7 @@ struct ChatTranscript {
                 if message.role.needsApproval {
                     combined.append(message)
                 }
-            case .user, .assistant:
+            case .user, .assistant, .compaction:
                 summary = nil
                 combined.append(message)
             }

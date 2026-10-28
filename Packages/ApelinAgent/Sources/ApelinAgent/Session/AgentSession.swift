@@ -141,6 +141,7 @@ public actor AgentSession {
             sessionId: configuration.id,
             cwd: root.path,
             maxTurns: configuration.maxTurns,
+            autoCompact: AgentAutoCompactOptions(config: NativeCompactionFallback.configuration),
             authResolver: resolved.authResolver,
         ))
         agent.state.serviceTier = configuration.serviceTier
@@ -530,7 +531,8 @@ public actor AgentSession {
     /// context fills: the earlier messages become a summary — the
     /// provider's own where it has one — and the recent ones stay. Only
     /// between runs. It returns once started; `compactionFinished` says how
-    /// it went, `abort` stops it, and a message sent meanwhile waits for it.
+    /// it went, with the summary when compacted (`CompactionRecap`), `abort`
+    /// stops it, and a message sent meanwhile waits for it.
     public func compact() throws {
         guard runTask == nil, compaction == nil else {
             throw ApelinError(.conflict, "Wait for the current reply to finish, then compact the chat.")
@@ -552,7 +554,7 @@ public actor AgentSession {
                     agent: agent,
                     backgroundManager: agent.autoCompact?.backgroundManager,
                     sessionId: sessionID,
-                    config: agent.autoCompact?.config ?? AgentContextCompactionConfig(),
+                    config: agent.autoCompact?.config ?? NativeCompactionFallback.configuration,
                     // the maintenance window is what keeps a run out
                     ignoreStreaming: true,
                     cancellation: cancellation,
@@ -566,7 +568,11 @@ public actor AgentSession {
     private func compactionEnded(_ outcome: AgentContextCompactionOutcome) async {
         let result = switch outcome {
         case let .compacted(messagesCompacted, _):
-            AgentCompactionResult(outcome: .compacted, messagesCompacted: messagesCompacted)
+            AgentCompactionResult(
+                outcome: .compacted,
+                messagesCompacted: messagesCompacted,
+                summary: CompactionRecap.summary(of: agent.state.messages),
+            )
         case .refusedTooFewMessages:
             AgentCompactionResult(outcome: .tooShort)
         case .refusedAgentBusy:

@@ -711,6 +711,49 @@ let asked = compacted.take([event(15, "compactionStarted"), event(16, "compactio
 precondition(asked.map(\.kind) == ["compactionStarted", "compactionFinished"], "the one asked for after a reopen is taken")
 print("ok: a reopened session's replay is read past, and the conversation keeps its rows")
 
+/// A Compact… that compacted leaves a row where it happened, carrying the
+/// summary the conversation goes on from; one that did not leaves none.
+/// An older session recorded its compaction without the summary: the row
+/// is there, with nothing to open.
+let compactionSummary = "The user is building a tweak; <the hook> loads & logs."
+let compactedLog = history + [
+    event(13, "compactionStarted"),
+    event(14, "compactionFinished", [
+        "outcome": .string("compacted"), "messagesCompacted": .number(6), "summary": .string(compactionSummary),
+    ]),
+    event(15, "prompt", ["id": .string(UUID().uuidString), "text": .string("Carry on")]),
+]
+let compactedRows = ChatTranscript(events: compactedLog) { _ in nil }.messages
+let compactionIndex = compactedRows.firstIndex { $0.role == .compaction }
+precondition(compactedRows.count(where: { $0.role == .compaction }) == 1, "one row for the compaction")
+precondition(compactionIndex.map { compactedRows[$0].text } == compactionSummary, "the row keeps the summary as written")
+precondition(compactionIndex.map { compactedRows[$0 - 1].text } == "Noted.", "after the reply it followed")
+precondition(compactionIndex.map { compactedRows[$0 + 1].role } == .user, "before the message sent after it")
+precondition(ChatTranscript(events: compactedLog) { _ in nil }.messages.map(\.id) == compactedRows.map(\.id),
+             "the row's id comes from its event, built again or not")
+let notCompacted = ChatTranscript(events: history + [
+    event(13, "compactionStarted"), event(14, "compactionFinished", ["outcome": .string("tooShort")]),
+]) { _ in nil }
+precondition(!notCompacted.messages.contains { $0.role == .compaction } && !notCompacted.isCompacting,
+             "a compaction that left the chat as it was shows no row")
+let olderCompaction = ChatTranscript(events: history + [
+    event(13, "compactionStarted"),
+    event(14, "compactionFinished", ["outcome": .string("compacted"), "messagesCompacted": .number(6)]),
+]) { _ in nil }
+precondition(olderCompaction.messages.last?.role == .compaction && olderCompaction.messages.last?.text == "",
+             "an older session's compaction has its row, with no summary")
+let textAfter = ChatTranscript(events: [
+    event(1, "messageStarted"), event(2, "text", ["text": .string("Before")]),
+    event(3, "compactionFinished", ["outcome": .string("compacted"), "summary": .string("S")]),
+    event(4, "text", ["text": .string("After")]),
+]) { _ in nil }.messages
+precondition(textAfter.map(\.text) == ["Before", "S", "After"], "text after the row never lands above it")
+let olderResult = try JSONValue.object(["outcome": .string("compacted"), "messagesCompacted": .number(6)])
+    .decode(AgentCompactionResult.self)
+precondition(olderResult == AgentCompactionResult(outcome: .compacted, messagesCompacted: 6),
+             "a result recorded before the summary was kept still decodes")
+print("ok: a Compact… that compacted is a row where it happened, which opens the summary")
+
 /// A name the reader gives a conversation is kept: the agent's `title`
 /// events and the first message's opening no longer replace it, a name of
 /// nothing but spaces changes nothing, and the name survives a relaunch.

@@ -29,6 +29,7 @@ private struct FoldCoverage {
     var counting = 0
     var settling = 0
     var compacting = 0
+    var compacted = 0
     var queued = 0
     var onTheirWay = 0
     var decided = 0
@@ -46,6 +47,7 @@ private struct FoldCoverage {
         counting += rows.contains { $0.receivedTokens != nil } ? 1 : 0
         settling += rows.contains(where: \.receivedSettles) ? 1 : 0
         compacting += transcript.isCompacting ? 1 : 0
+        compacted += rows.contains { $0.role == .compaction && !$0.text.isEmpty } ? 1 : 0
         queued += rows.contains { row in row.isQueued && !sending.contains { $0.id == row.id } } ? 1 : 0
         onTheirWay += sending.contains { draft in rows.contains { $0.id == draft.id && $0.text == draft.text } } ? 1 : 0
         decided += rows.contains { row in
@@ -59,8 +61,8 @@ private struct FoldCoverage {
 
     func expectEverything() {
         let counts = [
-            waitingForQuiet, standingInForQuiet, counting, settling, compacting, queued, onTheirWay, decided, senders, attached,
-            bannered,
+            waitingForQuiet, standingInForQuiet, counting, settling, compacting, compacted, queued, onTheirWay, decided, senders,
+            attached, bannered,
         ]
         precondition(!counts.contains(0), "the random logs reach every part of a transcript: \(self)")
     }
@@ -365,7 +367,18 @@ private struct FoldLog {
             case 21: add("error", ["message": .string("failed \(log.events.count)")])
             case 22: add("received", ["tokens": .number(Double(random.int(in: 0 ... 5000)))])
             case 23: add("finished", ["reason": .string(random.chance(3) ? "failed" : "completed")])
-            case 24: add(random.chance(2) ? "compactionStarted" : "compactionFinished", [:])
+            case 24:
+                if random.chance(2) {
+                    add("compactionStarted", [:])
+                } else {
+                    // compacted, with a summary or without (an older session's), or not compacted
+                    let outcomes = ["compacted", "compacted", "tooShort", "failed"]
+                    var payload: [String: JSONValue] = ["outcome": .string(outcomes[random.int(in: 0 ... 3)])]
+                    if random.chance(2) {
+                        payload["summary"] = .string("summary \(log.events.count)")
+                    }
+                    add("compactionFinished", random.chance(6) ? [:] : payload)
+                }
             case 25:
                 let states = ["running", "succeeded", "failed", "cancelled", "interrupted", "waitingForApproval"]
                 add(TaskEvent.stateKind, ["state": .string(states[random.int(in: 0 ... states.count - 1)])])
