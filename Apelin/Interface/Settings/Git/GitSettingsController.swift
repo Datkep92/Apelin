@@ -170,7 +170,9 @@ final class GitSettingsController: TableController {
         }
     }
 
-    private func updateRows() {
+    private var isPreparingCreation = false
+
+    private func updateRows(changedItems: Set<Row> = []) {
         guard let settings else {
             let state: Row = failure.map { .unavailable($0.readableMessage) } ?? .loading
             dataSource.update([(.author, [.name, .email]), (.gitHub, [state])])
@@ -190,7 +192,7 @@ final class GitSettingsController: TableController {
         if !others.isEmpty {
             sections.append((.credentials, others.map(Row.credential)))
         }
-        dataSource.update(sections)
+        dataSource.update(sections, changedItems: changedItems)
     }
 
     // MARK: - The author
@@ -374,6 +376,13 @@ final class GitSettingsController: TableController {
             content.textProperties.color = .tintColor
             cell.contentConfiguration = content
             cell.accessibilityTraits.insert(.button)
+            if case .createRepository = row, isPreparingCreation {
+                let spinner = UIActivityIndicatorView(style: .medium)
+                spinner.startAnimating()
+                cell.accessoryView = spinner
+                cell.accessibilityTraits.insert(.notEnabled)
+                cell.accessibilityValue = String(localized: "Loading…")
+            }
             return cell
         }
     }
@@ -392,7 +401,8 @@ final class GitSettingsController: TableController {
 
     override func tableView(_: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
         switch dataSource.value(at: indexPath) {
-        case .gitHubSignIn?, .repository?, .repositoryCard?, .updateRepository?, .createRepository?, .linkRepository?: true
+        case .createRepository?: !isPreparingCreation
+        case .gitHubSignIn?, .repository?, .repositoryCard?, .updateRepository?, .linkRepository?: true
         default: false
         }
     }
@@ -410,7 +420,10 @@ final class GitSettingsController: TableController {
         case let .updateRepository(repository)?:
             flow.confirmUpdate(repository)
         case .createRepository?:
-            flow.create()
+            flow.create { [weak self] loading in
+                self?.isPreparingCreation = loading
+                self?.updateRows(changedItems: [.createRepository])
+            }
         case .linkRepository?:
             flow.pick()
         default:

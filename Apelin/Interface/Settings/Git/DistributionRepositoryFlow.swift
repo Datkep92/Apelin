@@ -14,6 +14,7 @@ import UIKit
 final class DistributionRepositoryFlow {
     private weak var presenter: UIViewController?
     private let onChange: () -> Void
+    private var isPreparingCreation = false
 
     init(presenter: UIViewController, onChange: @escaping () -> Void) {
         self.presenter = presenter
@@ -21,11 +22,19 @@ final class DistributionRepositoryFlow {
     }
 
     /// The account or one of its organizations, when it has any, then the name.
-    func create() {
+    func create(onLoadingChange: @escaping (Bool) -> Void = { _ in }) {
+        guard !isPreparingCreation else { return }
+        isPreparingCreation = true
+        onLoadingChange(true)
         Task { [weak self] in
+            guard let self else {
+                onLoadingChange(false)
+                return
+            }
             // without the list (no network, say) the account is the owner
             let answer = try? await ApelinService.app.distributionRepositoryList(repositories: true)
-            guard let self else { return }
+            isPreparingCreation = false
+            onLoadingChange(false)
             guard let account = answer?.account, let organizations = answer?.organizations, !organizations.isEmpty else {
                 askName(owner: nil)
                 return
