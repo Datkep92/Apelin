@@ -301,15 +301,15 @@ final class SidebarController: UIViewController {
         }
         let newestFirst = shown.sorted { $0.updated > $1.updated }
         let pinned = newestFirst.filter(\.isPinned)
-        if !pinned.isEmpty {
-            snapshot.appendSections([.pinned])
-            snapshot.appendItems(pinned.map(\.id))
-        }
+        // Pinning moves a row between existing sections. Inserting or deleting
+        // its section in the same diff turns that move into a section fade.
+        snapshot.appendSections([.pinned])
+        snapshot.appendItems(pinned.map(\.id))
         let calendar = Calendar.current
-        let days = Dictionary(grouping: newestFirst.filter { !$0.isPinned }) { calendar.startOfDay(for: $0.updated) }
+        let days = Dictionary(grouping: newestFirst) { calendar.startOfDay(for: $0.updated) }
         for (day, rows) in days.sorted(by: { $0.key > $1.key }) {
             snapshot.appendSections([.day(day)])
-            snapshot.appendItems(rows.map(\.id))
+            snapshot.appendItems(rows.filter { !$0.isPinned }.map(\.id))
         }
         let current = dataSource.snapshot()
         let old = Set(current.itemIdentifiers)
@@ -513,6 +513,16 @@ extension SidebarController: UISearchResultsUpdating {
 }
 
 extension SidebarController: UITableViewDelegate {
+    /// Keep empty groups available as move destinations without showing a
+    /// heading or leaving a gap in the list.
+    func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        tableView.numberOfRows(inSection: section) == 0 ? .leastNormalMagnitude : UITableView.automaticDimension
+    }
+
+    func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
+        tableView.numberOfRows(inSection: section) == 0 ? .leastNormalMagnitude : UITableView.automaticDimension
+    }
+
     /// Again on the row already picked, which puts a drawer away.
     func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath) {
         selectedID = dataSource.itemIdentifier(for: indexPath)
