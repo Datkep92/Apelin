@@ -17,7 +17,7 @@ public enum ProviderRegistration {
             let fallback = Model(id: id, api: "openai-completions", provider: "deepseek", baseURL: base)
             let model = DeepSeekProvider.applyingCatalog(to: fallback)
             await APIRegistry.shared.register(OpenAICompletionsProvider(), scope: model.provider)
-            return ResolvedAuth(model: model, modelLabel: "\(model.name) · DeepSeek", authResolver: { _, _ in
+            return ResolvedAuth(model: model, modelLabel: "\(model.name) from DeepSeek", authResolver: { _, _ in
                 ResolvedProviderAuth(token: credentials.access, scheme: .bearer)
             })
         }

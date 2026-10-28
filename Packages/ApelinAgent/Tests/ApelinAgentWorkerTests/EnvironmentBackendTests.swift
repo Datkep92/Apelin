@@ -118,7 +118,7 @@ struct EnvironmentBackendTests {
         #expect(sent.source == .appleCatalog(productID: "082-15") && sent.components == [.c, .swift])
         #expect(fixture.host.requests.map(\.operation) == [.toolchainSetup, .environmentAttach])
         #expect(result.succeeded && result.stages == ["downloading", "installing"])
-        #expect(result.toolchain?.id == "clt-15.3-c-swift" && result.failedTests == ["swift · arm64e: dyld: missing symbol"])
+        #expect(result.toolchain?.id == "clt-15.3-c-swift" && result.failedTests == ["The swift self-test failed on arm64e.\ndyld: missing symbol"])
         #expect(result.warnings == ["1 of 2 self-test cases failed"] && result.message == nil)
     }
 

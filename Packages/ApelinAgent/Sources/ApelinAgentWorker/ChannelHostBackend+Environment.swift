@@ -143,7 +143,8 @@ public extension ChannelHostBackend {
             }
         }
         let failed = (record?.selfTests ?? []).filter { !$0.passed }.map {
-            "\($0.language) · \($0.architecture)\($0.detail.isEmpty ? "" : ": " + String($0.detail.prefix(400)))"
+            let failure = "The \($0.language) self-test failed on \($0.architecture)."
+            return $0.detail.isEmpty ? failure : failure + "\n" + String($0.detail.prefix(400))
         }
         return ToolchainTaskToolResponse(
             succeeded: end.state == .succeeded,
