@@ -21,10 +21,10 @@ final class WelcomeFeatureRow: UIView {
 
         hStack.axis = .horizontal
         hStack.spacing = 14
-        hStack.alignment = .center
+        hStack.alignment = .top
 
         contentStack.axis = .vertical
-        contentStack.spacing = 6
+        contentStack.spacing = 4
         contentStack.alignment = .leading
 
         addSubview(hStack)
