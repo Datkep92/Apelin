@@ -9,11 +9,13 @@ import UIKit
 /// goes on without them.
 final class WelcomeGitHubPage: WelcomeListPage {
     private enum Section: Hashable {
+        case introduction
         case account
         case publishing
     }
 
     private enum Row: Hashable {
+        case introduction
         case signIn(login: String?)
         case repository(String)
         case create(enabled: Bool)
@@ -59,7 +61,7 @@ final class WelcomeGitHubPage: WelcomeListPage {
     private func updateRows(linked: DistributionRepository?) {
         let publishing: [Row] = linked.map { [.repository($0.fullName)] }
             ?? [.create(enabled: login != nil), .link(enabled: login != nil)]
-        dataSource.update([(.account, [.signIn(login: login)]), (.publishing, publishing)])
+        dataSource.update([(.introduction, [.introduction]), (.account, [.signIn(login: login)]), (.publishing, publishing)])
     }
 
     private func cell(for row: Row) -> UITableViewCell {
@@ -67,6 +69,12 @@ final class WelcomeGitHubPage: WelcomeListPage {
         var content = UIListContentConfiguration.valueCell()
         cell.isAccessibilityElement = true
         switch row {
+        case .introduction:
+            content = .cell()
+            content.text = String(localized: "Sign in so agents can clone, pull and push your repositories on GitHub.")
+            content.textProperties.font = .preferredFont(forTextStyle: .body)
+            content.textProperties.numberOfLines = 0
+            cell.selectionStyle = .none
         case let .signIn(login):
             content.text = String(localized: "Sign In with GitHub")
             content.image = UIImage(named: "ProviderGitHubCopilot")
@@ -96,8 +104,8 @@ final class WelcomeGitHubPage: WelcomeListPage {
 
     func tableView(_: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         switch dataSource.sectionIdentifier(for: section) {
-        case .account?:
-            text(.groupedFooter(), String(localized: "Sign in so agents can clone, pull and push your repositories on GitHub."))
+        case .introduction?, .account?:
+            nil
         case .publishing?:
             text(.groupedHeader(), String(localized: "Publishing"))
         case nil:

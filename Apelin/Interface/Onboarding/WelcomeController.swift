@@ -177,7 +177,7 @@ class WelcomeController: UIViewController {
 
         stackView.addArrangedSubview(UILabel().then {
             $0.text = String(localized: "Build on your device, with an agent beside you.")
-            $0.font = .preferredFont(forTextStyle: .title3)
+            $0.font = WelcomeStyle.subtitleFont
             $0.adjustsFontForContentSizeCategory = true
             $0.textColor = WelcomeStyle.detailColor
             $0.numberOfLines = 0
