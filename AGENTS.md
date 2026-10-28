@@ -1297,7 +1297,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   row on the Settings root, the signed-in count beside it, pushing
   `ModelProvidersController`: signed in first with who as and a `…` menu,
   then the rest under Sign In with an Account and API Keys, searchable)
-  signs in to every login kwwk offers. API-key fields use native inset
+  signs in to every login kwwk offers, plus DeepSeek. API-key fields use native inset
   grouped sections, with Fetch Models in the navigation bar. Setup stores
   the key and gets the endpoint's model list before model selection; no
   arbitrary default model is probed. The selection page allows custom IDs
@@ -1328,7 +1328,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Model Providers when there are none. API-key model IDs need not occur in
   kwwk's static catalog; OAuth IDs remain restricted to that provider's list.
   Each login is an `AgentProvider` case kept
-  under one kwwk store id (`AgentProvider.storeID`), with kwwk's own flows:
+  under one store id (`AgentProvider.storeID`), with kwwk's own flows:
   every subscription `OAuthSubscriptions.providers` names, through
   `OAuthSubscriptions.login` (public KWWKAuth API; for Copilot kwwk's
   model policy activation after selection) — a device code for
@@ -1341,11 +1341,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   is an executable target), stored in kwwk's API-key shape (the key as
   `access`, no refresh, never expiring, `baseUrl` and `defaultModel` as
   extras — what KWWKCli's internal `apiKeyCredentials` writes, so it is
-  rewritten in `AccountDesk`). The order is kwwk's: subscriptions as
-  `OAuthSubscriptions.providers` lists them, then the key forms;
+  rewritten in `AccountDesk`). DeepSeek adds an API-key form and its own
+  `deepseek-api-key` credential item, separate from `openai-compatible`.
+  Display order is Apelin's `AgentProvider.signInOrder`, independent of
+  kwwk's registration order;
   `AccountDeskTests` fails when kwwk gains a subscription or a stored
   provider (`providerDirectory`) the table lacks, or when a provider here is
-  one kwwk cannot register for a session. OpenRouter signs in both ways
+  one neither kwwk nor Apelin can register for a session. OpenRouter signs in both ways
   under one store id: `AgentAccount.alternativeMethods` names the key form
   beside its browser sign-in, and `agentSignIn{provider, method}` picks one
   (any other method is refused `badRequest` before the task is accepted).
@@ -1355,8 +1357,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   ever reaches kwwk's `~/.kwwk/kimi-device-id` (sessions build their
   `OAuthManager` with `KimiIdentity.refreshers()`). Sessions can use every
   provider: the first four keep their `ProviderConfiguration` cases, every
-  other is `.stored(storeID:, model:)`, registered by kwwk's
-  `registerStored` with kwwk's default model unless one is named. The
+  other is `.stored(storeID:, model:)`. `ProviderRegistration` is shared
+  by account verification and conversations: it uses kwwk's registration
+  and transports, adds DeepSeek, and applies DeepSeek's catalog capabilities
+  to its official Chat Completions endpoint. Unknown models keep their
+  existing capabilities; model names alone never identify a provider. The
   app cannot write the keychain group, so every flow runs in apelin-agent's
   `credential-import` instance (`AccountDesk`), which stores the result
   where the sessions read it. `agentSignIn{provider, method?}` (app only) is a task

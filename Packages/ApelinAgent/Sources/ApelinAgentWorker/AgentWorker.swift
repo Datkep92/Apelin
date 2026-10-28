@@ -207,8 +207,8 @@ public enum AgentWorker {
 
     /// The kwwk provider configuration for an open request. The first four
     /// keep their own cases (and need a model named, as they always have);
-    /// every other provider is kwwk's stored provider of its store id, with
-    /// kwwk's default model when none is named.
+    /// every other provider uses its credential store id and the default
+    /// model chosen by ProviderRegistration when none is named.
     static func provider(_ open: AgentOpenRequest) throws -> ProviderConfiguration {
         let model = open.model.flatMap { $0.isEmpty ? nil : $0 }
         let provider = open.provider ?? .githubCopilot
@@ -225,7 +225,7 @@ public enum AgentWorker {
             guard let model else { throw ApelinError(.badRequest, "name the model for \(provider.rawValue)") }
             return .openAICompatible(model: model)
         case .openAICodex, .cursor, .devin, .kiro, .qoder, .qoderCN, .workBuddy, .workBuddyAI, .kimiCoding, .xai,
-             .zai, .zaiCodingCN, .openRouter, .openAI, .google:
+             .zai, .zaiCodingCN, .openRouter, .openAI, .google, .deepSeek:
             return .stored(storeID: provider.storeID, model: model)
         }
     }

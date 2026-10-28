@@ -167,6 +167,8 @@ public enum AgentProvider: String, Codable, Sendable {
     case openAI
     /// Google AI Studio's Gemini API with an API key (`google-api-key`).
     case google
+    /// DeepSeek's API with its own API key (`deepseek-api-key`).
+    case deepSeek
 }
 
 extension AgentProvider: CaseIterable {}
