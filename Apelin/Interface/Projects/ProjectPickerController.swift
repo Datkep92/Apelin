@@ -161,12 +161,19 @@ final class ProjectPickerController: UIViewController {
             snapshot.appendSections([kind.rawValue])
             snapshot.appendItems(matches, toSection: kind.rawValue)
         }
-        if dataSource.snapshot().sectionIdentifiers.isEmpty {
+        collectionView.backgroundView?.isHidden = !projects.isEmpty
+        if !collectionView.isFilled {
             dataSource.applyFirst(snapshot, to: collectionView)
         } else {
-            dataSource.applyChange(snapshot, to: collectionView)
+            let currentSnapshot = dataSource.snapshot()
+            // Deleting also publishes a catalog notification. Its identical
+            // result must not interrupt the removal animation already running.
+            guard currentSnapshot.sectionIdentifiers != snapshot.sectionIdentifiers
+                || currentSnapshot.itemIdentifiers != snapshot.itemIdentifiers
+            else { return }
+            let animated = collectionView.window != nil && !UIAccessibility.isReduceMotionEnabled
+            dataSource.apply(snapshot, animatingDifferences: animated)
         }
-        collectionView.backgroundView?.isHidden = !projects.isEmpty
     }
 
     private func confirmDelete(_ project: ProjectSummary) {
