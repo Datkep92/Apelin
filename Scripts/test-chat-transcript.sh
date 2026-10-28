@@ -1,7 +1,7 @@
 #!/bin/bash
 # Compile the app's event-to-transcript reducer, how it adopts the
-# conversations agents open and how far it follows a turn, against the
-# harness modules.
+# conversations agents open, how far it follows a turn and how the trace
+# sheet lists a summary's steps, against the harness modules.
 # Usage: test-chat-transcript.sh <ApelinKit modules directory>
 set -euo pipefail
 
@@ -17,6 +17,7 @@ sources=(
     "$root/Apelin/Interface/Chats/Messages/ApprovalCardText.swift"
     "$root/Apelin/Interface/Chats/Messages/ToolCallBanner.swift"
     "$root/Apelin/Interface/Chats/Messages/ToolCallDetail.swift"
+    "$root/Apelin/Interface/Chats/Messages/TraceStep.swift"
     "$root/Apelin/Interface/Chats/ChatTranscript.swift"
     "$root/Apelin/Interface/Chats/ChatTranscriptCache.swift"
     "$root/Apelin/Interface/Chats/ChatStore.swift"
@@ -24,6 +25,7 @@ sources=(
     "$root/Apelin/Interface/Chats/TurnFollowing.swift"
     "$root/Tests/ChatTranscript/TranscriptFold.swift"
     "$root/Tests/ChatTranscript/ToolCallDetailCheck.swift"
+    "$root/Tests/ChatTranscript/TraceStepCheck.swift"
     "$root/Tests/ChatTranscript/main.swift"
 )
 

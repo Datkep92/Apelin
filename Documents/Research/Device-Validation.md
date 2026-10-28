@@ -180,6 +180,17 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] The trace sheet as a list (2026-10-28, none of it has run on a
+      device). A summary's Trace opening an inset grouped list, one row
+      per step in order — "Thoughts", each call's title, an approval's
+      operation — over one line of detail, both cut to one line, a
+      disclosure only on a step with more; a row pushing that step's whole
+      text, selectable, with Look Up, Share and Translate on a selection,
+      and a written file shown whole; during a run, rows added and a
+      thought's line filling without the list jumping, and an open
+      thought's page growing below where the reader is; VoiceOver reading
+      each row's two lines once, then the page's text; a larger text size;
+      on the iPad, the sheet keeping its size on the push and the pop.
 - [ ] The app's own network, prompt links, icli and the sign-in buttons in
       the dark (2026-10-26, build 77). On the iOS 27.0.1 iPad vphone
       (roothide, Irisin 5.0.0, icli 0.9.2), 0.1.8 → 0.2.0 went in through

@@ -904,3 +904,5 @@ print("ok: calls recorded under the earlier tool names read as today's do")
 checkTranscriptFold()
 
 checkToolCallDetail()
+
+checkTraceStep()

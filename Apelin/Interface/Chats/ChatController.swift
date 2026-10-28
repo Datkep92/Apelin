@@ -27,7 +27,7 @@ final class ChatController: UIViewController {
     private let composerSeparator = UIView()
     private let topBlur = ChatTopBlurView()
     private let latestMessageButton = UIButton(type: .system)
-    private weak var reasoningPage: ChatReasoningController?
+    private weak var tracePage: TraceController?
     /// Builds the rows again once a running turn has gone quiet.
     private let quietWatch = ChatQuietWatch()
 
@@ -225,8 +225,8 @@ final class ChatController: UIViewController {
                     row.onToggle = { [weak self] in
                         guard let self else { return }
                         if case .thinking = message.role {
-                            let page = ChatReasoningController(message: message)
-                            reasoningPage = page
+                            let page = TraceController(message: message)
+                            tracePage = page
                             presentPageAsFormSheet(page)
                         }
                     }
@@ -498,7 +498,7 @@ final class ChatController: UIViewController {
     }
 
     private func showTranscript(_ items: [ChatMessage]) {
-        if let page = reasoningPage, let message = items.first(where: { $0.id == page.messageID }) {
+        if let page = tracePage, let message = items.first(where: { $0.id == page.messageID }) {
             page.show(message)
         }
         let visible = items.filter { !$0.role.isApproval }
