@@ -126,10 +126,14 @@ final class ToolchainController: TableController {
             ))
         }
         if !status.toolchains.isEmpty {
+            let toolchains = status.toolchains.sorted {
+                let order = $0.version.compare($1.version, options: .numeric)
+                return order == .orderedSame ? $0.id < $1.id : order == .orderedDescending
+            }
             sections.append(Section(
                 id: "installed",
                 header: String(localized: "Installed"),
-                rows: status.toolchains.map { .toolchain($0, isDefault: $0.id == status.defaultID) },
+                rows: toolchains.map { .toolchain($0, isDefault: $0.id == status.defaultID) },
             ))
         }
         self.sections = sections

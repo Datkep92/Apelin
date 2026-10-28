@@ -105,10 +105,14 @@ final class SDKListController: TableController {
             ))
         }
         if !list.sdks.isEmpty {
+            let sdks = list.sdks.sorted {
+                let order = $0.version.compare($1.version, options: .numeric)
+                return order == .orderedSame ? $0.id < $1.id : order == .orderedDescending
+            }
             sections.append(Section(
                 id: "installed",
                 header: String(localized: "Installed"),
-                rows: list.sdks.map(Row.sdk),
+                rows: sdks.map(Row.sdk),
             ))
         }
         self.sections = sections
