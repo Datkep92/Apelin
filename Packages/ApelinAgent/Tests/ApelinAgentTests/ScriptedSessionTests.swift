@@ -475,6 +475,42 @@ struct ScriptedSessionTests {
         await session.close()
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func `a lost connection is recorded by its localized description`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let faux = await registerFauxProvider()
+        defer { faux.unregister() }
+        let offline = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet, userInfo: [
+            NSLocalizedDescriptionKey: "The Internet connection appears to be offline.",
+            NSUnderlyingErrorKey: NSError(domain: "kCFErrorDomainCFNetwork", code: -1009),
+        ])
+        // kept as kwwk's ProviderFailure.capture keeps it, and not retried,
+        // as kwwk would a lost connection, for seconds
+        var reply = fauxAssistantMessage("", stopReason: .error, errorMessage: String(describing: offline))
+        reply.failure = ProviderFailure(message: String(describing: offline), shouldRetry: false)
+        faux.setResponses([.message(reply)])
+        let session = try await AgentSession(
+            configuration: AgentSessionConfiguration(project: home.project, provider: .registered(faux.getModel()), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot),
+            backend: MockBackend(),
+            digests: MockDigestLedger(),
+            credentials: DeliveredCredentialSource(),
+        )
+        let stream = try await session.events(afterSeq: 0)
+        try await session.prompt("build it", messageID: UUID())
+        var errors: [String] = []
+        for await record in stream {
+            if case let .error(message) = record.event {
+                errors.append(message)
+            }
+            if case .finished = record.event {
+                break
+            }
+        }
+        #expect(errors == ["The Internet connection appears to be offline."])
+        await session.close()
+    }
+
     @Test
     func `a session without credentials does not open, and reads no environment`() async throws {
         let home = try TemporaryHome()

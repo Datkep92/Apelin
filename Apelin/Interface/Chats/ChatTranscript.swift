@@ -217,7 +217,9 @@ struct ChatTranscript {
                     rows[index].role = .approval(payload?["decision"]?.stringValue == "approve" ? .approve : .deny)
                 }
             case "error":
-                add(ChatMessage(id: id, role: .assistant, text: payload?["message"]?.stringValue ?? ""))
+                // Also the sessions that recorded a whole NSError before the agent cut it.
+                let message = payload?["message"]?.stringValue.map(ErrorDescription.localized)
+                add(ChatMessage(id: id, role: .assistant, text: message ?? ""))
             case "received":
                 receivedTokens = payload?["tokens"]?.doubleValue.map { Int($0) }
             case "finished":

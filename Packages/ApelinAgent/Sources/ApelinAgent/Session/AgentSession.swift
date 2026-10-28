@@ -572,7 +572,9 @@ public actor AgentSession {
         case .refusedAgentBusy:
             AgentCompactionResult(outcome: .failed, message: "The chat was busy. Try again when the reply has finished.")
         case let .failed(reason):
-            aborted ? AgentCompactionResult(outcome: .cancelled) : AgentCompactionResult(outcome: .failed, message: reason)
+            aborted
+                ? AgentCompactionResult(outcome: .cancelled)
+                : AgentCompactionResult(outcome: .failed, message: ErrorDescription.localized(reason))
         }
         if result.outcome == .compacted {
             snapshotStale = true
@@ -679,7 +681,8 @@ public actor AgentSession {
             await record(.messageFinished(text: Self.text(of: assistant.content)))
             if assistant.stopReason == .error {
                 await record(.error(
-                    message: assistant.errorMessage ?? "The model provider returned an error. Try again.",
+                    message: assistant.errorMessage.map(ErrorDescription.localized)
+                        ?? "The model provider returned an error. Try again.",
                 ))
             }
         case let .compactEnd(outcome):

@@ -935,10 +935,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   detail} followed by `state` `waitingForApproval`, `approvalResolved`
   followed by `state` `running` when none is left, `notice` {title?, body}
   (`apelin_notification_send`, between its `toolCall` and `toolResult`; the host posts
-  it, Notifications above; the transcript shows only the call), `error`, `finished`
-  {reason}, `compactionStarted` and `compactionFinished` {outcome:
-  compacted, tooShort, cancelled or failed, messagesCompacted?, message?}
-  (`AgentCompactionResult`). An app that is not attached leaves an approval waiting; nothing
+  it, Notifications above; the transcript shows only the call), `error`
+  {message}, `finished` {reason}, `compactionStarted` and
+  `compactionFinished` {outcome: compacted, tooShort, cancelled or failed,
+  messagesCompacted?, message?} (`AgentCompactionResult`). A failure kwwk
+  kept as an NSError's whole `description` (`Error Domain=… Code=…
+  "…" UserInfo={…}`, a lost connection) is cut to its localized
+  description, the quoted sentence, in `error` and in a failed
+  compaction's `message`, and again when the app shows an `error` an
+  earlier worker recorded (`ErrorDescription`). An app that is not attached leaves an approval waiting; nothing
   approves by default. The file tools (file_write, file_create, file_edit; there is no
   rename, delete or mkdir) never write a git directory: a `.git` entry at
   any depth, compared without case, and what a `.git` file or link names
