@@ -563,7 +563,10 @@ extension SidebarController: UITableViewDelegate {
             self?.delete(id)
         }
         delete.image = UIImage(systemName: "trash.fill")
-        guard chat.isWorking else { return UISwipeActionsConfiguration(actions: [delete]) }
+        var rowActions = chat.isUntitled ? [] : [delete]
+        guard chat.isWorking else {
+            return rowActions.isEmpty ? nil : UISwipeActionsConfiguration(actions: rowActions)
+        }
         let stop = UIContextualAction(
             style: .normal,
             title: String(localized: "Stop"),
@@ -573,7 +576,8 @@ extension SidebarController: UITableViewDelegate {
         }
         stop.image = UIImage(systemName: "stop.fill")
         stop.backgroundColor = .darkGray
-        let actions = UISwipeActionsConfiguration(actions: [delete, stop])
+        rowActions.append(stop)
+        let actions = UISwipeActionsConfiguration(actions: rowActions)
         actions.performsFirstActionWithFullSwipe = false
         return actions
     }
@@ -601,7 +605,7 @@ extension SidebarController: UITableViewDelegate {
                 image: UIImage(systemName: "trash"),
                 attributes: .destructive,
             ) { _ in self?.delete(id) }
-            var actions = [pin, delete]
+            var actions = chat.isUntitled ? [pin] : [pin, delete]
             if chat.isWorking {
                 actions.insert(
                     UIAction(
