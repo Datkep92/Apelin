@@ -15,12 +15,12 @@ import UIKit
 @MainActor
 final class DistributionBuildController: TableController {
     private enum Stage: Int {
-        case preparing, compiling, running, packaging, verifying
+        case preparing, compiling, running, packaging, verifying, readyToExport
 
         /// apelin-build's own stages, or a workspace's script's
         /// (`ExternalBuild`: `script`, then `verify`).
         static func stages(for method: ProjectBuildMethod) -> [Stage] {
-            method == .script ? [.preparing, .running, .verifying] : [.preparing, .compiling, .packaging, .verifying]
+            method == .script ? [.preparing, .running, .verifying, .readyToExport] : [.preparing, .compiling, .packaging, .verifying, .readyToExport]
         }
 
         var title: String {
@@ -29,7 +29,8 @@ final class DistributionBuildController: TableController {
             case .compiling: String(localized: "Compiling")
             case .running: String(localized: "Running Build Script")
             case .packaging: String(localized: "Packaging")
-            case .verifying: String(localized: "Verifying")
+            case .verifying: String(localized: "Verifying Package")
+            case .readyToExport: String(localized: "Ready to Export")
             }
         }
 
@@ -56,8 +57,6 @@ final class DistributionBuildController: TableController {
         var row: Row
         var text: String?
         var secondaryText: String?
-        var complete = false
-        var active = false
     }
 
     private let projectName: String
@@ -69,11 +68,13 @@ final class DistributionBuildController: TableController {
     private var findings: [ProjectDiagnostic] = []
     private var work: Task<Void, Never>?
     private var outcome: String?
+    private var finishedState: TaskState?
+    private lazy var stepCells = Dictionary(uniqueKeysWithValues: Stage.stages(for: method).map { ($0, TaskStepCell(stage: String($0.rawValue))) })
     private var logLines: [String] = []
     private weak var logPage: TaskLogController?
     private var dataSource: TableDataSource<Section, Row, RowContent>!
     private lazy var exportButton = UIBarButtonItem(
-        title: String(localized: "Export Package"),
+        title: String(localized: "Export"),
         primaryAction: UIAction { [weak self] _ in self?.exportPackage() },
     )
     private lazy var moreButton = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: moreMenu)
@@ -88,7 +89,7 @@ final class DistributionBuildController: TableController {
         ]
         if artifact != nil, work == nil {
             items.append(UIAction(
-                title: String(localized: "Publish to Package Repository"),
+                title: String(localized: "Publish…"),
                 image: UIImage(systemName: "shippingbox"),
             ) { [weak self] _ in
                 self?.publish()
@@ -118,12 +119,15 @@ final class DistributionBuildController: TableController {
             tableView: tableView,
             identifier: { $0.row },
         ) { [weak self] tableView, indexPath, content in
+            if case let .stage(stage) = content.row {
+                return self?.stepCells[stage]
+            }
             let cell = tableView.dequeueReusableCell(withIdentifier: "Build", for: indexPath)
             self?.configure(cell, value: content)
             return cell
         }
         dataSource.headerTitle = { section in
-            section == .progress ? String(localized: "Release Build") : nil
+            section == .progress ? String(localized: "Steps") : nil
         }
         start()
     }
@@ -145,18 +149,14 @@ final class DistributionBuildController: TableController {
         cell.accessibilityValue = nil
         switch value.row {
         case .stage:
-            content.image = UIImage(systemName: value.complete ? "checkmark.circle.fill" : "circle")
-            content.imageProperties.tintColor = value.complete ? .systemGreen : .tertiaryLabel
-            if value.active {
-                let spinner = UIActivityIndicatorView(style: .medium)
-                spinner.startAnimating()
-                cell.accessoryView = spinner
-            }
-            cell.accessibilityValue = value.complete
-                ? String(localized: "Completed")
-                : value.active ? String(localized: "In Progress") : String(localized: "Waiting")
+            break
         case .outcome:
             content.textProperties.numberOfLines = 0
+            content.secondaryTextProperties.numberOfLines = 0
+            if finishedState == .failed || finishedState == .cancelled {
+                content.image = UIImage(systemName: finishedState == .cancelled ? "stop.circle.fill" : "exclamationmark.triangle.fill")
+                content.imageProperties.tintColor = finishedState == .cancelled ? .secondaryLabel : .systemRed
+            }
         case .finding:
             content.image = UIImage(systemName: "exclamationmark.triangle.fill")
             content.imageProperties.tintColor = .systemOrange
@@ -168,24 +168,47 @@ final class DistributionBuildController: TableController {
     }
 
     private func updateRows() {
+        for item in Stage.stages(for: method) {
+            let state: EnvironmentTaskProgress.StageState = if finishedState == .succeeded || item.rawValue < stage.rawValue {
+                .done
+            } else if item == stage {
+                finishedState == nil ? .running(nil) : .failed
+            } else {
+                .pending
+            }
+            let status: String = switch state {
+            case .done: String(localized: "Completed")
+            case .running: String(localized: "In Progress")
+            case .failed: finishedState == .cancelled ? String(localized: "Stopped") : String(localized: "Failed")
+            default: finishedState == nil ? String(localized: "Waiting") : String(localized: "Not Started")
+            }
+            stepCells[item]?.show(state, status: status, animated: tableView.window != nil && !UIAccessibility.isReduceMotionEnabled, title: item.title)
+        }
         var sections: [(Section, [RowContent])] = [
             (.progress, Stage.stages(for: method).map { item in
                 RowContent(
                     row: .stage(item),
                     text: item.title,
-                    complete: artifact != nil || item.rawValue < stage.rawValue,
-                    active: work != nil && item == stage,
                 )
             }),
         ]
         if let outcome {
-            sections.append((.outcome, [RowContent(row: .outcome, text: outcome)] + findings.indices.map { index in
+            let title = switch finishedState {
+            case .succeeded: String(localized: "Completed")
+            case .cancelled: String(localized: "Stopped")
+            default: String(localized: "Failed")
+            }
+            var rows: [RowContent] = finishedState == .succeeded ? [] : [RowContent(row: .outcome, text: title, secondaryText: EnvironmentTaskProgress.readableDetail(outcome))]
+            rows += findings.indices.map { index in
                 RowContent(
                     row: .finding(index),
                     text: DistributionAdvice.title(of: findings[index]),
                     secondaryText: DistributionAdvice.advice(for: findings[index]),
                 )
-            }))
+            }
+            if !rows.isEmpty {
+                sections.append((.outcome, rows))
+            }
         }
         dataSource.update(sections, reconfigure: true)
     }
@@ -220,6 +243,7 @@ final class DistributionBuildController: TableController {
         guard work == nil else { return }
         artifact = nil
         outcome = nil
+        finishedState = nil
         findings = []
         stage = .preparing
         logLines = []
@@ -230,10 +254,13 @@ final class DistributionBuildController: TableController {
                 let id = try await DistributionProject.id(named: projectName)
                 try Task.checkCancellation()
                 artifact = try await build(projectID: id)
+                finishedState = .succeeded
                 outcome = String(localized: "The package is ready to export.")
             } catch is CancellationError {
+                finishedState = .cancelled
                 outcome = String(localized: "Distribution stopped. You can try again.")
             } catch {
+                finishedState = .failed
                 outcome = error.readableMessage
             }
             work = nil

@@ -56,7 +56,7 @@ final class EnvironmentTaskController: TableController {
 
     /// One cell per stage, kept rather than dequeued, so a ring goes on
     /// turning from one event to the next.
-    private var stageCells: [StageCell] = []
+    private var stageCells: [TaskStepCell] = []
 
     /// Every event as a line, for the full log; a download's progress is
     /// one line said again with new figures, not a line per sample.
@@ -212,7 +212,7 @@ final class EnvironmentTaskController: TableController {
         let stages = progress.shownStages
         let structureChanged = stageCells.map(\.stage) != stages
         let existing = Dictionary(uniqueKeysWithValues: stageCells.map { ($0.stage, $0) })
-        stageCells = stages.map { existing[$0] ?? StageCell(stage: $0) }
+        stageCells = stages.map { existing[$0] ?? TaskStepCell(stage: $0) }
         for cell in stageCells {
             cell.show(
                 progress.state(of: cell.stage),
@@ -427,7 +427,7 @@ final class EnvironmentTaskController: TableController {
 }
 
 /// A stage's name and status ring on one line.
-private final class StageCell: UITableViewCell {
+final class TaskStepCell: UITableViewCell {
     let stage: String
     private let ring = ProgressRing()
 
@@ -447,9 +447,9 @@ private final class StageCell: UITableViewCell {
         fatalError("Use init(stage:)")
     }
 
-    func show(_ state: EnvironmentTaskProgress.StageState, status: String, animated: Bool) {
+    func show(_ state: EnvironmentTaskProgress.StageState, status: String, animated: Bool, title: String? = nil) {
         var content = UIListContentConfiguration.cell()
-        content.text = EnvironmentTaskProgress.title(of: stage)
+        content.text = title ?? EnvironmentTaskProgress.title(of: stage)
         content.textProperties.color = state == .pending || state == .skipped ? .secondaryLabel : .label
         content.textProperties.numberOfLines = 1
         contentConfiguration = content

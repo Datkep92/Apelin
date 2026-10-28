@@ -72,6 +72,7 @@ struct ChatMessage: Identifiable, Hashable {
     /// An approval of a command that runs as root (`ApprovalCardText`):
     /// the card says so, and Approve checks the device owner first.
     var runsAsRoot = false
+    var approvalSections: [ApprovalCardText.Section] = []
 
     var activityTitle: String {
         guard case let .thinking(seconds, tools) = role else { return text }
@@ -80,7 +81,7 @@ struct ChatMessage: Identifiable, Hashable {
         guard let seconds else {
             guard runningTools > 0 else { return String(localized: "Thinking…") }
             return runningTools == 1
-                ? String(localized: "Executing 1 tool…")
+                ? String(localized: "Executing tool…")
                 : String(localized: "Executing \(runningTools) tools…")
         }
         if seconds <= 0 {

@@ -208,6 +208,10 @@ struct ChatTranscript {
                     )
                     var request = ChatMessage(id: rowID, role: .approval(nil), text: title + "\n\n" + detail)
                     request.runsAsRoot = ApprovalCardText.isRoot(payload)
+                    request.approvalSections = ApprovalCardText.sections(
+                        payload, title: title,
+                        callReason: payload?["toolCallID"]?.stringValue.flatMap { callReasons[$0] },
+                    )
                     add(request)
                 }
             case "approvalResolved":

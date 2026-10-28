@@ -12,6 +12,30 @@ import Foundation
 /// bound to what the host reads, `detail.command` or `detail.rootCommand`
 /// and the working directory.
 enum ApprovalCardText {
+    struct Section: Hashable {
+        var title: String?
+        var text: String
+        var isCode = false
+    }
+
+    static func sections(_ payload: JSONValue?, title: String, callReason: String?) -> [Section] {
+        let root = isRoot(payload)
+        var result = [callReason, root ? nil : payload?["reason"]?.stringValue]
+            .compactMap(\.self).filter { !$0.isEmpty }.map { Section(text: $0) }
+        if let diff = payload?["detail"]?["descriptionChanged"]?["diff"]?.stringValue, !diff.isEmpty {
+            result.append(Section(text: diff, isCode: true))
+        }
+        if let json = payload?["arguments"]?.stringValue {
+            let shell = AgentToolName.canonical(payload?["tool"]?.stringValue ?? "") == .shellRun
+            result += argumentsDetail(json, payload: payload, title: title, root: root).sections.map { part in
+                let command = shell && ["argv", "command", "script"].contains(part.name ?? "")
+                return Section(title: command ? String(localized: "Command") : part.name,
+                               text: part.value, isCode: command)
+            }
+        }
+        return result
+    }
+
     /// Whether an `approvalRequested` is for a command that runs as root: the
     /// host binds such an approval to its own `detail.rootCommand` key,
     /// never the ordinary `detail.command`, so the key alone tells them apart.
@@ -40,9 +64,13 @@ enum ApprovalCardText {
     /// an argv reads as its command line, and a root card's `root` flag is
     /// left out.
     static func argumentsText(_ json: String, payload: JSONValue?, title: String, root: Bool) -> String {
+        argumentsDetail(json, payload: payload, title: title, root: root).text
+    }
+
+    private static func argumentsDetail(_ json: String, payload: JSONValue?, title: String, root: Bool) -> ToolCallDetail {
         guard AgentToolName.canonical(payload?["tool"]?.stringValue ?? "") == .shellRun,
               case var .object(values)? = try? JSONCoding.decode(JSONValue.self, from: Data(json.utf8))
-        else { return ToolCallDetail(detail: json, title: title).text }
+        else { return ToolCallDetail(detail: json, title: title) }
         if root {
             values["root"] = nil
         }
@@ -62,9 +90,9 @@ enum ApprovalCardText {
             values["cwd"] = directory.isEmpty || directory == "." ? nil : .string(directory)
         }
         guard let encoded = try? JSONCoding.encode(JSONValue.object(values)) else {
-            return ToolCallDetail(detail: json, title: title).text
+            return ToolCallDetail(detail: json, title: title)
         }
-        return ToolCallDetail(detail: String(decoding: encoded, as: UTF8.self), title: title).text
+        return ToolCallDetail(detail: String(decoding: encoded, as: UTF8.self), title: title)
     }
 
     /// A bound invocation, in the shape apelin-agent writes it
