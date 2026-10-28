@@ -174,7 +174,18 @@ final class TransferImportController: TableController {
             nameField.text = inspection.suggestedName ?? summary.project?.name ?? summary.name
         }
 
-        var sections = [Section(id: .details, rows: details(of: summary))]
+        var sections: [Section] = []
+        if !inspection.problems.isEmpty {
+            sections.append(Section(
+                id: .problems,
+                header: String(localized: "Unable to Import"),
+                rows: inspection.problems.map(Row.problem),
+            ))
+        }
+        if !inspection.notes.isEmpty {
+            sections.append(Section(id: .notes, header: String(localized: "Notes"), rows: inspection.notes.map(Row.note)))
+        }
+        sections.append(Section(id: .details, rows: details(of: summary)))
         if let record = summary.toolchain?.record {
             var languages: [String] = []
             if record.components.contains(where: { $0.kind == .c }) {
@@ -214,16 +225,6 @@ final class TransferImportController: TableController {
                 """),
                 rows: [.name],
             ))
-        }
-        if !inspection.problems.isEmpty {
-            sections.append(Section(
-                id: .problems,
-                header: String(localized: "Unable to Import"),
-                rows: inspection.problems.map(Row.problem),
-            ))
-        }
-        if !inspection.notes.isEmpty {
-            sections.append(Section(id: .notes, header: String(localized: "Notes"), rows: inspection.notes.map(Row.note)))
         }
         sections.append(Section(id: .metadata, header: String(localized: "File"), rows: metadata(of: summary, fileSize: inspection.fileSize)))
         self.sections = sections
@@ -445,9 +446,9 @@ final class TransferImportController: TableController {
             content = .cell()
             content.text = text
             content.textProperties.font = .preferredFont(forTextStyle: .body)
-            content.textProperties.color = .label
+            content.textProperties.color = .systemRed
             content.image = UIImage(systemName: "xmark.octagon.fill")
-            content.imageProperties.tintColor = .secondaryLabel
+            content.imageProperties.tintColor = .systemRed
         case let .note(text):
             content = .cell()
             content.text = text
