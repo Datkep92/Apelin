@@ -131,7 +131,7 @@ final class DistributionBuildController: TableController {
     // MARK: - Rows
 
     private func configure(_ cell: UITableViewCell, value: RowContent) {
-        var content = UIListContentConfiguration.subtitleCell()
+        var content = UIListContentConfiguration.descriptiveCell()
         content.text = value.text
         content.secondaryText = value.secondaryText
         content.secondaryTextProperties.color = .secondaryLabel
@@ -277,8 +277,8 @@ final class DistributionBuildController: TableController {
                 throw ApelinError(
                     .internal,
                     failure ?? (method == .script
-                        ? String(localized: "The package could not be built. Check the build script's log and try again.")
-                        : String(localized: "The package could not be built. Check the project's build description and try again.")),
+                        ? String(localized: "The package could not be built. Check the build script’s log and try again.")
+                        : String(localized: "The package could not be built. Check the project’s build description and try again.")),
                 )
             }
             return artifact
@@ -369,7 +369,7 @@ final class DistributionBuildController: TableController {
                 }
                 presentConfirmation(
                     title: "Publish to \(linked.fullName)?",
-                    message: "The package is added to the repository's debs folder, committed and pushed. Devices with \(linked.sourceURL) see it within a few minutes.",
+                    message: "The package is added to the repository’s debs folder, committed and pushed. Devices with \(linked.sourceURL) see it within a few minutes.",
                     confirmTitle: "Publish",
                 ) { [weak self] in
                     self?.startPublishing(url)

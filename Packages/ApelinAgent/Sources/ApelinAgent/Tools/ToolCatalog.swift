@@ -271,8 +271,8 @@ public extension AgentToolName {
             Schema.object([
                 "revision": Schema.string("Exact current revision from apelin_memory_list."),
                 "id": Schema.string("Existing record id to update. Omit to create a new record."),
-                "title": Schema.string("Short title, at most \(MemoryStore.maximumTitleLength) characters."),
-                "body": Schema.string("Concise durable fact or preference, at most \(MemoryStore.maximumBodyLength) characters. No secrets or temporary progress."),
+                "title": Schema.string("Short, single-line title."),
+                "body": Schema.string("Concise durable fact or preference. No secrets or temporary progress."),
                 "scope": .object([
                     "type": "string",
                     "enum": ["global", "project"],

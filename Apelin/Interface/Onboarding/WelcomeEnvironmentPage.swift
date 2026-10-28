@@ -74,7 +74,7 @@ final class WelcomeEnvironmentPage: WelcomeListPage {
                 resolving = false
                 failed = true
                 recommendation = nil
-                statusText = String(localized: "Unable to load recommendations. Tap Retry or continue to set up later.")
+                statusText = String(localized: "Unable to load recommendations. Tap “Retry” or continue to set up later.")
                 updateRows()
             }
         }

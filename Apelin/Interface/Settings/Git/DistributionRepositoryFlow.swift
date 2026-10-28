@@ -97,7 +97,7 @@ final class DistributionRepositoryFlow {
     private func confirmLink(_ candidate: DistributionRepositoryCandidate) {
         presenter?.presentConfirmation(
             title: "Link \(candidate.fullName)?",
-            message: "Apelin clones it as a project, adds the package index's files it lacks — a GitHub Pages workflow and an index script — without changing any it has, pushes them, and turns on GitHub Pages.",
+            message: "Apelin clones it as a project, adds the package index’s files it lacks — a GitHub Pages workflow and an index script — without changing any it has, pushes them, and turns on GitHub Pages.",
             confirmTitle: "Link",
         ) { [weak self] in
             self?.start(
@@ -113,7 +113,7 @@ final class DistributionRepositoryFlow {
     func confirmUpdate(_ repository: DistributionRepository) {
         presenter?.presentConfirmation(
             title: "Update \(repository.fullName)?",
-            message: "This overwrites the repository's home page, README, icon, GitHub Pages workflow and index script with Apelin's current template, replacing any changes made to them, then commits and pushes. Packages, depictions and banners stay as they are.",
+            message: "This overwrites the repository’s home page, README, icon, GitHub Pages workflow and index script with Apelin’s current template, replacing any changes made to them, then commits and pushes. Packages, depictions and banners stay as they are.",
             confirmTitle: "Update",
             destructive: true,
         ) { [weak self] in
@@ -128,7 +128,7 @@ final class DistributionRepositoryFlow {
     func confirmUnlink(_ repository: DistributionRepository) {
         presenter?.presentConfirmation(
             title: "Unlink \(repository.fullName)?",
-            message: "Distribute… stops publishing to it. The repository on GitHub and its project stay as they are.",
+            message: "“Distribute…” stops publishing to it. The repository on GitHub and its project stay as they are.",
             confirmTitle: "Unlink",
             destructive: true,
         ) { [weak self] in

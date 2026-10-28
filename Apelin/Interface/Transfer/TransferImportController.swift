@@ -161,7 +161,7 @@ final class TransferImportController: TableController {
 
     private func show(_ failure: String) {
         sections = []
-        tableView.backgroundView = EmptyStateView(symbolName: "exclamationmark.triangle", text: failure)
+        tableView.backgroundView = EmptyStateView(symbolName: "exclamationmark.triangle", title: String(localized: "Unable to Import"), text: failure)
         updateRows()
         updateImportItem()
     }

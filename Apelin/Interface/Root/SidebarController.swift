@@ -123,9 +123,8 @@ final class SidebarController: UIViewController {
         var configuration = UIButton.Configuration.plain()
         configuration.title = String(localized: "New Chat")
         configuration.image = UIImage(systemName: "square.and.pencil")
-        // the symbol at the text's own size and weight, not a step above it
         let font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 17, weight: .semibold))
-        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(font: font, scale: .small)
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
         configuration.imagePadding = 6
         configuration.baseForegroundColor = .label
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
@@ -180,7 +179,7 @@ final class SidebarController: UIViewController {
         // the symbol alone; the words are for VoiceOver
         $0.backgroundView = EmptyStateView(
             symbolName: "bubble.left.and.bubble.right.fill",
-            text: String(localized: "No chats yet. Tap New Chat to start one."),
+            text: String(localized: "No chats yet. Tap “New Chat” to start one."),
             showsText: false,
         )
     }

@@ -289,7 +289,7 @@ final class ProviderLoginController: UIViewController {
     static func unavailableText(_ error: Error) -> String {
         if let error = error as? ApelinError, error.code == .backendUnavailable {
             return String(localized: """
-            Apelin's background service is unavailable. Reinstall Apelin with your preferred package \
+            Apelin’s background service is unavailable. Reinstall Apelin with your preferred package \
             manager to sign in.
             """)
         }

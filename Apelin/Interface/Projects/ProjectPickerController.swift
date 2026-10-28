@@ -111,11 +111,10 @@ final class ProjectPickerController: UIViewController {
             primaryAction: UIAction { [weak self] _ in self?.openNewProject() },
         ).then { $0.accessibilityLabel = String(localized: "New Project") }
         collectionView.delegate = self
-        // the symbol alone, as the sidebar's empty list; the words are for VoiceOver
         collectionView.backgroundView = EmptyStateView(
             symbolName: "folder.fill",
-            text: String(localized: "No projects yet. Use New Project to create one."),
-            showsText: true,
+            title: String(localized: "No Projects Yet"),
+            text: String(localized: "Tap “+” to create a project."),
         )
         collectionView.backgroundView?.isHidden = !projects.isEmpty
         view.addSubview(collectionView)

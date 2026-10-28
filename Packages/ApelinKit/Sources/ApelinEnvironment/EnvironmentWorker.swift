@@ -103,6 +103,11 @@ public final class EnvironmentWorker: @unchecked Sendable {
             await WorkerMain.serve(ToolchainStatusRequest.self, request) { [self] _ in
                 toolchains.status(activeTasks: activeTasks)
             }
+        case .toolchainSetDefault:
+            await WorkerMain.serve(ToolchainSetDefaultRequest.self, request) { [self] typed in
+                try toolchains.setDefault(id: typed.id)
+                return Acknowledged()
+            }
         case .toolchainCatalog:
             await WorkerMain.serve(ToolchainCatalogRequest.self, request) { [self] _ in
                 try await toolchains.catalog()

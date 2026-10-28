@@ -204,7 +204,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `hello` (answered by apelind itself with the install root it derived from
   its own path, its protocol version and the operation list);
   `toolchainStatus`, `toolchainCatalog`, `toolchainSetup`, `toolchainRemove`,
-  `toolchainSelfTest`; `sdkList`,
+  `toolchainSelfTest`, `toolchainSetDefault`; `sdkList`,
   `sdkImport`, `sdkRemove`; `environmentAttach`, `environmentCancel`;
   `extensionList`, `projectCreate`, `projectCheck`, `projectRename`; `buildStart`,
   `buildAttach`, `buildCancel`; `installPackage`, `removePackage`, `respring`,
@@ -2770,8 +2770,9 @@ No snapshot is written back from a cache. A stale create, update or deletion is
 refused; a user edit or deletion therefore cannot be undone by an older pending
 agent write. Files must be regular, singly linked, owned by the calling mobile
 user and not writable by group or others; symlinks are refused. Corrupt data is
-reported rather than replaced with an empty library. Titles are limited to 120
-characters, bodies to 2,000, with at most 64 records and 32,768 content bytes.
+reported rather than replaced with an empty library. Titles are nonempty and
+single-line; bodies are nonempty. The library holds at most 64 records and
+32,768 content bytes.
 
 `apelin_memory_list`, `apelin_memory_save` and `apelin_memory_delete` are local agent tools and run
 without an approval prompt. They can see all-chat records and the current

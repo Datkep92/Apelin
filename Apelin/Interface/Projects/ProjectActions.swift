@@ -141,7 +141,7 @@ enum ProjectActions {
               let path = CanonicalPath.resolve(folder.path),
               path == root + "/Temporary/" + id.uuidString
         else {
-            throw ApelinError(.notFound, String(localized: "The chat's folder is not available."))
+            throw ApelinError(.notFound, String(localized: "The chat’s folder is not available."))
         }
         return path
     }

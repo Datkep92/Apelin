@@ -40,6 +40,8 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: handle) { _ = try await $0.toolchainSetup(ToolchainSetupRequest()) }
         case .toolchainRemove:
             return Row(reply: handle) { _ = try await $0.toolchainRemove(id: "toolchain") }
+        case .toolchainSetDefault:
+            return Row(reply: ack) { try await $0.toolchainSetDefault(id: "toolchain") }
         case .toolchainSelfTest:
             return Row(reply: handle) { _ = try await $0.toolchainSelfTest(id: "toolchain") }
         case .sdkList:

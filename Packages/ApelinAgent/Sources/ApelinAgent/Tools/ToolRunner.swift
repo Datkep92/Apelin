@@ -291,7 +291,7 @@ actor ToolRunner {
             } catch MemoryStoreError.changed {
                 throw ToolDeniedError(message: "Memory changed. Read apelin_memory_list again and respect the user's latest corrections or deletions; do not blindly retry.")
             } catch MemoryStoreError.invalidContent {
-                throw ToolArgumentError("Memory needs a valid title (1–\(MemoryStore.maximumTitleLength) characters) and body (1–\(MemoryStore.maximumBodyLength) characters), without NUL bytes.")
+                throw ToolArgumentError("Memory needs a nonempty, single-line title and nonempty body, without NUL bytes.")
             } catch MemoryStoreError.full {
                 throw ToolArgumentError("Memory is full (\(MemoryStore.maximumRecords) records or \(MemoryStore.maximumContentBytes) content bytes). Consolidate outdated records before adding more.")
             }

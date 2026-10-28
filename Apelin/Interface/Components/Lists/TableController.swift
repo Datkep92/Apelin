@@ -1,5 +1,15 @@
 import UIKit
 
+extension UIListContentConfiguration {
+    /// A name above its description, using the same type and spacing as licenses.
+    static func descriptiveCell() -> Self {
+        var content = valueCell()
+        content.prefersSideBySideTextAndSecondaryText = false
+        content.secondaryTextProperties.color = .secondaryLabel
+        return content
+    }
+}
+
 /// A table view controller whose table is a `FirstFillTableView`: every
 /// page that is one table derives from this rather than from
 /// `UITableViewController` itself.

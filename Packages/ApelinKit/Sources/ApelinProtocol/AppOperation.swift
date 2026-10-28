@@ -15,6 +15,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case toolchainSetup
     case toolchainRemove
     case toolchainSelfTest
+    case toolchainSetDefault
 
     case sdkList
     case sdkImport
@@ -112,7 +113,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     public var domain: OperationDomain {
         switch self {
         case .hello: .hello
-        case .toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainRemove, .toolchainSelfTest: .toolchain
+        case .toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainRemove, .toolchainSelfTest, .toolchainSetDefault: .toolchain
         case .sdkList, .sdkImport, .sdkRemove: .sdk
         case .environmentAttach, .environmentCancel: .environment
         case .extensionList, .projectCreate, .projectCheck, .projectRename: .project
@@ -148,6 +149,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .toolchainSetup: ToolchainSetupRequest.self
         case .toolchainRemove: ToolchainRemoveRequest.self
         case .toolchainSelfTest: ToolchainSelfTestRequest.self
+        case .toolchainSetDefault: ToolchainSetDefaultRequest.self
         case .sdkList: SDKListRequest.self
         case .sdkImport: SDKImportRequest.self
         case .sdkRemove: SDKRemoveRequest.self
