@@ -34,14 +34,17 @@ final class ProjectDistributionController: TableController {
     /// the page was not opened from one.
     private let onPrepare: ((String) -> Void)?
     private var displayName: String?
-    private var selectedTarget: BuildBootstrap?
+    private var selectedTarget: BuildBootstrap? = .roothide
     /// Nil until the manifest is read; one that cannot build takes the
     /// targets away.
     private var method: ProjectBuildMethod?
     /// The check's errors: the build would stop at them.
     private var blockers: [ProjectDiagnostic] = []
     private var issues: [ProjectDiagnostic] = []
-    private var checking = false
+    private var checking = true
+    private var showsChecking = false
+    private var hasCheckResult = false
+    private var loadingDelay: Task<Void, Never>?
     private var checkFailure: String?
     private var check: Task<Void, Never>?
     private var hasAppeared = false
@@ -76,7 +79,7 @@ final class ProjectDistributionController: TableController {
         }
         dataSource.headerTitle = { section in
             switch section {
-            case .project: String(localized: "Project")
+            case .project: nil
             case .target: String(localized: "Target")
             case .readiness: String(localized: "Before Distributing")
             }
@@ -117,7 +120,6 @@ final class ProjectDistributionController: TableController {
         switch dataSource.itemIdentifier(for: indexPath) {
         case let .target(target) where target != selectedTarget:
             selectedTarget = target
-            updateRows()
             refreshCheck()
         case .prepare:
             prepare()
@@ -130,6 +132,7 @@ final class ProjectDistributionController: TableController {
 
     private func configure(_ cell: UITableViewCell, value: RowContent) {
         var content: UIListContentConfiguration = switch value.row {
+        case .project: .valueCell()
         case .ready, .issue: .explanatoryCell()
         default: .stackedValueCell()
         }
@@ -181,8 +184,10 @@ final class ProjectDistributionController: TableController {
         var readiness: [RowContent]
         if let blocker = method?.blocker {
             readiness = [RowContent(row: .unavailable, text: blocker)]
-        } else if checking {
+        } else if showsChecking {
             readiness = [RowContent(row: .checking, text: String(localized: "Checking…"))]
+        } else if !hasCheckResult {
+            readiness = []
         } else if let checkFailure {
             readiness = [RowContent(row: .unavailable, text: checkFailure)]
         } else if blockers.isEmpty, issues.isEmpty {
@@ -209,14 +214,16 @@ final class ProjectDistributionController: TableController {
             }
         }
         var sections: [(Section, [RowContent])] = [
-            (.project, [RowContent(row: .project, text: displayName ?? projectName)]),
+            (.project, [RowContent(row: .project, text: String(localized: "Project"), secondaryText: displayName ?? projectName)]),
         ]
         if canBuild {
             sections.append((.target, BuildBootstrap.allCases.map { target in
                 RowContent(row: .target(target), text: target.rawValue, selected: target == selectedTarget)
             }))
         }
-        sections.append((.readiness, readiness))
+        if !readiness.isEmpty {
+            sections.append((.readiness, readiness))
+        }
         dataSource.update(sections, reconfigure: true)
         navigationItem.rightBarButtonItem?.isEnabled = canBuild && blockers.isEmpty && !checking
             && checkFailure == nil && selectedTarget != nil
@@ -228,23 +235,37 @@ final class ProjectDistributionController: TableController {
     /// chosen); a newer one replaces a check still running.
     private func refreshCheck() {
         check?.cancel()
-        dataSource.beginLoad()
+        loadingDelay?.cancel()
         checking = true
-        checkFailure = nil
+        showsChecking = false
         updateRows()
+        loadingDelay = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(500)) }
+            catch { return }
+            guard let self, !Task.isCancelled, checking else { return }
+            showsChecking = true
+            updateRows()
+        }
         let target = selectedTarget
         check = Task { [weak self] in
             guard let self else { return }
+            defer {
+                if !Task.isCancelled {
+                    loadingDelay?.cancel()
+                    checking = false
+                    showsChecking = false
+                    hasCheckResult = true
+                    updateRows()
+                }
+            }
             do {
                 let project = try await DistributionProject.resolve(named: projectName)
                 guard !Task.isCancelled else { return }
                 method = project.method
                 guard project.method.canBuild else {
-                    selectedTarget = nil
                     blockers = []
                     issues = []
-                    checking = false
-                    updateRows()
+                    checkFailure = nil
                     return
                 }
                 let response = try await ApelinService.app.projectCheck(
@@ -253,6 +274,7 @@ final class ProjectDistributionController: TableController {
                     bootstrap: target,
                 )
                 guard !Task.isCancelled else { return }
+                checkFailure = nil
                 blockers = response.diagnostics.filter { $0.severity == .error }
                 issues = response.diagnostics.filter { $0.code.hasPrefix("distribution.") && $0.severity != .error }
             } catch is CancellationError {
@@ -263,15 +285,13 @@ final class ProjectDistributionController: TableController {
                 issues = []
                 checkFailure = error.readableMessage
             }
-            checking = false
-            updateRows()
         }
     }
 
     // MARK: - Actions
 
     private func build() {
-        guard let target = selectedTarget, let method, method.canBuild, blockers.isEmpty else { return }
+        guard !checking, checkFailure == nil, let target = selectedTarget, let method, method.canBuild, blockers.isEmpty else { return }
         let open = { [weak self] in
             guard let self else { return }
             navigationController?.pushViewController(
@@ -292,7 +312,7 @@ final class ProjectDistributionController: TableController {
     }
 
     private func prepare() {
-        guard let onPrepare else { return }
+        guard !checking, let onPrepare else { return }
         let prompt = if method == .script {
             String(localized: "Prepare this workspace for distribution: run apelin_project_check_distribution and fix everything it lists, and make sure its build script writes a release package for each target when APELIN_CONFIGURATION is release, with the package’s real name, identifier, author and a new version. Then tell me what you changed. Do not build yet.")
         } else if let target = selectedTarget {
