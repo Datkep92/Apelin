@@ -185,7 +185,11 @@ final class TransferImportController: TableController {
         if !inspection.notes.isEmpty {
             sections.append(Section(id: .notes, header: String(localized: "Notes"), rows: inspection.notes.map(Row.note)))
         }
-        sections.append(Section(id: .details, rows: details(of: summary)))
+        sections.append(Section(
+            id: .details,
+            header: summary.kind == .project ? Self.kindTitle(.project) : String(localized: "Version"),
+            rows: details(of: summary),
+        ))
         if let record = summary.toolchain?.record {
             var languages: [String] = []
             if record.components.contains(where: { $0.kind == .c }) {

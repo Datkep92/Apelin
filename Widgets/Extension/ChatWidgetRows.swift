@@ -11,9 +11,8 @@ extension ChatWidgetSnapshot.Chat {
         }
     }
 
-    /// The status line: what it waits for, when the approval names a step
-    /// worth naming ("Approve: Install", 需要授权 · 安装). Short enough for
-    /// the small widget's one line, where "Needs Approval · Install" was not.
+    /// Name the approval action directly, e.g. "Approve: Install" or "允许安装".
+    /// Keep it short enough for the small widget’s single status line.
     var statusLine: String {
         guard status == .waiting, let step = approvalStep else { return statusWord }
         return String(localized: "Approve: \(step)")

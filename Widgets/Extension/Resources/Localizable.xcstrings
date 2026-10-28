@@ -456,13 +456,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要授权 · %@"
+            "value" : "允许%@"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "核准：%@"
+            "value" : "允許%@"
           }
         }
       }

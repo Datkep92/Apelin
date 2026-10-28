@@ -125,7 +125,7 @@ final class SettingsViewController: TableController {
     private func footer(for section: Section) -> String? {
         switch section {
         case .agent: nil
-        case .environment: String(localized: "Toolchains, SDKs and project templates available on this device.")
+        case .environment: nil
         case .git:
             String(localized: "The author of your commits, your GitHub account, and the package repository your releases are published to.")
         case .about: nil
