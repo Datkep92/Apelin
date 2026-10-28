@@ -172,10 +172,14 @@ final class ChatController: UIViewController {
             make.top.equalTo(composer.snp.top).offset(-4)
         }
 
-        var latestConfiguration: UIButton.Configuration = if #available(iOS 26, *) {
-            .glass()
+        var latestConfiguration: UIButton.Configuration
+        if #available(iOS 26, *) {
+            latestConfiguration = .glass()
         } else {
-            .gray()
+            latestConfiguration = .plain()
+            latestConfiguration.background.customView = UIVisualEffectView(
+                effect: UIBlurEffect(style: .systemMaterial),
+            )
         }
         latestConfiguration.image = UIImage(systemName: "chevron.down")
         latestConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
