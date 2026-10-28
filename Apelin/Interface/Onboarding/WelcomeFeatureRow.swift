@@ -47,7 +47,7 @@ final class WelcomeFeatureRow: UIView {
         titleLabel.textColor = WelcomeStyle.titleColor
         titleLabel.numberOfLines = 0
 
-        detailLabel.font = .preferredFont(forTextStyle: .body)
+        detailLabel.font = .preferredFont(forTextStyle: .callout)
         detailLabel.adjustsFontForContentSizeCategory = true
         detailLabel.textColor = WelcomeStyle.detailColor
         detailLabel.numberOfLines = 0
