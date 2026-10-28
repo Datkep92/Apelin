@@ -130,9 +130,10 @@ final class SkillsController: TableController {
     private func cell(in tableView: UITableView, row: Row) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "skill")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "skill")
-        var content = UIListContentConfiguration.descriptiveCell()
+        var content = UIListContentConfiguration.stackedValueCell()
         switch row {
         case let .skill(skill):
+            content = .explanatoryCell()
             content.text = skill.name
             content.textProperties.numberOfLines = 1
             content.secondaryText = skill.description

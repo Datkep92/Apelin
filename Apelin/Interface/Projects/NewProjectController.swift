@@ -240,7 +240,7 @@ final class NewProjectController: TableController, UITextFieldDelegate {
     }
 
     private func configure(_ cell: UITableViewCell, choice: Choice, selected: Bool) {
-        var content = UIListContentConfiguration.descriptiveCell()
+        var content = UIListContentConfiguration.explanatoryCell()
         content.image = ProjectIcon.image(for: choice.kind)
         content.imageProperties.maximumSize = CGSize(width: 36, height: 36)
         content.imageProperties.reservedLayoutSize = CGSize(width: 36, height: 36)

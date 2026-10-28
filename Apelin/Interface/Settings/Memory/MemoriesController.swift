@@ -62,7 +62,7 @@ final class MemoriesController: TableController {
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "Memory")
         dataSource = DataSource(tableView: tableView) { [weak self] tableView, indexPath, row in
             let cell = tableView.dequeueReusableCell(withIdentifier: "Memory", for: indexPath)
-            var content = UIListContentConfiguration.descriptiveCell()
+            var content = UIListContentConfiguration.stackedValueCell()
             if case let .memory(id) = row, let record = self?.memories?.records.first(where: { $0.id == id }) {
                 content.text = record.title
                 content.secondaryText = record.body

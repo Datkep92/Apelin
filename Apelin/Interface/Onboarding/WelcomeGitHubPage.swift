@@ -79,7 +79,7 @@ final class WelcomeGitHubPage: WelcomeListPage {
             content.textProperties.numberOfLines = 0
             cell.selectionStyle = .none
         case let .signIn(login):
-            content = login == nil ? .cell() : .descriptiveCell()
+            content = login == nil ? .cell() : .stackedValueCell()
             content.text = String(localized: "Sign In with GitHub")
             content.image = UIImage(named: "ProviderGitHubCopilot")
             content.imageProperties.maximumSize = CGSize(width: 40, height: 40)

@@ -333,7 +333,7 @@ final class GitSettingsController: TableController {
             return WaitingCell().then { $0.show(String(localized: "Loading…")) }
         case let .unavailable(message):
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            var content = UIListContentConfiguration.descriptiveCell()
+            var content = UIListContentConfiguration.stackedValueCell()
             content.text = String(localized: "Git Settings Unavailable")
             content.secondaryText = message
             content.secondaryTextProperties.color = .secondaryLabel
@@ -345,7 +345,7 @@ final class GitSettingsController: TableController {
             return valueCell(String(localized: "Signed In"), login)
         case let .repository(repository):
             let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
-            var content = UIListContentConfiguration.descriptiveCell()
+            var content = UIListContentConfiguration.stackedValueCell()
             content.text = repository.fullName
             content.secondaryText = repository.sourceURL
             content.secondaryTextProperties.color = .secondaryLabel

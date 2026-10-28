@@ -181,7 +181,7 @@ final class ToolchainController: TableController {
             return cell
         case let .toolchain(record, isDefault):
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            var content = isDefault ? UIListContentConfiguration.descriptiveCell() : .cell()
+            var content = isDefault ? UIListContentConfiguration.stackedValueCell() : .cell()
             content.text = ToolchainDetailController.name(of: record)
             content.secondaryText = isDefault ? String(localized: "Default") : nil
             content.secondaryTextProperties.color = .secondaryLabel

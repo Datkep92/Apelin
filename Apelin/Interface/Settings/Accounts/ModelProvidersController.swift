@@ -167,7 +167,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             return WaitingCell().then { $0.show(String(localized: "Loading…")) }
         case let .unavailable(message):
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            var content = UIListContentConfiguration.descriptiveCell()
+            var content = UIListContentConfiguration.stackedValueCell()
             content.text = String(localized: "Model Providers Unavailable")
             content.secondaryText = message
             content.secondaryTextProperties.color = .secondaryLabel
@@ -193,7 +193,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
         var content: UIListContentConfiguration
         if account.signedIn {
-            content = .descriptiveCell()
+            content = .stackedValueCell()
             content.secondaryText = Self.signedInLine(account)
             content.secondaryTextProperties.color = .secondaryLabel
             content.secondaryTextProperties.numberOfLines = 1

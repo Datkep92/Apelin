@@ -64,7 +64,7 @@ final class LicensesViewController: TableController {
     private func cell(in tableView: UITableView, entry: LicenseEntry) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "license")
             ?? UITableViewCell(style: .value1, reuseIdentifier: "license")
-        var content = UIListContentConfiguration.descriptiveCell()
+        var content = UIListContentConfiguration.stackedValueCell()
         content.text = entry.name
         content.secondaryText = entry.summary
         cell.contentConfiguration = content

@@ -71,7 +71,7 @@ final class DistributionRepositoryPickerController: TableController {
             return WaitingCell().then { $0.show(String(localized: "Loading…")) }
         case let .unavailable(message):
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            var content = UIListContentConfiguration.descriptiveCell()
+            var content = UIListContentConfiguration.stackedValueCell()
             content.text = String(localized: "Repositories Unavailable")
             content.secondaryText = message
             content.secondaryTextProperties.color = .secondaryLabel
@@ -112,7 +112,7 @@ private final class RepositoryCandidateCell: UITableViewCell {
     init(candidate: DistributionRepositoryCandidate) {
         super.init(style: .default, reuseIdentifier: nil)
         accessoryType = .disclosureIndicator
-        let style = UIListContentConfiguration.descriptiveCell()
+        let style = UIListContentConfiguration.explanatoryCell()
         let title = UILabel()
         title.text = candidate.fullName
         title.font = style.textProperties.font

@@ -141,7 +141,7 @@ final class SDKListController: TableController {
 
     private func cell(in _: UITableView, row: Row) -> UITableViewCell {
         let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-        var content = UIListContentConfiguration.descriptiveCell()
+        var content = UIListContentConfiguration.stackedValueCell()
         content.secondaryTextProperties.color = .secondaryLabel
 
         switch row {

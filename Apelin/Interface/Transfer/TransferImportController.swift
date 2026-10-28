@@ -440,7 +440,7 @@ final class TransferImportController: TableController {
             content.text = name
             content.secondaryText = value
         case let .identifier(_, name, value):
-            content = .descriptiveCell()
+            content = .stackedValueCell()
             content.text = name
             content.secondaryText = value
             content.secondaryTextProperties.font = .preferredFont(forTextStyle: .body)

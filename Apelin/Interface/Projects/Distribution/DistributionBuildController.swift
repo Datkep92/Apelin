@@ -131,7 +131,10 @@ final class DistributionBuildController: TableController {
     // MARK: - Rows
 
     private func configure(_ cell: UITableViewCell, value: RowContent) {
-        var content = UIListContentConfiguration.descriptiveCell()
+        var content: UIListContentConfiguration = switch value.row {
+        case .finding: .explanatoryCell()
+        default: .stackedValueCell()
+        }
         content.text = value.text
         content.secondaryText = value.secondaryText
         content.secondaryTextProperties.color = .secondaryLabel

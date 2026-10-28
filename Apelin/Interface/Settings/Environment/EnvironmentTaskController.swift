@@ -364,7 +364,7 @@ final class EnvironmentTaskController: TableController {
             return stageCells.first { $0.stage == stage }
         case let .outcome(title, message, state):
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            var content = UIListContentConfiguration.descriptiveCell()
+            var content = UIListContentConfiguration.stackedValueCell()
             content.text = title
             content.secondaryText = message
 

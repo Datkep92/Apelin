@@ -1,11 +1,20 @@
 import UIKit
 
 extension UIListContentConfiguration {
-    /// A name above its description, using the same type and spacing as licenses.
-    static func descriptiveCell() -> Self {
+    /// A name above a value or diagnostic that needs full body-sized text.
+    static func stackedValueCell() -> Self {
         var content = valueCell()
         content.prefersSideBySideTextAndSecondaryText = false
+        content.textProperties.font = .preferredFont(forTextStyle: .body)
+        content.secondaryTextProperties.font = .preferredFont(forTextStyle: .body)
         content.secondaryTextProperties.color = .secondaryLabel
+        return content
+    }
+
+    /// Supporting explanations sit one Dynamic Type style below the title.
+    static func explanatoryCell() -> Self {
+        var content = stackedValueCell()
+        content.secondaryTextProperties.font = .preferredFont(forTextStyle: .callout)
         return content
     }
 }
