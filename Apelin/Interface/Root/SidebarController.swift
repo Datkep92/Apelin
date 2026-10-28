@@ -47,6 +47,9 @@ final class SidebarController: UIViewController {
     func refresh() {
         let previous = Dictionary(uniqueKeysWithValues: chats.map { ($0.id, $0) })
         chats = runtime.summaries.filter { $0.projectName == project?.name }
+        let pinChanged = chats.contains { chat in
+            previous[chat.id].map { $0.isPinned != chat.isPinned } ?? false
+        }
         let changedRows = chats.compactMap { chat -> UUID? in
             guard let old = previous[chat.id],
                   old.title != chat.title || old.isWorking != chat.isWorking
@@ -54,7 +57,7 @@ final class SidebarController: UIViewController {
             return chat.id
         }
         if isViewLoaded {
-            applySnapshot(changedRows: changedRows, restoreSelection: false)
+            applySnapshot(changedRows: changedRows, restoreSelection: false, animateMove: pinChanged)
         }
     }
 
@@ -291,7 +294,7 @@ final class SidebarController: UIViewController {
         chats.first { $0.id == id }
     }
 
-    private func applySnapshot(changedRows: [UUID] = [], restoreSelection: Bool = true) {
+    private func applySnapshot(changedRows: [UUID] = [], restoreSelection: Bool = true, animateMove: Bool = false) {
         var snapshot = NSDiffableDataSourceSnapshot<Section, UUID>()
         let shown = query.isEmpty ? chats : chats.filter {
             $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
@@ -314,6 +317,7 @@ final class SidebarController: UIViewController {
         snapshot.reconfigureItems(reconfigured)
         let hasChanges = !reconfigured.isEmpty || current.sectionIdentifiers != snapshot.sectionIdentifiers
             || current.itemIdentifiers != snapshot.itemIdentifiers
+            || snapshot.itemIdentifiers.contains { current.sectionIdentifier(containingItem: $0) != snapshot.sectionIdentifier(containingItem: $0) }
         // Streamed text changes the runtime timestamp on every batch, but it
         // must not rebuild an unchanged row while its swipe actions are open.
         tableView.backgroundView?.isHidden = !shown.isEmpty
@@ -323,9 +327,15 @@ final class SidebarController: UIViewController {
             return
         }
         if hasChanges {
-            dataSource.applyChange(snapshot, to: tableView, animated: pacing.animatesChange(in: tableView))
+            let pacedAnimation = pacing.animatesChange(in: tableView)
+            let animated = animateMove
+                ? tableView.window != nil && !UIAccessibility.isReduceMotionEnabled
+                : pacedAnimation
+            dataSource.applyChange(snapshot, to: tableView, animated: animated) { [weak self] in
+                self?.selectPicked()
+            }
         }
-        if hasChanges || restoreSelection {
+        if !hasChanges, restoreSelection {
             selectPicked()
         }
     }
@@ -522,7 +532,7 @@ extension SidebarController: UITableViewDelegate {
         ) { [weak self] _, _, completion in
             // the swipe's own transaction has to end for the row to settle
             completion(true)
-            self?.togglePin(id)
+            DispatchQueue.main.async { [weak self] in self?.togglePin(id) }
         }
         pin.image = UIImage(systemName: chat.isPinned ? "pin.slash.fill" : "pin.fill")
         pin.backgroundColor = .systemOrange
