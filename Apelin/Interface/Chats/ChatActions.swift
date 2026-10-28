@@ -82,18 +82,18 @@ enum ChatActions {
         from presenter: UIViewController,
     ) -> UIKit.UIAction {
         UIKit.UIAction(
-            title: String(localized: "Compact…"),
-            image: UIImage(systemName: "arrow.down.right.and.arrow.up.left"),
+            title: String(localized: "Compact Context…"),
+            image: UIImage(systemName: "doc.text"),
             attributes: runtime.canCompact(id) ? [] : .disabled,
         ) { [weak presenter, weak runtime] _ in
             guard let presenter else { return }
             presenter.presentConfirmation(
-                title: "Compact Chat?",
+                title: "Compact Context?",
                 message: """
                 Your agent will continue from a summary of the earlier messages, which frees room for new work. \
                 The messages stay in this chat.
                 """,
-                confirmTitle: "Compact",
+                confirmTitle: "Compact Context",
             ) { [weak presenter, weak runtime] in
                 guard let presenter, let runtime else { return }
                 Task { await compact(id, runtime: runtime, from: presenter) }

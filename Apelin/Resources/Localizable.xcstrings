@@ -58463,154 +58463,154 @@
         }
       }
     },
-    "Compact…" : {
+    "Compact Context…" : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ضغط…"
+            "value" : "ضغط السياق…"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Komprimieren…"
+            "value" : "Kontext komprimieren…"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compactar…"
+            "value" : "Compactar contexto…"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compacter…"
+            "value" : "Compacter le contexte…"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compatta…"
+            "value" : "Compatta contesto…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "圧縮…"
+            "value" : "コンテキストを圧縮…"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "압축…"
+            "value" : "컨텍스트 압축…"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compactar…"
+            "value" : "Compactar contexto…"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сжать…"
+            "value" : "Сжать контекст…"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thu gọn…"
+            "value" : "Nén ngữ cảnh…"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "压缩…"
+            "value" : "压缩上下文…"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "壓縮…"
+            "value" : "壓縮上下文…"
           }
         }
       }
     },
-    "Compact Chat?" : {
+    "Compact Context?" : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ضغط المحادثة؟"
+            "value" : "ضغط السياق؟"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chat komprimieren?"
+            "value" : "Kontext komprimieren?"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "¿Compactar el chat?"
+            "value" : "¿Compactar contexto?"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compacter la discussion ?"
+            "value" : "Compacter le contexte ?"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compattare la chat?"
+            "value" : "Compattare il contesto?"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "チャットを圧縮しますか？"
+            "value" : "コンテキストを圧縮しますか？"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "채팅을 압축할까요?"
+            "value" : "컨텍스트를 압축할까요?"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compactar a conversa?"
+            "value" : "Compactar contexto?"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сжать чат?"
+            "value" : "Сжать контекст?"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thu gọn cuộc trò chuyện?"
+            "value" : "Nén ngữ cảnh?"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "压缩聊天？"
+            "value" : "压缩上下文？"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "壓縮聊天？"
+            "value" : "壓縮上下文？"
           }
         }
       }
@@ -58691,78 +58691,78 @@
         }
       }
     },
-    "Compact" : {
+    "Compact Context" : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ضغط"
+            "value" : "ضغط السياق"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Komprimieren"
+            "value" : "Kontext komprimieren"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compactar"
+            "value" : "Compactar contexto"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compacter"
+            "value" : "Compacter le contexte"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compatta"
+            "value" : "Compatta contesto"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "圧縮"
+            "value" : "コンテキストを圧縮"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "압축"
+            "value" : "컨텍스트 압축"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compactar"
+            "value" : "Compactar contexto"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сжать"
+            "value" : "Сжать контекст"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thu gọn"
+            "value" : "Nén ngữ cảnh"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "压缩"
+            "value" : "压缩上下文"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "壓縮"
+            "value" : "壓縮上下文"
           }
         }
       }
