@@ -31,6 +31,8 @@ final class WelcomeGitHubPage: WelcomeListPage {
 
     private lazy var repositories = DistributionRepositoryFlow(presenter: self) { [weak self] in self?.load() }
     private var login: String?
+    private var linkedRepository: DistributionRepository?
+    private var isPreparingCreation = false
     private var loader: Task<Void, Never>?
     deinit { loader?.cancel() }
 
@@ -58,10 +60,11 @@ final class WelcomeGitHubPage: WelcomeListPage {
         }
     }
 
-    private func updateRows(linked: DistributionRepository?) {
+    private func updateRows(linked: DistributionRepository?, changedItems: Set<Row> = []) {
+        linkedRepository = linked
         let publishing: [Row] = linked.map { [.repository($0.fullName)] }
             ?? [.create(enabled: login != nil), .link(enabled: login != nil)]
-        dataSource.update([(.introduction, [.introduction]), (.account, [.signIn(login: login)]), (.publishing, publishing)])
+        dataSource.update([(.introduction, [.introduction]), (.account, [.signIn(login: login)]), (.publishing, publishing)], changedItems: changedItems)
     }
 
     private func cell(for row: Row) -> UITableViewCell {
@@ -76,6 +79,7 @@ final class WelcomeGitHubPage: WelcomeListPage {
             content.textProperties.numberOfLines = 0
             cell.selectionStyle = .none
         case let .signIn(login):
+            content = login == nil ? .cell() : .descriptiveCell()
             content.text = String(localized: "Sign In with GitHub")
             content.image = UIImage(named: "ProviderGitHubCopilot")
             content.imageProperties.maximumSize = CGSize(width: 40, height: 40)
@@ -87,12 +91,18 @@ final class WelcomeGitHubPage: WelcomeListPage {
             content.text = fullName
             cell.accessoryType = .checkmark
             cell.accessibilityValue = String(localized: "Linked")
-        case let .create(enabled), let .link(enabled):
-            if case .create = row {
-                content.text = String(localized: "Create Distribution Repository…")
-            } else {
-                content.text = String(localized: "Link Distribution Repository…")
+        case let .create(enabled):
+            content.text = String(localized: "Create Distribution Repository…")
+            content.textProperties.color = enabled ? .tintColor : .tertiaryLabel
+            cell.accessibilityTraits = enabled && !isPreparingCreation ? .button : [.button, .notEnabled]
+            if isPreparingCreation {
+                let spinner = UIActivityIndicatorView(style: .medium)
+                spinner.startAnimating()
+                cell.accessoryView = spinner
+                cell.accessibilityValue = String(localized: "Loading…")
             }
+        case let .link(enabled):
+            content.text = String(localized: "Link Distribution Repository…")
             content.textProperties.color = enabled ? .label : .tertiaryLabel
             cell.accessoryType = .disclosureIndicator
             cell.accessibilityTraits = enabled ? .button : [.button, .notEnabled]
@@ -130,7 +140,11 @@ final class WelcomeGitHubPage: WelcomeListPage {
             page.onSignedIn = { [weak self] _ in self?.load() }
             presentPageAsFormSheet(page)
         case .create(enabled: true)?:
-            repositories.create()
+            repositories.create { [weak self] loading in
+                guard let self else { return }
+                isPreparingCreation = loading
+                updateRows(linked: linkedRepository, changedItems: [.create(enabled: login != nil)])
+            }
         case .link(enabled: true)?:
             repositories.pick()
         default:

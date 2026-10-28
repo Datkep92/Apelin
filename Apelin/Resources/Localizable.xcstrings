@@ -17010,85 +17010,85 @@
         }
       }
     },
-    "Agents Can Make Mistakes" : {
+    "Disclaimer" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "قد يخطئ الوكلاء"
+            "value" : "إخلاء المسؤولية"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Agenten können Fehler machen"
+            "value" : "Haftungsausschluss"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Agents Can Make Mistakes"
+            "value" : "Disclaimer"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los agentes pueden equivocarse"
+            "value" : "Descargo de responsabilidad"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les agents peuvent se tromper"
+            "value" : "Avertissement"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gli agenti possono sbagliare"
+            "value" : "Esclusione di responsabilità"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "エージェントは間違えることがあります"
+            "value" : "免責事項"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "에이전트도 실수할 수 있습니다"
+            "value" : "면책 조항"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Agentes podem cometer erros"
+            "value" : "Isenção de responsabilidade"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Агенты могут ошибаться"
+            "value" : "Отказ от ответственности"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tác nhân có thể mắc lỗi"
+            "value" : "Miễn trừ trách nhiệm"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "智能体也可能出错"
+            "value" : "免责声明"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "代理程式也可能出錯"
+            "value" : "免責聲明"
           }
         }
       }
@@ -19085,85 +19085,85 @@
         }
       }
     },
-    "Review generated code and important changes before you run or install them." : {
+    "Agents can make mistakes. Review generated code and important changes before you run or install them." : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "راجِع الشيفرة المُنشأة والتغييرات المهمة قبل تشغيلها أو تثبيتها."
+            "value" : "قد يخطئ الوكلاء. راجِع الشيفرة المُنشأة والتغييرات المهمة قبل تشغيلها أو تثبيتها."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prüfe generierten Code und wichtige Änderungen, bevor du sie ausführst oder installierst."
+            "value" : "Agenten können Fehler machen. Prüfe generierten Code und wichtige Änderungen, bevor du sie ausführst oder installierst."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Review generated code and important changes before you run or install them."
+            "value" : "Agents can make mistakes. Review generated code and important changes before you run or install them."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Revisa el código generado y los cambios importantes antes de ejecutarlos o instalarlos."
+            "value" : "Los agentes pueden cometer errores. Revisa el código generado y los cambios importantes antes de ejecutarlos o instalarlos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Examinez le code généré et les modifications importantes avant de les exécuter ou de les installer."
+            "value" : "Les agents peuvent commettre des erreurs. Examinez le code généré et les modifications importantes avant de les exécuter ou de les installer."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Controlla il codice generato e le modifiche importanti prima di eseguirli o installarli."
+            "value" : "Gli agenti possono commettere errori. Controlla il codice generato e le modifiche importanti prima di eseguirli o installarli."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "実行やインストールの前に、生成されたコードと重要な変更を確認してください。"
+            "value" : "エージェントは間違えることがあります。実行やインストールの前に、生成されたコードと重要な変更を確認してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "실행하거나 설치하기 전에 생성된 코드와 중요한 변경 사항을 검토하세요."
+            "value" : "에이전트는 실수할 수 있습니다. 실행하거나 설치하기 전에 생성된 코드와 중요한 변경 사항을 검토하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Revise o código gerado e as alterações importantes antes de executá-los ou instalá-los."
+            "value" : "Os agentes podem cometer erros. Revise o código gerado e as alterações importantes antes de executá-los ou instalá-los."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Проверяйте сгенерированный код и важные изменения перед запуском или установкой."
+            "value" : "Агенты могут ошибаться. Проверяйте сгенерированный код и важные изменения перед запуском или установкой."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Xem lại mã được tạo và các thay đổi quan trọng trước khi chạy hoặc cài đặt."
+            "value" : "Tác nhân có thể mắc lỗi. Xem lại mã được tạo và các thay đổi quan trọng trước khi chạy hoặc cài đặt."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "运行或安装前，请检查生成的代码和重要改动。"
+            "value" : "智能体可能会犯错。运行或安装前，请检查生成的代码和重要改动。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "執行或安裝前，請先檢視產生的程式碼和重要變更。"
+            "value" : "智慧體可能會犯錯。執行或安裝前，請先檢視產生的程式碼和重要變更。"
           }
         }
       }
