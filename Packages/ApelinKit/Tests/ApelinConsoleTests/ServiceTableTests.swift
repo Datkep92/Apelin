@@ -64,6 +64,8 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: ProjectCheckResponse(passed: true)) { _ = try await $0.projectCheck(projectID: "p") }
         case .projectRename:
             return Row(reply: ProjectRenameResponse(projectID: "p", displayName: "Hello", changed: true)) { _ = try await $0.projectRename(.init(projectID: "p", displayName: "Hello")) }
+        case .projectDelete:
+            return Row(reply: ProjectDeleteResponse(projectID: "p", projectName: "Hello")) { _ = try await $0.projectDelete(.init(projectID: "p")) }
         case .buildStart:
             return Row(reply: handle) { _ = try await $0.buildStart(projectID: "p") }
         case .buildAttach:

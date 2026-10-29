@@ -157,6 +157,31 @@ public struct ProjectRenameToolRequest: Sendable, Hashable, Codable {
     }
 }
 
+/// apelin_project_delete: another project, for good, by `projectDelete`.
+public struct ProjectDeleteToolRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var projectID: String
+    /// The folder the card named; the host deletes the project only there.
+    public var folder: String
+    public init(context: HostCallContext, projectID: String, folder: String) {
+        self.context = context
+        self.projectID = projectID
+        self.folder = folder
+    }
+}
+
+public struct ProjectDeleteToolResponse: Sendable, Hashable, Codable {
+    public var projectID: String
+    public var folder: String
+    /// What went with it, for the reply to the user.
+    public var deleted: String
+    public init(projectID: String, folder: String) {
+        self.projectID = projectID
+        self.folder = folder
+        deleted = "The project's folder with every file in it, and its conversations, which were closed first; Apelin no longer lists them."
+    }
+}
+
 public struct ProjectRenameToolResponse: Sendable, Hashable, Codable {
     public var projectID: String
     public var folder: String

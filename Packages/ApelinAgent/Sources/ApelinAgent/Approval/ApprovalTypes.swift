@@ -32,8 +32,9 @@ public struct ApprovalRequest: Sendable, Hashable, Codable {
     public var reason: String
     public var detail: ApprovalDetail
     /// Whether "for this session" may be offered. Never for package removal,
-    /// a push, a repository made on GitHub, an issue filed as feedback, or a
-    /// request bound to a description digest (the host's ledger keeps those).
+    /// a push, a repository made on GitHub, an issue filed as feedback, a
+    /// project's deletion, or a request bound to a description digest (the
+    /// host's ledger keeps those).
     public var allowsSessionScope: Bool
 
     public init(
@@ -106,6 +107,9 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// name and visibility. The host lets through only the repository it
     /// names, once.
     case repositoryCreate(RepositoryCreateApproval)
+    /// Another project deleted for good. The host lets through only the
+    /// deletion of the project it names, once.
+    case projectDelete(ProjectDeleteApproval)
 }
 
 /// What an apelin_git_create_repository card names, and the host matches
@@ -121,6 +125,20 @@ public struct RepositoryCreateApproval: Sendable, Hashable, Codable {
         self.name = name
         self.visibility = visibility
         self.description = description
+    }
+}
+
+/// What an apelin_project_delete card names, and the host matches its
+/// deletion to (AgentProjectDeleteRules): the project, its folder and the
+/// name the sidebar shows.
+public struct ProjectDeleteApproval: Sendable, Hashable, Codable {
+    public var projectID: String
+    public var folder: String
+    public var displayName: String
+    public init(projectID: String, folder: String, displayName: String) {
+        self.projectID = projectID
+        self.folder = folder
+        self.displayName = displayName
     }
 }
 

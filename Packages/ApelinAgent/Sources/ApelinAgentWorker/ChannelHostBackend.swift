@@ -26,7 +26,8 @@ import Foundation
 /// which the host runs as mobile in the project (as root, with `asRoot`, when
 /// Full mode or the user's approval of that root request lets it); apelin_template_list →
 /// `extensionList`, isolated extensions left out; apelin_project_create →
-/// `projectCreate`; git_status / git_diff / git_stage / git_unstage /
+/// `projectCreate`; apelin_project_rename → `projectRename`;
+/// apelin_project_delete → `projectDelete`; git_status / git_diff / git_stage / git_unstage /
 /// git_commit, git_init → `gitStatus` / `gitDiff` / `gitStage` /
 /// `gitUnstage` / `gitCommit` / `gitInit` on the session's project (no
 /// author: the host's settings);
@@ -298,6 +299,12 @@ public struct ChannelHostBackend: AgentHostBackend {
             displayName: renamed.displayName,
             changed: renamed.changed,
         )
+    }
+
+    /// The project the card named, in the folder it named.
+    public func deleteProject(_ request: ProjectDeleteToolRequest) async throws -> ProjectDeleteToolResponse {
+        let deleted = try await service.projectDelete(ProjectDeleteRequest(projectID: request.projectID, projectName: request.folder))
+        return ProjectDeleteToolResponse(projectID: deleted.projectID, folder: deleted.projectName)
     }
 
     static func templateValue(_ value: ApelinCore.JSONValue) -> TemplateValue? {

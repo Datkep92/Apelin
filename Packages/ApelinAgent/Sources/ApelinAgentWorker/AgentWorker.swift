@@ -638,6 +638,10 @@ actor EventRelay {
         // (AgentRepositoryCreateRules).
         case let .repositoryCreate(repository):
             payload["detail"] = .object(["repositoryCreate": (try? ApelinCore.JSONValue(encoding: repository)) ?? .null])
+        // The project the host matches an agent's projectDelete to
+        // (AgentProjectDeleteRules).
+        case let .projectDelete(deletion):
+            payload["detail"] = .object(["projectDelete": (try? ApelinCore.JSONValue(encoding: deletion)) ?? .null])
         }
         return .object(payload)
     }

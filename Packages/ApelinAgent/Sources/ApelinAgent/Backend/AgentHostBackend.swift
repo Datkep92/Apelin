@@ -101,6 +101,9 @@ public protocol AgentHostBackend: Sendable {
     /// A project's displayName, by `projectRename`; the host checks the
     /// session may rename it.
     func renameProject(_ request: ProjectRenameToolRequest) async throws -> ProjectRenameToolResponse
+    /// Another project deleted for good, by `projectDelete`; the host
+    /// checks the session may delete it and closes its conversations first.
+    func deleteProject(_ request: ProjectDeleteToolRequest) async throws -> ProjectDeleteToolResponse
     /// The device's toolchains, and the releases Apple's catalog offers.
     func toolchains(context: HostCallContext) async throws -> ToolchainListToolResponse
     /// The device's SDKs, and the ones the enabled sources offer.
@@ -136,6 +139,10 @@ public extension AgentHostBackend {
 
     func renameProject(_: ProjectRenameToolRequest) async throws -> ProjectRenameToolResponse {
         throw ToolDeniedError(message: "renaming projects is not available here")
+    }
+
+    func deleteProject(_: ProjectDeleteToolRequest) async throws -> ProjectDeleteToolResponse {
+        throw ToolDeniedError(message: "deleting projects is not available here")
     }
 
     func toolchains(context _: HostCallContext) async throws -> ToolchainListToolResponse {

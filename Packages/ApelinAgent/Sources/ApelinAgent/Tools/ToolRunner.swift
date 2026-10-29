@@ -260,18 +260,20 @@ actor ToolRunner {
     /// toolchain or SDK install, which changes the device for every
     /// project, nor for a call that reaches another project, nor for a
     /// command as root, nor for an issue filed in public as feedback, nor
-    /// for a repository made on GitHub.
+    /// for a repository made on GitHub, nor for a project's deletion, which
+    /// cannot be undone.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
-             .local(.skillSave), .local(.skillRemove), .local(.feedbackSend), .local(.gitCreateRepository):
+             .local(.skillSave), .local(.skillRemove), .local(.feedbackSend), .local(.gitCreateRepository),
+             .local(.projectDelete):
             return false
         default:
             break
         }
         switch detail {
         case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
-             .projectRename, .rootCommand, .feedback, .repositoryCreate:
+             .projectRename, .rootCommand, .feedback, .repositoryCreate, .projectDelete:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -392,6 +394,17 @@ actor ToolRunner {
                 folder: target.name.rawValue,
                 displayName: arguments.requireString("display_name").trimmingCharacters(in: .whitespaces),
                 automatic: arguments.argBool("automatic") ?? false,
+            )))
+
+        case .projectDelete:
+            // The project the card named.
+            guard let deletion = facts.projectDeletion else {
+                throw ToolDeniedError(message: "the project to delete could not be identified")
+            }
+            return try await json(backend.deleteProject(ProjectDeleteToolRequest(
+                context: context,
+                projectID: deletion.projectID,
+                folder: deletion.folder,
             )))
 
         case .projectCreate:

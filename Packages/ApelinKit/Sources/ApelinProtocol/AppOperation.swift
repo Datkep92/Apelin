@@ -28,6 +28,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case projectCreate
     case projectCheck
     case projectRename
+    case projectDelete
 
     case buildStart
     case buildAttach
@@ -119,7 +120,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainRemove, .toolchainSelfTest, .toolchainSetDefault: .toolchain
         case .sdkList, .sdkImport, .sdkRemove: .sdk
         case .environmentAttach, .environmentCancel: .environment
-        case .extensionList, .projectCreate, .projectCheck, .projectRename: .project
+        case .extensionList, .projectCreate, .projectCheck, .projectRename, .projectDelete: .project
         case .buildStart, .buildAttach, .buildCancel: .build
         case .installPackage, .removePackage, .installationList, .respring, .approvalDigestState: .install
         case .fileRead, .protectedEditOpen, .protectedEditCommit: .files
@@ -162,6 +163,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .projectCreate: ProjectCreateRequest.self
         case .projectCheck: ProjectCheckRequest.self
         case .projectRename: ProjectRenameRequest.self
+        case .projectDelete: ProjectDeleteRequest.self
         case .buildStart: BuildStartRequest.self
         case .buildAttach: BuildAttachRequest.self
         case .buildCancel: BuildCancelRequest.self

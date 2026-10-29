@@ -74,9 +74,7 @@ enum AgentHandler: DomainHandler {
         case .agentClose:
             let reply = await forward(request, AgentCloseRequest.self, host: host) { $0.sessionID }
             if case .success = reply.0.result, let close = try? request.decode(AgentCloseRequest.self) {
-                await host.approvals.forgetSession(close.sessionID)
-                await AgentSessionTable.shared.forgetGrants(close.sessionID)
-                AgentRunCode.stop(session: close.sessionID)
+                await forgetClosed(close.sessionID, host: host)
             }
             return reply
         case .agentRunCode:
@@ -110,6 +108,40 @@ enum AgentHandler: DomainHandler {
             return await host.cancel(request, AgentSignInCancelRequest.self)
         default:
             return request.fail(ApelinError(.badRequest, "\(request.operation.rawValue) is not an agent operation"))
+        }
+    }
+
+    /// A closed session holds nothing it was granted, and no shell_run of
+    /// it goes on.
+    private static func forgetClosed(_ sessionID: String, host: SessionHost) async {
+        await host.approvals.forgetSession(sessionID)
+        await AgentSessionTable.shared.forgetGrants(sessionID)
+        AgentRunCode.stop(session: sessionID)
+    }
+
+    /// Closes every running session of a project, each as `agentClose`
+    /// closes one, before the project's folder goes (`projectDelete`), as
+    /// the app's Delete closes them first. One its worker will not close
+    /// keeps the project.
+    static func closeSessions(ofProject projectID: String, host: SessionHost) async throws {
+        for entry in await AgentSessionTable.shared.running(project: projectID, registry: host.registry) {
+            guard let worker = await host.workers.existing(.agent, instance: entry.sessionID), !worker.channel.isClosed else {
+                continue
+            }
+            do {
+                let (reply, _) = try await worker.call(WireRequest(AgentCloseRequest(sessionID: entry.sessionID)), descriptors: [])
+                // one that ended meanwhile is closed already
+                if case let .failure(error) = reply.result, error.code != .notFound {
+                    throw error
+                }
+            } catch {
+                let reason = (error as? ApelinError)?.message ?? String(describing: error)
+                throw ApelinError(
+                    .conflict,
+                    "the project's conversation “\(entry.title ?? entry.sessionID)” could not be closed (\(reason)), so the project was not deleted",
+                )
+            }
+            await forgetClosed(entry.sessionID, host: host)
         }
     }
 
