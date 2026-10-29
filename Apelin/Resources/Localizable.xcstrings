@@ -715,7 +715,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可以發佈"
+            "value" : "可以分發"
           }
         }
       }
@@ -10312,7 +10312,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可以發佈"
+            "value" : "可以分發"
           }
         }
       }
@@ -17758,7 +17758,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "發佈…"
+            "value" : "分發…"
           }
         }
       }
@@ -17834,7 +17834,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "發佈"
+            "value" : "分發"
           }
         }
       }
