@@ -1835,6 +1835,115 @@ do {
           "and no toolchain or SDK: \(presetEntries)")
 }
 
+// MARK: - shell_run's argv finds a command where its shell would
+
+/// A toolchain of its own: a compiler, a link to bash standing in for
+/// clang++ (a tool that reads the name it was called by), and a git that
+/// is not the bootstrap's; and a project with a script and a plain file.
+let lookupHome = scratchPath + "/lookup-home"
+let lookupToolchain = scratchPath + "/lookup-jb/toolchains/clt-27.0"
+let lookupBin = lookupToolchain + "/usr/bin"
+let lookupProject = lookupHome + "/Documents/wiki.qaq.apelin/Projects/Lookup"
+write(lookupBin + "/apelin-cc", "#!/bin/sh\necho compiled\n", mode: 0o755)
+write(lookupBin + "/git", "#!/bin/sh\necho the toolchain's git\n", mode: 0o755)
+try FileManager.default.createSymbolicLink(atPath: lookupBin + "/apelin-c++", withDestinationPath: "/bin/bash")
+write(lookupProject + "/build.sh", "#!/bin/sh\necho built\n", mode: 0o755)
+write(lookupProject + "/notes.txt", "not a program\n")
+write(
+    lookupHome + "/Documents/wiki.qaq.apelin/Environment/Toolchains/registry.json",
+    #"{"defaultID":"clt-27.0","toolchains":[{"id":"clt-27.0","version":"27.0","components":[{"kind":"c","selfCheckPassed":true}],"path":"\#(lookupToolchain)","contentDigest":"ab"}]}"#,
+)
+
+do {
+    let project = ResolvedProject(id: "p-lookup", name: "Lookup", path: lookupProject)
+    let ordinary = AgentRunCode.Identity.mobile(preset: nil)
+    let environment = AgentRunCode.environment(preset: nil, project: project, installRoot: "/", home: lookupHome)
+    func invocation(_ argv: [String], as identity: AgentRunCode.Identity = ordinary) throws -> (executable: String, argv: [String]) {
+        try AgentRunCode.invocation(.argv(argv), as: identity, environment: environment, installRoot: "/", directory: lookupProject)
+    }
+    func refusal(_ argv: [String], as identity: AgentRunCode.Identity = ordinary) -> ApelinError? {
+        do {
+            _ = try invocation(argv, as: identity)
+            return nil
+        } catch {
+            return error as? ApelinError
+        }
+    }
+
+    // An ordinary run looks on the PATH it gets, the toolchain's tools
+    // first, as `bash -c` does.
+    let compiler = try? invocation(["apelin-cc", "-c", "main.c"])
+    check(compiler?.executable == lookupBin + "/apelin-cc" && compiler?.argv == ["apelin-cc", "-c", "main.c"],
+          "an argv finds the toolchain's tools by name: \(String(describing: compiler))")
+    let toolchainGit = try? invocation(["git", "status"])
+    check(toolchainGit?.executable == lookupBin + "/git", "in PATH's order, as a shell finds them: \(String(describing: toolchainGit))")
+
+    // The canonical file runs, under the name the request called it by.
+    let linked = try? invocation(["apelin-c++", "-c", "echo $0"])
+    check(linked?.executable == "/bin/bash" && linked?.argv.first == "apelin-c++",
+          "a link runs its canonical file with the request's own words as argv: \(String(describing: linked))")
+
+    // A preset and a run as root look in the bootstrap's directories alone,
+    // whatever PATH the run gets.
+    let bootstrapGit = AgentRunCode.findExecutable("git", in: DevelopmentEnvironment.searchPath(installRoot: "/"))
+    let preset = AgentRunCode.Preset(argv: ["git", "status"], environment: [])
+    let presetGit = try? invocation(["git", "status"], as: .mobile(preset: preset))
+    check(presetGit?.executable == bootstrapGit && presetGit?.executable != lookupBin + "/git",
+          "a preset runs the bootstrap's git its checks vetted, never the toolchain's: \(String(describing: presetGit))")
+    let rootGit = try? invocation(["git", "status"], as: .root)
+    check(rootGit?.executable == bootstrapGit && rootGit?.executable != lookupBin + "/git",
+          "so does a run as root: \(String(describing: rootGit))")
+    let rootCompiler = refusal(["apelin-cc"], as: .root)
+    check(rootCompiler?.code == .notFound && rootCompiler?.message.contains("as root") == true,
+          "a run as root takes no command from the toolchain's place: \(String(describing: rootCompiler))")
+
+    // A name on no directory of the PATH says where it looked and what to do.
+    let missing = refusal(["apelin-no-such-tool"])
+    check(missing?.code == .notFound && missing?.message.contains("PATH") == true && missing?.message.contains("bash -c") == true,
+          "a name on no directory says where it looked and what to do instead: \(String(describing: missing))")
+
+    // A path runs as a shell takes one: from the working directory unless
+    // absolute, a regular file with an execute bit.
+    let script = try? invocation(["./build.sh", "--fast"])
+    check(script?.executable == lookupProject + "/build.sh" && script?.argv == ["./build.sh", "--fast"],
+          "a relative path is read from the working directory: \(String(describing: script))")
+    let absolute = try? invocation([lookupBin + "/apelin-cc"])
+    check(absolute?.executable == lookupBin + "/apelin-cc", "an absolute path is taken as it is: \(String(describing: absolute))")
+    check(refusal(["./notes.txt"])?.code == .notFound, "a file without an execute bit is no executable")
+    check(refusal(["./missing.sh"])?.code == .notFound, "nor is a path that leads nowhere")
+    check(refusal([""])?.code == .badRequest, "an empty executable is refused")
+
+    // A script keeps its interpreter's canonical path as the name it runs by.
+    let shell = try? AgentRunCode.invocation(
+        .script(interpreter: "sh", source: "true"),
+        as: ordinary,
+        environment: environment,
+        installRoot: "/",
+        directory: lookupProject,
+    )
+    check(shell.map { $0.argv == [$0.executable, "-c", "true"] } == true, "a script runs as before: \(String(describing: shell))")
+
+    // And it all runs. On the Mac only `.root` spawns (it runs as this
+    // user); a path is read the same whoever runs it.
+    func run(_ argv: [String], session: String) async -> AgentRunCodeResponse? {
+        try? await AgentRunCode.run(
+            AgentRunCodeRequest(sessionID: session, spec: .argv(argv), timeoutSeconds: 10, approval: .relaxed, asRoot: true),
+            as: .root,
+            project: project,
+            installRoot: "/",
+            home: lookupHome,
+            stopsSeen: AgentRunCode.stopCount(session: session),
+        )
+    }
+    let echoed = await run(["/bin/echo", "ok"], session: "lookup-absolute")
+    check(echoed?.exitCode == 0 && echoed?.stdout == "ok\n", "an absolute argv[0] runs: \(String(describing: echoed))")
+    let built = await run(["./build.sh"], session: "lookup-relative")
+    check(built?.exitCode == 0 && built?.stdout == "built\n", "a script in the project runs by its path: \(String(describing: built))")
+    let named = await run([lookupBin + "/apelin-c++", "-c", "echo $0"], session: "lookup-name")
+    check(named?.exitCode == 0 && named?.stdout == lookupBin + "/apelin-c++\n",
+          "the process sees the name it was called by, not its link's target: \(String(describing: named))")
+}
+
 // MARK: - Agent approvals are found and spent only when they apply
 
 do {

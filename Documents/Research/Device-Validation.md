@@ -180,6 +180,16 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] shell_run's argv on the toolchain's PATH (2026-10-29, AGENTS.md ▸
+      Agent sessions ▸ `agentRunCode`; none of it has run on a device). In
+      a project with a toolchain set up, `argv` `["clang", "-c", "x.c"]`,
+      `["nm", "x.o"]` and `["otool", "-hv", "x.o"]` run by name;
+      `["clang++", "x.cpp", "-o", "x"]` links libc++ (the link runs under
+      its own name, not as clang); with Swift, `["swiftc", "x.swift"]`
+      compiles; the tool directory's absolute `clang` and `["./build.sh"]`
+      in the project run; a name on no directory says where it looked and
+      names `bash -c`. In Strict each still asks; `root: true` with
+      `irisin-cli` still runs the bootstrap's.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

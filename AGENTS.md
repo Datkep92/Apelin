@@ -1137,7 +1137,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   sent within 30 s of the session's last; the host cuts and counts again
   (`AgentNoticeRules`).
   `agentRunCode` is a closed request — `argv` (an executable name looked up
-  in the bootstrap's bin directories, then `/usr/bin`, `/bin`) or `script`
+  on the run's own `PATH` as its shell would, the toolchain's tools first,
+  but a preset's and a root run's in the bootstrap's bin directories, then
+  `/usr/bin`, `/bin`, alone; or a path, from the working directory unless
+  absolute; the canonical file is exec'd with the request's own words as
+  its argv, so `clang++` and `swiftc` keep the name they read) or `script`
   (sh, bash, zsh, python3, perl with `-c`/`-e`) — that the host runs itself,
   only for the caller that is that session's worker, as mobile (uid, gid,
   groups 501 before exec) — or, with `asRoot`, as root, which
