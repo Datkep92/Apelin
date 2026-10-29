@@ -172,6 +172,101 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(github.requests.isEmpty)
     }
 
+    // MARK: The star
+
+    func testTheStarIsReadFromApelinsRepositoryOnly() async throws {
+        let home = try TemporaryHome(self)
+        let github = FakeGitHub()
+        let service = try service(home, github: github)
+        github.status = 404
+        github.message = "Not Found"
+        let none = try await service.starState(FeedbackStarStateRequest())
+        XCTAssertEqual(none, FeedbackStarResponse(repository: "owngoal-dev/Apelin", starred: false), "404 is no star, not a missing repository")
+        github.status = 204
+        let starred = try await service.starState(FeedbackStarStateRequest())
+        XCTAssertTrue(starred.starred)
+
+        XCTAssertEqual(github.requests.count, 2)
+        for sent in github.requests {
+            XCTAssertEqual(sent.httpMethod, "GET")
+            XCTAssertEqual(sent.url?.absoluteString, "https://api.github.com/user/starred/owngoal-dev/Apelin")
+            XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer \(Self.token)")
+        }
+    }
+
+    func testAStarIsOneEmptyPutOnApelinsRepository() async throws {
+        let home = try TemporaryHome(self)
+        let github = FakeGitHub()
+        github.status = 204
+        let response = try await service(home, github: github).star(FeedbackStarRequest())
+        XCTAssertEqual(response, FeedbackStarResponse(repository: "owngoal-dev/Apelin", starred: true))
+
+        XCTAssertEqual(github.requests.count, 1)
+        let sent = try XCTUnwrap(github.requests.first)
+        XCTAssertEqual(sent.httpMethod, "PUT")
+        XCTAssertEqual(sent.url?.absoluteString, "https://api.github.com/user/starred/owngoal-dev/Apelin")
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer \(Self.token)")
+        XCTAssertEqual(sent.httpBody, Data(), "a length of zero, as GitHub asks")
+    }
+
+    func testTheStarNeedsTheSignIn() async throws {
+        let home = try TemporaryHome(self)
+        let github = FakeGitHub()
+        let signedOut = try service(home, github: github, signedIn: false)
+        for call in [
+            { _ = try await signedOut.starState(FeedbackStarStateRequest()) },
+            { _ = try await signedOut.star(FeedbackStarRequest()) },
+        ] as [() async throws -> Void] {
+            do {
+                try await call()
+                XCTFail("asked GitHub without a sign-in")
+            } catch let error as ApelinError {
+                XCTAssertEqual(error.code, .denied)
+                XCTAssertEqual(error.reason, .authenticationRequired)
+            }
+        }
+        XCTAssertTrue(github.requests.isEmpty)
+
+        // A revoked sign-in is one to make again, read or star alike.
+        github.status = 401
+        let revoked = try service(home, github: github)
+        for call in [
+            { _ = try await revoked.starState(FeedbackStarStateRequest()) },
+            { _ = try await revoked.star(FeedbackStarRequest()) },
+        ] as [() async throws -> Void] {
+            do {
+                try await call()
+                XCTFail("a refused sign-in went through")
+            } catch let error as ApelinError {
+                XCTAssertEqual(error.reason, .authenticationRequired)
+                XCTAssertFalse(error.description.contains(Self.token))
+            }
+        }
+        github.status = 403
+        github.message = "Resource not accessible by integration"
+        do {
+            _ = try await revoked.star(FeedbackStarRequest())
+            XCTFail("a refused star went through")
+        } catch let error as ApelinError {
+            XCTAssertEqual(error.code, .denied)
+            XCTAssertTrue(error.message.contains("Resource not accessible"), "GitHub's own words: \(error.message)")
+        }
+    }
+
+    func testTheWorkerServesTheStar() async throws {
+        let home = try TemporaryHome(self)
+        let github = FakeGitHub()
+        github.status = 204
+        let worker = EnvironmentWorker(layout: home.layout, backend: UnavailableToolchainBackend(), installer: FakeInstaller()) { _, _, _ in }
+        worker.feedback = try service(home, github: github)
+        for request in try [WireRequest(FeedbackStarStateRequest()), WireRequest(FeedbackStarRequest())] {
+            let (reply, _) = await worker.handle(ChannelRequest(request: request, descriptors: [], taskID: nil))
+            let response = try JSONCoding.decode(FeedbackStarResponse.self, from: reply.result.get())
+            XCTAssertTrue(response.starred)
+        }
+        XCTAssertEqual(github.requests.map(\.httpMethod), ["GET", "PUT"])
+    }
+
     func testTheWorkerServesIt() async throws {
         let home = try TemporaryHome(self)
         let github = FakeGitHub()

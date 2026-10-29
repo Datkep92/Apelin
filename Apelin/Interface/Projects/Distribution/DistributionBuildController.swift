@@ -256,6 +256,7 @@ final class DistributionBuildController: TableController {
                 artifact = try await build(projectID: id)
                 finishedState = .succeeded
                 outcome = String(localized: "The package is ready to export.")
+                StarPrompt.buildsCompleted(1, from: self)
             } catch is CancellationError {
                 finishedState = .cancelled
                 outcome = String(localized: "Distribution stopped. You can try again.")

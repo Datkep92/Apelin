@@ -75,6 +75,11 @@
       }
     },
     {
+      "op": "feedbackStarState",
+      "label": "star-state",
+      "allowError": true
+    },
+    {
       "op": "distributionRepositoryUnlink",
       "label": "unlink"
     },

@@ -189,6 +189,14 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: FeedbackSendResponse(number: 1, url: "https://github.com/owngoal-dev/Apelin/issues/1")) {
                 _ = try await $0.feedbackSend(title: "t", body: "b")
             }
+        case .feedbackStarState:
+            return Row(reply: FeedbackStarResponse(repository: "owngoal-dev/Apelin", starred: false)) {
+                _ = try await $0.feedbackStarState()
+            }
+        case .feedbackStar:
+            return Row(reply: FeedbackStarResponse(repository: "owngoal-dev/Apelin", starred: true)) {
+                _ = try await $0.feedbackStar()
+            }
         case .transferExport:
             return Row(reply: handle) { _ = try await $0.transferExport(kind: .sdk, id: "sdk", createdBy: "Apelin") }
         case .transferInspect:

@@ -7,7 +7,8 @@ import ApelinProtocol
 ///
 /// Feedback (`feedbackSend`) is one request to GitHub with the same sign-in,
 /// on Apelin's own repository; an agent may send it as AgentFeedbackRules
-/// allows, checked here before it is forwarded.
+/// allows, checked here before it is forwarded. Reading and giving that
+/// repository a star (`feedbackStarState`, `feedbackStar`) stay the app's.
 enum DistributionHandler: DomainHandler {
     static func handle(_ request: HostRequest, host: SessionHost) async -> HostReply {
         switch request.operation {
@@ -17,6 +18,8 @@ enum DistributionHandler: DomainHandler {
             await host.startTask(request, kind: .environment, role: .environment, resumable: false)
         case .feedbackSend:
             await sendFeedback(request, host: host)
+        case .feedbackStarState, .feedbackStar:
+            await host.forward(request, to: .environment)
         default:
             request.fail(ApelinError(.badRequest, "\(request.operation.rawValue) is not a distribution operation"))
         }

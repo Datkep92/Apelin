@@ -4,6 +4,8 @@ Apelin runs headless from a script: the permitted operations on the wire, in ord
 through `ApelinService` — the same typed surface the UI and the agent's tools
 call. `agentAPIConfiguration` is restricted to the provider editing form: the
 console refuses it before sending so a saved API key never enters its output or logs.
+It refuses `feedbackStar` too: a star on the reader's GitHub account comes only
+from their tap in the app.
 The console is the app itself, not a second peer of apelind, so "No
 CLI" holds. It never draws anything and never quits the app.
 
@@ -428,9 +430,11 @@ error, or on `ok: false` where the exact refusal is the worker's to choose.
 - `transfer-toolchain.json` — by name only: exports the first toolchain as
   an `.apetc` (a GB or more, minutes; RootHide's runtime brand undone),
   inspects it (already set up here) and is refused an import of it.
-- `distribution.json` — no network: `distributionRepositoryList` without
-  GitHub, a bad repository name, a bad `owner/name` and a package outside
-  `Builds/` each refused `badRequest` before a task starts,
+- `distribution.json` — nothing written to GitHub: `distributionRepositoryList`
+  without GitHub, a bad repository name, a bad `owner/name` and a package
+  outside `Builds/` each refused `badRequest` before a task starts, an
+  empty feedback title refused before anything reaches GitHub,
+  `feedbackStarState` (a read: `denied` without a GitHub sign-in),
   `distributionRepositoryUnlink`, then the list with no link. The harness
   keeps `Settings/distribution.json` and puts it back.
 - `tool-host.json` — needs the disassembler agent tool extension.

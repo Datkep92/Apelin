@@ -1026,3 +1026,5 @@ checkTraceStep()
 checkDroppedMessages()
 
 checkDeletedProjects()
+
+checkCompletedBuilds()

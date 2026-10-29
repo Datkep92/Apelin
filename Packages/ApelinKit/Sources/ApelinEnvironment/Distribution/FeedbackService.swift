@@ -9,7 +9,9 @@ import Foundation
 /// against this device's own home, install root and host name too — before
 /// the sign-in is looked at, so a refused text reaches nobody. The footer
 /// is written here, from Apelin's own Info.plist, the iOS version and the
-/// bootstrap; nothing the caller sent goes into it.
+/// bootstrap; nothing the caller sent goes into it. The same sign-in reads
+/// whether the account has starred that repository and stars it when the
+/// reader asks (`FeedbackStarRequest`).
 public struct FeedbackService: Sendable {
     let layout: EnvironmentLayout
     let credentials: any GitCredentialStore
@@ -43,6 +45,20 @@ public struct FeedbackService: Sendable {
             body: FeedbackRules.issueBody(request.body, footer: footer()),
         )
         return FeedbackSendResponse(number: issue.number, url: issue.htmlURL)
+    }
+
+    /// Whether the sign-in has starred Apelin's repository.
+    public func starState(_: FeedbackStarStateRequest) async throws -> FeedbackStarResponse {
+        let api = try GitHubAPI.signedIn(credentials, exchange: exchange)
+        let starred = try await api.isStarred(FeedbackRules.repository)
+        return FeedbackStarResponse(repository: FeedbackRules.repository, starred: starred)
+    }
+
+    /// Stars Apelin's repository with the sign-in, as the reader asked.
+    public func star(_: FeedbackStarRequest) async throws -> FeedbackStarResponse {
+        let api = try GitHubAPI.signedIn(credentials, exchange: exchange)
+        try await api.star(FeedbackRules.repository)
+        return FeedbackStarResponse(repository: FeedbackRules.repository, starred: true)
     }
 
     func footer() -> String {

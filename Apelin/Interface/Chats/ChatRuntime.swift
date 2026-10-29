@@ -20,6 +20,9 @@ final class ChatRuntime {
     /// Queued messages a stopped run never took went back to a
     /// conversation's composer, which the reader has yet to be told.
     var onUnsentReturned: ((UUID, DroppedMessages.Returned) -> Void)?
+    /// Builds an agent ran completed, counted once each from the events a
+    /// conversation had not read before (`CompletedBuilds`).
+    var onBuildsCompleted: ((Int) -> Void)?
     private(set) var isLoaded = false
     /// The saved conversations have been checked against the host's live
     /// sessions once: what says working is working.
@@ -490,6 +493,10 @@ final class ChatRuntime {
                     guard !Task.isCancelled, records[id]?.task == task else { return }
                     let fresh = records[id]?.take(batch.events) ?? []
                     settleSending(in: id, against: fresh)
+                    let builds = CompletedBuilds.count(in: fresh)
+                    if builds > 0 {
+                        onBuildsCompleted?(builds)
+                    }
                     for event in fresh where event.kind == AgentConversations.openedEventKind {
                         if let parent = records[id] {
                             adopt(ChatAdoption.record(

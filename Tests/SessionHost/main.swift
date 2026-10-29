@@ -2921,6 +2921,12 @@ do {
     check(!CallerPolicy.allows(.worker(.build, instance: nil), .feedbackSend), "the build worker may not")
     check(!CallerPolicy.allows(.worker(.diagnostics, instance: nil), .feedbackSend), "nor the diagnostics worker")
     check(!CallerPolicy.allows(.worker(.agent, instance: "s"), .distributionPublish), "the package repository stays the app's")
+    for star in [AppOperation.feedbackStarState, .feedbackStar] {
+        check(CallerPolicy.allows(.app, star), "the app reads and gives the star")
+        for role in WorkerRole.allCases {
+            check(!CallerPolicy.allows(.worker(role, instance: "s"), star), "no worker reads or gives it: \(role)")
+        }
+    }
     let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-feedback-tasks"))
     await registry.load()
     let sessions = AgentSessionTable.shared

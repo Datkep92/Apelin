@@ -4,10 +4,10 @@ import Foundation
 
 /// The part of GitHub's REST API a package repository needs, called with the
 /// github.com credential the user signed in with: the account, its own
-/// repositories, making one, and GitHub Pages; the issue feedback files; and
-/// the empty repository a project is pushed to (`gitRepositoryCreate`). The
-/// token goes in the `Authorization` header to api.github.com and nowhere
-/// else; no message quotes it.
+/// repositories, making one, and GitHub Pages; the issue feedback files and
+/// the star the reader gives Apelin; and the empty repository a project is
+/// pushed to (`gitRepositoryCreate`). The token goes in the `Authorization`
+/// header to api.github.com and nowhere else; no message quotes it.
 struct GitHubAPI: Sendable {
     static let base = URL(string: "https://api.github.com")!
     typealias Exchange = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
@@ -156,6 +156,27 @@ struct GitHubAPI: Sendable {
     /// A new issue on `fullName`, opened by the signed-in account.
     func createIssue(_ fullName: String, title: String, body: String) async throws -> Issue {
         try await send("POST", "/repos/\(fullName)/issues", body: ["title": title, "body": body], as: Issue.self)
+    }
+
+    /// Whether the signed-in account has starred `fullName`: GitHub answers
+    /// 204 for a star and 404 for none.
+    func isStarred(_ fullName: String) async throws -> Bool {
+        let (data, response) = try await exchange(request("GET", "/user/starred/\(fullName)", body: nil))
+        if response.statusCode == 404 {
+            return false
+        }
+        try Self.check(response, data)
+        return true
+    }
+
+    /// Stars `fullName` for the signed-in account; one already starred
+    /// stays as it is.
+    func star(_ fullName: String) async throws {
+        var put = try request("PUT", "/user/starred/\(fullName)", body: nil)
+        // GitHub asks for a length of zero on this PUT, which an empty body sends
+        put.httpBody = Data()
+        let (data, response) = try await exchange(put)
+        try Self.check(response, data)
     }
 
     // MARK: Requests

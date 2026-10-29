@@ -107,6 +107,10 @@ final class RootInterfaceController: UIViewController {
             StorageWarning.saveFailed(error, from: self)
         }
         chatRuntime.onSaveRecovered = { StorageWarning.saveRecovered() }
+        chatRuntime.onBuildsCompleted = { [weak self] count in
+            guard let self else { return }
+            StarPrompt.buildsCompleted(count, from: self)
+        }
     }
 
     /// A restored chat already names its project. A fresh phone chat must

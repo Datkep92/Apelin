@@ -4,7 +4,8 @@
 // Served by apelin-environment, which holds the github.com credential the
 // user signed in with and calls GitHub's API with it; the app's alone, but
 // for the feedback an agent files on Apelin's own repository
-// (`FeedbackSendRequest`).
+// (`FeedbackSendRequest`). Starring that repository is the app's alone too
+// (`FeedbackStarRequest`).
 //
 // The repository's clone is a workspace project like any other, so its
 // conversation maintains it with the file and git tools; the link is
@@ -198,6 +199,39 @@ public struct FeedbackSendResponse: Codable, Sendable, Equatable {
     }
 }
 
+/// Whether the github.com sign-in has starred Apelin's own repository
+/// (`FeedbackRules.repository`), read before the app asks the reader to
+/// star it, so one who already has is never asked. The app's alone. Without
+/// a sign-in, `denied` with reason `authenticationRequired`.
+public struct FeedbackStarStateRequest: OperationRequest {
+    public typealias Response = FeedbackStarResponse
+    public static let operation = AppOperation.feedbackStarState
+
+    public init() {}
+}
+
+/// Stars Apelin's own repository with the github.com sign-in: sent only
+/// when the reader taps Star Now in the app's prompt, never by an agent
+/// and never by the console. Starring it again changes nothing. Without a
+/// sign-in, `denied` with reason `authenticationRequired`.
+public struct FeedbackStarRequest: OperationRequest {
+    public typealias Response = FeedbackStarResponse
+    public static let operation = AppOperation.feedbackStar
+
+    public init() {}
+}
+
+public struct FeedbackStarResponse: Codable, Sendable, Equatable {
+    /// `FeedbackRules.repository`.
+    public var repository: String
+    public var starred: Bool
+
+    public init(repository: String, starred: Bool) {
+        self.repository = repository
+        self.starred = starred
+    }
+}
+
 public extension ApelinService {
     func distributionRepositoryList(repositories: Bool = true) async throws -> DistributionRepositoryListResponse {
         try await send(DistributionRepositoryListRequest(repositories: repositories))
@@ -224,5 +258,13 @@ public extension ApelinService {
 
     func feedbackSend(title: String, body: String) async throws -> FeedbackSendResponse {
         try await send(FeedbackSendRequest(title: title, body: body))
+    }
+
+    func feedbackStarState() async throws -> FeedbackStarResponse {
+        try await send(FeedbackStarStateRequest())
+    }
+
+    func feedbackStar() async throws -> FeedbackStarResponse {
+        try await send(FeedbackStarRequest())
     }
 }
