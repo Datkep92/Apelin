@@ -1,4 +1,5 @@
 @testable import ApelinAgent
+import enum ApelinProtocol.AgentToolName
 import Foundation
 import KWWKAgent
 import KWWKAI
@@ -401,6 +402,51 @@ struct SkillAndPromptTests {
             .deletingLastPathComponent().deletingLastPathComponent()
         let header = try String(contentsOf: repository.appendingPathComponent("Extensions/Development/" + installed), encoding: .utf8)
         #expect(header.contains("@interface PSSpecifier"))
+    }
+
+    /// On a device, a conversation another one opened to deliver a tweak's
+    /// packages put the .deb files together itself and left them in the
+    /// project's Dist/, past Apelin's build, signing and packaging checks.
+    @Test
+    func `a package is apelin_project_build's in every project, and a workspace's script makes it`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        func prompt(_ buildSystem: ProjectBuildSystem) -> String {
+            SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [],
+                              mcpServers: [], buildSystem: buildSystem)
+        }
+        for buildSystem in [ProjectBuildSystem.apelin, .external] {
+            let text = prompt(buildSystem)
+            let working = try #require(text.range(of: "# Working")?.upperBound)
+            let device = try #require(text.range(of: "# This device")?.lowerBound)
+            let section = text[working ..< device]
+            #expect(section.contains("A package comes only from apelin_project_build"))
+            #expect(section.contains("Never put a .deb together yourself (dpkg-deb -b, ar, tar) or copy one into the project"))
+            #expect(section.contains("takes it from Distribute… in a project chat's More (…) menu"))
+            // and a conversation opened for one is asked for a build
+            #expect(text.contains("Ask for a package as an apelin_project_build that succeeds, never as a .deb file in the project."))
+        }
+        let script = "That script, run by apelin_project_build, is the one thing that makes this workspace's .deb"
+        #expect(prompt(.external).contains(script))
+        #expect(!prompt(.apelin).contains(script))
+    }
+
+    @Test
+    func `the build tool and the packaging skills keep the package the build's`() throws {
+        #expect(AgentToolName.projectBuild.summary.contains("the only way to make its package"))
+        let packaging = BuiltInSkills.packagingAndInstall.body
+        #expect(packaging.contains("## Where the package goes"))
+        #expect(packaging.contains("never make one yourself with `dpkg-deb -b`, `ar` or `tar`"))
+        #expect(packaging.contains("Distribute…"))
+        #expect(BuiltInSkills.packageDependencies.body.contains("build or place a `.deb` yourself"))
+        // A workspace's declared script is where dpkg-deb builds one.
+        let external = BuiltInSkills.externalBuild.body
+        let step = try #require(external.range(of: "4. Write exactly one `.deb` into `$APELIN_PACKAGE_DIR`"))
+        let command = try #require(external.range(of: "dpkg-deb -b --root-owner-group"))
+        #expect(step.upperBound <= command.lowerBound)
+        for skill in BuiltInSkills.all where skill.body.contains("dpkg-deb") {
+            #expect(["apelin-external-build", "apelin-packaging-and-install"].contains(skill.name), "\(skill.name) names dpkg-deb")
+        }
     }
 
     @Test

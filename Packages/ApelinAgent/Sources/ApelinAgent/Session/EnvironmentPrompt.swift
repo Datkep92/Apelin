@@ -240,6 +240,11 @@ enum EnvironmentPrompt {
         if !found.isEmpty, !missing.isEmpty {
             line += " Not installed: " + missing.joined(separator: ", ") + "."
         }
+        // A package is apelin_project_build's: dpkg-deb builds one only in
+        // the script a workspace declares for it.
+        if found.contains("dpkg-deb") {
+            line += " dpkg-deb builds a package only inside a workspace's declared build script, which apelin_project_build runs; never build one with it yourself."
+        }
         return line + " The bootstrap's other commands are not macOS's (GNU sed, a different plutil): read a Mac build script's commands before running it, and say what is missing rather than looking for it."
     }
 

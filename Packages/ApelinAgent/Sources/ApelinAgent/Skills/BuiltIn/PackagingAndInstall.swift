@@ -9,6 +9,18 @@ extension BuiltInSkills {
         last; nothing touches the binary after it), then writes the `.deb`. Its
         result lists artifacts with an `id`, a `kind` and a `digest`.
 
+        ## Where the package goes
+        - The `.deb` stays in Apelin's folder for that build, outside the
+          project; the file tools do not reach it. It is the project's only
+          package: never repack, rename or copy it into the project, and
+          never make one yourself with `dpkg-deb -b`, `ar` or `tar`, to test
+          or to hand over. A workspace's declared build script is the one
+          place a package is put together (apelin-external-build).
+        - A user who wants the package file takes it from Distribute… in the
+          project chat's More (…) menu: it runs a release build for the
+          bootstrap they choose, then exports that package or publishes it to
+          their package repository.
+
         ## Install
         - Call `apelin_package_install` with the `package` artifact's `id` and `digest`
           exactly as `apelin_project_build` returned them. The host copies that artifact to
