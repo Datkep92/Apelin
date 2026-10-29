@@ -596,13 +596,24 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `git init -b main` leaves into the staging folder (`EmptyRepository`
   in ApelinProject), so project and repository arrive together; `gitInit`
   makes one on `main` for a project that has none (`conflict` when it has
-  a `.git`). SSH would exec `ssh`; HTTPS is the only transport.
+  a `.git`; any other call on one without is `notFound`, reason
+  `notARepository`). Both write `.git/info/exclude`, never `.gitignore`,
+  with what Apelin writes into a project that is not the project's
+  (`ProjectExcludes.apelinFiles`: the agent's `Attachments/`, the metadata
+  writer's and the file tools' temporary files); a repository made
+  without it is given it by its next git call once the project has an
+  `Attachments` folder. SSH would exec `ssh`; HTTPS is the only transport.
   Remotes (2026-10-22): `gitFetch`, `gitPull` (fetch, then a fast-forward
   only: a diverged branch or a worktree change it would overwrite is
   `conflict` and nothing changes) and `gitPush` (one branch to the branch
-  of the same name, never forced, recorded as its upstream) are tasks that
-  are not resumed; `gitCloneInto` imports a repository into an existing
-  workspace project — the repository initialised in the folder, `origin`
+  of the same name, never forced, recorded as its upstream; with `url`, a
+  remote it names that the repository lacks is added first, HTTPS as a
+  clone's, and taken away again when the push is refused before it
+  starts; one it has must have that URL, else `conflict`, reason
+  `remoteURLDiffers`; a missing one without `url` is `notFound`, reason
+  `noSuchRemote`) are tasks that are not resumed; `gitCloneInto` imports a
+  repository into an existing workspace project — the repository
+  initialised in the folder, `origin`
   fetched in full, the branch checked out without overwriting a file
   already there (a clash fails and leaves the folder as it was), Apelin's
   own files kept out through `.git/info/exclude`. The untouched repository
@@ -1103,10 +1114,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `gitPush` and `gitCloneInto` read to their end; all of them run under
   Confirm like a project edit except git_push, which asks every time for
   the remote and branch it names (the checked-out branch read first when
-  none is given, then sent explicitly), never with a session grant. A
-  failure names its fix: Sign In with GitHub in Settings ▸ Git for
+  none is given, then sent explicitly) and the `url` it adds the remote
+  at, never with a session grant. Nothing creates a repository on a
+  server or rewrites history (no squash, no forced push): a project with
+  no remote is pushed with the `url` of an empty repository the user made.
+  A failure names its fix: Sign In with GitHub in Settings ▸ Git for
   github.com, a token the user gives for another host, an author there, a
-  fetch before a rejected push, never a forced one. The agent keeps the
+  fetch before a rejected push, never a forced one, git_init for a project
+  with no repository, and that empty repository's `url` for a push with no
+  remote. The agent keeps the
   history itself (owner, 2026-10-25; the `apelin-git-workflow` skill, one
   line in the prompt): unless the user drives git, it commits on its own
   once a change builds, and pushes only when asked. apelin_git_read_settings, apelin_git_set_author,
@@ -2768,8 +2784,9 @@ without them failed `CVPixelBufferCreate` with -6662 on a device.
 `apelin-git-workflow` (owner, 2026-10-25) is keeping the
 project's history for the user: commit on your own once a change builds
 unless the user drives git, `git_commit` with `all`, messages, `.gitignore`,
-`git_init` for a project without a repository, push only when asked, and
-github.com through Sign In with GitHub. `apelin-package-repository` is the
+`git_init` for a project without a repository, push only when asked (a
+first one with `url`, to an empty repository the user made; no squash),
+and github.com through Sign In with GitHub. `apelin-package-repository` is the
 package repository (Distribution repository, below): its layout after
 owngoal-packages, the control fields a package needs, how Publish adds a
 release, and keeping old versions in check. `apelin-icli` (owner,

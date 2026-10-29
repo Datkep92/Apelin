@@ -542,11 +542,13 @@ public struct ChannelHostBackend: AgentHostBackend {
     }
 
     public func gitPush(_ request: GitRemoteToolRequest) async throws -> GitTaskToolResponse {
-        try await gitTask("git push") {
+        let host = request.url.flatMap { URLComponents(string: $0)?.host }
+        return try await gitTask("git push", host: host) {
             try await service.gitPush(GitPushRequest(
                 projectID: project.id,
                 remote: request.remote,
                 branch: request.branch,
+                url: request.url,
             ))
         }
     }

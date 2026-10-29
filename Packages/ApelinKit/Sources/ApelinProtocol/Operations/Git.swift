@@ -1,7 +1,11 @@
 // The git service on a project: clone, init, status, diff, stage, unstage,
 // local commit, fetch, a fast-forward pull and push, and the settings behind
 // them — the commit author and one HTTPS credential per host. A project
-// Apelin makes starts as a repository on `main` with no commit.
+// Apelin makes starts as a repository on `main` with no commit, whose
+// `.git/info/exclude` keeps Apelin's own files out (the agent's
+// `Attachments/`, temporary files); a repository made before gets it on a
+// git call once the project has an `Attachments` folder. A project that is
+// not a repository is `notFound` with reason `notARepository`.
 // Served by apelin-environment (Workers/Environment; ApelinGit, libgit2).
 //
 // `projectID` is the `projectID` in a project's apelin-project.json, or, for
@@ -135,8 +139,8 @@ public struct GitCommitResponse: Codable, Sendable, Equatable {
 }
 
 /// Makes a repository in a project that has none: HEAD on `main`, no
-/// commit, as `git init -b main` leaves it. A project with a `.git` already
-/// is `conflict`.
+/// commit, as `git init -b main` leaves it, with Apelin's own files in
+/// `.git/info/exclude`. A project with a `.git` already is `conflict`.
 public struct GitInitRequest: OperationRequest {
     public typealias Response = GitInitResponse
     public static let operation = AppOperation.gitInit
@@ -234,7 +238,11 @@ public struct GitPullRequest: OperationRequest {
 /// Pushes a local branch (nil: the checked-out one) to the branch of the
 /// same name on a remote (nil: `origin`), and records it as the branch's
 /// upstream. Never forced: a rejected update fails with `conflict`. HTTPS
-/// only, with the credential saved for the remote's host. A task of kind
+/// only, with the credential saved for the remote's host. With `url`, a
+/// remote the repository does not have yet is added first, fetching from
+/// that URL, as `git remote add` does; one it has must already have that
+/// URL, else `conflict` with reason `remoteURLDiffers`. A remote not there
+/// without `url` is `notFound` with reason `noSuchRemote`. A task of kind
 /// `environment`; `progress` {stage: "pushing", …}, then `result` {remote,
 /// branch, commit}.
 public struct GitPushRequest: OperationRequest {
@@ -243,12 +251,26 @@ public struct GitPushRequest: OperationRequest {
     public var projectID: String
     public var remote: String?
     public var branch: String?
+    /// HTTPS, without a user or password.
+    public var url: String?
 
-    public init(projectID: String, remote: String? = nil, branch: String? = nil) {
+    public init(projectID: String, remote: String? = nil, branch: String? = nil, url: String? = nil) {
         self.projectID = projectID
         self.remote = remote
         self.branch = branch
+        self.url = url
     }
+}
+
+/// What a git refusal names beyond its code, for the agent to act on.
+public extension ApelinError.Reason {
+    /// `notFound`: the project has no repository; `gitInit` makes one.
+    static let notARepository = Self(rawValue: "notARepository")
+    /// `notFound`: the repository has no remote of the name asked for; a
+    /// push with `url` adds it.
+    static let noSuchRemote = Self(rawValue: "noSuchRemote")
+    /// `conflict`: a push's `url` is not the URL its remote already has.
+    static let remoteURLDiffers = Self(rawValue: "remoteURLDiffers")
 }
 
 // MARK: Settings and credentials (the app's only)

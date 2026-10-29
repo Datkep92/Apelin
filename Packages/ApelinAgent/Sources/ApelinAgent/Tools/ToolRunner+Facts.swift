@@ -73,7 +73,11 @@ extension ToolRunner {
                 )))
                 branch = status?.branch
             }
-            facts.push = GitPushTarget(remote: arguments.argNonEmptyString("remote") ?? "origin", branch: branch)
+            facts.push = GitPushTarget(
+                remote: arguments.argNonEmptyString("remote") ?? "origin",
+                branch: branch,
+                url: arguments.argNonEmptyString("url"),
+            )
         case .gitSetAuthor:
             facts.gitSettings = "the commit author"
         case .gitSaveCredential:

@@ -133,10 +133,14 @@ public struct GitPushTarget: Sendable, Hashable {
     public var remote: String
     /// nil when no branch is checked out; the host then refuses the push.
     public var branch: String?
+    /// The address the remote is added at when the project does not have
+    /// it yet; the host refuses one that differs from the remote's own.
+    public var url: String?
 
-    public init(remote: String, branch: String?) {
+    public init(remote: String, branch: String?, url: String? = nil) {
         self.remote = remote
         self.branch = branch
+        self.url = url
     }
 }
 
@@ -289,8 +293,9 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 return .ask(reason: "Where this push goes could not be read.", detail: .none)
             }
             let branch = target.branch ?? "the checked-out branch"
+            let place = target.url.map { "\(target.remote) at \($0)" } ?? target.remote
             return .ask(
-                reason: "Pushing \(branch) to \(target.remote) publishes its commits. Each push needs your approval.",
+                reason: "Pushing \(branch) to \(place) publishes its commits. Each push needs your approval.",
                 detail: .gitPush(remote: target.remote, branch: target.branch),
             )
 

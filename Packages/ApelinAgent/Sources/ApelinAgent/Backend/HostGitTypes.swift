@@ -109,15 +109,18 @@ public struct GitCommitToolResponse: Sendable, Hashable, Codable {
 }
 
 /// fetch, pull and push. A nil remote is `origin`; a nil branch (push only)
-/// is the checked-out one.
+/// is the checked-out one; a URL (push only) adds the remote when the
+/// project does not have it yet.
 public struct GitRemoteToolRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext
     public var remote: String?
     public var branch: String?
-    public init(context: HostCallContext, remote: String? = nil, branch: String? = nil) {
+    public var url: String?
+    public init(context: HostCallContext, remote: String? = nil, branch: String? = nil, url: String? = nil) {
         self.context = context
         self.remote = remote
         self.branch = branch
+        self.url = url
     }
 }
 

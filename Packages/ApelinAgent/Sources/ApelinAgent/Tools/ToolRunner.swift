@@ -593,6 +593,7 @@ actor ToolRunner {
                 context: context,
                 remote: arguments.argNonEmptyString("remote"),
                 branch: facts.push?.branch,
+                url: facts.push?.url,
             )))
 
         case .gitClone:

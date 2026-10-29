@@ -40,9 +40,10 @@ extension BuiltInSkills {
           then a blank line and the reason when it is not obvious. Write it as
           the repository's earlier messages are written, whatever language you
           reply in.
-        - Build output lives outside the project, so it needs no ignore rule.
-          Add a `.gitignore` for anything else generated inside the project
-          (a script's `*.o`, a tool's cache) before committing.
+        - Build output lives outside the project, and Apelin keeps the chat's
+          `Attachments/` out of the repository itself, so neither needs an
+          ignore rule. Add a `.gitignore` for anything else generated inside
+          the project (a script's `*.o`, a tool's cache) before committing.
         - A project with no repository, made before Apelin made them: start one
           with `git_init`, which begins `main`, then commit.
         - Never commit a folder that holds a `.git` of its own.
@@ -58,6 +59,12 @@ extension BuiltInSkills {
         - Push only when asked: `git_status` and `git_diff` first, then
           `git_push` to the branch it is on; never forced. A rejected push is
           `git_fetch` and `git_pull`, then the push again.
+        - A project with no remote yet: Apelin cannot create a repository on
+          a server. Ask the user to make an empty one (no README, licence or
+          `.gitignore`) and give you its HTTPS address, then `git_push` with
+          `url`, which adds it as the remote first.
+        - Nothing squashes or rewrites commits: say so, and never work
+          around it.
         - github.com signs in through Settings ▸ Git ▸ Sign In with GitHub:
           when a remote there needs authentication, ask the user to sign in
           there; never ask for a token or a password. A token the user gives

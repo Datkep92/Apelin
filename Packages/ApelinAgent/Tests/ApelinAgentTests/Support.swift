@@ -98,7 +98,7 @@ actor MockBackend: AgentHostBackend {
         case gitInit
         case gitFetch(remote: String?)
         case gitPull(remote: String?)
-        case gitPush(remote: String?, branch: String?, evidence: ApprovalEvidence)
+        case gitPush(remote: String?, branch: String?, url: String?, evidence: ApprovalEvidence)
         case gitClone(url: String, branch: String?)
         case gitSetAuthor(name: String?, email: String?)
         case gitSaveCredential(host: String, username: String, token: String)
@@ -352,7 +352,12 @@ actor MockBackend: AgentHostBackend {
     }
 
     func gitPush(_ request: GitRemoteToolRequest) -> GitTaskToolResponse {
-        calls.append(.gitPush(remote: request.remote, branch: request.branch, evidence: request.context.approval))
+        calls.append(.gitPush(
+            remote: request.remote,
+            branch: request.branch,
+            url: request.url,
+            evidence: request.context.approval,
+        ))
         return GitTaskToolResponse(remote: request.remote ?? "origin", branch: request.branch, commit: "abc123")
     }
 
