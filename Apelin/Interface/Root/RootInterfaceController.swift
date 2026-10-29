@@ -154,6 +154,12 @@ final class RootInterfaceController: UIViewController {
             name: UIApplication.willEnterForegroundNotification,
             object: nil,
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(enteredBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+        )
 
         // the detail column sits a step above the sidebar: in the dark its
         // grounds resolve to their elevated shade, as a sheet's do
@@ -196,6 +202,15 @@ final class RootInterfaceController: UIViewController {
     @objc private func enteredForeground() {
         chatRuntime.retryUnsaved()
         StorageWarning.checkFreeSpace(from: self)
+    }
+
+    /// What streamed or was typed since the last write goes to disk before
+    /// the app is suspended, rather than at the end of its interval.
+    @objc private func enteredBackground() {
+        let task = UIApplication.shared.beginBackgroundTask(withName: "Save Chats")
+        chatRuntime.saveNow {
+            UIApplication.shared.endBackgroundTask(task)
+        }
     }
 
     func presentWelcome() {

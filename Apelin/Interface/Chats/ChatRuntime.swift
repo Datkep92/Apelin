@@ -42,6 +42,19 @@ final class ChatRuntime {
     /// queues no save, nor a copy of its whole history, per batch.
     private var saving: Set<UUID> = []
     private var savesPending: Set<UUID> = []
+    /// Pending saves that go as soon as the write under way ends: a turn
+    /// began or ended, or the reader changed something.
+    private var savesUrgent: Set<UUID> = []
+    /// When each conversation's last write ended. A streamed or typed
+    /// change waits until `saveInterval` after it, so a long history is
+    /// written at most once in that time, and a write that took longer
+    /// pushes the next one back as far.
+    private var savedAt: [UUID: ContinuousClock.Instant] = [:]
+    /// Saves waiting for their interval, by conversation.
+    private var savesDeferred: [UUID: Task<Void, Never>] = [:]
+    /// Called once no conversation is being written (`saveNow`).
+    private var savesDrained: [() -> Void] = []
+    private static let saveInterval: Duration = .seconds(3)
     /// Who waits for a conversation's compaction to end, by conversation.
     private var compactions: [UUID: CheckedContinuation<AgentCompactionResult, Error>] = [:]
 
@@ -58,7 +71,7 @@ final class ChatRuntime {
                 record.reclaimUnsent()
                 records[record.summary.id] = record
                 if unsent {
-                    persist(record.summary.id)
+                    persist(record.summary.id, urgent: true)
                 }
             }
             for record in records.values where isUntouched(record) && record.summary.id != selected {
@@ -228,6 +241,8 @@ final class ChatRuntime {
         // Keep the in-memory row on disk failure, so Delete can be retried.
         try await store.remove(id)
         readers.removeValue(forKey: id)?.cancel()
+        savesDeferred.removeValue(forKey: id)?.cancel()
+        savedAt[id] = nil
         records.removeValue(forKey: id)
         transcripts.remove(id)
     }
@@ -538,9 +553,12 @@ final class ChatRuntime {
                         records[id]?.summary.updated = last.time
                     }
                     // A wait that ran out with nothing, as an idle session's
-                    // does every 20 s, has nothing to write or show.
-                    if !batch.events.isEmpty || records[id]?.summary.isWorking != wasWorking {
-                        changed(id)
+                    // does every 20 s, has nothing to write or show. A turn's
+                    // start and end are written at once, what streams between
+                    // them at most every `saveInterval`.
+                    let turnMoved = isWorking != wasWorking
+                    if !batch.events.isEmpty || turnMoved {
+                        changed(id, urgent: turnMoved || batch.finished)
                     }
                     if batch.finished {
                         if let end = records[id]?.missedEnd(of: batch, isWorking: isWorking) {
@@ -608,19 +626,65 @@ final class ChatRuntime {
         onUnsentReturned?(id, returned)
     }
 
-    private func changed(_ id: UUID) {
-        persist(id); onChange?()
+    /// `urgent`: written at once rather than after the interval; see `persist`.
+    private func changed(_ id: UUID, urgent: Bool = true) {
+        persist(id, urgent: urgent); onChange?()
     }
 
-    private func persist(_ id: UUID) {
+    /// Writes `id`, atomically and off the main thread (`ChatStore`). An
+    /// `urgent` save goes now, or as soon as the write under way ends; any
+    /// other waits until `saveInterval` after the last write ended.
+    private func persist(_ id: UUID, urgent: Bool = false) {
+        guard records[id] != nil else {
+            unsaved.remove(id)
+            savesDeferred.removeValue(forKey: id)?.cancel()
+            return
+        }
+        if saving.contains(id) {
+            savesPending.insert(id)
+            if urgent {
+                savesUrgent.insert(id)
+            }
+            return
+        }
+        let due = savedAt[id].map { $0 + Self.saveInterval } ?? .now
+        if urgent || due <= .now {
+            savesDeferred.removeValue(forKey: id)?.cancel()
+            write(id)
+        } else if savesDeferred[id] == nil {
+            savesDeferred[id] = Task { [weak self] in
+                try? await Task.sleep(until: due)
+                guard !Task.isCancelled, let self else { return }
+                savesDeferred[id] = nil
+                write(id)
+            }
+        }
+    }
+
+    /// Writes every conversation whose save is waiting for its interval,
+    /// before the app is suspended; `drained` is called once none is being
+    /// written.
+    func saveNow(drained: @escaping () -> Void) {
+        for id in Set(savesDeferred.keys).union(savesPending) {
+            persist(id, urgent: true)
+        }
+        savesDrained.append(drained)
+        drainSaves()
+    }
+
+    private func drainSaves() {
+        guard saving.isEmpty else { return }
+        let drained = savesDrained
+        savesDrained = []
+        drained.forEach { $0() }
+    }
+
+    private func write(_ id: UUID) {
         guard let record = records[id] else {
             unsaved.remove(id)
             return
         }
-        guard saving.insert(id).inserted else {
-            savesPending.insert(id)
-            return
-        }
+        saving.insert(id)
         revision += 1
         let revision = revision
         Task { [store, weak self] in
@@ -638,15 +702,17 @@ final class ChatRuntime {
     /// Writes what changed while `id` was being written.
     private func saveEnded(_ id: UUID) {
         saving.remove(id)
+        savedAt[id] = .now
         if savesPending.remove(id) != nil {
-            persist(id)
+            persist(id, urgent: savesUrgent.remove(id) != nil)
         }
+        drainSaves()
     }
 
     /// Writes again every conversation a failed save left in memory only.
     func retryUnsaved() {
         for id in unsaved {
-            persist(id)
+            persist(id, urgent: true)
         }
     }
 
