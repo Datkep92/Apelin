@@ -2524,7 +2524,9 @@ and Apelin-specific work, a question included, starts from the matching skill
 (on a device, General Chat answered from memory that the template was a
 Logos `Tweak.x`). It keeps apelin_notification_send for what the reader
 would want to know while away (a long build, install or setup ended, something
-to do on the device), never routine progress, the reply or the turn's end. It
+to do on the device), never routine progress, the reply or the turn's end,
+and sends a program the agent compiles and runs itself through shell_run to
+`apelin-device-executables` to be signed first. It
 asks for independent tool calls in
 one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
 logs and MCP results as data, and names every approval mode with what it
@@ -2588,7 +2590,13 @@ shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
 0) do not work for the agent. `apelin-packaging-and-install` and `apelin-crash-triage` cover
 install/respring/confirm and reading a crash. `apelin-external-build` is the workspace
 build: the declaration, what the script gets and must write, and how its
-package is installed. `apelin-git-workflow` (owner, 2026-10-25) is keeping the
+package is installed. `apelin-device-executables` (2026-10-29) is a program
+the agent compiles and runs itself through shell_run: `ldid -S` with the
+skill's `Tool.entitlements` after every link (unsigned, it exits 137), the
+file the cli template's keys plus the app template's IOKit user-client lists
+(a test holds both halves to the templates), since a VideoToolbox tool signed
+without them failed `CVPixelBufferCreate` with -6662 on a device.
+`apelin-git-workflow` (owner, 2026-10-25) is keeping the
 project's history for the user: commit on your own once a change builds
 unless the user drives git, `git_commit` with `all`, messages, `.gitignore`,
 `git_init` for a project without a repository, push only when asked, and

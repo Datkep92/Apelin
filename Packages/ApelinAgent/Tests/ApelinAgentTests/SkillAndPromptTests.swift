@@ -24,6 +24,12 @@ struct SkillAndPromptTests {
                        gate: ApprovalGate { _ in }, skills: home.dataRoot.skills)
     }
 
+    /// The repository this package sits in, for the templates the skills
+    /// and the prompt name.
+    private static let repository = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+
     private func text(_ result: AgentToolResult) -> String {
         result.content.compactMap {
             if case let .text(content) = $0 {
@@ -136,7 +142,7 @@ struct SkillAndPromptTests {
         // The device's hard-won rules each have a skill.
         for name in ["apelin-tweak-development", "apelin-bootstrap-paths", "apelin-tweak-runtime", "apelin-preference-bundle",
                      "apelin-project-description", "apelin-external-build", "apelin-packaging-and-install",
-                     "apelin-package-dependencies", "apelin-crash-triage", "apelin-icli"]
+                     "apelin-package-dependencies", "apelin-crash-triage", "apelin-icli", "apelin-device-executables"]
         {
             #expect(names.contains(name), "no built-in skill \(name)")
             #expect(prompt.contains("<skill name=\"\(name)\">"), "the prompt does not list \(name)")
@@ -168,6 +174,64 @@ struct SkillAndPromptTests {
                                                arguments: ["name": "apelin-bootstrap-paths", "file": "ApelinBootstrap.h"],
                                                cancellation: nil, mcp: nil))
         #expect(served == header)
+    }
+
+    /// On a device, a VideoToolbox converter the agent built in shell_run
+    /// failed `CVPixelBufferCreate` with -6662 until the user had it signed
+    /// with the template's entitlements; unsigned, such a program exits 137.
+    @Test(.timeLimit(.minutes(1)))
+    func `the apelin-device-executables skill carries the cli template's entitlements with the app template's GPU classes`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let skill = try #require(BuiltInSkills.all.first { $0.name == "apelin-device-executables" })
+        let file = try #require(skill.files["Tool.entitlements"])
+        func plist(_ data: Data) throws -> [String: Any] {
+            try #require(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        }
+        let entitlements = try plist(Data(file.utf8))
+        let templates = Self.repository.appendingPathComponent("Extensions/Development", isDirectory: true)
+        let tool = try plist(Data(contentsOf: templates.appendingPathComponent(
+            "wiki.qaq.apelin.dev.cli/templates/c/Packaging/Tool.entitlements",
+        )))
+        let app = try plist(Data(contentsOf: templates.appendingPathComponent(
+            "wiki.qaq.apelin.dev.app/templates/uikit-objc/Packaging/App.entitlements",
+        )))
+        let gpuKeys = ["com.apple.security.iokit-user-client-class", "com.apple.security.exception.iokit-user-client-class"]
+        #expect(Set(entitlements.keys) == Set(tool.keys).union(gpuKeys))
+        for (key, value) in tool {
+            #expect(entitlements[key] as? NSObject == value as? NSObject, "\(key) is not the cli template's")
+        }
+        for key in gpuKeys {
+            let classes = try #require(entitlements[key] as? [String], "\(key) is missing")
+            #expect(classes == app[key] as? [String], "\(key) is not the app template's list")
+            #expect(classes.contains("IOSurfaceRootUserClient"))
+        }
+
+        #expect(skill.body.contains("exit 137"))
+        #expect(skill.body.contains("-6662"))
+        #expect(skill.body.contains("\"-STool.entitlements\""))
+        let runner = try runner(home)
+        let served = try await text(runner.run(.local(.skillRead), toolCallID: UUID().uuidString,
+                                               arguments: ["name": "apelin-device-executables", "file": "Tool.entitlements"],
+                                               cancellation: nil, mcp: nil))
+        #expect(served == file)
+    }
+
+    @Test
+    func `every chat is told to sign a program it builds and runs itself`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let id = UUID().uuidString
+        let general = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
+        for project in [home.project, general] {
+            let prompt = SystemPrompt.make(project: project, projectRoot: home.projectURL.path,
+                                           skills: BuiltInSkills.all, mcpServers: [])
+            let working = try #require(prompt.range(of: "# Working")?.upperBound)
+            let device = try #require(prompt.range(of: "# This device")?.lowerBound)
+            #expect(prompt[working ..< device].contains("A program you compile and run yourself through shell_run is signed with ldid first, as the apelin-device-executables skill says"))
+            #expect(prompt.contains("<skill name=\"apelin-device-executables\">"))
+        }
+        #expect(BuiltInSkills.externalBuild.body.contains("apelin-device-executables skill's `Tool.entitlements`"))
     }
 
     @Test
@@ -204,10 +268,7 @@ struct SkillAndPromptTests {
             #expect(section.contains("a question included, read the matching skill with apelin_skill_read"))
         }
         // The file the prompt names is the tweak template's.
-        let repository = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let template = repository.appendingPathComponent(
+        let template = Self.repository.appendingPathComponent(
             "Extensions/Development/wiki.qaq.apelin.dev.tweak/templates/objc-hook/Sources/Tweak.m",
         )
         let source = try String(contentsOf: template, encoding: .utf8)
