@@ -316,6 +316,27 @@ struct SkillAndPromptTests {
         #expect(loop.contains("Report what you could not drive as Not tested."))
     }
 
+    /// On a device, a tweak whose filter could not be set was created with
+    /// the default SpringBoard filter, the change left to the next
+    /// conversation, and the reply never said so (five conversations).
+    @Test
+    func `every chat is told to say when it did something other than what was asked`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let id = UUID().uuidString
+        let general = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
+        for project in [home.project, general] {
+            let prompt = SystemPrompt.make(project: project, projectRoot: home.projectURL.path,
+                                           skills: [], mcpServers: [])
+            let responses = try #require(prompt.range(of: "# Responses")?.upperBound)
+            let working = try #require(prompt.range(of: "# Working")?.lowerBound)
+            let section = prompt[responses ..< working]
+            #expect(section.contains("- When you could not do something the user asked for and did something else instead"))
+            #expect(section.contains("a setting left at its default, a step skipped or left to another conversation or a later turn"))
+            #expect(section.contains("say so plainly in your reply, with what is still left. Never leave it for the user to find."))
+        }
+    }
+
     /// On a device, General Chat asked how to make a tweak with Apelin was
     /// answered from what the model knew of Theos: a Logos `Tweak.x` with
     /// `%hook`, and no skill read.
