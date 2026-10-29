@@ -2553,8 +2553,10 @@ code, a log, one word, a pasted file — the system language `<system-state>`
 names; code, identifiers, paths and commit messages as the repository has
 them; owner, 2026-10-25), the result first with no preamble, a
 greeting answered with a greeting (no tools, no survey of the project), then the
-checks actually run, any real blocker and any part of the request not done as
-asked (a setting left at its default). `# Responses` makes concision bite —
+checks actually run and any real blocker; whatever was done other than as
+asked (a setting left at its default, a step skipped or left to another
+conversation or a later turn, a smaller change) is said plainly with what
+remains, never for the user to find. `# Responses` makes concision bite —
 match the length to the task, and do not paste tool output, files, diffs or
 logs back, narrate the steps or recap at the end; a progress note is one short
 line (owner, 2026-10-24). `# Working` opens with what a model's general

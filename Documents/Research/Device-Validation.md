@@ -207,7 +207,10 @@ console now goes on after a restart only past a successful respring.
       `["com.apple.Preferences"]`, and its first build does not ask in
       Strict. Before this, every such call was refused ("each value must be
       a string, boolean or integer") and the model kept the SpringBoard
-      filter without saying so.
+      filter without saying so. Then ask for one loading into 33 apps, one
+      more than a tweak's filter holds: if it does anything but ask, the reply
+      says plainly what it did instead (fewer apps, say) and what is left,
+      as the prompt's `# Responses` asks.
 - [ ] Messages queued during a run (2026-10-29, none of it has run on a
       device; needs a model provider). Two messages sent while a reply
       runs, a third typed and not sent, then Stop: the composer holds all
