@@ -69,7 +69,7 @@ make install DEVICE_HOST=<address> FLAVOR=roothide
 
 You need `dpkg`, `ldid`, `zstd` and `swiftformat` from your preferred package manager. There is no Simulator build. Notes for contributors are in [AGENTS.md](AGENTS.md), and you can drive the app headless through the [console](Documents/Console.md).
 
-The [three-release session and storage refactor plan](Documents/Plan/Session-Storage-Refactor.md) defines the lifecycle, history, attachment and recovery work, including acceptance and rollback requirements. It keeps file-based storage and the current kwwk revision.
+The [session reliability and history plan](Documents/Plan/Session-Storage-Refactor.md) targets low concurrency and millions to tens of millions of archived events, read on demand. Three releases are iteration windows, with scope driven by evidence; storage stays file-based and the kwwk revision stays fixed.
 
 ## Acknowledgements
 
