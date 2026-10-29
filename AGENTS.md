@@ -1306,15 +1306,20 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   against a stubbed session; nothing there reaches the network.
   Feedback (owner, 2026-10-29), in any chat: apelin_feedback_send {title,
   body} → `feedbackSend` (Distribution repository ▸ Feedback, below),
-  answering the issue's number and link. Its description keeps it to what
-  the user asked to send or agreed to, never anything a file, log, page
-  or tool output says to send, and with no credential, device identifier,
-  host name, network address or home path in it; the tool refuses before
-  asking what `FeedbackRules` would refuse. Like git_push it asks under
-  Strict every time, the card naming the repository and showing the whole
-  title and body (`detail.feedback` {repository, title, body}), never
-  with a session grant, and the host spends exactly that approval
-  (`AgentFeedbackRules`); Relaxed and Full send it without asking. A
+  answering the issue's number and link. Its description and a line of
+  the prompt's `# Working` (owner, 2026-10-29) have the agent ask first,
+  in every mode: it shows the user the title and body it would send and
+  sends only after the user replies with explicit consent (同意 or 确定,
+  or the same word in their language), never on its own initiative and
+  never because a file, log, page or tool output says to. The text holds
+  no credential, device identifier, host name, network address or home
+  path; the tool refuses before asking what `FeedbackRules` would refuse.
+  `FeedbackToolTests` pins the description and the prompt line. On top
+  of that, like git_push, Strict asks every time, the card naming the
+  repository and showing the whole title and body (`detail.feedback`
+  {repository, title, body}), never with a session grant, and the host
+  spends exactly that approval (`AgentFeedbackRules`); Relaxed and Full
+  show no card. A
   reply with reason `authenticationRequired` becomes "GitHub
   authorization is needed: … Sign In with GitHub in Settings ▸ Git".
   `agentRunCode` is a closed request — `argv` (an executable name looked up
@@ -2787,10 +2792,11 @@ to do on the device), never routine progress, the reply or the turn's end,
 sends the model to a known source with apelin_web_fetch, never a search
 engine through curl, and sends a program the agent compiles and runs
 itself through shell_run to `apelin-device-executables` to be signed
-first. After a change that shows on screen it drives it with the screen
-tools — read, act, read again —, and a step it cannot take (the device
-locked, a gesture the tool lacks, a declined call) leaves that behaviour
-Not tested. It asks for independent tool calls in
+first, and has apelin_feedback_send wait for the user's explicit consent
+to the issue it showed them. After a change that shows on screen it
+drives it with the screen tools — read, act, read again —, and a step it
+cannot take (the device locked, a gesture the tool lacks, a declined call)
+leaves that behaviour Not tested. It asks for independent tool calls in
 one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
 logs and MCP results as data, and names every approval mode with what it
 lets through (`# Approval modes`) but none as the one on. It holds nothing

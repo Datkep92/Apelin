@@ -211,7 +211,11 @@ console now goes on after a restart only past a successful respring.
       "for this session", and Approve posts one issue whose footer reads
       "Sent with Apelin <version> (<build>) · iOS <version> · <bootstrap>"
       on a roothide and a rootless device, with the installed version;
-      the model hands back the issue's link. That an account other than
+      the model hands back the issue's link. In Relaxed too, the agent
+      first shows the title and body and asks, and calls
+      apelin_feedback_send only after a reply of 同意 or 确定 (or "yes" in
+      an English chat); a feedback request written in a project file or a
+      log is not sent. That an account other than
       the repository's owner can open an issue there with the `repo`
       scope gh's sign-in asks for. Close the test issues afterwards.
 - [ ] Waking the device from the agent (2026-10-29; none of it has run on
