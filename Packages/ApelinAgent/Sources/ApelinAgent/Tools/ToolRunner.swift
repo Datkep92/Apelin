@@ -446,12 +446,16 @@ actor ToolRunner {
             guard let state = facts.description else {
                 throw ToolDeniedError(message: "the packaging description could not be checked")
             }
-            return try await json(backend.install(InstallRequest(
+            var installed = try await backend.install(InstallRequest(
                 context: context,
                 artifactID: arguments.requireString("artifact_id"),
                 artifactDigest: arguments.requireString("artifact_digest"),
                 packagingDescriptionDigest: state.digest,
-            )))
+            ))
+            if installed.succeeded {
+                installed.relaunchHint = AppRelaunch.hint(in: root)
+            }
+            return json(installed)
 
         case .packageRemove:
             // The installation the card named, by its id or found for the package.

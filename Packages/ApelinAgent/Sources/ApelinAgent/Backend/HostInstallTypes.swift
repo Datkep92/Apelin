@@ -36,6 +36,10 @@ public struct InstallResponse: Sendable, Hashable, Codable {
     /// with the `installationID` apelin_package_remove takes when Apelin
     /// installed it. nil when none was found.
     public var conflicts: [InstallConflict]?
+    /// For an app project, that a copy already running keeps the previous
+    /// build and how to restart it (`AppRelaunch`); the agent adds it, the
+    /// host never does.
+    public var relaunchHint: String?
 
     public init(
         transactionID: String,
@@ -45,6 +49,7 @@ public struct InstallResponse: Sendable, Hashable, Codable {
         succeeded: Bool,
         message: String = "",
         conflicts: [InstallConflict]? = nil,
+        relaunchHint: String? = nil,
     ) {
         self.transactionID = transactionID
         self.installationID = installationID
@@ -53,6 +58,7 @@ public struct InstallResponse: Sendable, Hashable, Codable {
         self.succeeded = succeeded
         self.message = message
         self.conflicts = conflicts
+        self.relaunchHint = relaunchHint
     }
 }
 

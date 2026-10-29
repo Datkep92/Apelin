@@ -202,9 +202,22 @@ actor MockBackend: AgentHostBackend {
         )
     }
 
+    /// Whether the installer reports success.
+    var installSucceeds = true
+
+    func setInstallSucceeds(_ succeeds: Bool) {
+        installSucceeds = succeeds
+    }
+
     func install(_ request: InstallRequest) -> InstallResponse {
         calls.append(.install(artifact: request.artifactID, digest: request.artifactDigest, packaging: request.packagingDescriptionDigest, evidence: request.context.approval))
-        return InstallResponse(transactionID: "tx-1", installationID: "inst-1", packageID: "wiki.qaq.hello", version: "1.0", succeeded: true)
+        return InstallResponse(
+            transactionID: "tx-1",
+            installationID: installSucceeds ? "inst-1" : nil,
+            packageID: "wiki.qaq.hello",
+            version: "1.0",
+            succeeded: installSucceeds,
+        )
     }
 
     /// What apelin_package_list answers, newest first, as the host would;

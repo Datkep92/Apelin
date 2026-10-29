@@ -1075,7 +1075,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   does not read — in Strict mode the host's "approval required" — is
   answered with `projectCheck`'s errors, field by field), apelin_package_install →
   `installPackage` (a refused one answers its `conflict` events as
-  `conflicts`), apelin_package_remove → `removePackage` (an installation
+  `conflicts`; an app project's success adds `relaunchHint`,
+  `AppRelaunch`: a copy already running keeps the previous build, which
+  nothing stops, until icli's `app kill --force` — refused without the
+  flag — and `app launch` restart it through shell_run as mobile, naming
+  the app product's `CFBundleIdentifier`), apelin_package_remove →
+  `removePackage` (an installation
   ID, or a package ID the worker turns into its one removable installation
   before asking: the card names its package, version and project, and
   `detail.packageRemoval` the installation, as before; an ID
@@ -2773,7 +2778,8 @@ through `apelin_package_install`, a dependency through the user in Irisin — an
 shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
 `irisin-cli` (root-only, and the daemon takes an external client only at euid
 0) do not work for the agent. `apelin-packaging-and-install` and `apelin-crash-triage` cover
-install/respring/confirm and reading a crash. `apelin-external-build` is the workspace
+install/respring/confirm (an app installed again restarted with icli's
+`app kill --force`, then `app launch`) and reading a crash. `apelin-external-build` is the workspace
 build: the declaration, what the script gets and must write, and how its
 package is installed. `apelin-device-executables` (2026-10-29) is a program
 the agent compiles and runs itself through shell_run: `ldid -S` with the

@@ -69,18 +69,29 @@ extension BuiltInSkills {
         - A link you ship or create is relative (apelin-bootstrap-paths).
 
         ## Respring and confirm
-        - A tweak loaded into SpringBoard needs `apelin_device_respring`. Apps can instead be
-          relaunched. After respring the session continues; the app may
-          reconnect.
+        - A tweak loaded into SpringBoard needs `apelin_device_respring`; one
+          loaded into an app takes effect when that app starts again. After
+          respring the session continues; the app may reconnect.
+        - An app project: installing replaces the bundle on disk, but a copy
+          already running keeps the previous build until it exits, and the
+          install does not stop it (its result's `relaunchHint` says so).
+          Restart it through shell_run as mobile, never with `root: true`:
+          `{"argv": ["icli", "app", "kill", "--force", "<bundle id>"]}` (icli
+          refuses a kill without `--force`), then
+          `{"argv": ["icli", "app", "launch", "<bundle id>"]}`. The kill
+          answers the pids it stopped; before saying the new build runs,
+          check that `icli app running` lists the app under another pid. The
+          bundle id is the `CFBundleIdentifier` of the app product's
+          Info.plist; `icli app list` names it too.
         - `apelin_package_confirm_loaded` with the `buildID` and the target process reports
           the marker log line and whether the filter selects the target,
           separately; the image list is not read. The marker is logged once,
           when the target starts, and is only seen while `apelin_package_confirm_loaded`
           listens (15 s; 30 s with a respring): for a SpringBoard tweak pass
           `respring: true` instead of a separate `apelin_device_respring`. For an app, your
-          tool calls run one at a time, so ask the user to open it (quitting
-          it first if it runs) while the call listens. "Installed" is not
-          "loaded": report both.
+          tool calls run one at a time, so quit it first if it runs
+          (`icli app kill --force <bundle id>`), then ask the user to open it
+          while the call listens. "Installed" is not "loaded": report both.
         - If nothing loaded: check the filter plist's bundle id against the
           target, the injection framework dependency (`mobilesubstrate` in
           `depends`), then `apelin_log_read` for the target process. A daemon

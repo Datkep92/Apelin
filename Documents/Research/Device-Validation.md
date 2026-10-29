@@ -609,6 +609,14 @@ console now goes on after a restart only past a successful respring.
       mp4 made into a GIF: the agent reads the skill, writes the file
       into the project, signs before the first run (a card for ldid and
       one for the run) and does not rewrite its decoder over -6662.
+- [ ] Restarting an app installed again (2026-10-29, AGENTS.md ▸ Agent
+      sessions ▸ apelin_package_install; none has run on a device). In an
+      app project's conversation, with the app open from its last install:
+      build and install again, and the result's `relaunchHint` names the
+      app's bundle id; the agent runs `icli app kill --force <bundle id>`,
+      then `icli app launch <bundle id>`, through shell_run as mobile
+      (Strict asks for each), and `icli app running` shows a new pid
+      running the new build.
 
 ## SDK and toolchain matrix (2026-10-19)
 
