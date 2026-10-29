@@ -50,6 +50,10 @@ extension ToolRunner {
             }
         case .packageRemove:
             facts.installationID = try arguments.requireString("installation_id")
+        case .webFetch:
+            // An address that would never be fetched is refused before
+            // anyone is asked about it.
+            _ = try WebFetch.target(arguments.requireString("url"))
         case .gitPush:
             // The branch the card names is the one pushed: an omitted one is
             // read now and sent explicitly.

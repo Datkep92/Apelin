@@ -27,6 +27,7 @@ actor ToolRunner {
     let skills: URL?
     /// Writes an event to the session's log: apelin_notification_send's `notice`.
     let record: (@Sendable (AgentSessionEvent) async throws -> Void)?
+    let webFetch: WebFetch
     private var notices = UserNotices()
 
     init(
@@ -40,6 +41,7 @@ actor ToolRunner {
         memory: MemoryStore? = nil,
         skills: URL? = nil,
         record: (@Sendable (AgentSessionEvent) async throws -> Void)? = nil,
+        webFetch: WebFetch = .shared,
     ) {
         self.sessionID = sessionID
         self.project = project
@@ -51,6 +53,7 @@ actor ToolRunner {
         self.memory = memory
         self.skills = skills
         self.record = record
+        self.webFetch = webFetch
     }
 
     @discardableResult
@@ -318,6 +321,12 @@ actor ToolRunner {
             let notice = try notices.take(arguments, now: Date())
             try await record(.notice(title: notice.title, body: notice.body))
             return text(notices.sentMessage)
+
+        case .webFetch:
+            // No host request either: the worker fetches the page itself,
+            // as mobile, and answers its text.
+            let webFetch = webFetch
+            return try await text(Self.untilCancelled(cancellation) { try await webFetch.fetch(arguments) }.answer)
 
         case .fileWrite: return try text(files.writeFile(arguments))
 

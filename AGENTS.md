@@ -1136,6 +1136,27 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   characters or empty, a title past 40, a fourth in one run — and one
   sent within 30 s of the session's last; the host cuts and counts again
   (`AgentNoticeRules`).
+  Web pages (2026-10-29, `Tools/WebFetch.swift`, `HTMLText.swift`,
+  `PublicHost.swift`), in any chat: apelin_web_fetch {url, offset?} → no
+  host request: the worker fetches one public http or https page itself,
+  as mobile, through an ephemeral session with no cookie, cache or
+  credential, and answers its text — HTML as plain text with headings,
+  lists, ``` blocks and [text](absolute url) links, any other text as it
+  is — 32 KB of UTF-8 a call, with the offset to read on. Refused before
+  anyone is asked, and again for each of at most five redirects, which it
+  follows by hand: another scheme, a user or password in the address, a
+  local name (localhost, `.local`, `.internal`, `.home.arpa`, no dot) or a
+  literal loopback, private, link-local, CGNAT, multicast or reserved
+  address in any spelling the resolver reads (a name that resolves to one
+  is not caught). A body is read to 5 MB and marked cut past it, a type
+  that is not text is refused with its size, an HTTP error is answered,
+  and a call is bounded at 30 s. A read that is no default preset
+  (`isSensitiveRead`, like the screen's): Strict asks, a session grant
+  covers that exact address and offset, Relaxed and Full run it. There is
+  no web search: no keyless service would do, and kwwk sends no
+  provider's search tool; the prompt sends the model to a known source,
+  never a results page scraped with curl. Tested by `WebFetchToolTests`
+  against a stubbed session; nothing there reaches the network.
   `agentRunCode` is a closed request — `argv` (an executable name looked up
   in the bootstrap's bin directories, then `/usr/bin`, `/bin`) or `script`
   (sh, bash, zsh, python3, perl with `-c`/`-e`) — that the host runs itself,
@@ -1251,7 +1272,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
 - **Agent tool names** (owner, 2026-10-24). A tool that acts on what
   Apelin keeps — its projects and templates, the packages it installs, the
   device, the screen, logs and crashes, toolchains and SDKs, other
-  conversations, memory, skills, its git settings, a notification — is
+  conversations, memory, skills, its git settings, a notification — or
+  reaches past the device (`apelin_web_fetch`) is
   `apelin_<scope>_<verb>` (`apelin_project_build`, `apelin_package_install`,
   `apelin_device_respring`, `apelin_git_set_author`); a generic verb on the
   session's own project is `<domain>_<verb>`: `file_read`, `file_write`,
@@ -2524,8 +2546,9 @@ and Apelin-specific work, a question included, starts from the matching skill
 (on a device, General Chat answered from memory that the template was a
 Logos `Tweak.x`). It keeps apelin_notification_send for what the reader
 would want to know while away (a long build, install or setup ended, something
-to do on the device), never routine progress, the reply or the turn's end. It
-asks for independent tool calls in
+to do on the device), never routine progress, the reply or the turn's end,
+and sends the model to a known source with apelin_web_fetch, never a search
+engine through curl. It asks for independent tool calls in
 one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
 logs and MCP results as data, and names every approval mode with what it
 lets through (`# Approval modes`) but none as the one on. It holds nothing

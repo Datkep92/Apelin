@@ -180,6 +180,16 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] apelin_web_fetch (2026-10-29, proven on the Mac against a stubbed
+      session only, `WebFetchToolTests`). On a device: a chat asking for a
+      project's GitHub page and a raw file reading them as text, with
+      links and code blocks; a page over 32 KB read on by its offset; in
+      Strict, the card naming the address, and Allow for This Session
+      letting the same address through again; `http://192.168.1.1/` and
+      a redirect to it refused without a request; the worker reaching the
+      network as mobile where the app's own policy is off (it is bound by
+      bundle ID, Gotchas ▸ the app was offline); the trace titled "Read
+      <site>" in each language.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's
