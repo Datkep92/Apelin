@@ -34,11 +34,14 @@ extension BuiltInSkills {
 
         ## Finding the API you hook
         - `apelin_sdk_analyze_framework` lists a framework's exported symbols and
-          Objective-C classes from the SDK's `.tbd`; pass `private: true` for
-          `PrivateFrameworks`, and `symbol_filter` to narrow.
-        - `apelin_sdk_read_header` reads a public header. Private frameworks usually
-          have no headers in the SDK: declare the interface you need in a local
-          header, only the selectors you call.
+          Objective-C classes from the SDK's `.tbd`; `symbol_filter` narrows
+          them. Both SDK tools look in `Frameworks`, then `PrivateFrameworks`,
+          so `private` can be left out.
+        - `apelin_sdk_read_header` reads a public header; with `symbol` in place
+          of `header` it finds the header that declares a class, protocol, type
+          or function. Private frameworks usually have no headers in the SDK:
+          declare the interface you need in a local header, only the selectors
+          you call.
         - Check availability: the build uses `-Werror=unguarded-availability-new`.
           Guard newer API with `@available(iOS 17.0, *)`.
 

@@ -98,7 +98,7 @@ public extension AgentToolName {
         case .fileFind: "Find project files whose names match a glob."
         case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, only for a step that truly needs uid 0, such as irisin-cli install for a dependency (apelin-package-dependencies skill); it asks every time unless the mode is Full, and what it writes is root's."
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
-        case .sdkReadHeader: "Read one header of a framework in the registered SDK."
+        case .sdkReadHeader: "Read one header of a framework in the registered SDK, or find the header that declares a class, protocol, type or function."
         case .projectBuild: "Build the project; returns structured diagnostics and artifacts with their digests."
         case .packageInstall: "Install a built package artifact through the system installer; returns the transaction and installation record."
         case .packageRemove: "Remove a package a project's build installed: give its installation id from apelin_package_install or apelin_package_list, or its package id. A package installed some other way is the user's to remove with their package manager."
@@ -374,15 +374,16 @@ public extension AgentToolName {
         case .sdkAnalyzeFramework:
             Schema.object([
                 "framework": Schema.string("Framework name without extension, e.g. UIKit or SpringBoardServices."),
-                "private": Schema.boolean("Look in PrivateFrameworks."),
+                "private": Self.privateFrameworkParameter,
                 "sdk_id": Schema.string("Registered SDK id; omit for the project's SDK."),
                 "symbol_filter": Schema.string("Only symbols containing this text."),
             ], required: ["framework"])
         case .sdkReadHeader:
             Schema.object([
                 "framework": Schema.string("Framework name without extension."),
-                "header": Schema.string("Header file name, e.g. UIView.h; omit to list headers."),
-                "private": Schema.boolean("Look in PrivateFrameworks."),
+                "header": Schema.string("Header file name, e.g. UIView.h; leave out header and symbol to list the headers. When no header has the name, the one declaring that class or type is answered instead."),
+                "symbol": Schema.string("Instead of header: a class, protocol, type, function or constant name; finds the headers that declare it."),
+                "private": Self.privateFrameworkParameter,
                 "sdk_id": Schema.string("Registered SDK id; omit for the project's SDK."),
             ], required: ["framework"])
         case .projectBuild:
@@ -468,6 +469,9 @@ public extension AgentToolName {
             ], required: ["action"])
         }
     }
+
+    /// The SDK tools' framework folder.
+    internal static let privateFrameworkParameter = Schema.boolean("Optional: omit to look in Frameworks, then PrivateFrameworks; true looks in PrivateFrameworks first.")
 
     /// The conversation tools' other project.
     internal static let projectParameter = Schema.string("Another project, by its projectID or folder name (apelin_project_list and apelin_project_create answer both): required in General Chat, omit for this project. A call that reaches another project asks the user in Strict mode.")
