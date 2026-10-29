@@ -4,8 +4,8 @@ import Foundation
 
 /// apelin-environment's request handling, everything `Workers/Environment`
 /// hands it: the toolchain and SDK operations, the git service and its
-/// settings, the package repository, and the cancellation of the tasks it
-/// runs.
+/// settings, the package repository, the feedback filed on Apelin's own
+/// repository, and the cancellation of the tasks it runs.
 ///
 /// An operation that starts a task arrives with the task's ID. It is checked
 /// first — a bad request is the reply, not a failed task — then accepted with
@@ -29,6 +29,8 @@ public final class EnvironmentWorker: @unchecked Sendable {
     var git: GitService
     /// A `var` for the same reason, and for a test's GitHub.
     var distribution: DistributionService
+    /// A `var` for a test's GitHub too.
+    var feedback: FeedbackService
     let toolchains: ToolchainService
     let transfers: TransferService
     let installer: any PackageInstaller
@@ -52,6 +54,7 @@ public final class EnvironmentWorker: @unchecked Sendable {
         sdk = SDKManager(layout: layout)
         git = GitService(layout: layout, credentials: credentials)
         distribution = DistributionService(layout: layout, git: git, credentials: credentials)
+        feedback = FeedbackService(layout: layout, credentials: credentials)
         toolchains = ToolchainService(layout: layout, backend: backend)
         transfers = TransferService(layout: layout, toolchains: toolchains, sdk: sdk)
         // Nothing runs yet: a tree with no record is an interrupted import,
@@ -185,6 +188,8 @@ public final class EnvironmentWorker: @unchecked Sendable {
                     reporter.emit("result", result)
                 }
             }
+        case .feedbackSend:
+            await WorkerMain.serve(FeedbackSendRequest.self, request) { [self] in try await feedback.send($0) }
         case .gitClone:
             await startTask(GitCloneRequest.self, request) { [self] typed, taskID in
                 if request.resumed, let result = git.finishedClone(typed, taskID: taskID) {

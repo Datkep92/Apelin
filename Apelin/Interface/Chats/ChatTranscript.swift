@@ -538,6 +538,7 @@ struct ChatTranscript {
         case .conversationRead: return String(localized: "Read a chat")
         case .conversationStop: return String(localized: "Stop a chat")
         case .notificationSend: return String(localized: "Send a notification")
+        case .feedbackSend: return String(localized: "Send feedback")
         case .toolchainList: return String(localized: "List toolchains")
         case .sdkList: return String(localized: "List SDKs")
         case .toolchainSetup: return String(localized: "Set up a toolchain")

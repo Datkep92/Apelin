@@ -115,6 +115,7 @@ actor MockBackend: AgentHostBackend {
         case toolchainSelfTest(String)
         case sdkImport(url: String, branch: String, evidence: ApprovalEvidence)
         case checkEnvironment(toolchainID: String?, sdkID: String?)
+        case feedback(title: String, body: String, evidence: ApprovalEvidence)
         case other(String)
     }
 
@@ -411,6 +412,11 @@ actor MockBackend: AgentHostBackend {
     }
 
     /// The registry's digest of each id is `sha256:<id>`.
+    func sendFeedback(_ request: FeedbackToolRequest) -> FeedbackToolResponse {
+        calls.append(.feedback(title: request.title, body: request.body, evidence: request.context.approval))
+        return FeedbackToolResponse(repository: "owngoal-dev/Apelin", issue: 7, url: "https://github.com/owngoal-dev/Apelin/issues/7")
+    }
+
     func checkEnvironment(_ request: EnvironmentCheckToolRequest) -> EnvironmentCheckToolResponse {
         calls.append(.checkEnvironment(toolchainID: request.toolchainID, sdkID: request.sdkID))
         let toolchain = request.toolchainID ?? "clt-16.4-c"

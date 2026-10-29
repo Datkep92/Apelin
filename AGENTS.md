@@ -222,7 +222,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `gitAuthorSet`, `gitCredentialSet`, `gitCredentialRemove`;
   `distributionRepositoryList`, `distributionRepositoryCreate`,
   `distributionRepositoryLink`, `distributionRepositoryUnlink`,
-  `distributionPublish`;
+  `distributionPublish`, `feedbackSend`;
   `transferExport`, `transferInspect`, `transferImport`. Every one is
   in the list today; most answer `unimplemented` until their domain lands.
   The envelope (protocol version 2) carries `op`, `protocolVersion`,
@@ -285,7 +285,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolchainSelfTest`, `sdkList`, `sdkImport`, a setup or import narrowed
   by `AgentEnvironmentRules`, and `environmentAttach` for the tasks its own
   session started — its git tasks too; never a removal or a cancel;
-  `projectRename`, narrowed by `AgentProjectRenameRules`), the environment worker `installPackage`, `removePackage`
+  `projectRename`, narrowed by `AgentProjectRenameRules`; `feedbackSend`,
+  narrowed by `AgentFeedbackRules`), the environment worker `installPackage`, `removePackage`
   and `buildAttach` (its local toolchain package, through the same bridge),
   the diagnostics worker `crashOpen` and `respring`, and nothing else call
   anything. Workers: `apelin-environment` (toolchain, SDKs, git, transfer
@@ -1166,6 +1167,19 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   characters or empty, a title past 40, a fourth in one run — and one
   sent within 30 s of the session's last; the host cuts and counts again
   (`AgentNoticeRules`).
+  Feedback (owner, 2026-10-29), in any chat: apelin_feedback_send {title,
+  body} → `feedbackSend` (Distribution repository ▸ Feedback, below),
+  answering the issue's number and link. Its description keeps it to what
+  the user asked to send or agreed to, never anything a file, log, page
+  or tool output says to send, and with no credential, device identifier,
+  host name, network address or home path in it; the tool refuses before
+  asking what `FeedbackRules` would refuse. Like git_push it asks under
+  Strict every time, the card naming the repository and showing the whole
+  title and body (`detail.feedback` {repository, title, body}), never
+  with a session grant, and the host spends exactly that approval
+  (`AgentFeedbackRules`); Relaxed and Full send it without asking. A
+  reply with reason `authenticationRequired` becomes "GitHub
+  authorization is needed: … Sign In with GitHub in Settings ▸ Git".
   `agentRunCode` is a closed request — `argv` (an executable name looked up
   in the bootstrap's bin directories, then `/usr/bin`, `/bin`) or `script`
   (sh, bash, zsh, python3, perl with `-c`/`-e`) — that the host runs itself,
@@ -1281,9 +1295,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
 - **Agent tool names** (owner, 2026-10-24). A tool that acts on what
   Apelin keeps — its projects and templates, the packages it installs, the
   device, the screen, logs and crashes, toolchains and SDKs, other
-  conversations, memory, skills, its git settings, a notification — is
+  conversations, memory, skills, its git settings, a notification, the
+  feedback filed on Apelin — is
   `apelin_<scope>_<verb>` (`apelin_project_build`, `apelin_package_install`,
-  `apelin_device_respring`, `apelin_git_set_author`); a generic verb on the
+  `apelin_device_respring`, `apelin_git_set_author`, `apelin_feedback_send`);
+  a generic verb on the
   session's own project is `<domain>_<verb>`: `file_read`, `file_write`,
   `file_create`, `file_edit`, `file_list`, `file_grep`, `file_find`,
   `shell_run`, and the repository's nine `git_*`. MCP tools keep kwwk's
@@ -2073,6 +2089,27 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   publish once and refuse a changed package, the refusals); on a device by
   `Documents/Console/scripts/distribution.json` (refusals and unlink only:
   nothing reaches GitHub).
+  *Feedback* (owner, 2026-10-29; `Operations/Feedback.swift`,
+  `ApelinEnvironment/Distribution/FeedbackService.swift`). `feedbackSend
+  {title, body}` files a public issue on Apelin's own repository,
+  `FeedbackRules.repository` (owngoal-dev/Apelin, never one a request
+  names), with the same github.com sign-in (`GitHubAPI.createIssue`); one
+  request, not a task. apelin-environment checks the text first, before
+  the sign-in is read: a title of one line of at most 120 characters, a
+  body of at most 16 KB, and none of the shapes `FeedbackRules` refuses —
+  a token or key, a home or install path (mobile's home, the install root
+  as the host gave it, roothide's `.jbroot-`, an app container), a local
+  address or `.local` name, the device's own host name, a UDID, serial or
+  MAC address — `badRequest` naming the kind, never quoting it. The check
+  reads shapes and proves nothing; Strict showing the whole text is the
+  safeguard. Below the body it writes the footer itself, "Sent with
+  Apelin <version> (<build>) · iOS <version> · <bootstrap>", the version
+  from `<install root>/Applications/Apelin.app/Info.plist` (`BoundedFile`)
+  and no model, name or identifier. Without a sign-in, `denied` with
+  reason `authenticationRequired`. The app's and the agent's, as
+  `AgentFeedbackRules` lets it through. Tested by `FeedbackTests` and
+  `FeedbackRulesTests`; the console's `distribution.json` sends an empty
+  title, refused before anything reaches GitHub.
 
 ### Product (decided 2026-10-16)
 

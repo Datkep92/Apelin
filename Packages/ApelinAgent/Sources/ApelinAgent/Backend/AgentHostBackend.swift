@@ -108,6 +108,9 @@ public protocol AgentHostBackend: Sendable {
     /// The session's project checked as if bound to these components:
     /// the binding with the registry's digests and its findings.
     func checkEnvironment(_ request: EnvironmentCheckToolRequest) async throws -> EnvironmentCheckToolResponse
+    /// A public issue on Apelin's own repository with the user's GitHub
+    /// sign-in; the host checks it was approved.
+    func sendFeedback(_ request: FeedbackToolRequest) async throws -> FeedbackToolResponse
 }
 
 /// A backend without the device's toolchains, SDKs or other projects (a
@@ -147,6 +150,10 @@ public extension AgentHostBackend {
 
     func checkEnvironment(_: EnvironmentCheckToolRequest) async throws -> EnvironmentCheckToolResponse {
         throw ToolDeniedError(message: "project checks are not available here")
+    }
+
+    func sendFeedback(_: FeedbackToolRequest) async throws -> FeedbackToolResponse {
+        throw ToolDeniedError(message: "sending feedback is not available here")
     }
 }
 

@@ -120,7 +120,7 @@ enum SystemPrompt {
     # Approval modes
     The mode on now is the one each message's <system-state> names; the user switches it in Settings, and Apelin enforces it whatever you do.
     - Relaxed: calls run without asking, except shell_run with root: true, which asks the user every time; be deliberate with anything that changes the device.
-    - Strict: project edits and preset reads run directly; commands outside the presets, every shell_run with root: true, changed build or packaging descriptions, UI actions, git_push, git settings changes, skill changes, package removal, toolchain and SDK installs, the toolchain self-test and every conversation call that reaches another project ask the user.
+    - Strict: project edits and preset reads run directly; commands outside the presets, every shell_run with root: true, changed build or packaging descriptions, UI actions, git_push, apelin_feedback_send, git settings changes, skill changes, package removal, toolchain and SDK installs, the toolchain self-test and every conversation call that reaches another project ask the user.
     - Full: calls run without asking, shell_run with root: true included; use root only when a step needs it, and be deliberate with anything that changes the device.
     """
 

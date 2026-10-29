@@ -31,8 +31,8 @@ public struct ApprovalRequest: Sendable, Hashable, Codable {
     public var reason: String
     public var detail: ApprovalDetail
     /// Whether "for this session" may be offered. Never for package removal,
-    /// a push, or a request bound to a description digest (the host's
-    /// ledger keeps those).
+    /// a push, an issue filed as feedback, or a request bound to a
+    /// description digest (the host's ledger keeps those).
     public var allowsSessionScope: Bool
 
     public init(
@@ -98,6 +98,23 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// A rename of another project than the session's. The host lets
     /// through only the rename it names, once.
     case projectRename(ProjectRenameApproval)
+    /// A public issue on Apelin's own repository: the whole title and body.
+    /// The host lets through only the issue it names, once.
+    case feedback(FeedbackApproval)
+}
+
+/// What an apelin_feedback_send card names, and the host matches its issue
+/// to (AgentFeedbackRules): the repository, the title and the body, as the
+/// tool sends them.
+public struct FeedbackApproval: Sendable, Hashable, Codable {
+    public var repository: String
+    public var title: String
+    public var body: String
+    public init(repository: String, title: String, body: String) {
+        self.repository = repository
+        self.title = title
+        self.body = body
+    }
 }
 
 /// What an apelin_project_rename card names for another project, and the

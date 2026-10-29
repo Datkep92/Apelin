@@ -2252,6 +2252,68 @@ do {
     check(!noSession, "a worker with no session renames nothing")
 }
 
+// MARK: - Feedback is posted under Strict only as the user approved exactly it
+
+do {
+    check(CallerPolicy.allows(.worker(.agent, instance: "s"), .feedbackSend), "the agent may file feedback")
+    check(!CallerPolicy.allows(.worker(.build, instance: nil), .feedbackSend), "the build worker may not")
+    check(!CallerPolicy.allows(.worker(.diagnostics, instance: nil), .feedbackSend), "nor the diagnostics worker")
+    check(!CallerPolicy.allows(.worker(.agent, instance: "s"), .distributionPublish), "the package repository stays the app's")
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-feedback-tasks"))
+    await registry.load()
+    let sessions = AgentSessionTable.shared
+    func session(_ id: String, mode: ApprovalMode) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: ResolvedProject(id: "p-feedback", name: "Feedback", path: scratchPath),
+            mode: mode,
+            createdAt: Date(),
+        )
+        await sessions.add(entry)
+        return entry
+    }
+    let strict = await session("feedback-strict", mode: .confirm)
+    let feedback = FeedbackSendRequest(title: "The build log stops early", body: "It ends before the link step.")
+    // What apelin-agent writes into apelin_feedback_send's approvalRequested
+    // (ApelinAgentWorker's tests hold that shape).
+    func ask(_ approvalID: String, body: String, repository: String = FeedbackRules.repository) async {
+        await registry.append(strict.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(approvalID), "tool": .string("apelin_feedback_send"),
+            "detail": .object([AgentFeedbackRules.detailKey: .object([
+                "repository": .string(repository), "title": .string(feedback.title), "body": .string(body),
+            ])]),
+        ]))
+    }
+    func authorized(_ entry: AgentSessionTable.Entry?) async -> ApelinError? {
+        await AgentFeedbackRules.authorize(feedback, session: entry?.sessionID, registry: registry)
+    }
+    let unasked = await authorized(strict)
+    check(unasked?.code == .denied, "Strict posts an issue only as the user approved it")
+    await ask("feedback-1", body: "Another body.")
+    await sessions.record(strict.sessionID, approvalID: "feedback-1", decision: .approve)
+    let otherBody = await authorized(strict)
+    let unspent = await sessions.approvedIDs(strict.sessionID)
+    check(otherBody != nil && unspent == ["feedback-1"], "an approval covers the body it showed only, and stays unspent")
+    await ask("feedback-2", body: feedback.body, repository: "someone/elsewhere")
+    await sessions.record(strict.sessionID, approvalID: "feedback-2", decision: .approve)
+    let elsewhere = await authorized(strict)
+    check(elsewhere != nil, "and Apelin's own repository only")
+    await ask("feedback-3", body: feedback.body)
+    let asked = await authorized(strict)
+    check(asked != nil, "asking is not approving")
+    await sessions.record(strict.sessionID, approvalID: "feedback-3", decision: .approve)
+    let approved = await authorized(strict)
+    check(approved == nil, "the approved issue goes through")
+    let again = await authorized(strict)
+    check(again != nil, "once: the next one asks again")
+    let relaxed = await authorized(session("feedback-relaxed", mode: .relaxed))
+    let full = await authorized(session("feedback-full", mode: .full))
+    check(relaxed == nil && full == nil, "Relaxed and Full send it as they push")
+    let noSession = await authorized(nil)
+    check(noSession?.code == .denied, "a worker with no session files nothing")
+}
+
 // MARK: - Another project's conversations are reached only as the user approved
 
 do {

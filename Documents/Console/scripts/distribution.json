@@ -59,6 +59,22 @@
       }
     },
     {
+      "op": "feedbackSend",
+      "request": {
+        "title": "",
+        "body": "Refused before any sign-in is read: nothing reaches GitHub."
+      },
+      "label": "empty-feedback",
+      "allowError": true
+    },
+    {
+      "op": "expect",
+      "request": {
+        "step": "empty-feedback",
+        "errorCode": "badRequest"
+      }
+    },
+    {
       "op": "distributionRepositoryUnlink",
       "label": "unlink"
     },
