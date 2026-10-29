@@ -13,6 +13,16 @@ system share sheet with the build's one `.deb` file, and **Publish to
 Repository** (below). Go back, choose the other target and tap Build to make a
 separate package. Neither installs the package.
 
+A package already built does not need building again. The first page's
+**Packages** section lists, for each target, the newest release build of the
+project's current version (a workspace's newest release build), as long as its
+`.deb` is still in `Builds/` with the digest the build recorded, and says
+whether it is **Built**, **Shared** (a share sheet completed with it) or
+**Published** (the linked repository already holds those bytes). Select the
+packages and tap **Publish to Repository** to publish roothide and rootless
+together in one commit, or share one from its row; either takes the file as
+the build made it.
+
 ## Publishing to a package repository
 
 A package repository is an APT source in a GitHub repository of the user's,
@@ -24,16 +34,17 @@ template has and it lacks. Its clone is a workspace project, which its own
 conversation maintains (the agent's `apelin-package-repository` skill).
 
 Once a release build succeeds, **Distribute ▸ Publish to Repository** on the
-build page publishes it: the package, checked against its digest as Share
-Package checks it, goes into the repository's `debs/` as
+build page, or **Publish to Repository** under the first page's Packages,
+publishes it: each package, checked against its digest as Share Package
+checks it, goes into the repository's `debs/` as
 `<Package>_<Version>_<Architecture>.deb`, is committed and pushed, and the
 workflow indexes it; sources that added the address see it within a few
 minutes. Publishing the same package again does nothing; a different
 package under a published version is refused, so raise the version first.
 With no repository linked yet, Publish to Repository opens Settings ▸ Git
-over the build page instead: Publishing there creates or links one, after
-Sign In with GitHub when there is no account yet. Close Settings and
-publish again; the build stays as it was.
+over the page instead: Publishing there creates or links one, after Sign In
+with GitHub when there is no account yet. Close Settings and publish again;
+the build stays as it was.
 
 ## Before distributing
 
@@ -51,7 +62,9 @@ from `projectCheck` with `purpose: distribution` (and the chosen target as
   `projectCreate` made up.
 - `distribution.icon.missing`: an app's Info.plist names no icon.
 - `distribution.version.packaged`: a release package of this ID and version
-  was already built for the target (any target, without one).
+  was already built for the target (any target, without one). Publish or
+  share that package; raise the version only to ship a change. Build does not
+  ask about it when that package is listed under Packages.
 
 An error the check finds would stop the build, so it is listed too and Build
 waits until it is fixed.

@@ -4,6 +4,11 @@ import ApelinProtocol
 /// a build lists, and what a workspace's release build finds in the
 /// package its script wrote.
 enum DistributionAdvice {
+    /// A release package of this version was made for the target before:
+    /// advice, never a reason to build again, since that build can be
+    /// published or shared as it is.
+    static let versionPackaged = "distribution.version.packaged"
+
     /// What the finding is, in the reader's words.
     static func title(of issue: ProjectDiagnostic) -> String {
         switch issue.code {
@@ -16,7 +21,7 @@ enum DistributionAdvice {
         case "distribution.package.id.local": String(localized: "The package uses a placeholder identifier")
         case "distribution.bundleID.local": String(localized: "The app uses a placeholder bundle identifier")
         case "distribution.icon.missing": String(localized: "The app has no icon")
-        case "distribution.version.packaged": String(localized: "This version was already packaged")
+        case versionPackaged: String(localized: "A build of this version exists")
         case "distribution.package.id.differs": String(localized: "The other target’s package is different")
         default: issue.message
         }
@@ -34,7 +39,8 @@ enum DistributionAdvice {
         case "distribution.package.id.local", "distribution.bundleID.local":
             String(localized: "Use a reverse-DNS identifier you own.")
         case "distribution.icon.missing": String(localized: "The Home Screen and package managers show a blank icon.")
-        case "distribution.version.packaged": String(localized: "Raise the version if anything changed, or package managers will not offer the new build as an update.")
+        case versionPackaged:
+            String(localized: "Publish or share that build as it is. Raise the version only to ship a change, so package managers offer it as an update.")
         case "distribution.package.id.differs": String(localized: "Both targets should ship the same package.")
         default: nil
         }

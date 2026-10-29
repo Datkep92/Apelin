@@ -1,7 +1,5 @@
 import ApelinCore
 import ApelinProtocol
-import CryptoKit
-import SPIndicator
 import Then
 import UIKit
 
@@ -378,102 +376,35 @@ final class DistributionBuildController: TableController {
         navigationController?.pushViewController(page, animated: true)
     }
 
-    /// The build's package where the build left it, with the bytes it
-    /// recorded; read off the main thread.
-    private static func verifiedPackage(_ artifact: BuildArtifact) async throws -> URL {
-        try await Task.detached {
-            guard let path = artifact.path, let canonical = CanonicalPath.resolve(path),
-                  let builds = CanonicalPath.resolve(DataFolder.app.root.appendingPathComponent("Builds").path),
-                  CanonicalPath.isCanonical(canonical, inside: builds)
-            else {
-                throw ApelinError(
-                    .notFound,
-                    String(localized: "The package is no longer available. Build it again."),
-                )
-            }
-            let url = URL(fileURLWithPath: canonical)
-            let digest = try "sha256:"
-                + SHA256.hash(data: Data(contentsOf: url)).map { String(format: "%02x", $0) }.joined()
-            guard digest == artifact.digest else {
-                throw ApelinError(.conflict, String(localized: "The package changed after it was built. Build it again before exporting."))
-            }
-            return url
-        }.value
+    /// The package this build made, as sharing and publishing take it.
+    private var item: DistributionPublishing.Item? {
+        guard let artifact, artifact.bootstrap == target.rawValue else { return nil }
+        return DistributionPublishing.Item(
+            path: artifact.path,
+            digest: artifact.digest,
+            packageID: artifact.packageID,
+            version: artifact.version,
+            bootstrap: target,
+        )
     }
 
-    /// The package to the share sheet, read back against its digest first.
     private func sharePackage(from anchor: UIBarButtonItem) {
-        guard let artifact, artifact.bootstrap == target.rawValue, work == nil, !isPreparingPackage else { return }
+        guard let item, work == nil, !isPreparingPackage else { return }
         isPreparingPackage = true
         Task { [weak self] in
             guard let self else { return }
-            defer { isPreparingPackage = false }
-            do {
-                let url = try await Self.verifiedPackage(artifact)
-                guard self.artifact == artifact else { return }
-                let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-                sheet.popoverPresentationController?.barButtonItem = anchor
-                present(sheet, animated: true)
-            } catch {
-                guard self.artifact == artifact else { return }
-                presentNotice(title: "Unable to Share", message: error.readableMessage)
-            }
+            await DistributionPublishing.share(item, from: self, anchor: anchor)
+            isPreparingPackage = false
         }
     }
 
-    /// The package into the linked package repository: checked as a share
-    /// is, confirmed with where it goes, then followed as a task. With no
-    /// repository linked, Settings ▸ Git instead, where one is set up.
     private func publish() {
-        guard let artifact, artifact.bootstrap == target.rawValue, work == nil, !isPreparingPackage else { return }
+        guard let item, work == nil, !isPreparingPackage else { return }
         isPreparingPackage = true
         Task { [weak self] in
             guard let self else { return }
-            defer { isPreparingPackage = false }
-            do {
-                guard let linked = try await ApelinService.app.distributionRepositoryList(repositories: false).linked else {
-                    openRepositorySetup()
-                    return
-                }
-                let url = try await Self.verifiedPackage(artifact)
-                guard self.artifact == artifact else { return }
-                presentConfirmation(
-                    title: "Publish to \(linked.fullName)?",
-                    message: "The package is added to the repository’s debs folder, committed and pushed. Devices with \(linked.sourceURL) see it within a few minutes.",
-                    confirmTitle: "Publish",
-                ) { [weak self] in
-                    self?.startPublishing(url)
-                }
-            } catch {
-                presentNotice(title: "Unable to Publish", message: error.readableMessage)
-            }
+            await DistributionPublishing.publish([item], from: self)
+            isPreparingPackage = false
         }
-    }
-
-    private func startPublishing(_ package: URL) {
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let handle = try await ApelinService.app.distributionPublish(files: [package.path])
-                let page = EnvironmentTaskController(
-                    handle: handle,
-                    work: .distributionPublish,
-                    title: String(localized: "Publishing Package"),
-                    doneTitle: String(localized: "Published"),
-                )
-                navigationController?.pushViewController(page, animated: true)
-            } catch {
-                presentNotice(title: "Unable to Publish", message: error.readableMessage)
-            }
-        }
-    }
-
-    /// Settings ▸ Git over this page, which stays as it is: Publishing
-    /// there creates or links a repository, after Sign In when GitHub has
-    /// no account yet. The indicator says why it opened.
-    private func openRepositorySetup() {
-        guard presentedViewController == nil else { return }
-        SPIndicator.present(title: String(localized: "No Package Repository"), preset: .error, haptic: .warning)
-        SettingsViewController.presentGit(from: self)
     }
 }

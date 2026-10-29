@@ -2422,9 +2422,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   app's defaults. The app's alone
   (no worker may call them); their tasks are not resumed. Settings ▸ Git ▸
   Publishing and the GitHub welcome page create or link one; the
-  distribution build page's Distribute ▸ Publish to Repository (in its
-  `…` menu too) publishes its verified package, and with none linked opens
-  Settings at its Git page instead. Tested by `DistributionTests` (a fake
+  distribution page's Publish to Repository (the release packages picked
+  under Packages, both targets in one commit) and the build page's
+  Distribute ▸ Publish to Repository publish verified packages, and with
+  none linked open Settings at its Git page instead. Tested by
+  `DistributionTests` (a fake
   GitHub and bare repositories on disk: create, link with a file of the
   user's kept and a branch-built site switched, an empty repository,
   publish once and refuse a changed package, the refusals); on a device by
@@ -2984,10 +2986,22 @@ that cannot carry a shell command. Both apps are package dependencies. Project
 export reuses `transferExport` and the real `.apeproj` transfer format; no new
 archive format or exporter is introduced. Distribution sends `buildStart` with
 its optional `bootstrap` (`roothide` or `rootless`); omission retains the current
-device default. The distribution page starts with no selected target and no build;
-the user chooses one target and taps Build. The first page lists the
-distribution check's warnings for that target, offers Ask Agent to Prepare (a
-prompt sent to the project's conversation), and asks before building with
+device default. The distribution page starts with no build. Its Packages
+section (2026-10-29, `DistributionPackages`) lists per target the newest
+release build of the manifest's version (a workspace's newest), from the
+records in `Builds/artifacts/`, offered only while its deb still has the
+recorded digest (an older build of that version when it is the one the
+repository holds), each Built, Shared (a completed share sheet, by digest in
+the app's defaults) or Published (the repository's clone holds those bytes
+under `distributionPublish`'s file name). Publish to Repository sends the
+selected ones, roothide and rootless together, in one `distributionPublish`
+after a confirmation naming each; Share Package works per row
+(`DistributionPublishing`, the build page's too). Nothing is built or
+packaged again; `distribution.version.packaged` is advice to publish or share
+that build, and Build asks nothing for it alone when that package is listed.
+Building again stays: the user chooses one target and taps Build. The first
+page lists the distribution check's warnings for that target, offers Ask
+Agent to Prepare (a prompt sent to the project's conversation), and asks before building with
 warnings left; Build pushes `DistributionBuildController`, which sends one
 build request, shows only that target's progress and keeps the build log behind
 its `…` menu. Once its one package is verified, the page's primary action is

@@ -720,6 +720,158 @@
         }
       }
     },
+    "Built" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم البناء"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebaut"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compilado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compilé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compilato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビルド済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빌드됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compilado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Собрано"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã xây dựng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已构建"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已建置"
+          }
+        }
+      }
+    },
+    "Shared" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمت المشاركة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geteilt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partagé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Condiviso"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartilhado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправлено"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã chia sẻ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已分享"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已分享"
+          }
+        }
+      }
+    },
     "Command" : {
       "localizations" : {
         "ar" : {
@@ -10497,85 +10649,78 @@
         }
       }
     },
-    "This version was already packaged" : {
-      "extractionState" : "manual",
+    "A build of this version exists" : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "سبق تحزيم هذا الإصدار"
+            "value" : "يوجد بناء لهذا الإصدار"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Version wurde bereits paketiert"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This version was already packaged"
+            "value" : "Ein Build dieser Version ist vorhanden"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta versión ya se empaquetó"
+            "value" : "Ya hay una compilación de esta versión"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cette version a déjà été empaquetée"
+            "value" : "Une compilation de cette version existe"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Questa versione è già stata impacchettata"
+            "value" : "Esiste una build di questa versione"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このバージョンはパッケージ作成済みです"
+            "value" : "このバージョンのビルドがあります"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 버전은 이미 패키지로 만들어졌습니다"
+            "value" : "이 버전의 빌드가 있습니다"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Esta versão já foi empacotada"
+            "value" : "Já existe uma compilação desta versão"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Эта версия уже была упакована"
+            "value" : "Сборка этой версии уже есть"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phiên bản này đã được đóng gói"
+            "value" : "Đã có bản dựng của phiên bản này"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这个版本已经打包过"
+            "value" : "已有此版本的构建"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這個版本已經封裝過"
+            "value" : "已有此版本的建置"
           }
         }
       }
@@ -10995,85 +11140,78 @@
         }
       }
     },
-    "Raise the version if anything changed, or package managers will not offer the new build as an update." : {
-      "extractionState" : "manual",
+    "Publish or share that build as it is. Raise the version only to ship a change, so package managers offer it as an update." : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ارفع رقم الإصدار إذا تغيّر أي شيء، وإلا فلن يعرض مديرو الحزم البناء الجديد كتحديث."
+            "value" : "انشر ذلك البناء أو شاركه كما هو. ارفع الإصدار فقط لنشر تغيير، كي تعرضه مديرات الحزم كتحديث."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erhöhe die Version, wenn sich etwas geändert hat, sonst bieten Paketmanager den neuen Build nicht als Update an."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Raise the version if anything changed, or package managers will not offer the new build as an update."
+            "value" : "Veröffentliche oder teile diesen Build so, wie er ist. Erhöhe die Version nur, um eine Änderung auszuliefern, damit Paketmanager sie als Update anbieten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sube la versión si ha cambiado algo; si no, los gestores de paquetes no ofrecerán la nueva compilación como actualización."
+            "value" : "Publica o comparte esa compilación tal como está. Sube la versión solo para publicar un cambio, para que los gestores de paquetes lo ofrezcan como actualización."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Augmentez la version si quelque chose a changé, sinon les gestionnaires de paquets ne proposeront pas la nouvelle compilation comme mise à jour."
+            "value" : "Publiez ou partagez cette compilation telle quelle. N’augmentez la version que pour livrer une modification, afin que les gestionnaires de paquets la proposent comme mise à jour."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aumenta la versione se è cambiato qualcosa, altrimenti i gestori di pacchetti non offriranno la nuova build come aggiornamento."
+            "value" : "Pubblica o condividi quella build così com’è. Aumenta la versione solo per distribuire una modifica, così i gestori di pacchetti la offrono come aggiornamento."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "変更がある場合はバージョンを上げてください。上げないと、パッケージマネージャは新しいビルドをアップデートとして提供しません。"
+            "value" : "そのビルドをそのまま公開または共有してください。バージョンを上げるのは変更を配布するときだけにしてください。そうすればパッケージマネージャがアップデートとして表示します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "변경 사항이 있으면 버전을 올리세요. 그렇지 않으면 패키지 관리자가 새 빌드를 업데이트로 제공하지 않습니다."
+            "value" : "그 빌드를 그대로 게시하거나 공유하세요. 버전은 변경 사항을 배포할 때만 올리세요. 그래야 패키지 관리자가 업데이트로 제공합니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aumente a versão se algo mudou; caso contrário, os gerenciadores de pacotes não oferecerão a nova compilação como atualização."
+            "value" : "Publique ou compartilhe essa compilação como está. Aumente a versão só para distribuir uma alteração, para que os gerenciadores de pacotes a ofereçam como atualização."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Если что-то изменилось, повысьте версию, иначе менеджеры пакетов не предложат новую сборку как обновление."
+            "value" : "Опубликуйте эту сборку или поделитесь ею как есть. Повышайте версию, только чтобы выпустить изменение, — тогда менеджеры пакетов предложат его как обновление."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hãy tăng số phiên bản nếu có thay đổi, nếu không trình quản lý gói sẽ không cung cấp bản dựng mới dưới dạng bản cập nhật."
+            "value" : "Hãy phát hành hoặc chia sẻ bản dựng đó như hiện có. Chỉ tăng phiên bản khi phát hành thay đổi, để trình quản lý gói hiển thị nó dưới dạng bản cập nhật."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果有任何改动请提高版本号，否则软件包管理器不会把新构建当作更新提供。"
+            "value" : "请直接发布或分享那次构建。只有要发布改动时才提高版本号，这样软件包管理器才会把它作为更新提供。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如有任何變更，請提高版本號，否則套件管理器不會將新的建置版本作為更新提供。"
+            "value" : "請直接發佈或分享那次建置。只有要發佈變更時才提高版本號，這樣套件管理器才會把它當作更新提供。"
           }
         }
       }
@@ -17697,6 +17835,82 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "發佈"
+          }
+        }
+      }
+    },
+    "Packages" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحزم"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pakete"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paquetes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paquets"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pacchetti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パッケージ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패키지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pacotes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пакеты"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gói"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "软件包"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套件"
           }
         }
       }
@@ -70289,6 +70503,82 @@
         }
       }
     },
+    "Publish the selected packages to your package repository together, or share one. Each is the file its build made, unchanged." : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "انشر الحزم المحددة معًا في مستودع الحزم الخاص بك، أو شارك واحدة منها. كل منها هو الملف الذي أنتجه البناء، دون تغيير."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Veröffentliche die ausgewählten Pakete gemeinsam in deinem Paket-Repository oder teile eines davon. Jedes ist die Datei, die sein Build erstellt hat, unverändert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publica juntos los paquetes seleccionados en tu repositorio de paquetes o comparte uno. Cada uno es el archivo que generó su compilación, sin cambios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publiez ensemble les paquets sélectionnés dans votre dépôt de paquets, ou partagez-en un. Chacun est le fichier produit par sa compilation, inchangé."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pubblica insieme i pacchetti selezionati nel tuo repository di pacchetti, oppure condividine uno. Ognuno è il file prodotto dalla sua build, invariato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したパッケージをまとめてパッケージリポジトリに公開するか、1つを共有します。どれもビルドで作られたファイルそのままです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 패키지를 패키지 저장소에 함께 게시하거나 하나를 공유하세요. 각 패키지는 빌드가 만든 파일 그대로입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publique juntos os pacotes selecionados no seu repositório de pacotes ou compartilhe um deles. Cada um é o arquivo que a compilação gerou, sem alterações."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Опубликуйте выбранные пакеты вместе в своём репозитории пакетов или поделитесь одним из них. Каждый — это файл, созданный его сборкой, без изменений."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phát hành cùng lúc các gói đã chọn lên kho gói của bạn, hoặc chia sẻ một gói. Mỗi gói là tệp do bản dựng của nó tạo ra, không thay đổi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将所选软件包一起发布到你的软件源仓库，或分享其中一个。每个都是构建生成的原始文件，未经改动。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將所選套件一起發佈到你的套件儲存庫，或分享其中一個。每個都是建置產生的原始檔案，未經更動。"
+          }
+        }
+      }
+    },
     "Clones, pulls and pushes to github.com use this account. Its token is kept only in this device’s keychain and never synced." : {
       "localizations" : {
         "ar" : {
@@ -73892,78 +74182,78 @@
         }
       }
     },
-    "The package is added to the repository’s debs folder, committed and pushed. Devices with %@ see it within a few minutes." : {
+    "%@\n\nEach package goes into the repository’s debs folder as it was built, in one commit that is pushed. Devices with %@ see the update within a few minutes." : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تُضاف الحزمة إلى مجلد debs في المستودع ثم تُثبَّت وتُدفع. ستراها الأجهزة التي أضافت %@ خلال بضع دقائق."
+            "value" : "%@\n\nتُضاف كل حزمة كما بُنيت إلى مجلد debs في المستودع، وتُثبَّت في إيداع واحد ثم تُدفع. ستجد الأجهزة التي أضافت %@ التحديث خلال بضع دقائق."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das Paket wird in den Ordner debs des Repositorys gelegt, committet und gepusht. Geräte mit %@ sehen es in wenigen Minuten."
+            "value" : "%@\n\nJedes Paket kommt so, wie es gebaut wurde, in den Ordner debs des Repositorys, in einem Commit, der gepusht wird. Geräte mit %@ sehen das Update in wenigen Minuten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El paquete se añade a la carpeta debs del repositorio, se confirma y se envía. Los dispositivos con %@ lo verán en unos minutos."
+            "value" : "%@\n\nCada paquete se añade tal como se compiló a la carpeta debs del repositorio, en un solo commit que se envía. Los dispositivos con %@ verán la actualización en unos minutos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le paquet est ajouté au dossier debs du dépôt, validé et poussé. Les appareils ayant %@ le verront d’ici quelques minutes."
+            "value" : "%@\n\nChaque paquet est ajouté tel qu’il a été compilé au dossier debs du dépôt, dans un seul commit qui est poussé. Les appareils ayant %@ verront la mise à jour d’ici quelques minutes."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il pacchetto viene aggiunto alla cartella debs del repository, registrato e inviato. I dispositivi con %@ lo vedranno entro pochi minuti."
+            "value" : "%@\n\nOgni pacchetto viene aggiunto così come è stato compilato alla cartella debs del repository, in un unico commit che viene inviato. I dispositivi con %@ vedranno l’aggiornamento entro pochi minuti."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "パッケージはリポジトリのdebsフォルダに追加され、コミットしてプッシュされます。%@を追加したデバイスには数分で表示されます。"
+            "value" : "%@\n\n各パッケージはビルドされたままの状態でリポジトリのdebsフォルダに追加され、1つのコミットとしてプッシュされます。%@を追加したデバイスには数分でアップデートが表示されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "패키지가 저장소의 debs 폴더에 추가되고 커밋된 후 푸시됩니다. %@을(를) 추가한 기기에서 몇 분 안에 보입니다."
+            "value" : "%@\n\n각 패키지는 빌드된 그대로 저장소의 debs 폴더에 추가되고 하나의 커밋으로 푸시됩니다. %@을(를) 추가한 기기에서 몇 분 안에 업데이트가 보입니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O pacote é adicionado à pasta debs do repositório, confirmado e enviado. Dispositivos com %@ o verão em alguns minutos."
+            "value" : "%@\n\nCada pacote é adicionado à pasta debs do repositório como foi compilado, em um único commit que é enviado. Dispositivos com %@ verão a atualização em alguns minutos."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Пакет добавляется в папку debs репозитория, фиксируется и отправляется. Устройства с %@ увидят его через несколько минут."
+            "value" : "%@\n\nКаждый пакет добавляется в папку debs репозитория в том виде, в каком он собран, одним коммитом, который отправляется. Устройства с %@ увидят обновление через несколько минут."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gói được thêm vào thư mục debs của kho, rồi được commit và đẩy lên. Các thiết bị đã thêm %@ sẽ thấy nó trong vài phút."
+            "value" : "%@\n\nMỗi gói được thêm vào thư mục debs của kho đúng như khi được xây dựng, trong một commit rồi được đẩy lên. Các thiết bị đã thêm %@ sẽ thấy bản cập nhật trong vài phút."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "软件包会放进仓库的 debs 文件夹，然后提交并推送。添加了 %@ 的设备几分钟内就能看到。"
+            "value" : "%@\n\n每个软件包会按构建时的原样放进仓库的 debs 文件夹，合为一次提交并推送。添加了 %@ 的设备几分钟内就能看到更新。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "套件會放進儲存庫的 debs 資料夾，然後提交並推送。加入了 %@ 的裝置幾分鐘內就能看到。"
+            "value" : "%@\n\n每個套件會按建置時的原樣放進儲存庫的 debs 資料夾，合為一次提交並推送。加入了 %@ 的裝置幾分鐘內就能看到更新。"
           }
         }
       }

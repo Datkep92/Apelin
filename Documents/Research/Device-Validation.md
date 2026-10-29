@@ -217,6 +217,22 @@ console now goes on after a restart only past a successful respring.
       leaves the build page as it was and Publish to Repository asks to
       publish to it. In Chinese the labels read 分发, 分享软件包 and
       发布到仓库.
+- [ ] Publishing packages already built (2026-10-29, AGENTS.md ▸ Project
+      display names and external project actions; none of it has run on a
+      device). With release builds of the current version for roothide and
+      rootless (the agent's, or two distribution builds), Distribute…
+      lists both under Packages as Built and selected; Publish to
+      Repository names the repository and both packages, and one publish
+      task commits both, nothing built again. Back on the page both read
+      Published and are no longer selected; picked and published again,
+      both are skipped.
+      Share Package on a row (and the row's VoiceOver action) shares that
+      `.deb`; a completed share reads Shared, a cancelled one stays Built.
+      Raising the version takes the rows away until it is built again; a
+      deb deleted from `Builds/` takes its row away. Build for a target
+      whose package is listed asks nothing when the version packaged
+      before is its only warning. With no repository linked, Publish to
+      Repository opens Settings ▸ Git.
 - [ ] A GitHub repository made by the agent (2026-10-29, AGENTS.md ▸ The
       environment worker ▸ Git and Agent sessions; none of it has run on a
       device, and it makes repositories on a real account, so by hand
