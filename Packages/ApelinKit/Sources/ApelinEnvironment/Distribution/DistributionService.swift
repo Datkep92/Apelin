@@ -91,13 +91,13 @@ public struct DistributionService: Sendable {
     /// a free project name, and a github.com credential to make it with.
     public func prepareCreate(_ request: DistributionRepositoryCreateRequest) throws -> String {
         let name = request.name.trimmingCharacters(in: .whitespaces)
-        guard Self.isRepositoryName(name) else {
+        guard GitHubName.isRepository(name) else {
             throw ApelinError(
                 .badRequest,
                 "Use letters, digits, hyphens, underscores and periods for the repository's name, at most 100.",
             )
         }
-        if let owner = request.owner, !Self.isOwnerName(owner) {
+        if let owner = request.owner, !GitHubName.isLogin(owner) {
             throw ApelinError(.badRequest, "Name the organization by its GitHub login.")
         }
         _ = try git.projects.newProjectRoot(named: name)
@@ -121,7 +121,10 @@ public struct DistributionService: Sendable {
         let created = try await api.createRepository(
             name: name,
             description: request.description ?? "Packages for jailbroken iOS, published with Apelin.",
+            isPrivate: false,
             organization: organization,
+            // Issues for its users; neither a wiki nor a project board.
+            features: ["has_issues": true, "has_wiki": false, "has_projects": false],
         )
         do {
             try reporter.checkCancelled()
@@ -160,7 +163,7 @@ public struct DistributionService: Sendable {
     /// Checked before the task is accepted.
     public func prepareLink(_ request: DistributionRepositoryLinkRequest) throws {
         let parts = request.fullName.split(separator: "/", omittingEmptySubsequences: false)
-        guard parts.count == 2, parts.allSatisfy({ Self.isRepositoryName(String($0)) }) else {
+        guard parts.count == 2, parts.allSatisfy({ GitHubName.isRepository(String($0)) }) else {
             throw ApelinError(.badRequest, "Name the repository as owner/name.")
         }
         _ = try api()
@@ -493,21 +496,6 @@ public struct DistributionService: Sendable {
     static func sourceURL(owner: String, name: String) -> String {
         let host = owner.lowercased() + ".github.io"
         return name.lowercased() == host ? "https://\(host)/" : "https://\(host)/\(name)/"
-    }
-
-    /// What GitHub takes for a repository's name.
-    /// A GitHub login: letters, digits and single hyphens, at most 39, no
-    /// hyphen at either end.
-    static func isOwnerName(_ name: String) -> Bool {
-        let allowed = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-")
-        return (1 ... 39).contains(name.count) && name.allSatisfy(allowed.contains)
-            && !name.hasPrefix("-") && !name.hasSuffix("-") && !name.contains("--")
-    }
-
-    static func isRepositoryName(_ name: String) -> Bool {
-        let allowed = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
-        return (1 ... 100).contains(name.count) && name.allSatisfy(allowed.contains)
-            && name != "." && name != ".." && !name.lowercased().hasSuffix(".git")
     }
 
     /// `<Package>_<Version>_<Architecture>.deb`, the epoch's colon spelled

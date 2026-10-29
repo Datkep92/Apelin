@@ -56,6 +56,10 @@ enum CallerPolicy {
         .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit,
         .gitCloneInto, .gitFetch, .gitPull, .gitPush,
         .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove,
+        // An empty repository on GitHub with the user's sign-in, under
+        // Confirm only as the user approved exactly it
+        // (AgentRepositoryCreateRules).
+        .gitRepositoryCreate,
         // A public issue on Apelin's own repository with the user's GitHub
         // sign-in, under Confirm only as the user approved exactly it
         // (AgentFeedbackRules). The package repository stays the app's.

@@ -259,18 +259,19 @@ actor ToolRunner {
     /// Nor for a push: each one publishes, so each one is asked. Nor for a
     /// toolchain or SDK install, which changes the device for every
     /// project, nor for a call that reaches another project, nor for a
-    /// command as root, nor for an issue filed in public as feedback.
+    /// command as root, nor for an issue filed in public as feedback, nor
+    /// for a repository made on GitHub.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
-             .local(.skillSave), .local(.skillRemove), .local(.feedbackSend):
+             .local(.skillSave), .local(.skillRemove), .local(.feedbackSend), .local(.gitCreateRepository):
             return false
         default:
             break
         }
         switch detail {
         case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
-             .projectRename, .rootCommand, .feedback:
+             .projectRename, .rootCommand, .feedback, .repositoryCreate:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -629,6 +630,19 @@ actor ToolRunner {
             return try await json(backend.gitRemoveCredential(GitCredentialRemoveToolRequest(
                 context: context,
                 host: arguments.requireString("host"),
+            )))
+
+        case .gitCreateRepository:
+            // The repository the card named.
+            guard let repository = facts.repositoryCreate else {
+                throw ToolDeniedError(message: "the repository to create could not be read")
+            }
+            return try await json(backend.createRepository(RepositoryCreateToolRequest(
+                context: context,
+                owner: repository.owner,
+                name: repository.name,
+                visibility: repository.visibility,
+                description: repository.description,
             )))
 
         case .conversationCreate:

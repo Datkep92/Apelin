@@ -634,6 +634,10 @@ actor EventRelay {
         // (AgentFeedbackRules).
         case let .feedback(feedback):
             payload["detail"] = .object(["feedback": (try? ApelinCore.JSONValue(encoding: feedback)) ?? .null])
+        // The repository the host matches an agent's gitRepositoryCreate to
+        // (AgentRepositoryCreateRules).
+        case let .repositoryCreate(repository):
+            payload["detail"] = .object(["repositoryCreate": (try? ApelinCore.JSONValue(encoding: repository)) ?? .null])
         }
         return .object(payload)
     }

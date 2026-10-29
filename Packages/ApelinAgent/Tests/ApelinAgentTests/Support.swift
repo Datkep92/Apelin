@@ -117,6 +117,7 @@ actor MockBackend: AgentHostBackend {
         case sdkImport(url: String, branch: String, evidence: ApprovalEvidence)
         case checkEnvironment(toolchainID: String?, sdkID: String?)
         case feedback(title: String, body: String, evidence: ApprovalEvidence)
+        case createRepository(RepositoryCreateApproval, evidence: ApprovalEvidence)
         case other(String)
     }
 
@@ -398,6 +399,23 @@ actor MockBackend: AgentHostBackend {
     func gitRemoveCredential(_ request: GitCredentialRemoveToolRequest) -> GitSettingsToolResponse {
         calls.append(.gitRemoveCredential(host: request.host))
         return GitSettingsToolResponse()
+    }
+
+    func createRepository(_ request: RepositoryCreateToolRequest) -> RepositoryCreateToolResponse {
+        let repository = RepositoryCreateApproval(
+            owner: request.owner,
+            name: request.name,
+            visibility: request.visibility,
+            description: request.description,
+        )
+        calls.append(.createRepository(repository, evidence: request.context.approval))
+        let fullName = (request.owner ?? "someone") + "/" + request.name
+        return RepositoryCreateToolResponse(
+            fullName: fullName,
+            cloneURL: "https://github.com/\(fullName).git",
+            url: "https://github.com/\(fullName)",
+            next: "git_push with url https://github.com/\(fullName).git",
+        )
     }
 
     func conversationCreate(_ request: ConversationCreateToolRequest) -> ConversationCreateToolResponse {

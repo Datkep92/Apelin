@@ -1,6 +1,8 @@
 import enum ApelinCore.ProjectDisplayName
 import enum ApelinProtocol.AgentToolName
 import enum ApelinProtocol.FeedbackRules
+import struct ApelinProtocol.GitRepositoryCreateRequest
+import enum ApelinProtocol.GitRepositoryVisibility
 import Foundation
 import KWWKAI
 
@@ -92,6 +94,28 @@ extension ToolRunner {
             facts.gitSettings = "the credential for \(host) (user \(username))"
         case .gitRemoveCredential:
             facts.gitSettings = "the credential for \(arguments.argString("host") ?? "")"
+        case .gitCreateRepository:
+            // Checked before anyone is asked, and again by apelin-environment;
+            // the card names what is created. The visibility has no default:
+            // it is the user's to choose.
+            guard let visibility = arguments.argString("visibility").flatMap(GitRepositoryVisibility.init(rawValue:)) else {
+                throw ToolArgumentError("Not created: visibility is public or private, as the user chose; ask them when they have not said.")
+            }
+            let request = try GitRepositoryCreateRequest(
+                name: arguments.requireString("name").trimmingCharacters(in: .whitespaces),
+                visibility: visibility,
+                owner: arguments.argNonEmptyString("owner"),
+                description: arguments.argNonEmptyString("description"),
+            )
+            if let problem = request.problem {
+                throw ToolArgumentError("Not created: \(problem)")
+            }
+            facts.repositoryCreate = RepositoryCreateApproval(
+                owner: request.owner,
+                name: request.name,
+                visibility: request.visibility,
+                description: request.description,
+            )
         case .packageConfirmLoaded where arguments.argBool("respring") == true:
             // It resprings the device, so it is gated as respring is.
             facts.tool = .local(.deviceRespring)

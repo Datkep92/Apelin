@@ -2861,6 +2861,71 @@ do {
     check(noSession?.code == .denied, "a worker with no session files nothing")
 }
 
+// MARK: - A repository is made on GitHub under Strict only as the user approved exactly it
+
+do {
+    check(CallerPolicy.allows(.worker(.agent, instance: "s"), .gitRepositoryCreate), "the agent may make a repository")
+    check(!CallerPolicy.allows(.worker(.build, instance: nil), .gitRepositoryCreate), "the build worker may not")
+    check(!CallerPolicy.allows(.worker(.environment, instance: nil), .gitRepositoryCreate), "nor the environment worker")
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-repository-tasks"))
+    await registry.load()
+    let sessions = AgentSessionTable.shared
+    func session(_ id: String, mode: ApprovalMode) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: ResolvedProject(id: "p-repository", name: "Repository", path: scratchPath),
+            mode: mode,
+            createdAt: Date(),
+        )
+        await sessions.add(entry)
+        return entry
+    }
+    let strict = await session("repository-strict", mode: .confirm)
+    let create = GitRepositoryCreateRequest(name: "clock-tweak", visibility: .private, description: "A clock in the status bar")
+    // What apelin-agent writes into apelin_git_create_repository's
+    // approvalRequested (ApelinAgentWorker's tests hold that shape).
+    func ask(_ approvalID: String, owner: String? = nil, visibility: String = "private") async {
+        var detail: [String: JSONValue] = [
+            "name": .string(create.name), "visibility": .string(visibility), "description": .string("A clock in the status bar"),
+        ]
+        if let owner {
+            detail["owner"] = .string(owner)
+        }
+        await registry.append(strict.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(approvalID), "tool": .string("apelin_git_create_repository"),
+            "detail": .object([AgentRepositoryCreateRules.detailKey: .object(detail)]),
+        ]))
+    }
+    func authorized(_ entry: AgentSessionTable.Entry?) async -> ApelinError? {
+        await AgentRepositoryCreateRules.authorize(create, session: entry?.sessionID, registry: registry)
+    }
+    let unasked = await authorized(strict)
+    check(unasked?.code == .denied, "Strict makes a repository only as the user approved it")
+    await ask("repository-1", visibility: "public")
+    await sessions.record(strict.sessionID, approvalID: "repository-1", decision: .approve)
+    let otherVisibility = await authorized(strict)
+    let unspent = await sessions.approvedIDs(strict.sessionID)
+    check(otherVisibility != nil && unspent == ["repository-1"], "a public repository approved is no private one, and stays unspent")
+    await ask("repository-2", owner: "OwnGoal")
+    await sessions.record(strict.sessionID, approvalID: "repository-2", decision: .approve)
+    let otherOwner = await authorized(strict)
+    check(otherOwner != nil, "nor is one approved in an organization one on the account")
+    await ask("repository-3")
+    let asked = await authorized(strict)
+    check(asked != nil, "asking is not approving")
+    await sessions.record(strict.sessionID, approvalID: "repository-3", decision: .approve)
+    let approved = await authorized(strict)
+    check(approved == nil, "the approved repository is made")
+    let again = await authorized(strict)
+    check(again != nil, "once: the next one asks again")
+    let relaxed = await authorized(session("repository-relaxed", mode: .relaxed))
+    let full = await authorized(session("repository-full", mode: .full))
+    check(relaxed == nil && full == nil, "Relaxed and Full make it as they push")
+    let noSession = await authorized(nil)
+    check(noSession?.code == .denied, "a worker with no session makes nothing")
+}
+
 // MARK: - Another project's conversations are reached only as the user approved
 
 do {
