@@ -355,11 +355,32 @@ struct ChannelHostBackendTests {
         #expect(sent.imageCheck == nil, "the agent never asks for the image list")
         #expect(fixture.host.requests.map(\.operation) == [.confirmLoaded, .confirmLoadedAttach])
         #expect(response.markerLogged)
-        #expect(!response.imageLoaded)
-        #expect(response.imageEvidence.isEmpty)
         #expect(response.filterMatches == true)
         #expect(response.loaded)
-        #expect(response.notes.contains("image: notRead"))
+        #expect(response.basis == ApelinAgent.ConfirmLoadedResponse.markerBasis)
+        #expect(response.notes == "log: confirmed: Marker logged by pid 55.\nfilter: confirmed: com.apple.springboard", "the image is never read: basis says so once")
+    }
+
+    @Test
+    func `apelin_package_confirm_loaded answers the host's verdict when the marker is not heard`() async throws {
+        let fixture = try Fixture()
+        let answer = ApelinProtocol.ConfirmLoadedResponse(loaded: false, evidence: [
+            LoadEvidence(kind: "log", passed: false, detail: "absent: No line containing \"ApelinLoaded B-42\" from SpringBoard in 30 s."),
+            LoadEvidence(kind: "image", passed: false, detail: "notRead: The image list was not read."),
+            LoadEvidence(kind: "filter", passed: false, detail: "absent: com.apple.Preferences only"),
+            LoadEvidence(kind: "trigger", passed: false, detail: "the respring failed"),
+        ])
+        fixture.host.on(.confirmLoaded, reply: TaskHandle(taskID: TaskID("confirm-task"), kind: .confirmLoaded))
+        try fixture.host.on(.confirmLoadedAttach, reply: batch("confirm-task", [
+            (TaskEvent.stateKind, .object(["state": .string("succeeded"), ApelinProtocol.ConfirmLoadedResponse.stateMember: JSONValue(encoding: answer)])),
+        ]))
+        let response = try await fixture.backend.confirmLoaded(ApelinAgent.ConfirmLoadedRequest(context: fixture.context(), buildID: "B-42", target: "SpringBoard", respring: true))
+        #expect(!response.loaded)
+        #expect(!response.markerLogged)
+        #expect(response.filterMatches == false)
+        #expect(response.logEvidence == ["absent: No line containing \"ApelinLoaded B-42\" from SpringBoard in 30 s."])
+        let kinds = response.notes.split(separator: "\n").map { line in String(line.prefix { $0 != ":" }) }
+        #expect(kinds == ["log", "filter", "trigger"], "the trigger's failure stays; the image is never read")
     }
 
     @Test

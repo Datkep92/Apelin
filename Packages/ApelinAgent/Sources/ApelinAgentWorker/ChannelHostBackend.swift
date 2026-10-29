@@ -442,7 +442,6 @@ public struct ChannelHostBackend: AgentHostBackend {
             trigger: request.respring ? .respring : nil,
         )
         let marker = response.evidence.first { $0.kind == "log" }
-        let image = response.evidence.first { $0.kind == "image" }
         let filter = response.evidence.first { $0.kind == "filter" }
         let filterMatches: Bool? = filter.flatMap { evidence in
             if evidence.passed {
@@ -450,13 +449,15 @@ public struct ChannelHostBackend: AgentHostBackend {
             }
             return evidence.detail.hasPrefix("absent") ? false : nil
         }
+        // The image evidence is always `notRead`; the answer's `basis` says
+        // so once.
+        let notes = response.evidence.filter { $0.kind != "image" }.map { "\($0.kind): \($0.detail)" }
         return ApelinAgent.ConfirmLoadedResponse(
+            loaded: response.loaded,
             markerLogged: marker?.passed ?? false,
-            imageLoaded: image?.passed ?? false,
             filterMatches: filterMatches,
             logEvidence: marker.map { [$0.detail] } ?? [],
-            imageEvidence: image.flatMap { $0.passed ? [LoadedImage(path: $0.detail)] : nil } ?? [],
-            notes: response.evidence.map { "\($0.kind): \($0.detail)" }.joined(separator: "\n"),
+            notes: notes.joined(separator: "\n"),
         )
     }
 

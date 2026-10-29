@@ -265,7 +265,7 @@ actor MockBackend: AgentHostBackend {
 
     func confirmLoaded(_ request: ConfirmLoadedRequest) -> ConfirmLoadedResponse {
         calls.append(.confirmLoaded(build: request.buildID, target: request.target))
-        return ConfirmLoadedResponse(markerLogged: true, imageLoaded: true, filterMatches: true, logEvidence: ["Hello loaded build-1"])
+        return ConfirmLoadedResponse(loaded: true, markerLogged: true, filterMatches: true, logEvidence: ["Hello loaded build-1"])
     }
 
     func readLogs(_: ReadLogsRequest) -> ReadLogsResponse {
