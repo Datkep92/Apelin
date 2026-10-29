@@ -62,6 +62,55 @@ struct ProjectCreationTests {
         )])
     }
 
+    /// The tweak template's filterBundles is a list of bundle IDs. Every
+    /// call that gave one was refused, and the model settled for the
+    /// default SpringBoard filter (five conversations on a device).
+    @Test(.timeLimit(.minutes(1)))
+    func `apelin_project_create passes a list of strings on, and names the value it refuses`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let backend = MockBackend()
+        let runner = try runner(home, project: generalChat(), backend: backend)
+        func create(_ values: JSONValue) async throws {
+            _ = try await runner.run(.local(.projectCreate), toolCallID: UUID().uuidString, arguments: .object([
+                "template": "wiki.qaq.apelin.dev.tweak/objc-hook",
+                "name": "Settings Tweak",
+                "values": values,
+            ]), cancellation: nil, mcp: nil)
+        }
+        try await create(["filterBundles": ["com.apple.springboard", "com.apple.Preferences"], "displayName": "X"])
+        // An empty list goes on too: apelin-build asks for 1 to 32 items.
+        try await create(["filterBundles": []])
+        #expect(await backend.calls == [
+            .createProject(
+                template: "wiki.qaq.apelin.dev.tweak/objc-hook",
+                name: "Settings Tweak",
+                values: ["filterBundles": .list(["com.apple.springboard", "com.apple.Preferences"]), "displayName": .string("X")],
+            ),
+            .createProject(template: "wiki.qaq.apelin.dev.tweak/objc-hook", name: "Settings Tweak", values: ["filterBundles": .list([])]),
+        ])
+        for (values, expected) in [
+            (["filterBundles": [1]], "filterBundles: a list holds strings only"),
+            (["filterBundles": [[:]]], "filterBundles: a list holds strings only"),
+            (["displayName": "X", "filterBundles": ["bundles": "com.apple.Preferences"]], "filterBundles must be a string, boolean, integer or list of strings"),
+        ] as [(JSONValue, String)] {
+            let error = await #expect(throws: ToolArgumentError.self) { try await create(values) }
+            #expect(error?.message.hasPrefix(expected) == true, "\(error?.message ?? "no error")")
+        }
+        #expect(await backend.calls.count == 2, "a refused value reaches no host")
+    }
+
+    @Test
+    func `a template value round-trips as the JSON it stands for`() throws {
+        let values: [String: TemplateValue] = [
+            "filterBundles": .list(["com.apple.Preferences"]), "displayName": .string("X"),
+            "verbose": .boolean(true), "count": .integer(3),
+        ]
+        let data = try JSONEncoder().encode(values)
+        #expect(try JSONDecoder().decode([String: JSONValue].self, from: data)["filterBundles"] == ["com.apple.Preferences"])
+        #expect(try JSONDecoder().decode([String: TemplateValue].self, from: data) == values)
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func `apelin_project_create needs a template, and a project's chat creates another without asking`() async throws {
         let home = try TemporaryHome()

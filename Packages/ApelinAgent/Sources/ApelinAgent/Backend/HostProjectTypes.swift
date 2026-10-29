@@ -4,11 +4,14 @@ import Foundation
 // MARK: - Projects
 
 /// A template parameter's value: the kinds a template declares are strings
-/// (identifiers and choices among them), booleans and integers.
+/// (identifiers and choices among them), booleans, integers and lists of
+/// strings (bundleIDList and executableList, such as the tweak's
+/// filterBundles).
 public enum TemplateValue: Sendable, Hashable, Codable {
     case string(String)
     case boolean(Bool)
     case integer(Int)
+    case list([String])
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -16,6 +19,8 @@ public enum TemplateValue: Sendable, Hashable, Codable {
             self = .boolean(value)
         } else if let value = try? container.decode(Int.self) {
             self = .integer(value)
+        } else if let value = try? container.decode([String].self) {
+            self = .list(value)
         } else {
             self = try .string(container.decode(String.self))
         }
@@ -27,6 +32,7 @@ public enum TemplateValue: Sendable, Hashable, Codable {
         case let .string(value): try container.encode(value)
         case let .boolean(value): try container.encode(value)
         case let .integer(value): try container.encode(value)
+        case let .list(value): try container.encode(value)
         }
     }
 }
@@ -34,8 +40,9 @@ public enum TemplateValue: Sendable, Hashable, Codable {
 public struct ProjectTemplate: Sendable, Hashable, Codable {
     public struct Parameter: Sendable, Hashable, Codable {
         public var name: String
-        /// The manifest's type: string, identifier, bundleID, packageID,
-        /// reverseDNS, enum, boolean or integer.
+        /// The manifest's type: projectName, identifier, bundleID,
+        /// packageID, version, deploymentTarget, string, enum, bool, or a
+        /// list of strings: bundleIDList or executableList.
         public var kind: String
         public var summary: String?
         public var defaultValue: TemplateValue?

@@ -197,6 +197,17 @@ console now goes on after a restart only past a successful respring.
       rather than for the passcode; whether a screenshot of that lock
       screen comes back. The agent waking the device by itself to check a
       lock-screen tweak.
+- [ ] A tweak filtered to another app from its creation (2026-10-29,
+      AGENTS.md ▸ Agent sessions; none of it has run on a device). In
+      General Chat, ask for a tweak that loads into Settings:
+      apelin_template_list shows the tweak template's `filterBundles` with
+      its default `["com.apple.springboard"]`, apelin_project_create takes
+      `{"filterBundles": ["com.apple.Preferences"]}` in `values` the first
+      time, the new project's `package.tweakFilter.bundles` is
+      `["com.apple.Preferences"]`, and its first build does not ask in
+      Strict. Before this, every such call was refused ("each value must be
+      a string, boolean or integer") and the model kept the SpringBoard
+      filter without saying so.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's
