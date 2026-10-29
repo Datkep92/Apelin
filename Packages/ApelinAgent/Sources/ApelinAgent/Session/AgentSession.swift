@@ -122,6 +122,7 @@ public actor AgentSession {
             gate: gate,
             memory: memory,
             skills: configuration.dataRoot.skills,
+            readOnlyRoots: ReadOnlyRoots(installRoot: configuration.installRoot, dataRoot: configuration.dataRoot),
             record: { _ = try await log.append($0) },
         )
         let (mcpManager, mcpTools) = await MCPBridge.connect(configuration.mcpServers)

@@ -71,6 +71,8 @@ enum EnvironmentPrompt {
         /// Which of `probedCommands` shell_run finds on its search path; nil
         /// when nobody looked.
         var commandsFound: Set<String>?
+        /// The folders the read tools reach besides the project.
+        var readOnlyRoots: ReadOnlyRoots = .none
 
         var environment: DevelopmentEnvironment {
             DevelopmentEnvironment.resolve(registered, binding: binding)
@@ -101,6 +103,7 @@ enum EnvironmentPrompt {
             installRoot: configuration.installRoot,
             home: configuration.dataRoot.home.path,
             commandsFound: configuration.installRoot.map(commandsFound(installRoot:)),
+            readOnlyRoots: ReadOnlyRoots(installRoot: configuration.installRoot, dataRoot: configuration.dataRoot),
         )
     }
 
@@ -131,6 +134,9 @@ enum EnvironmentPrompt {
         }
         if let found = inputs.commandsFound {
             lines.append(commandsLine(found))
+        }
+        if let line = readOnlyLine(inputs.readOnlyRoots) {
+            lines.append(line)
         }
         // The records are files mobile can write: whatever they hold stays
         // on its line.
@@ -235,6 +241,18 @@ enum EnvironmentPrompt {
             line += " Not installed: " + missing.joined(separator: ", ") + "."
         }
         return line + " The bootstrap's other commands are not macOS's (GNU sed, a different plutil): read a Mac build script's commands before running it, and say what is missing rather than looking for it."
+    }
+
+    /// Where a header the project does not hold is read: a template's
+    /// support headers (the Preferences framework's among them) are in its
+    /// extension's folder, an SDK's under the SDK's path.
+    private static func readOnlyLine(_ roots: ReadOnlyRoots) -> String? {
+        guard let described = roots.described else { return nil }
+        var line = "- file_read, file_list, file_grep and file_find also read, never write, an absolute path inside \(described)."
+        if roots.developmentExtensions != nil {
+            line += " The headers a template's support component adds, such as the Preferences framework's, are in `<extension id>/support/include` there."
+        }
+        return line
     }
 
     private static func preparedLine(_ inputs: Inputs, environment: DevelopmentEnvironment) -> String {

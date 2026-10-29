@@ -27,6 +27,8 @@ actor ToolRunner {
     let gate: ApprovalGate
     let memory: MemoryStore?
     let skills: URL?
+    /// Where the read tools reach besides the project.
+    let readOnlyRoots: ReadOnlyRoots
     /// Writes an event to the session's log: apelin_notification_send's `notice`.
     let record: (@Sendable (AgentSessionEvent) async throws -> Void)?
     let webFetch: WebFetch
@@ -42,6 +44,7 @@ actor ToolRunner {
         gate: ApprovalGate,
         memory: MemoryStore? = nil,
         skills: URL? = nil,
+        readOnlyRoots: ReadOnlyRoots = .none,
         record: (@Sendable (AgentSessionEvent) async throws -> Void)? = nil,
         webFetch: WebFetch = .shared,
     ) {
@@ -54,6 +57,7 @@ actor ToolRunner {
         self.gate = gate
         self.memory = memory
         self.skills = skills
+        self.readOnlyRoots = readOnlyRoots
         self.record = record
         self.webFetch = webFetch
     }
@@ -168,7 +172,7 @@ actor ToolRunner {
         case let .allow(allowed):
             evidence = allowed
         case let .deny(reason):
-            throw ToolDeniedError(message: "refused: \(reason)")
+            throw ToolDeniedError(message: "refused: \(reason)\(readOnlyNote(tool))")
         case let .ask(reason, detail):
             evidence = try await ask(reason, detail)
         }
@@ -345,19 +349,20 @@ actor ToolRunner {
 
         case .fileRead:
             // An image comes back as a picture, as a screenshot does.
-            if let image = try files.readImage(arguments) {
+            let reader = readFiles(arguments)
+            if let image = try reader.readImage(arguments) {
                 return AgentToolResult(content: [
                     .text(TextContent(text: image.summary)),
                     .image(ImageContent(data: image.data.base64EncodedString(), mimeType: image.mimeType)),
                 ])
             }
-            return try text(files.readFile(arguments))
+            return try text(reader.readFile(arguments))
 
-        case .fileList: return try text(files.list(arguments))
+        case .fileList: return try text(readFiles(arguments).list(arguments))
 
-        case .fileGrep: return try text(files.grep(arguments))
+        case .fileGrep: return try text(readFiles(arguments).grep(arguments))
 
-        case .fileFind: return try text(files.find(arguments))
+        case .fileFind: return try text(readFiles(arguments).find(arguments))
 
         case .fileShow: return try files.show(arguments)
 
@@ -798,6 +803,28 @@ actor ToolRunner {
             projects[id] = MemoryListing.Project(folder: found.name.rawValue, displayName: nil)
         }
         return projects
+    }
+
+    /// The root a read tool reads `path` from: the project's, unless the
+    /// path is absolute and lies in one of the read-only roots.
+    func readRoot(for path: String) -> ScopedRoot {
+        readOnlyRoots.root(containing: path)?.root ?? root
+    }
+
+    /// The read tools against the root this call's `path` lies in.
+    private func readFiles(_ arguments: JSONValue) -> ProjectFileTools {
+        let path = arguments.argString("path") ?? "."
+        guard let readOnly = readOnlyRoots.root(containing: path) else { return ProjectFileTools(root: root) }
+        return ProjectFileTools(root: readOnly.root, shownRoot: readOnly.shownAs)
+    }
+
+    /// What a read tool's refusal of a path outside the project adds: the
+    /// folders it reads besides.
+    private func readOnlyNote(_ tool: InvocationFacts.Tool) -> String {
+        guard case let .local(name) = tool, ReadOnlyRoots.tools.contains(name),
+              let note = readOnlyRoots.refusalNote
+        else { return "" }
+        return "; " + note
     }
 
     /// Runs `body` until it answers or the call is cancelled: a stop does

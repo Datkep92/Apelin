@@ -2,9 +2,14 @@ import Foundation
 import KWWKAI
 
 /// The file tools, implemented here against the project root as mobile.
-/// Every path goes through `ScopedRoot`; nothing leaves the project.
+/// Every path goes through `ScopedRoot`; nothing leaves the project. The
+/// reads also run against a read-only root outside it (`ReadOnlyRoots`).
 struct ProjectFileTools: Sendable {
     let root: ScopedRoot
+    /// For a read-only root outside the project, the folder its paths are
+    /// shown under, as the system prompt names it, so a result can be read
+    /// again; nil for the project, whose paths are shown relative to it.
+    var shownRoot: String?
 
     static let maxReadBytes = 512 * 1024
     /// As large as a message's attachment may be, so one sent can be looked
@@ -106,7 +111,7 @@ struct ProjectFileTools: Sendable {
         let handle = FileHandle(fileDescriptor: file.descriptor, closeOnDealloc: false)
         let head = try handle.read(upToCount: FileImage.sniffedBytes) ?? Data()
         guard let format = FileImage.format(of: head) else { return nil }
-        let name = root.relative(real)
+        let name = shown(real)
         guard file.size <= Self.maxImageFileBytes else {
             throw ToolArgumentError(
                 "\(name) is a \(format) image of \(file.size) bytes, over the \(Self.maxImageFileBytes)-byte limit",
@@ -147,7 +152,7 @@ struct ProjectFileTools: Sendable {
         var results: [String] = []
         enumerateFiles(under: real) { file in
             if fnmatch(pattern, (file as NSString).lastPathComponent, 0) == 0 {
-                results.append(root.relative(file))
+                results.append(shown(file))
             }
             return results.count < maxResults
         }
@@ -175,8 +180,8 @@ struct ProjectFileTools: Sendable {
             for (index, line) in text.components(separatedBy: "\n").enumerated() {
                 let range = NSRange(line.startIndex..., in: line)
                 if expression.firstMatch(in: line, range: range) != nil {
-                    let shown = line.count > 300 ? String(line.prefix(300)) + "…" : line
-                    results.append("\(root.relative(file)):\(index + 1): \(shown)")
+                    let excerpt = line.count > 300 ? String(line.prefix(300)) + "…" : line
+                    results.append("\(shown(file)):\(index + 1): \(excerpt)")
                     if results.count >= maxResults {
                         return
                     }
@@ -204,7 +209,7 @@ struct ProjectFileTools: Sendable {
     func readText(_ canonical: String, limit: Int = maxReadBytes) throws -> String {
         let data = try readData(canonical, limit: limit)
         if data.prefix(8192).contains(0) {
-            throw ToolArgumentError("\(root.relative(canonical)) is a binary file")
+            throw ToolArgumentError("\(shown(canonical)) is a binary file")
         }
         return String(decoding: data, as: UTF8.self)
     }
@@ -216,13 +221,13 @@ struct ProjectFileTools: Sendable {
         defer { close(file.descriptor) }
         guard file.size <= limit else {
             throw ToolArgumentError(
-                "\(root.relative(canonical)) is \(file.size) bytes, over the \(limit)-byte limit",
+                "\(shown(canonical)) is \(file.size) bytes, over the \(limit)-byte limit",
             )
         }
         // One byte past the limit, for a file that grew since fstat.
         let data = FileHandle(fileDescriptor: file.descriptor, closeOnDealloc: false).readData(ofLength: limit + 1)
         guard data.count <= limit else {
-            throw ToolArgumentError("\(root.relative(canonical)) grew past the \(limit)-byte limit while it was read")
+            throw ToolArgumentError("\(shown(canonical)) grew past the \(limit)-byte limit while it was read")
         }
         return data
     }
@@ -233,14 +238,22 @@ struct ProjectFileTools: Sendable {
         guard root.contains(canonical) else { throw PathPolicyError.outsideRoot(canonical) }
         let fd = open(canonical, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
         guard fd >= 0 else {
-            throw PathPolicyError.io("could not open \(root.relative(canonical)): \(String(cString: strerror(errno)))")
+            throw PathPolicyError.io("could not open \(shown(canonical)): \(String(cString: strerror(errno)))")
         }
         var info = stat()
         guard fstat(fd, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
             close(fd)
-            throw PathPolicyError.notAFile(root.relative(canonical))
+            throw PathPolicyError.notAFile(shown(canonical))
         }
         return (fd, Int(info.st_size))
+    }
+
+    /// `canonical` as results name it: relative to the project, or under
+    /// `shownRoot`.
+    private func shown(_ canonical: String) -> String {
+        let relative = root.relative(canonical)
+        guard let shownRoot else { return relative }
+        return relative == "." ? shownRoot : (shownRoot as NSString).appendingPathComponent(relative)
     }
 
     /// Regular files below `directory`, without following links out of the

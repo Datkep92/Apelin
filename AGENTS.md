@@ -1048,7 +1048,14 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   when the file has transparency and JPEG otherwise, after a line saying
   what it is; text that only begins like an image reads as text. A video
   is seen through frames extracted as image files, as the refusal of any
-  other binary now says. Every system tool is one
+  other binary now says. The read tools
+  (file_read, file_list, file_grep, file_find) also read, never write, an
+  absolute path whose realpath lies in Apelin's development extensions
+  (`<install root>/usr/share/apelin/development`, where a template's
+  support headers are) or the data folder's `SDKs/`, as the read presets
+  they are in every mode (`Paths/ReadOnlyRoots.swift`); a relative path,
+  a link in the project included, is the project's, and a read tool's
+  refusal of any other path names both folders. Every system tool is one
   host request
   (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches;
   its findings, and apelin_project_check_distribution's, keep their `field`,
@@ -2741,7 +2748,10 @@ template's flags; a test holds that the skill ships the header).
 log apelin_log_read reads), the sandbox an injected dylib inherits, reading a
 setting, and signalling another process with a payload-free Darwin
 notification. `apelin-preference-bundle` is the Settings pane: `PSListController`,
-`Root.plist`, the PreferenceLoader entry and the domain the tweak reads.
+`Root.plist`, the PreferenceLoader entry and the domain the tweak reads,
+and where the preferences extension's header is, to read with file_read
+before calling the framework from code (a method it lacks goes in a
+category in the project).
 `apelin-package-dependencies` is how a package is installed — the project's own build
 through `apelin_package_install`, a dependency through the user in Irisin — and why
 shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
@@ -2834,7 +2844,8 @@ get relative paths or `$APELIN_PROJECT_ROOT` (on the iPhone vphone, `pwd -P`
 in the data folder printed `/var/mobile/Documents/…`), and which of cmake,
 dpkg-deb, git, ldid, make, ninja, perl, python3 and xcrun are on shell_run's
 search path (`DevelopmentEnvironment.searchPath`,
-the host's own list). It is part of the session's snapshot, holds nothing
+the host's own list), and the two folders the read tools reach besides the
+project (`ReadOnlyRoots`). It is part of the session's snapshot, holds nothing
 that changes unless the environment does — no time, size or duration,
 everything sorted — and a toolchain or SDK registered or removed later
 reaches an open session as the lines that went and came, in its next

@@ -275,6 +275,26 @@ struct SkillAndPromptTests {
         #expect(source.contains("MSHookMessageEx"))
     }
 
+    /// On a device, a pane's chat looked for PSListController.h in the
+    /// extension's support folder with the file tools, was told it was
+    /// outside the project, and read it through the shell instead.
+    @Test
+    func `the apelin-preference-bundle skill names the Preferences header where the read tools reach it`() throws {
+        let skill = try #require(BuiltInSkills.all.first { $0.name == "apelin-preference-bundle" })
+        let installed = "wiki.qaq.apelin.dev.preferences/support/include/Preferences/PSListController.h"
+        #expect(skill.body.contains("`<install root>/usr/share/apelin/development/\(installed)`"))
+        let words = skill.body.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        #expect(words.contains("Read it with file_read"))
+        #expect(ReadOnlyRoots(installRoot: "/var/jb", dataRoot: ApelinDataRoot(home: URL(fileURLWithPath: "/var/mobile")))
+            .developmentExtensions == "/var/jb/usr/share/apelin/development")
+        // The extension's packager installs the repository's header there.
+        let repository = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let header = try String(contentsOf: repository.appendingPathComponent("Extensions/Development/" + installed), encoding: .utf8)
+        #expect(header.contains("@interface PSSpecifier"))
+    }
+
     @Test
     func `the prompt keeps apelin_notification_send for what the user would want to know while away`() throws {
         let home = try TemporaryHome()

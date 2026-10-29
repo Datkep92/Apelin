@@ -309,6 +309,22 @@ console now goes on after a restart only past a successful respring.
       instead: the failure says the installer does not remove it, and
       names the installation. Once on roothide and once on rootless, whose
       lists spell paths `/var/jb/…`.
+- [ ] The read tools outside the project and the Preferences declarations
+      (2026-10-29, AGENTS.md ▸ Agent sessions; none of it has run on a
+      device). Under Strict, in a preference bundle project's chat:
+      file_read of
+      `<install root>/usr/share/apelin/development/wiki.qaq.apelin.dev.preferences/support/include/Preferences/PSListController.h`
+      and file_grep of an SDK's `usr/include` by the path `# Environment`
+      names, each with no card; file_find there naming whole paths that
+      file_read takes back; file_edit of the header refused. On both
+      bootstraps, with the preferences extension 0.1.1 installed: a pane
+      that builds a switch row with
+      `+preferenceSpecifierNamed:target:set:get:detail:cell:edit:`
+      (`PSSwitchCell`), sets its `key`, `defaults` and `default` with
+      `setProperty:forKey:`, and adds it with `insertSpecifier:atIndex:animated:`
+      builds, shows a switch in Settings and stores its value; then a
+      class-dump of the device's Preferences framework against the header's
+      `PSCellType` values and every method it declares.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

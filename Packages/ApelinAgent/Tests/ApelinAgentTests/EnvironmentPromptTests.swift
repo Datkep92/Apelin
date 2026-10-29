@@ -27,6 +27,22 @@ struct EnvironmentPromptTests {
     }
 
     @Test
+    func `the folders the read tools reach besides the project are named`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let sdks = home.dataRoot.url.appendingPathComponent("SDKs").path
+        let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot, installRoot: home.home.path + "/jb")
+        let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(home.projectURL), skills: [])
+        #expect(prompt.contains("- file_read, file_list, file_grep and file_find also read, never write, an absolute path inside Apelin's development extensions (\(home.home.path)/jb/usr/share/apelin/development) or the registered SDKs (\(sdks)). The headers a template's support component adds, such as the Preferences framework's, are in `<extension id>/support/include` there."))
+
+        // Without an install root (no session host) only the SDKs are named.
+        let unhosted = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot)
+        let section = try EnvironmentPrompt.section(EnvironmentPrompt.inputs(unhosted, root: ScopedRoot(home.projectURL), device: .current))
+        #expect(section.contains("- file_read, file_list, file_grep and file_find also read, never write, an absolute path inside the registered SDKs (\(sdks))."))
+        #expect(!section.contains("development extensions"))
+    }
+
+    @Test
     func `on roothide mobile's home is inside the install root`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
