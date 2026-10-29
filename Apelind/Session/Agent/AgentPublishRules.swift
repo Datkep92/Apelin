@@ -2,13 +2,14 @@ import ApelinCore
 import ApelinProtocol
 import Foundation
 
-/// An agent's `distributionPublish` (apelin_package_publish, issue #11):
-/// packages builds made, put in the user's package repository where anyone
-/// who adds the source can install them, so, like a push, it asks under
-/// Confirm every time. In every mode the request names the repository and
-/// each package's digest, and each file is a package a build reported to
-/// this host (ArtifactRegistry) with that digest, so the agent publishes
-/// only what Apelin built, as it was built, never a `.deb` it made itself.
+/// An agent's `distributionPublish` (apelin_package_publish; owner,
+/// 2026-10-29): packages builds made, put in the user's package repository
+/// where anyone who adds the source can install them, so, like a push, it
+/// asks under Confirm every time. In every mode the request names the
+/// repository and each package's digest, and each file is a package a
+/// build reported to this host (ArtifactRegistry) with that digest, so the
+/// agent publishes only what Apelin built, as it was built, never a `.deb`
+/// it made itself.
 /// Under Confirm each one spends an approval the app gave this session
 /// whose own `approvalRequested` names exactly that repository and those
 /// files and digests, in order (`detail.packagePublish` {repository,

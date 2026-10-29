@@ -2,9 +2,9 @@ import struct ApelinProtocol.DistributionPublishRequest
 import Foundation
 import KWWKAI
 
-/// apelin_package_publish (issue #11): release builds' packages put in the
-/// user's package repository as their builds made them, every one in one
-/// commit — roothide and rootless of one version together. What could
+/// apelin_package_publish (owner, 2026-10-29): release builds' packages
+/// put in the user's package repository as their builds made them, every
+/// one in one commit — roothide and rootless of one version together. What could
 /// never be published is refused here, before anyone is asked: a build
 /// that left no package, a debug build, a package gone from Apelin's build
 /// folder, two packages of one ID, version and architecture, and a device

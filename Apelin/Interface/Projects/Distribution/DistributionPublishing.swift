@@ -73,18 +73,29 @@ enum DistributionPublishing {
                 confirmTitle: "Publish",
             ) { [weak presenter] in
                 guard let presenter else { return }
-                start(files, from: presenter)
+                start(files, to: linked.fullName, from: presenter)
             }
         } catch {
             presenter.presentNotice(title: "Unable to Publish", message: error.readableMessage)
         }
     }
 
-    /// `files`, read back already, each with the digest its build recorded.
-    private static func start(_ files: [(path: String, digest: String)], from presenter: UIViewController) {
+    /// `files`, read back already, each with the digest its build recorded,
+    /// which apelin-environment checks the bytes against again before any
+    /// goes in; `repository` is the one the confirmation named, so a link
+    /// changed meanwhile publishes nothing.
+    private static func start(
+        _ files: [(path: String, digest: String)],
+        to repository: String,
+        from presenter: UIViewController,
+    ) {
         Task { [weak presenter] in
             do {
-                let handle = try await ApelinService.app.distributionPublish(files: files.map(\.path))
+                let handle = try await ApelinService.app.distributionPublish(
+                    files: files.map(\.path),
+                    digests: files.map(\.digest),
+                    repository: repository,
+                )
                 let page = EnvironmentTaskController(
                     handle: handle,
                     work: .distributionPublish,
