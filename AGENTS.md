@@ -2364,28 +2364,30 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `FeedbackRulesTests`; the console's `distribution.json` sends an empty
   title, refused before anything reaches GitHub.
   *The star* (owner, 2026-10-29; `Apelin/Interface/Feedback/`). Once the
-  reader has signed in with GitHub, the tenth build that completes asks
-  "Do You Like Apelin?" — "Please star us on GitHub. It helps us go
-  further.", Maybe Later (下次一定) beside Star Now (立即标记) — and Star
-  Now stars `FeedbackRules.repository` with that sign-in
-  (`feedbackStar`, `PUT /user/starred/…` with an empty body), then says
-  Thank You, or GitHub's refusal in a notice. `StarPrompt` counts, in the
-  app's defaults, only builds that complete while `gitSettings` names a
-  github.com sign-in: each apelin_project_build result a conversation
-  reads for the first time whose answer says `succeeded`
-  (`CompletedBuilds`, so a reopened session's replay counts nothing
-  again) and each distribution build. At ten it reads
-  `feedbackStarState` (`GET /user/starred/…`, 404 being no star) and asks
-  only an account that has not starred it; either way it asks once, and
-  Maybe Later is an answer. While the app is in the background, an alert
-  or a presentation is coming or going, the read fails or UIKit does not
-  take the alert, it asks nothing and the next build tries again; so does
-  a Star Now that did not get through, unless GitHub refused the star. Both operations are the app's
-  alone, no worker's (CallerPolicy), and the console refuses
-  `feedbackStar` before sending it: a star on the reader's account comes
-  only from their tap. Tested by `FeedbackTests` (the read, the empty
-  PUT, the sign-in), the console's tests and `CompletedBuildsCheck` in
-  the transcript harness.
+  reader has signed in with GitHub, builds that complete ask "Do You Like
+  Apelin?" — "Please star us on GitHub. It helps us go further.", Maybe
+  Later (下次一定) beside Star Now (立即标记) — and Star Now stars
+  `FeedbackRules.repository` with that sign-in (`feedbackStar`,
+  `PUT /user/starred/…` with an empty body), then says Thank You, or
+  GitHub's refusal in a notice. `StarPromptState`, kept as JSON in the
+  app's defaults, paces it: after ten builds, again ten builds after each
+  Maybe Later, three times at most; Star Now ends it for good, whatever
+  GitHub answers. `StarPrompt` counts only builds that complete while
+  `gitSettings` names a github.com sign-in: each apelin_project_build
+  result a conversation reads for the first time whose answer says
+  `succeeded` (`CompletedBuilds`, so a reopened session's replay counts
+  nothing again) and each distribution build. When an ask is due it reads
+  `feedbackStarState` in the background (`GET /user/starred/…`, 404 being
+  no star), at most once a day, and an account that has starred Apelin is
+  never asked. While the app is in the background, an alert or a
+  presentation is coming or going, the read fails or UIKit does not take
+  the alert, it asks nothing and waits for a build on a later day. Both
+  operations are the app's alone, no worker's (CallerPolicy), and the
+  console refuses `feedbackStar` before sending it: a star on the
+  reader's account comes only from their tap. Tested by `FeedbackTests`
+  (the read, the empty PUT, the sign-in), the console's tests, and
+  `CompletedBuildsCheck` and `StarPromptStateCheck` in the transcript
+  harness.
 
 ### Product (decided 2026-10-16)
 

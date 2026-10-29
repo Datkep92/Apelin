@@ -1028,3 +1028,5 @@ checkDroppedMessages()
 checkDeletedProjects()
 
 checkCompletedBuilds()
+
+checkStarPromptState()

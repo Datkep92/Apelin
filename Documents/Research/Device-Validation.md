@@ -260,12 +260,13 @@ console now goes on after a restart only past a successful respring.
       Signed in with an account that has not starred owngoal-dev/Apelin:
       the first nine builds that succeed after that (agent builds and
       distribution builds alike; failed builds and a reopened
-      conversation's replay add none) ask nothing, the tenth asks "Do You Like Apelin?" with Maybe Later on the left
-      and Star Now on the right, in Chinese 下次一定 and 立即标记. Star Now
-      stars the repository on that account and says Thank You; Maybe
-      Later stars nothing, and neither asks again. An account that has
-      starred it already is never asked. The count and the answer are
-      `starPrompt.builds` and `starPrompt.asked` in the app's preferences;
+      conversation's replay add none) ask nothing, the tenth asks "Do You
+      Like Apelin?" with Maybe Later on the left and Star Now on the
+      right, in Chinese 下次一定 and 立即标记. Maybe Later asks again ten
+      builds later, on another day, and after the third time never again;
+      Star Now stars the repository on that account, says Thank You and
+      never asks again. An account that has starred it already is never
+      asked. The state is `starPrompt.state` in the app's preferences;
       unstar the repository afterwards.
 - [ ] Waking the device from the agent (2026-10-29; none of it has run on
       a device). A wake and a lock round trip on the iOS 26 and the iOS 27

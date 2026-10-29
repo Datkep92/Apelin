@@ -3,49 +3,49 @@ import ApelinProtocol
 import SPIndicator
 import UIKit
 
-/// Once the reader has signed in with GitHub, the tenth build that
-/// completes asks whether they like Apelin, and Star Now stars its
-/// repository with that sign-in (owner, 2026-10-29). Only builds that
-/// complete while the sign-in is there count: a conversation's
-/// (`CompletedBuilds`) and the distribution page's. It asks once: an
-/// account that has starred Apelin already is never asked, and Maybe Later
-/// is an answer too. When it cannot ask yet — the app is in the background,
-/// another alert is up, GitHub did not answer — or Star Now did not get
-/// through, the next build tries again.
+/// Once the reader has signed in with GitHub, builds that complete ask
+/// whether they like Apelin, and Star Now stars its repository with that
+/// sign-in (owner, 2026-10-29), as `StarPromptState` paces it: after ten
+/// builds, again ten builds after each Maybe Later, three times at most.
+/// Only builds that complete while the sign-in is there count: a
+/// conversation's (`CompletedBuilds`) and the distribution page's. Before
+/// it asks, it reads in the background whether the account has starred
+/// Apelin, at most once a day, and one that has is never asked. Whatever
+/// keeps it from asking — the app in the background, another alert up,
+/// GitHub not answering — waits for a build on a later day.
 @MainActor
 enum StarPrompt {
-    static let buildsBeforeAsking = 10
-
-    private static let buildsKey = "starPrompt.builds"
-    private static let askedKey = "starPrompt.asked"
+    private static let stateKey = "starPrompt.state"
     /// GitHub is being asked whether there is a star already, so a build
     /// completing meanwhile does not ask twice.
     private static var isChecking = false
 
-    /// The builds that completed while the reader was signed in with GitHub.
-    private static var builds: Int {
-        get { UserDefaults.standard.integer(forKey: buildsKey) }
-        set { UserDefaults.standard.set(newValue, forKey: buildsKey) }
-    }
-
-    private static var asked: Bool {
-        get { UserDefaults.standard.bool(forKey: askedKey) }
-        set { UserDefaults.standard.set(newValue, forKey: askedKey) }
+    private static var state: StarPromptState {
+        get {
+            UserDefaults.standard.data(forKey: stateKey)
+                .flatMap { try? JSONDecoder().decode(StarPromptState.self, from: $0) } ?? StarPromptState()
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            UserDefaults.standard.set(data, forKey: stateKey)
+        }
     }
 
     /// `count` builds completed; the prompt goes over whatever is on top of
     /// `controller`'s window.
     static func buildsCompleted(_ count: Int, from controller: UIViewController) {
-        guard count > 0, !asked else { return }
+        guard count > 0, state.isOpen else { return }
         Task { [weak controller] in
             guard await isSignedInWithGitHub() else { return }
-            builds += count
-            guard builds >= buildsBeforeAsking, !asked, !isChecking else { return }
+            state.count(count)
+            let now = Date()
+            guard state.mayCheck(at: now), !isChecking else { return }
             isChecking = true
             defer { isChecking = false }
-            guard let state = try? await ApelinService.app.feedbackStarState() else { return }
-            guard !state.starred else {
-                asked = true
+            state.recordCheck(at: now)
+            guard let starred = try? await ApelinService.app.feedbackStarState().starred else { return }
+            guard !starred else {
+                state.finish()
                 return
             }
             guard let page = controller.flatMap({ topPage(over: $0) }) else { return }
@@ -55,11 +55,12 @@ enum StarPrompt {
                 cancelTitle: "Maybe Later",
                 confirmTitle: "Star Now",
             ) {
+                state.finish()
                 star(from: page)
             }
-            // asked only once UIKit took the alert: one it refused asks again
+            // asked only once UIKit took the alert
             if page.presentedViewController is AlertBaseController {
-                asked = true
+                state.recordAsk()
             }
         }
     }
@@ -81,12 +82,6 @@ enum StarPrompt {
                     haptic: .success,
                 )
             } catch {
-                // GitHub refusing the star is an answer; a lost connection,
-                // or a sign-in to make again, is asked about with a later build
-                let refused = (error as? ApelinError).map { $0.code == .denied && $0.reason != .authenticationRequired }
-                if refused != true {
-                    asked = false
-                }
                 (topPage(over: page) ?? page).presentNotice(title: "Unable to Star Apelin", message: error.readableMessage)
             }
         }
