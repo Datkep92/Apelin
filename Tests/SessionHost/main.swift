@@ -192,6 +192,10 @@ final class FakeTaskWorker: @unchecked Sendable {
     let lock = NSLock()
     var seen: [(taskID: TaskID?, resumed: Bool, operation: AppOperation)] = []
     var hang = false
+    /// While set, each task's final `state` waits for `releaseEnds()`, so a
+    /// check can see the task running however slowly the machine goes.
+    var holdsEnds = false
+    private var heldEnds: [CheckedContinuation<Void, Never>] = []
     /// Where events go: the registry of the host that is running now.
     var registry: TaskRegistry?
 
@@ -213,6 +217,7 @@ final class FakeTaskWorker: @unchecked Sendable {
                         payload: .object(["line": .string(request.resumed ? "again" : "first")]),
                     )
                     try? await Task.sleep(nanoseconds: 10_000_000)
+                    await self.waitIfHeld()
                     try? self.worker.sendEvent(
                         taskID: taskID,
                         kind: TaskEvent.stateKind,
@@ -229,6 +234,28 @@ final class FakeTaskWorker: @unchecked Sendable {
         }
         worker.start()
         host.start()
+    }
+
+    private func waitIfHeld() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let held = lock.withLock { () -> Bool in
+                guard holdsEnds else { return false }
+                heldEnds.append(continuation)
+                return true
+            }
+            if !held {
+                continuation.resume()
+            }
+        }
+    }
+
+    func releaseEnds() {
+        let waiting = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            holdsEnds = false
+            defer { heldEnds = [] }
+            return heldEnds
+        }
+        waiting.forEach { $0.resume() }
     }
 
     func resumer(_ registry: TaskRegistry, refuse: Bool = false) -> TaskResume {
@@ -318,12 +345,16 @@ do {
     let unfinished = await host.load()
     check(unfinished.count == 9, "the restarted host gets every unfinished task back")
     let resume = fake.resumer(host, refuse: true)
+    // The fake build ends 20 ms after it is resumed, and resuming the nine
+    // can take longer than that on a busy machine: it ends when checked.
+    fake.lock.withLock { fake.holdsEnds = true }
     for record in unfinished {
         let handled = await resume.resume(record)
         check(handled, "every planned task is handled by the resumer")
     }
     let working = await host.activeByKind
     check(working["build"] == 1, "the resumed build counts as work while it runs")
+    fake.releaseEnds()
     let finished = try await waitForEnd(host, started)
     check(finished.state == .succeeded, "the resumed build finishes")
     check(finished.events.map(\.kind) == ["stage", "resumed", "log", "state"], "events go on after the restart, resumed first: \(finished.events.map(\.kind))")

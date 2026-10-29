@@ -319,7 +319,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     `unreadable` events and a closing `state` with the record's state and a
     note that its line could not be read is appended to the log, so an
     attach still ends on one —; the resumer registered for its kind
-    (`registerResumer`) keeps it, the rest end `interrupted`. Installs resume: a staged one is
+    (`registerResumer`) keeps it, the rest end `interrupted`. The record
+    is written when the task is made, when its state moves, and for a
+    resume plan or a cancel, never for an ordinary event (a reopened
+    conversation relays tens of thousands), so `load` takes `lastSeq` and
+    `updatedAt` from the last event that reads, the time only forward. Installs resume: a staged one is
     submitted again under its own transaction ID (irisind answers `dup`), a
     submitted one is followed again from the last event relayed. Builds and
     environment tasks resume (`Session/TaskResume.swift`): `startTask(…,
@@ -524,7 +528,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   over a real channel, the refusals, the cancel, the retry bound), CallerPolicy, the
   edit rules on a temporary root, the managed-package rules, the bridge
   against a fake irisind, the ledger, the control reader, the attachment
-  copies and a real PTY.
+  copies, ordinary events leaving the record alone and its number and time
+  read back from the log, one `agentOpen` of a session at a time, and a
+  real PTY.
   `Documents/Console/scripts/i1-smoke.json` drives it on a device;
   `r1-resume-build.json`, `r1-resume-sdk-import.json` and
   `r2-resume-toolchain.json` check a resume, killing the host by its
@@ -899,7 +905,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   below): the host resolves the project by `projectID` or `projectName`
   (canonical `Projects/<name>`, its `apelin-project.json` id), makes the
   `agent` task, spawns `apelin-agent` with the session id as its instance and
-  hands it the request with the project filled in; provider (`githubCopilot`
+  hands it the request with the project filled in — one open of a session
+  at a time (`Session/Agent/AgentOpenTurns.swift`): an `agentOpen` of a
+  session already being opened waits for that one to answer, in the order
+  they came, then makes every check of its own and answers the live task
+  it registered; another session's open never waits, a failed open frees
+  the session for the next, and a waiter whose request is cancelled leaves
+  the line and opens nothing (`cancelled`); provider (`githubCopilot`
   default, model default `claude-sonnet-5.5`), reasoning effort, service
   tier, approval mode, an optional
   first `prompt` and `closeWhenFinished` (the task ends with the first run,
@@ -907,7 +919,20 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `AgentState.serviceTier` (kwwk 0.1.100), which its loop sends with every
   turn; the agent keeps kwwk's own stream, so native compaction stays on.
   Prompt, steer, abort, compact, approve and close go
-  to that session's running worker and to no other. `agentCompact` (the
+  to that session's running worker and to no other. The worker refuses a
+  second `agentOpen` with `conflict` from its first suspension, and frees
+  the place if the open fails. Its log, `sessions/<id>/events.jsonl`
+  (`SessionEventLog`), joins streamed `textDelta`/`thinkingDelta` into one
+  record of its kind, written at 512 bytes, 250 ms after its first delta,
+  before any other event and on close, so a kill loses at most that
+  pending text (2026-10-29: one reply had written every provider delta as
+  a line, 684,540 of them, and reopening it took 104 s on a device). It is
+  opened in one pass that decodes only the lines a session needs (its user
+  message ids, whether it has a title, the approvals left waiting, the
+  last number), and a reattach replays from disk outside the log's actor
+  while appends go on, so an open answers at once and a send never waits
+  behind the history; a line that will not decode stands as an `error` of
+  its number. `agentCompact` (the
   app's alone, 2026-10-24) compacts the conversation between runs with
   kwwk's own compactor, as it does when the context fills — natively where
   the provider can —, answers once begun (`conflict` while a run or
@@ -2422,7 +2447,7 @@ adding a dated record beside it.
 
 ## Live chat and project UI (2026-10-21)
 
-- `ChatRuntime` keeps one reader per live session while the user switches pages. It persists ordered host events and reattaches after the saved cursor. A save that fails (a full disk, a folder it cannot write) leaves the conversation running in memory: `StorageWarning` says so once — "Storage Almost Full" when less than 512 MB is free, else the error — and not again until a save gets through; the unsaved conversations are written with the next save that works and on every return to the foreground, and the same notice comes at launch or on return when free space is already under 512 MB. Sending text never needs the disk; only attachments are staged. A stopped host can reopen the persisted session ID; the host and worker refuse a different workspace identity. A reopened session comes back as a new task that replays the whole history, renumbered and newly timed, before anything new; the conversation keeps the events it has and reads past that replay (`ChatRecord.reopen(as:)`, `SessionReplay`, saved with the record) to the first user message or compaction it has not seen (Compact… reopens a stopped session with no message after it), so the rows on screen stay as they are. Never empty the events for a new task: the list would collapse to the message being sent and land at the top of the history when the replay came back. Rows are numbered by their event's position, not its seq, since a reopened task's numbering starts again. Stop calls `agentAbort`; approval buttons call `agentApprove` and wait for the authoritative resolved event.
+- `ChatRuntime` keeps one reader per live session while the user switches pages. It persists ordered host events and reattaches after the saved cursor. A save that fails (a full disk, a folder it cannot write) leaves the conversation running in memory: `StorageWarning` says so once — "Storage Almost Full" when less than 512 MB is free, else the error — and not again until a save gets through; the unsaved conversations are written with the next save that works and on every return to the foreground, and the same notice comes at launch or on return when free space is already under 512 MB. Sending text never needs the disk; only attachments are staged. A stopped host can reopen the persisted session ID; the host and worker refuse a different workspace identity. A reopened session comes back as a new task that replays the whole history, renumbered and newly timed, before anything new; the conversation keeps the events it has and reads past that replay (`ChatRecord.reopen(as:)`, `SessionReplay`, saved with the record) to the first user message or compaction it has not seen (Compact… reopens a stopped session with no message after it), or to the task's own end, so the rows on screen stay as they are. A terminal `state` is never read as the replay (the worker replays only the states an approval sets), so a task that stops before catching up (its worker died, the host stopped, a second open failed) ends the turn as a first task does. A conversation an earlier version saved with its cursor past that end takes it again when an attach answers `finished` while its transcript still runs a turn (`ChatRecord.missedEnd`, `takeMissedEnd`): that one event, read again from just before the task's last seq; the row stops working even when it cannot be read. Never empty the events for a new task: the list would collapse to the message being sent and land at the top of the history when the replay came back. Rows are numbered by their event's position, not its seq, since a reopened task's numbering starts again. Stop calls `agentAbort`; approval buttons call `agentApprove` and wait for the authoritative resolved event.
 - `agentPrompt` accepts an optional message UUID and descriptor-indexed attachments (at most eight, at most 32 MiB each). The worker saves them under random workspace-relative `Attachments/` paths; filenames remain display metadata. The session log records the message UUID and relative attachments, deduplicates a retried send, and supplies image content to the provider. Tool-returned images are saved the same way and replay into the image album UI.
 - Every app prompt also carries the current approval mode. The host updates its ledger before forwarding; the session updates its tool policy and metadata, records the message (its `prompt` or `queued` event, the text alone), then builds the message's `<system-state>`: the mode reaches the model there, with whatever the session's system prompt shows that changed since (Prompt caching). A prompt naming the provider and model the session already resolved, with the same stored sign-in, keeps that resolution: no token exchange before the message is recorded, and a signed-out provider is still refused. An existing pending approval is not silently accepted. A bounded, tool-free completion on the current model summarizes the first user message into a `title` event; title failure leaves the local fallback and does not fail the turn; a later message asks again, until three completions have named nothing (`maximumTitleMisses`) or, while the project keeps its generated name, on every message. A JSON answer in one Markdown fence is read as the JSON.
 - `ChatRuntime.transcript` brings a conversation's rows up to date only when they would differ (`ChatTranscriptCache`, kept for the followed conversations and the page's). `ChatTranscript` is a fold: new events (`ChatRecord.events` are only appended to) are read onto the rows the earlier ones made (`append`), and the rows shown are made afresh from those, as a build from every event at once at the same `now` makes them (`Tests/ChatTranscript/TranscriptFold.swift` compares the two over random logs). A change to the messages it is sending, or a `quietDeadline` passed since it was shown, shows the rows again, so the refresh `ChatQuietWatch` asks for at the deadline adds the stand-in; only a sender's new title builds it again from every event. A row equal to one shown before is that very value, so the page's comparison stops at its storage. The composer is told of its approval request and its Stop only when either changes, a long-poll that ran out with nothing writes nothing, and a conversation is written once at a time, then once more with what changed meanwhile.
