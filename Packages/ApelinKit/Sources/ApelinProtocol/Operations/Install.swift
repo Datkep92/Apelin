@@ -10,6 +10,8 @@ import Foundation
 // `stage` {stage: staging|submitted|following|recorded}, `irisin` (one per
 // irisind event: {seq, kind, text, phase?, step?, package?, version?,
 // done?, total?, exit?, problem?}), `result` (an InstallResult) and the final
+// `state`. An install irisind refused also has a `conflict` (an
+// InstallConflict) for each installed package in its way, before the final
 // `state`. A removal is the same, kind `install`, ending in a `removed`
 // {installationID, packageID, transactionID} event.
 //
@@ -47,6 +49,47 @@ public struct InstallResult: Codable, Sendable, Equatable {
         self.artifactDigest = artifactDigest
         self.projectID = projectID
         self.buildID = buildID
+    }
+}
+
+/// An installed package in the way of an install irisind refused, as the
+/// host found it in the package database afterwards: irisind decided, and
+/// this only says who and what to do.
+public struct InstallConflict: Codable, Sendable, Hashable {
+    public enum Relation: String, Codable, Sendable {
+        /// It already lists a path this package installs.
+        case file
+        /// This package's `Conflicts` names it.
+        case conflicts
+        /// This package's `Breaks` names it.
+        case breaks
+    }
+
+    public var relation: Relation
+    /// For `file`: the first such path, as dpkg lists it.
+    public var file: String?
+    public var packageID: String
+    /// The version installed now.
+    public var version: String
+    /// The installation `removePackage` takes, when Apelin installed this
+    /// version; nil when Apelin did not.
+    public var installationID: String?
+    public var projectID: String?
+
+    public init(
+        relation: Relation,
+        file: String? = nil,
+        packageID: String,
+        version: String,
+        installationID: String? = nil,
+        projectID: String? = nil,
+    ) {
+        self.relation = relation
+        self.file = file
+        self.packageID = packageID
+        self.version = version
+        self.installationID = installationID
+        self.projectID = projectID
     }
 }
 

@@ -100,7 +100,7 @@ public extension AgentToolName {
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
         case .sdkReadHeader: "Read one header of a framework in the registered SDK."
         case .projectBuild: "Build the project; returns structured diagnostics and artifacts with their digests."
-        case .packageInstall: "Install a built package artifact through the system installer; returns the transaction and installation record."
+        case .packageInstall: "Install a built package artifact through the system installer; returns the transaction and installation record. When the installer refuses it, conflicts names each installed package in the way and, when Apelin installed it, the installationID apelin_package_remove takes."
         case .packageRemove: "Remove a package Apelin built and installed, by its installation record id."
         case .deviceRespring: "Restart SpringBoard."
         case .packageConfirmLoaded: "Check that a build is loaded in its target process by its marker log line, and whether its filter selects the target. Pass respring: true for a SpringBoard tweak: the marker is logged once at launch and only seen while listening."

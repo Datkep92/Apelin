@@ -213,4 +213,20 @@ enum ManagedPackagePolicy {
             throw ApelinError(.conflict, "A newer installation of \(record.packageID) exists. Remove that installation instead.")
         }
     }
+
+    /// The installation a removal of this package would act on: its newest
+    /// record, when `checkRemoval` accepts it. nil when Apelin did not
+    /// install the version there now.
+    static func removableRecord(
+        of packageID: String,
+        installed: [String: InstalledPackage],
+        records: [InstallationRecord],
+    ) -> InstallationRecord? {
+        let newest = records.filter { $0.packageID == packageID && $0.status == .installed }
+            .max { $0.createdAt < $1.createdAt }
+        guard let newest, (try? checkRemoval(newest, installed: installed, records: records)) != nil else {
+            return nil
+        }
+        return newest
+    }
 }

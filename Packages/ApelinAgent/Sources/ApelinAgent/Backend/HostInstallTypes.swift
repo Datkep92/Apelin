@@ -1,3 +1,4 @@
+import struct ApelinProtocol.InstallConflict
 import Foundation
 
 // MARK: - install / apelin_package_remove / respring
@@ -31,6 +32,10 @@ public struct InstallResponse: Sendable, Hashable, Codable {
     public var version: String
     public var succeeded: Bool
     public var message: String
+    /// When the installer refused it: each installed package in the way,
+    /// with the `installationID` apelin_package_remove takes when Apelin
+    /// installed it. nil when none was found.
+    public var conflicts: [InstallConflict]?
 
     public init(
         transactionID: String,
@@ -39,6 +44,7 @@ public struct InstallResponse: Sendable, Hashable, Codable {
         version: String,
         succeeded: Bool,
         message: String = "",
+        conflicts: [InstallConflict]? = nil,
     ) {
         self.transactionID = transactionID
         self.installationID = installationID
@@ -46,6 +52,7 @@ public struct InstallResponse: Sendable, Hashable, Codable {
         self.version = version
         self.succeeded = succeeded
         self.message = message
+        self.conflicts = conflicts
     }
 }
 

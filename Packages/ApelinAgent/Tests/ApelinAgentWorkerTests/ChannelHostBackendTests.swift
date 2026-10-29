@@ -189,6 +189,33 @@ struct ChannelHostBackendTests {
         #expect(response.succeeded)
         #expect(response.installationID == "inst-1")
         #expect(response.transactionID == "tx-1")
+        #expect(response.conflicts == nil)
+    }
+
+    @Test
+    func `a refused install names the packages in its way, with the installation to remove`() async throws {
+        let fixture = try Fixture()
+        let renamed = InstallConflict(
+            relation: .file,
+            file: "/Library/MobileSubstrate/DynamicLibraries/DockFlip.dylib",
+            packageID: "local.apelin.dockflip",
+            version: "0.1",
+            installationID: "0b6f3c2e-0000-4000-8000-000000000001",
+            projectID: "p-1",
+        )
+        let declared = InstallConflict(relation: .conflicts, packageID: "com.example.old", version: "1.0")
+        fixture.host.on(.installPackage, reply: TaskHandle(taskID: TaskID("install-task"), kind: .install))
+        try fixture.host.on(.buildAttach, reply: batch("install-task", [
+            ("irisin", .object(["seq": .number(1), "kind": .string("failure"), "text": .string("owned")])),
+            ("conflict", ApelinCore.JSONValue(encoding: renamed)),
+            ("conflict", ApelinCore.JSONValue(encoding: declared)),
+            stateEvent(.failed, "…already belongs to local.apelin.dockflip 0.1…"),
+        ]))
+        let response = try await fixture.backend.install(InstallRequest(context: fixture.context(), artifactID: "art-2", artifactDigest: "sha256:cd", packagingDescriptionDigest: "p"))
+        #expect(!response.succeeded)
+        #expect(response.installationID == nil)
+        #expect(response.conflicts == [renamed, declared])
+        #expect(response.message.contains("local.apelin.dockflip"))
     }
 
     @Test

@@ -103,12 +103,13 @@ func sha256(_ path: String) -> String {
     return String(try! ProtectedEditPolicy.sha256(descriptor: descriptor).dropFirst(7))
 }
 
-/// A `.deb` with a gzip control member, written by hand as ar.
-func makeDeb(at path: String, package: String, version: String) {
+/// A `.deb` with a gzip control member, written by hand as ar; `fields`
+/// are more control lines.
+func makeDeb(at path: String, package: String, version: String, fields: String = "") {
     let work = scratchPath + "/deb-\(UUID().uuidString)"
     write(
         work + "/control/control",
-        "Package: \(package)\nVersion: \(version)\nArchitecture: iphoneos-arm64e\nDescription: test\n",
+        "Package: \(package)\nVersion: \(version)\nArchitecture: iphoneos-arm64e\n\(fields)Description: test\n",
     )
     write(work + "/data/usr/share/\(package)/hello", "hello\n")
     run(
@@ -1048,6 +1049,22 @@ do {
         let smoke = try? DebControlPeek.read(descriptor: fixture)
         check(smoke == .init(packageID: "com.example.apelin-smoke", version: "1.0", architecture: "all"), "dpkg-deb's archive reads too")
     }
+
+    // The relations that explain a refused install, each alternative alone.
+    let related = try DebControlPeek.parse("""
+    Package: com.example.related
+    Version: 2
+    Conflicts: com.example.old, com.example.Versioned (<< 2.0)
+    Breaks: com.example.a | com.example.b:any (>= 1)
+    Replaces: com.example.old,
+     com.example.folded
+    Description: related
+     Conflicts: com.example.not-a-field
+    """)
+    check(related.packageID == "com.example.related" && related.version == "2", "relations leave Package and Version as they were")
+    check(related.conflicts == [.init(package: "com.example.old"), .init(package: "com.example.versioned", constraint: "<< 2.0")], "Conflicts is read with its versions, lowercased")
+    check(related.breaks == [.init(package: "com.example.a"), .init(package: "com.example.b", constraint: ">= 1")], "Breaks counts each alternative and drops the architecture")
+    check(related.replaces.map(\.package) == ["com.example.old", "com.example.folded"], "a folded relation field is read whole, and Description's lines are not fields")
 }
 
 // MARK: - Approval ledger
@@ -1095,6 +1112,7 @@ final class FakeIrisin: InstallService, @unchecked Sendable {
         var digest: String?
         var events: [InstallTransactionEvent] = []
         var polls = 0
+        var failureText: String?
     }
 
     let root: String
@@ -1104,6 +1122,8 @@ final class FakeIrisin: InstallService, @unchecked Sendable {
     var duplicates = 0
     var installedVersions: [String: String] = [:]
     var failNext = false
+    /// What the next failure says, instead of a digest mismatch.
+    var failNextText: String?
     /// The end-to-end toolchain test lays a package's files down when it is
     /// installed (from the submitted descriptor) and takes them away when it
     /// is removed, as irisind would.
@@ -1132,17 +1152,21 @@ final class FakeIrisin: InstallService, @unchecked Sendable {
                 return status(transaction, duplicate: true)
             }
             var events = [InstallTransactionEvent(sequence: 1, kind: "started", text: "started")]
+            var failureText: String?
             if actual != "sha256:" + sha256 || failNext || !unpacked {
+                let text = failNextText ?? "the digest did not match"
+                failureText = text
                 events.append(
                     InstallTransactionEvent(
                         sequence: 2,
                         kind: "failure",
-                        text: "the digest did not match",
+                        text: text,
                         problem: "installationStopped",
                     ),
                 )
                 events.append(InstallTransactionEvent(sequence: 3, kind: "exit", text: "exit 1", exitStatus: 1))
                 failNext = false
+                failNextText = nil
             } else {
                 events.append(
                     InstallTransactionEvent(sequence: 2, kind: "phase", text: "verifying", phase: "verifying"),
@@ -1168,6 +1192,7 @@ final class FakeIrisin: InstallService, @unchecked Sendable {
                 version: control?.version,
                 digest: sha256,
                 events: events,
+                failureText: failureText,
             )
             return status(transaction, duplicate: false)
         }
@@ -1251,7 +1276,7 @@ final class FakeIrisin: InstallService, @unchecked Sendable {
             packageID: entry.package,
             version: entry.version,
             failure: state == .failed ? "installationStopped" : nil,
-            failureText: state == .failed ? "the digest did not match" : nil,
+            failureText: state == .failed ? entry.failureText ?? "the digest did not match" : nil,
             duplicate: duplicate,
         )
     }
@@ -1276,6 +1301,15 @@ struct FakeDatabase: InstalledPackageSource {
             }
         }
         return result
+    }
+}
+
+/// The package database's file lists, as a test lays them out.
+struct FakeFileLists: PackageFileLists {
+    var lists: [String: [String]] = [:]
+
+    func files(of packageID: String) throws -> [String] {
+        lists[packageID] ?? []
     }
 }
 
@@ -1358,6 +1392,7 @@ do {
             artifacts: artifacts,
             installations: installations,
             packages: FakeDatabase(irisin: irisin, extra: extra),
+            fileLists: FakeFileLists(),
             approvals: approvals,
             pollInterval: 0.01,
         )
@@ -1596,6 +1631,129 @@ do {
     _ = await bridge().resume(registry.record(crashedAgain.taskID)!)
     let again = try await waitForEnd(registry, crashedAgain)
     check(again.state == .succeeded && irisin.lock.withLock { irisin.duplicates } == duplicatesBefore + 1, "a staged install is submitted again under its own ID and answered dup")
+}
+
+// MARK: - A refused install names the package in its way
+
+do {
+    let root = scratchPath + "/dpkg-root"
+    let info = root + "/var/lib/dpkg/info"
+    write(info + "/com.example.listed.list", "/.\n/Library\n/Library/Listed.dylib\n")
+    symlink(info + "/com.example.listed.list", info + "/com.example.linked.list")
+    let lists = DpkgFileLists(installRoot: root)
+    let listed = try lists.files(of: "Com.Example.Listed")
+    check(listed == ["/Library", "/Library/Listed.dylib"], "a dpkg list is read by the lowercased name, without its root")
+    let unlisted = try lists.files(of: "com.example.unlisted")
+    check(unlisted.isEmpty, "a package with no list lists nothing")
+    write(info + "/com.example.empty.list", "")
+    let empty = try lists.files(of: "com.example.empty")
+    check(empty.isEmpty, "an empty list is read as one")
+    expectError("a list that is a link", code: .unavailable) { _ = try lists.files(of: "com.example.linked") }
+}
+
+do {
+    let base = scratchPath + "/conflicts"
+    let data = base + "/home/Documents/wiki.qaq.apelin"
+    let state = URL(fileURLWithPath: base + "/state")
+    try FileManager.default.createDirectory(atPath: data + "/Builds", withIntermediateDirectories: true)
+    let irisin = FakeIrisin(root: base)
+    let registry = TaskRegistry(directory: state.appendingPathComponent("tasks"))
+    await registry.load()
+    let artifacts = ArtifactRegistry(file: state.appendingPathComponent("artifacts.json"))
+    let installations = InstallationStore(directory: state.appendingPathComponent("installations"))
+    let dylib = "/Library/MobileSubstrate/DynamicLibraries/DockFlip.dylib"
+    let foreignDylib = "/Library/MobileSubstrate/DynamicLibraries/Foreign.dylib"
+    // DockFlip before its rename, which Apelin installed.
+    let renamed = record(package: "local.apelin.dockflip", version: "0.1")
+    try await installations.save(renamed)
+    let installed = Dictionary(uniqueKeysWithValues: [
+        ("local.apelin.dockflip", "0.1"), ("com.example.foreign", "2.0"), ("local.apelin.old", "1.0"),
+        ("local.apelin.versioned", "1.0"), ("local.apelin.taken", "1.0"), ("mobilesubstrate", "0.9"),
+    ].map { id, version in
+        (id, InstalledPackage(packageID: id, version: version, status: "install ok installed", essential: false, priority: nil))
+    })
+    let bridge = InstallBridge(
+        paths: .init(installRoot: base, dataFolder: data, staging: state.appendingPathComponent("staging")),
+        service: irisin,
+        registry: registry,
+        artifacts: artifacts,
+        installations: installations,
+        packages: FakeDatabase(irisin: irisin, extra: installed),
+        fileLists: FakeFileLists(lists: [
+            "local.apelin.dockflip": ["/Library", dylib, "/Library/MobileSubstrate/DynamicLibraries/DockFlip.plist"],
+            "com.example.foreign": [foreignDylib],
+            "local.apelin.taken": ["/usr/lib/libtaken.dylib"],
+            "mobilesubstrate": ["/usr/lib/libsubstrate.dylib"],
+        ]),
+        approvals: ApprovalLedger(directory: state.appendingPathComponent("approvals")),
+        pollInterval: 0.01,
+    )
+
+    // `package` as a build reports it, installed by the app, and irisind
+    // refusing it with `text`: the task's conflicts and its last words.
+    func refused(
+        _ package: String,
+        files: [String]?,
+        fields: String = "",
+        text: String,
+    ) async throws -> (conflicts: [InstallConflict], message: String) {
+        let deb = data + "/Builds/\(package).deb"
+        makeDeb(at: deb, package: package, version: "1.0", fields: fields)
+        let digest = sha256(deb)
+        let build = await registry.create(kind: .build, owner: .build, ownerKey: "b")
+        var event: [String: JSONValue] = [
+            "artifactID": .string(package), "digest": .string(digest), "packageID": .string(package),
+            "version": .string("1.0"), "path": .string(deb), "projectID": .string("p-2"),
+        ]
+        if let files {
+            event["packageFiles"] = .array(files.map(JSONValue.string))
+        }
+        await artifacts.record(event: .object(event), buildID: build.taskID)
+        irisin.lock.withLock {
+            irisin.failNext = true
+            irisin.failNextText = text
+        }
+        let handle = try await bridge.install(InstallPackageRequest(artifactID: package, digest: digest), caller: .app)
+        let batch = try await waitForEnd(registry, handle)
+        check(batch.state == .failed, "\(package): the refused install fails")
+        let conflicts = try batch.events.filter { $0.kind == "conflict" }.map { try $0.payload!.decode(InstallConflict.self) }
+        return (conflicts, batch.events.last?.payload?["message"]?.stringValue ?? "")
+    }
+
+    // A package renamed from one Apelin installed: that installation, to remove.
+    let owned = "\(dylib) is owned by local.apelin.dockflip; Replaces is required"
+    let rename = try await refused("local.apelin.flipdock", files: [dylib], text: owned)
+    check(rename.conflicts == [InstallConflict(relation: .file, file: dylib, packageID: "local.apelin.dockflip", version: "0.1", installationID: renamed.installationID, projectID: "p")], "the renamed package's installation is named (\(rename.conflicts))")
+    check(rename.message == "\(dylib) already belongs to local.apelin.dockflip 0.1, which Apelin installed (installation \(renamed.installationID)). Remove that installation first, then install again. Irisin reported: \(owned)", "the message names the package and the removal, then irisind's words (\(rename.message))")
+
+    // Conflicts and Breaks without a version name an installed package; a
+    // versioned one, an absent one and a file the package Replaces do not.
+    let conflicting = "Conflicting final packages: local.apelin.newer, local.apelin.old"
+    let declared = try await refused(
+        "local.apelin.newer",
+        files: ["/usr/lib/libtaken.dylib"],
+        fields: "Conflicts: local.apelin.old, local.apelin.versioned (<< 0.5)\nBreaks: local.apelin.absent | local.apelin.old\nReplaces: local.apelin.taken\n",
+        text: conflicting,
+    )
+    check(declared.conflicts.map(\.relation) == [.conflicts, .breaks] && declared.conflicts.allSatisfy { $0.packageID == "local.apelin.old" && $0.installationID == nil }, "Conflicts and Breaks name the installed package (\(declared.conflicts))")
+    check(declared.message == "This package's Conflicts names local.apelin.old 1.0, which is installed. The installer does not remove it: remove it with your preferred package manager first, then install again. Irisin reported: \(conflicting)", "one sentence for the package, the installer's limit and the fix (\(declared.message))")
+
+    // A file another source installed: no installation, the package manager's to remove.
+    let foreign = try await refused("local.apelin.copy", files: [foreignDylib], text: "\(foreignDylib) is owned by com.example.foreign; Replaces is required")
+    check(foreign.conflicts == [InstallConflict(relation: .file, file: foreignDylib, packageID: "com.example.foreign", version: "2.0")], "a foreign owner has no installation")
+    check(foreign.message.hasPrefix("\(foreignDylib) already belongs to com.example.foreign 2.0, which Apelin did not install. Remove it with your preferred package manager first, then install again. Add com.example.foreign to this package's Replaces only if"), "a foreign owner is the package manager's to remove (\(foreign.message))")
+
+    // A protected package is never offered for removal.
+    let core = try await refused("local.apelin.shim", files: ["/usr/lib/libsubstrate.dylib"], text: "owned")
+    check(core.message.hasPrefix("/usr/lib/libsubstrate.dylib already belongs to mobilesubstrate 0.9, a protected system package. Leave that file out of this package"), "a protected owner's file is left out instead (\(core.message))")
+
+    // An upgrade of the package itself is not in its own way.
+    let upgrade = try await refused("local.apelin.dockflip", files: [dylib], text: "the preinst failed")
+    check(upgrade.conflicts.isEmpty && upgrade.message == "the preinst failed", "a package does not conflict with itself")
+
+    // A build recorded before its files were: irisind's words alone.
+    let older = try await refused("local.apelin.plain", files: nil, text: "\(dylib) is owned by local.apelin.dockflip; Replaces is required")
+    check(older.conflicts.isEmpty && older.message == "\(dylib) is owned by local.apelin.dockflip; Replaces is required", "without the package's files the message is irisind's (\(older.message))")
 }
 
 // MARK: - Toolchain setup end to end

@@ -309,9 +309,13 @@ public struct ChannelHostBackend: AgentHostBackend {
     public func install(_ request: InstallRequest) async throws -> InstallResponse {
         let handle = try await service.installPackage(artifactID: request.artifactID, digest: request.artifactDigest)
         var result: InstallResult?
+        var conflicts: [InstallConflict] = []
         let end = try await read(handle) { event in
             if event.kind == "result", let decoded = try? event.payload?.decode(InstallResult.self) {
                 result = decoded
+            }
+            if event.kind == "conflict", let conflict = try? event.payload?.decode(InstallConflict.self) {
+                conflicts.append(conflict)
             }
         }
         return InstallResponse(
@@ -321,6 +325,7 @@ public struct ChannelHostBackend: AgentHostBackend {
             version: result?.version ?? "",
             succeeded: end.state == .succeeded,
             message: end.message ?? "",
+            conflicts: conflicts.isEmpty ? nil : conflicts,
         )
     }
 

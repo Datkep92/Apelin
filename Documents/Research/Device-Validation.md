@@ -180,6 +180,19 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] A refused install names the package in its way (2026-10-29,
+      AGENTS.md ▸ Install bridge; none of it has run on a device). Build
+      and install a tweak, change its `package.id`, build and install
+      again: the install fails with "<dylib> already belongs to <old id>
+      <version>, which Apelin installed (installation <id>). Remove that
+      installation first, then install again." and Irisin's own words
+      after it; the agent's apelin_package_install result carries
+      `conflicts` with that `installationID`, apelin_package_remove of it
+      asks under Strict, and the install then goes through. Then, with the
+      old package installed again, name its ID in `package.conflicts`
+      instead: the failure says the installer does not remove it, and
+      names the installation. Once on roothide and once on rootless, whose
+      lists spell paths `/var/jb/…`.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

@@ -154,6 +154,11 @@ final class ExternalBuildTests: XCTestCase {
         let work = worker.store.buildsDirectory.appendingPathComponent(project.id).appendingPathComponent(taskID.rawValue)
         XCTAssertEqual(artifact.path, work.appendingPathComponent("package/\(deb.lastPathComponent)").path, "the package stays in the build's folder")
         XCTAssertEqual(artifact.digest, try CanonicalJSON.sha256Tag(Data(contentsOf: deb)))
+        XCTAssertEqual(
+            artifact.packageFiles,
+            ["/Library/MobileSubstrate/DynamicLibraries/Imported.dylib", "/Library/MobileSubstrate/DynamicLibraries/Imported.plist"],
+            "the workspace's own package is listed for the host, folders left out",
+        )
 
         let record = try ArtifactStore(store: worker.store).load(taskID.rawValue)
         XCTAssertEqual(record.buildSystem, .external)
@@ -174,6 +179,19 @@ final class ExternalBuildTests: XCTestCase {
         ] {
             XCTAssertTrue(environment.split(separator: "\n").contains(Substring(line)), "\(line) in\n\(environment)")
         }
+    }
+
+    /// Either build's record lists what the deb installs for the host: no
+    /// folder, links too, fewest components first, so a list cut at its
+    /// limit keeps an app's executable before its resources.
+    func testPackageFilesKeepTheShallowestWhenCapped() throws {
+        var writer = DebPackageWriter(control: DebianControlFile(package: "com.example.big", version: "1", architecture: "iphoneos-arm64e", description: "Big"))
+        writer.entries = (0 ..< 300).map { .file(String(format: "/Applications/Big.app/Assets/a%03d", $0), contents: Data()) }
+            + [.file("/Applications/Big.app/Big", contents: Data(), mode: 0o755), .symbolicLink("/usr/bin/big", target: "../../Applications/Big.app/Big")]
+        let files = try ArtifactRecord.packageFiles(of: DebArchiveReader.contents(of: .data(writer.data())))
+        XCTAssertEqual(files.count, BuildArtifact.maximumPackageFiles)
+        XCTAssertEqual(Array(files.prefix(3)), ["/Applications/Big.app/Big", "/usr/bin/big", "/Applications/Big.app/Assets/a000"])
+        XCTAssertFalse(files.contains("/Applications/Big.app"), "a folder is no one's file")
     }
 
     /// A workspace has no description for the distribution check to read,

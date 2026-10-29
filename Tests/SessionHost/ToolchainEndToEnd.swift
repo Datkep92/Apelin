@@ -217,6 +217,7 @@ func toolchainEndToEnd(harness: String) async throws {
         artifacts: ArtifactRegistry(file: state.appendingPathComponent("artifacts.json")),
         installations: installations,
         packages: FakeDatabase(irisin: irisin),
+        fileLists: DpkgFileLists(installRoot: installRoot),
         approvals: ApprovalLedger(directory: state.appendingPathComponent("approvals")),
         pollInterval: 0.01,
     )
