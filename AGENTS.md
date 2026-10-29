@@ -982,7 +982,18 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   default, model default `claude-sonnet-5.5`), reasoning effort, service
   tier, approval mode, an optional
   first `prompt` and `closeWhenFinished` (the task ends with the first run,
-  for headless runs) ride on it. The tier last chosen is kwwk's
+  for headless runs) ride on it. So does `hostRestarted`, the host's alone
+  (owner, 2026-10-29; `Session/Agent/AgentHostRun.swift`): what a caller
+  sends is dropped, and the host sets it on the app's open of a
+  conversation it names by `sessionID` that no message has reached in
+  this host's run — an in-memory set, empty whenever the host starts,
+  marked once the open's own prompt or an `agentPrompt` the worker took
+  has reached the session, so Compact…'s open alone, or a worker that died
+  before the user's message, leaves it due. The worker, when the
+  transcript it read back is not empty, tells the model once, in the next
+  message's `<system-state>` (below); a new conversation and one an agent
+  opened are told nothing (`Tests/SessionHost/AgentHostRunChecks.swift`,
+  `HostRestartNoteTests`). The tier last chosen is kwwk's
   `AgentState.serviceTier` (kwwk 0.1.100), which its loop sends with every
   turn. The agent wraps kwwk's own stream in `NetworkRecovery` (2026-10-29);
   native compaction stays on, since the session names it itself
@@ -2967,8 +2978,21 @@ block, the system language (the mobile user's `AppleLanguages` and
 `AppleLocale`, read by the worker itself through `CFPreferences` each time,
 so no wire change), the reply rule, progress notes included, the local
 date, time and time zone, and the approval mode on — and, when the
-snapshot is out of date, what changed since the model was last told — and
-the prompt says it is Apelin's, unseen
+snapshot is out of date, what changed since the model was last told, and
+on the first message after the host said it restarted (`hostRestarted`,
+Agent sessions above; owner, 2026-10-29: a roothide device's jbroot was
+renamed after a reboot, and a chat that went on trusted the paths in its
+history and spent a turn finding its toolchain and SDK "gone") a note
+(`SystemState.restartNote`) that Apelin's background service restarted
+since the conversation last ran, so the device may have rebooted and the
+jailbreak, Apelin or the bootstrap's root path may have changed, naming
+the install root now, that paths, toolchains, SDKs, processes and files
+named earlier may be stale while the Environment section is current (a
+reopened session takes its system prompt afresh), and to check before
+relying on an earlier path and set up, install or import nothing again
+before checking what is registered. It is taken as a delta is, so a
+dropped queued message that carried it leaves it for the next, and a
+steer carries none — and the prompt says it is Apelin's, unseen
 by the user, and not to be quoted. Like the project context it is added to the text the
 model sees and goes into that message of the transcript, so every later
 request sends it as it went; the app's `prompt`, `queued` and `steer` events,
@@ -3003,7 +3027,8 @@ Objective-C in the template's style, never built with Theos, which is never
 installed; an imported repository keeps building with a script of its own.
 `apelin-bootstrap-paths` (owner, 2026-10-24) is roothide and rootless path spelling —
 jbroot vs `/var/jb`, `/rootfs`, `@PREFIX@`/`@ROOTFS@`, `@loader_path/.jbroot`,
-the compiler-vs-shell split — and carries `ApelinBootstrap.h`, a
+the compiler-vs-shell split, and never storing a resolved jbroot path
+(2026-10-29) — and carries `ApelinBootstrap.h`, a
 jbroot()/ROOT_PATH_NS() helper written so one source builds for both
 bootstraps (compiled by hand for roothide arm64e and rootless arm64 with the
 template's flags; a test holds that the skill ships the header).
@@ -3110,7 +3135,17 @@ shell_run needs no login shell (whose profile builds `PATH` again), on roothide
 that a path a bootstrap tool prints (`/var/mobile/…` with the bootstrap as
 `/`, or `/rootfs/…`) is not the name the toolchain's compilers know, so they
 get relative paths or `$APELIN_PROJECT_ROOT` (on the iPhone vphone, `pwd -P`
-in the data folder printed `/var/mobile/Documents/…`), and which of cmake,
+in the data folder printed `/var/mobile/Documents/…`), on roothide that the
+install root can be renamed on a reboot or a new jailbreak, taking the
+data folder (in its own `var/mobile`), the project, `$APELIN_PROJECT_ROOT`,
+`$APELIN_TOOLCHAIN_BIN`, `SDKROOT` and every toolchain and SDK path with it,
+so none is written into anything that outlives the run (project files,
+build scripts, Makefiles, `AGENTS.md`/`CLAUDE.md`, memory, skills, package
+scripts, code): code resolves it at run time (`jbroot()`, the
+apelin-bootstrap-paths skill's `ApelinBootstrapPath()`), plists and
+maintainer scripts take `@PREFIX@`/`@ROOTFS@`, scripts Apelin's run-time
+variables or project-relative paths (owner, 2026-10-29; rootless's `/var/jb`
+does not move, and the skill says so), and which of cmake,
 dpkg-deb, git, ldid, make, ninja, perl, python3 and xcrun are on shell_run's
 search path (`DevelopmentEnvironment.searchPath`,
 the host's own list), dpkg-deb, when found, for a workspace's declared script

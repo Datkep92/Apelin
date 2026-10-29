@@ -46,14 +46,30 @@ public actor AgentSession {
     private var aborted = false
     private let workspace: ScopedRoot
     private var submitted: Set<UUID> = []
-    /// Messages sent while a run was going, oldest first, each until a
-    /// run's loop takes it: `injected` is the text the loop is handed.
-    /// `told`: what the model had been told before this message's delta,
-    /// put back if the run never takes it.
-    private var queued: [(id: UUID, text: String, attachments: [AgentAttachment], injected: String, told: PromptState)] = []
+    /// A message sent while a run was going, until a run's loop takes it.
+    private struct QueuedMessage {
+        var id: UUID
+        var text: String
+        var attachments: [AgentAttachment]
+        /// The text the loop is handed.
+        var injected: String
+        /// What the model had been told before this message's delta, and
+        /// whether the host's restart was still to tell: put back if the run
+        /// never takes it.
+        var told: PromptState
+        var restartUntold: Bool
+    }
+
+    /// Messages sent while a run was going, oldest first.
+    private var queued: [QueuedMessage] = []
     /// What the system prompt showed when the session took it, plus every
     /// delta a message has carried since (`PromptState`).
     private var told: PromptState
+    /// The next message tells the model the session host restarted since
+    /// the conversation last ran (`SystemState.restartNote`): set when the
+    /// host opens one with history after it started, and taken, as a delta
+    /// is, by the message that carries it.
+    private var restartUntold: Bool
     /// A compaction rewrote the conversation: the next run takes the system
     /// prompt afresh, since its prefix is written anew anyway.
     private var snapshotStale = false
@@ -153,6 +169,8 @@ public actor AgentSession {
 
         workspace = root
         told = snapshot
+        // a conversation with nothing in it named nothing that went stale
+        restartUntold = configuration.hostRestarted && !transcript.isEmpty
         resolvedFrom = (configuration.provider, resolved.credentials)
         self.configuration = configuration
         self.log = log
@@ -279,19 +297,38 @@ public actor AgentSession {
     private static let repositoryStatusWait: Double = 3
 
     /// `text` as the model reads it: after this moment's `<system-state>`,
-    /// with what changed since the model was last told when `delta` is set.
-    /// It goes into the message, so the transcript keeps it as sent.
-    /// Answers what the model had been told before.
-    private func withSystemState(_ text: String, delta: Bool) async -> (text: String, toldBefore: PromptState) {
-        let before = told
+    /// with what changed since the model was last told, and the host's
+    /// restart while it is still to tell, when `delta` is set. It goes into
+    /// the message, so the transcript keeps it as sent. Answers what the
+    /// model had been told before.
+    private func withSystemState(
+        _ text: String,
+        delta: Bool,
+    ) async -> (text: String, toldBefore: PromptState, restartUntoldBefore: Bool) {
+        let toldBefore = told
+        let restartUntoldBefore = restartUntold
         var changes: [String] = []
         if delta {
             let now = currentState()
             changes = now.changes(since: told)
             told = now
+            restartUntold = false
         }
-        let facts = await SystemState.facts(configuration.systemState, mode: runner.approvalMode, changes: changes)
-        return (SystemState.make(facts) + text, before)
+        let facts = await SystemState.facts(
+            configuration.systemState,
+            mode: runner.approvalMode,
+            changes: changes,
+            hostRestarted: delta && restartUntoldBefore,
+            installRoot: configuration.installRoot,
+        )
+        return (SystemState.make(facts) + text, toldBefore, restartUntoldBefore)
+    }
+
+    /// Makes the next message tell the model the session host restarted.
+    /// The open does so itself for a conversation with history when the
+    /// host says so; tests call this to make it due when they choose.
+    func tellHostRestart() {
+        restartUntold = true
     }
 
     /// A separate, bounded completion uses the conversation's current model and no tools.
@@ -419,11 +456,13 @@ public actor AgentSession {
     /// starts takes it afresh).
     ///
     /// The model reads the message after its `<system-state>`: the
-    /// language, time and approval mode when it was sent, and what the
-    /// system prompt shows that changed since the model was last told
-    /// (`SystemState`, `PromptState`). The block is part of the message, so
-    /// the transcript keeps it as it went; the event the app shows, and the
-    /// title, have the text alone.
+    /// language, time and approval mode when it was sent, what the system
+    /// prompt shows that changed since the model was last told
+    /// (`SystemState`, `PromptState`), and, the first time after the host
+    /// opened a conversation from before its start, that the host
+    /// restarted (`SystemState.restartNote`). The block is part of the
+    /// message, so the transcript keeps it as it went; the event the app
+    /// shows, and the title, have the text alone.
     ///
     /// `from`: another conversation of the project sent it
     /// (`apelin_conversation_send`). It is recorded as the user's text, marked
@@ -476,12 +515,22 @@ public actor AgentSession {
         let repository = !queues && needsProjectContext
             ? await runner.repositoryStatus(within: Self.repositoryStatusWait)
             : nil
-        let (prompt, toldBefore) = await withSystemState(sender.map { $0.prefix + "\n" + typed } ?? typed, delta: true)
+        let (prompt, toldBefore, restartUntoldBefore) = await withSystemState(
+            sender.map { $0.prefix + "\n" + typed } ?? typed,
+            delta: true,
+        )
         let message = UserMessage(content: [.text(TextContent(text: prompt))] + images.map { .image($0) })
         await waitForEndingRun()
         if queues, let messageID {
             if runTask != nil {
-                queued.append((messageID, text, attachments, prompt, toldBefore))
+                queued.append(QueuedMessage(
+                    id: messageID,
+                    text: text,
+                    attachments: attachments,
+                    injected: prompt,
+                    told: toldBefore,
+                    restartUntold: restartUntoldBefore,
+                ))
                 agent.steer(message)
                 return
             }
@@ -763,8 +812,10 @@ public actor AgentSession {
     private func dropQueued() async {
         guard !queued.isEmpty else { return }
         let ids = queued.map(\.id)
-        // The changes the dropped messages carried were never read.
+        // The changes the dropped messages carried, and the host's
+        // restart, were never read.
         told = queued[0].told
+        restartUntold = queued[0].restartUntold
         queued.removeAll()
         submitted.subtract(ids)
         await record(.queuedMessagesDropped(ids: ids))

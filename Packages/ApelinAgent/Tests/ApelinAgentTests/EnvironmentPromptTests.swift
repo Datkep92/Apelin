@@ -24,6 +24,7 @@ struct EnvironmentPromptTests {
         #expect(prompt.contains("shell_run has no Apelin compiler until a toolchain is installed"))
         #expect(prompt.contains("never through a login shell"))
         #expect(!prompt.contains("`/rootfs`"), "the rootfs note is roothide's")
+        #expect(!prompt.contains("roothide can rename the install root"), "so is the renamed jbroot's")
     }
 
     @Test
@@ -51,6 +52,11 @@ struct EnvironmentPromptTests {
         let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(home.projectURL), skills: [])
         #expect(prompt.contains("- Bootstrap: roothide, install root \(jbroot)."))
         #expect(prompt.contains("print `/var/mobile/…` or `/rootfs/…` for a path the toolchain's compilers know by another name"))
+        // A chat that went on after the jbroot was renamed trusted the
+        // paths it had written down.
+        #expect(prompt.contains("roothide can rename the install root when the device is rebooted or jailbroken again"))
+        #expect(prompt.contains("Never write such a path into anything that outlives this run (project files, build scripts, Makefiles, AGENTS.md or CLAUDE.md, memory, skills, package scripts, code)"))
+        #expect(prompt.contains("roothide's `jbroot()`") && prompt.contains("`@PREFIX@` and `@ROOTFS@`"))
     }
 
     @Test

@@ -287,6 +287,7 @@ actor WorkerState {
                     thinking: .init(rawValue: open.reasoningEffort?.rawValue ?? "off") ?? .off,
                     serviceTier: AgentWorker.serviceTier(open.serviceTier),
                     installRoot: context.assignment.installRoot,
+                    hostRestarted: open.hostRestarted == true,
                 ),
                 backend: ChannelHostBackend(
                     service: context.host,

@@ -10,7 +10,8 @@ import Foundation
 // install root, the managed-package rules, the install bridge against a
 // fake irisind, the folders a removed toolchain leaves, the approval
 // ledger, the deb control reader, the copies a tool call's attachments
-// travel as, one agentOpen of a session at a time, and a real PTY.
+// travel as, one agentOpen of a session at a time, the note that the host
+// restarted, and a real PTY.
 
 extension NSLock {
     func withLock<T>(_ body: () throws -> T) rethrows -> T {
@@ -1329,6 +1330,10 @@ await agentNoticeChecks()
 // MARK: - One open of a session at a time (AgentOpenChecks.swift)
 
 await agentOpenChecks()
+
+// MARK: - The note that the host restarted (AgentHostRunChecks.swift)
+
+await agentHostRunChecks()
 
 // MARK: - shell_run as root (RootRunChecks.swift)
 

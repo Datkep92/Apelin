@@ -213,6 +213,13 @@ public struct AgentOpenRequest: OperationRequest {
     /// the host keeps it as the session's title and puts it on
     /// `conversationOpened`.
     public var title: String?
+    /// Written by the host, never the caller's (it drops what a caller
+    /// sends): the app is continuing a conversation no message has reached
+    /// since this session host started, so the device may have rebooted and
+    /// roothide may have renamed the bootstrap's root since it last ran. The
+    /// worker says so in the next message's `<system-state>` when the
+    /// conversation has history.
+    public var hostRestarted: Bool?
 
     public init(
         projectID: String? = nil,
@@ -227,6 +234,7 @@ public struct AgentOpenRequest: OperationRequest {
         prompt: String? = nil,
         closeWhenFinished: Bool? = nil,
         title: String? = nil,
+        hostRestarted: Bool? = nil,
     ) {
         self.projectID = projectID
         self.projectName = projectName
@@ -240,6 +248,7 @@ public struct AgentOpenRequest: OperationRequest {
         self.prompt = prompt
         self.closeWhenFinished = closeWhenFinished
         self.title = title
+        self.hostRestarted = hostRestarted
     }
 }
 

@@ -681,6 +681,27 @@ console now goes on after a restart only past a successful respring.
       the next request writes the cache once and its block lists nothing.
       DeepSeek counts hits in 64-token blocks and may take a request or two
       to warm.
+- [ ] The note that the host restarted, and no jbroot path written down
+      (2026-10-29, AGENTS.md ▸ Agent sessions and ▸ the system prompt;
+      none has run on a device). On the iOS 26.4 and iOS 27.0.1 iPhone
+      vphones (roothide), in a project's chat that has run: kill the
+      session host by its `session.pid` (`Scripts/device.py kill-host`),
+      then send a message in that chat. The last user message of
+      `$DATA/sessions/<id>/transcript.json` (fetched as for Prompt
+      caching) has, inside its `<system-state>`, "Apelin's background
+      service has restarted since this conversation last ran" with the
+      install root now; the bubble, the title and an
+      `apelin_conversation_read` of the chat show none of it, and the agent
+      neither sets up a toolchain nor imports an SDK again. A second
+      message has no note. Kill the host again, Compact… the chat, then
+      send: that message has it. A chat started after a kill has none.
+      When a reboot and a new jailbreak rename the jbroot, an old chat goes
+      on with the new paths without a turn spent finding its toolchain
+      gone. A roothide chat's system prompt has the "roothide can rename
+      the install root" line and a rootless one's does not; asked to write
+      down in AGENTS.md how its project builds, the agent writes no
+      `.jbroot-` path (`Scripts/device.py exec 'grep -rl ".jbroot-"
+      "$DATA/Projects/<folder>"'` finds nothing).
 - [ ] Progress notes in the user's language (2026-10-29, AGENTS.md ▸ the
       system prompt; none has run on a device). The audit of 40 device
       chats found Chinese chats writing "Build passed. Installing." between

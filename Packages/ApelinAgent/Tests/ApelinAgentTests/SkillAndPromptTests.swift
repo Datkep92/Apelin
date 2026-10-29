@@ -170,6 +170,13 @@ struct SkillAndPromptTests {
         #expect(header.contains("APELIN_BOOTSTRAP_ROOTHIDE"))
         #expect(header.contains(".jbroot-"))
         #expect(header.contains("@\"/var/jb\""))
+        // A resolved jbroot path is never written down: roothide renames it.
+        #expect(skill.body.contains("## Never store a resolved path"))
+        // read as words, whatever the lines' breaks
+        let words = skill.body.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        for kept in ["`AGENTS.md` or `CLAUDE.md`, memory, skills", "`ApelinBootstrapPath(@\"/Library/…\")` at run time", "`@PREFIX@/…`, `@ROOTFS@/…`", "On rootless `/var/jb` and `/var/mobile` do not move"] {
+            #expect(words.contains(kept), "the skill no longer says \(kept)")
+        }
         let runner = try runner(home)
         let served = try await text(runner.run(.local(.skillRead), toolCallID: UUID().uuidString,
                                                arguments: ["name": "apelin-bootstrap-paths", "file": "ApelinBootstrap.h"],

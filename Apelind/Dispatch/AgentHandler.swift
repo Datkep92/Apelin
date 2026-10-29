@@ -218,7 +218,9 @@ enum AgentHandler: DomainHandler {
     }
 
     /// Resolves the project, registers the session's task, starts its worker
-    /// and hands it the request with the project filled in by the host. An
+    /// and hands it the request with the project filled in by the host, and
+    /// `hostRestarted` when the app continues a conversation no message has
+    /// reached since this host started (`AgentHostRun`). An
     /// agent's open is rewritten first (`AgentConversationRules.childOpen`),
     /// in its own project or another one it names — which under Confirm
     /// spends the user's approval of exactly that open —, takes one of that
@@ -303,7 +305,9 @@ enum AgentHandler: DomainHandler {
                 ))
             }
         }
-        var resolved = open
+        // Whether the worker is told the host restarted is the host's
+        // decision (`AgentHostRun`), never the caller's.
+        var resolved = await AgentHostRun.shared.forwarded(open, sessionID: sessionID, byApp: opener == nil)
         resolved.projectID = project.id
         resolved.projectName = project.name
         let handle = await host.registry.create(kind: .agent, owner: .agent, ownerKey: sessionID)
@@ -327,6 +331,10 @@ enum AgentHandler: DomainHandler {
                 await AgentSessionTable.shared.releaseChild(project: project.id)
             }
             return request.fail(failure)
+        }
+        // the worker took the open's prompt as the conversation's message
+        if open.prompt?.isEmpty == false {
+            await AgentHostRun.shared.messageReached(sessionID)
         }
         let title = open.title ?? open.prompt.map { String($0.prefix(AgentConversationRules.maximumTitleLength)) }
         if let opener {
@@ -370,6 +378,8 @@ enum AgentHandler: DomainHandler {
     /// The app's prompt goes as it is, minus any `fromSessionID`, and sets
     /// the session's mode first; an agent's is rewritten as a message from
     /// its session (`AgentConversationRules.childPrompt`) and changes no mode.
+    /// Either one its worker took has reached the session in this host's
+    /// run (`AgentHostRun`).
     private static func prompt(_ request: HostRequest, host: SessionHost) async -> HostReply {
         let prompt: AgentPromptRequest
         var wire: WireRequest
@@ -404,12 +414,16 @@ enum AgentHandler: DomainHandler {
         } catch {
             return request.fail(error)
         }
-        return await deliver(request, wire, to: prompt.sessionID, host: host) {
+        let reply = await deliver(request, wire, to: prompt.sessionID, host: host) {
             guard let mode = prompt.approvalMode else { return }
             // Applied before forwarding: the worker can start tools before its reply arrives.
             await host.approvals.setMode(mode, session: prompt.sessionID)
             await AgentSessionTable.shared.setMode(mode, session: prompt.sessionID)
         }
+        if case .success = reply.0.result {
+            await AgentHostRun.shared.messageReached(prompt.sessionID)
+        }
+        return reply
     }
 
     /// An agent reads its own project's conversations, and another

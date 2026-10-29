@@ -28,6 +28,10 @@ public struct AgentSessionConfiguration: Sendable {
     /// Whether the device has a route, which a model request the network
     /// failed waits for (`NetworkRecovery`).
     public var network: NetworkPath
+    /// The session host started since this conversation last ran, as the
+    /// host decides (`AgentOpenRequest.hostRestarted`): when it has history,
+    /// the next message's `<system-state>` says its paths may be stale.
+    public var hostRestarted: Bool
 
     public init(
         id: String = UUID().uuidString,
@@ -43,6 +47,7 @@ public struct AgentSessionConfiguration: Sendable {
         installRoot: String? = nil,
         systemState: SystemStateSource = .device,
         network: NetworkPath = .system,
+        hostRestarted: Bool = false,
     ) {
         self.id = id
         self.project = project
@@ -57,5 +62,6 @@ public struct AgentSessionConfiguration: Sendable {
         self.installRoot = installRoot
         self.systemState = systemState
         self.network = network
+        self.hostRestarted = hostRestarted
     }
 }
