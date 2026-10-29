@@ -2970,7 +2970,11 @@ do {
     check(CallerPolicy.allows(.worker(.agent, instance: "s"), .feedbackSend), "the agent may file feedback")
     check(!CallerPolicy.allows(.worker(.build, instance: nil), .feedbackSend), "the build worker may not")
     check(!CallerPolicy.allows(.worker(.diagnostics, instance: nil), .feedbackSend), "nor the diagnostics worker")
-    check(!CallerPolicy.allows(.worker(.agent, instance: "s"), .distributionPublish), "the package repository stays the app's")
+    for operation in [AppOperation.distributionRepositoryList, .distributionRepositoryCreate,
+                      .distributionRepositoryLink, .distributionRepositoryUnlink]
+    {
+        check(!CallerPolicy.allows(.worker(.agent, instance: "s"), operation), "the package repository stays the app's: \(operation)")
+    }
     for star in [AppOperation.feedbackStarState, .feedbackStar] {
         check(CallerPolicy.allows(.app, star), "the app reads and gives the star")
         for role in WorkerRole.allCases {
@@ -3095,6 +3099,106 @@ do {
     check(relaxed == nil && full == nil, "Relaxed and Full make it as they push")
     let noSession = await authorized(nil)
     check(noSession?.code == .denied, "a worker with no session makes nothing")
+}
+
+// MARK: - Packages are published under Strict only as the user approved exactly them
+
+do {
+    check(CallerPolicy.allows(.worker(.agent, instance: "s"), .distributionPublish), "the agent may publish packages")
+    check(!CallerPolicy.allows(.worker(.build, instance: nil), .distributionPublish), "the build worker may not")
+    check(!CallerPolicy.allows(.worker(.environment, instance: nil), .distributionPublish), "nor the environment worker")
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-publish-tasks"))
+    await registry.load()
+    let artifacts = ArtifactRegistry(file: scratch.appendingPathComponent("agent-publish-artifacts.json"))
+    let sessions = AgentSessionTable.shared
+    func session(_ id: String, mode: ApprovalMode) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: ResolvedProject(id: "p-publish", name: "Publish", path: scratchPath),
+            mode: mode,
+            createdAt: Date(),
+        )
+        await sessions.add(entry)
+        return entry
+    }
+    // Two release builds of one version, as apelin-build reports them.
+    let builds = [("b-hide", "iphoneos-arm64e", "a"), ("b-less", "iphoneos-arm64", "b")]
+    let files = builds.map { build, architecture, _ in "/data/Builds/p-publish/\(build)/com.example.clock_1.0_\(architecture).deb" }
+    let digests = builds.map { _, _, digit in "sha256:" + String(repeating: digit, count: 64) }
+    for (index, build) in builds.enumerated() {
+        await artifacts.record(event: .object([
+            "artifactID": .string(build.0), "path": .string(files[index]), "digest": .string(digests[index]),
+            "packageID": .string("com.example.clock"), "version": .string("1.0"), "projectID": .string("p-publish"),
+        ]), buildID: TaskID(build.0))
+    }
+    let publish = DistributionPublishRequest(files: files, digests: digests, repository: "someone/packages")
+    let strict = await session("publish-strict", mode: .confirm)
+    // What apelin-agent writes into apelin_package_publish's
+    // approvalRequested (ApelinAgentWorker's tests hold that shape).
+    func ask(_ approvalID: String, _ asked: DistributionPublishRequest) async {
+        let packages: [JSONValue] = zip(asked.files, asked.digests ?? []).map { file, digest in
+            .object(["file": .string(file), "digest": .string(digest), "packageID": .string("com.example.clock")])
+        }
+        await registry.append(strict.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(approvalID), "tool": .string("apelin_package_publish"),
+            "detail": .object([AgentPublishRules.detailKey: .object([
+                "repository": .string(asked.repository ?? ""), "packages": .array(packages),
+            ])]),
+        ]))
+    }
+    func authorized(_ entry: AgentSessionTable.Entry?, _ request: DistributionPublishRequest) async -> ApelinError? {
+        await AgentPublishRules.authorize(request, session: entry?.sessionID, registry: registry, artifacts: artifacts)
+    }
+    let unasked = await authorized(strict, publish)
+    check(unasked?.code == .denied, "Strict publishes only as the user approved it")
+    let one = DistributionPublishRequest(files: [files[0]], digests: [digests[0]], repository: "someone/packages")
+    await ask("publish-1", one)
+    await sessions.record(strict.sessionID, approvalID: "publish-1", decision: .approve)
+    let fewer = await authorized(strict, publish)
+    let unspent = await sessions.approvedIDs(strict.sessionID)
+    check(fewer != nil && unspent == ["publish-1"], "an approval of one package is no approval of two, and stays unspent")
+    await ask("publish-2", DistributionPublishRequest(files: files, digests: digests.reversed(), repository: "someone/packages"))
+    await sessions.record(strict.sessionID, approvalID: "publish-2", decision: .approve)
+    let otherDigests = await authorized(strict, publish)
+    check(otherDigests != nil, "nor of the same files with other digests")
+    await ask("publish-3", DistributionPublishRequest(files: files, digests: digests, repository: "someone/elsewhere"))
+    await sessions.record(strict.sessionID, approvalID: "publish-3", decision: .approve)
+    let elsewhere = await authorized(strict, publish)
+    check(elsewhere != nil, "nor of another repository")
+    await ask("publish-4", publish)
+    let asked = await authorized(strict, publish)
+    check(asked != nil, "asking is not approving")
+    await sessions.record(strict.sessionID, approvalID: "publish-4", decision: .approve)
+    let approved = await authorized(strict, publish)
+    check(approved == nil, "the approved publication goes through")
+    let again = await authorized(strict, publish)
+    check(again != nil, "once: the next one asks again, never for the session")
+    let left = await sessions.approvedIDs(strict.sessionID)
+    check(left == ["publish-1", "publish-2", "publish-3"], "only the approval that covered it was spent (\(left))")
+    let oneApproved = await authorized(strict, one)
+    check(oneApproved == nil, "and the one-package approval still covers that one package")
+
+    let relaxed = await session("publish-relaxed", mode: .relaxed)
+    let full = await session("publish-full", mode: .full)
+    let relaxedPublishes = await authorized(relaxed, publish)
+    let fullPublishes = await authorized(full, publish)
+    check(relaxedPublishes == nil && fullPublishes == nil, "Relaxed and Full publish as they push")
+    // In every mode: only what a build reported to this host, as it reported it.
+    let handMade = DistributionPublishRequest(
+        files: ["/data/Builds/p-publish/made-by-hand.deb"], digests: [digests[0]], repository: "someone/packages",
+    )
+    let notBuilt = await authorized(relaxed, handMade)
+    check(notBuilt?.code == .denied, "a .deb no build reported is refused, even in Relaxed")
+    let changed = DistributionPublishRequest(files: [files[0]], digests: [digests[1]], repository: "someone/packages")
+    let otherBytes = await authorized(full, changed)
+    check(otherBytes?.code == .denied, "and a build's file under another digest, even in Full")
+    let bare = await authorized(relaxed, DistributionPublishRequest(files: files))
+    check(bare?.code == .badRequest, "an agent's publish names the repository and every digest")
+    let short = await authorized(relaxed, DistributionPublishRequest(files: files, digests: [digests[0]], repository: "someone/packages"))
+    check(short?.code == .badRequest, "one digest for each file")
+    let noSession = await authorized(nil, publish)
+    check(noSession?.code == .denied, "a worker with no session publishes nothing")
 }
 
 // MARK: - Another project's conversations are reached only as the user approved

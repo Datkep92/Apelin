@@ -64,8 +64,13 @@ enum CallerPolicy {
         .gitRepositoryCreate,
         // A public issue on Apelin's own repository with the user's GitHub
         // sign-in, under Confirm only as the user approved exactly it
-        // (AgentFeedbackRules). The package repository stays the app's.
+        // (AgentFeedbackRules).
         .feedbackSend,
+        // Packages builds made, published to the linked package repository
+        // as they were built, under Confirm only as the user approved
+        // exactly them (AgentPublishRules). Creating, linking, listing and
+        // unlinking the repository stay the app's.
+        .distributionPublish,
         .agentRunCode,
         // The project's other conversations (AgentConversations): AgentHandler
         // keeps an agent to its own project, and to the sessions it opened

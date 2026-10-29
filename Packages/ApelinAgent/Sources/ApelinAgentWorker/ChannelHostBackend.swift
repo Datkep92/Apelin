@@ -43,9 +43,11 @@ import Foundation
 /// user approved. apelin_toolchain_list, apelin_sdk_list, apelin_toolchain_setup,
 /// apelin_toolchain_self_test, apelin_sdk_import and apelin_project_set_environment's check:
 /// ChannelHostBackend+Environment. apelin_feedback_send → `feedbackSend`;
-/// apelin_git_create_repository → `gitRepositoryCreate`. An agent tool
-/// extension's tools → `toolHostOpen`, `toolHostCall` and `toolHostClose`:
-/// ChannelHostBackend+ToolExtensions.
+/// apelin_git_create_repository → `gitRepositoryCreate`;
+/// apelin_package_publish → `distributionPublish` with each file's digest
+/// and the repository, read to its end (ChannelHostBackend+Publish). An
+/// agent tool extension's tools → `toolHostOpen`, `toolHostCall` and
+/// `toolHostClose`: ChannelHostBackend+ToolExtensions.
 public struct ChannelHostBackend: AgentHostBackend {
     public let service: ApelinService
     public let sessionID: String

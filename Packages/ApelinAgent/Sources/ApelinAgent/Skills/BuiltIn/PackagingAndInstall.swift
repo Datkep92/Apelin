@@ -18,8 +18,10 @@ extension BuiltInSkills {
           place a package is put together (apelin-external-build).
         - A user who wants the package file takes it from Distribute… in the
           project chat's More (…) menu: it runs a release build for the
-          bootstrap they choose, then exports that package or publishes it to
-          their package repository.
+          bootstrap they choose, then exports that package. Release builds
+          you already made go to the user's package repository with
+          `apelin_package_publish`, as they are, when the user asks for it
+          (apelin-package-repository).
 
         ## Package identity
         - A new project's `package.id` in apelin-project.json, and an app's

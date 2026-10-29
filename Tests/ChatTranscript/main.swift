@@ -110,6 +110,36 @@ precondition(
 )
 print("ok: an approval card carries the reason and the description diff before the arguments")
 
+/// A publication's card shows what it is bound to, the repository and each
+/// package with its digest, rather than the build IDs the call named.
+let publishApproval = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("Publish both")]),
+    event(2, "approvalRequested", [
+        "approvalID": .string("p1"), "tool": .string("apelin_package_publish"),
+        "arguments": .string("{\"build_ids\":[\"b-hide\",\"b-less\"]}"),
+        "reason": .string("Publishes these 2 packages to your package repository someone/packages on GitHub."),
+        "detail": .object(["packagePublish": .object([
+            "repository": .string("someone/packages"),
+            "packages": .array([
+                .object(["packageID": .string("com.example.clock"), "version": .string("1.0"),
+                         "architecture": .string("iphoneos-arm64e"), "digest": .string("sha256:aa")]),
+                .object(["packageID": .string("com.example.clock"), "version": .string("1.0"),
+                         "architecture": .string("iphoneos-arm64"), "digest": .string("sha256:bb")]),
+            ]),
+        ])]),
+    ]),
+]) { _ in nil }.messages.first { $0.role.needsApproval }
+precondition(publishApproval?.approvalTitle == "Publish to the package repository")
+let publishDetail = publishApproval?.approvalDetail ?? ""
+precondition(
+    publishDetail.contains("repository\nsomeone/packages")
+        && publishDetail.contains("com.example.clock 1.0 (iphoneos-arm64e)\nsha256:aa")
+        && publishDetail.contains("com.example.clock 1.0 (iphoneos-arm64)\nsha256:bb")
+        && !publishDetail.contains("b-hide"),
+    "the card names the repository and each package's digest, not the build IDs: \(publishDetail)",
+)
+print("ok: a publication's card names the repository and every package's digest")
+
 /// A command that runs as root marks its card (`runsAsRoot`). The card says
 /// the root sentence once (the red line; the gate's own sentence is left
 /// out), why the agent made the call first, then the command as the line the

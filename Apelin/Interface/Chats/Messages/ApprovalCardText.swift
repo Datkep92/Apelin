@@ -68,6 +68,9 @@ enum ApprovalCardText {
     }
 
     private static func argumentsDetail(_ json: String, payload: JSONValue?, title: String, root: Bool) -> ToolCallDetail {
+        if let published = publishedPackages(payload) {
+            return ToolCallDetail(detail: published, title: title)
+        }
         guard AgentToolName.canonical(payload?["tool"]?.stringValue ?? "") == .shellRun,
               case var .object(values)? = try? JSONCoding.decode(JSONValue.self, from: Data(json.utf8))
         else { return ToolCallDetail(detail: json, title: title) }
@@ -93,6 +96,26 @@ enum ApprovalCardText {
             return ToolCallDetail(detail: json, title: title)
         }
         return ToolCallDetail(detail: String(decoding: encoded, as: UTF8.self), title: title)
+    }
+
+    /// An apelin_package_publish card's arguments: not the build IDs the
+    /// call names but what the approval is bound to, its
+    /// `detail.packagePublish` — the repository, then each package by its
+    /// ID, version and architecture with the digest it is held to. Nil for
+    /// any other request.
+    private static func publishedPackages(_ payload: JSONValue?) -> String? {
+        guard let detail = payload?["detail"]?["packagePublish"],
+              let repository = detail["repository"]?.stringValue,
+              case let .array(packages)? = detail["packages"]
+        else { return nil }
+        var shown: [String: JSONValue] = ["repository": .string(repository)]
+        for package in packages {
+            guard let id = package["packageID"]?.stringValue, let version = package["version"]?.stringValue,
+                  let architecture = package["architecture"]?.stringValue, let digest = package["digest"]?.stringValue
+            else { return nil }
+            shown["\(id) \(version) (\(architecture))"] = .string(digest)
+        }
+        return (try? JSONCoding.encode(JSONValue.object(shown))).map { String(decoding: $0, as: UTF8.self) }
     }
 
     /// A bound invocation, in the shape apelin-agent writes it

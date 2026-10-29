@@ -33,8 +33,9 @@ public struct ApprovalRequest: Sendable, Hashable, Codable {
     public var detail: ApprovalDetail
     /// Whether "for this session" may be offered. Never for package removal,
     /// a push, a repository made on GitHub, an issue filed as feedback, a
-    /// project's deletion, or a request bound to a description digest (the
-    /// host's ledger keeps those).
+    /// project's deletion, packages published to the package repository, or
+    /// a request bound to a description digest (the host's ledger keeps
+    /// those).
     public var allowsSessionScope: Bool
 
     public init(
@@ -110,6 +111,56 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// Another project deleted for good. The host lets through only the
     /// deletion of the project it names, once.
     case projectDelete(ProjectDeleteApproval)
+    /// Builds' packages put in the user's package repository: the
+    /// repository and each package with its digest. The host lets through
+    /// only the publication it names, once.
+    case packagePublish(PackagePublishApproval)
+}
+
+/// What an apelin_package_publish card names, and the host matches its
+/// request to (AgentPublishRules): the linked repository, then each
+/// package — its build, what it is, the file the build wrote and the
+/// digest it recorded —, in the order they are sent.
+public struct PackagePublishApproval: Sendable, Hashable, Codable {
+    public struct Package: Sendable, Hashable, Codable {
+        public var buildID: String
+        public var packageID: String
+        public var version: String
+        public var architecture: String
+        /// `roothide` or `rootless`.
+        public var bootstrap: String
+        public var file: String
+        /// `sha256:<hex>`, as the build recorded it.
+        public var digest: String
+        public init(
+            buildID: String,
+            packageID: String,
+            version: String,
+            architecture: String,
+            bootstrap: String,
+            file: String,
+            digest: String,
+        ) {
+            self.buildID = buildID
+            self.packageID = packageID
+            self.version = version
+            self.architecture = architecture
+            self.bootstrap = bootstrap
+            self.file = file
+            self.digest = digest
+        }
+    }
+
+    /// `owner/name`.
+    public var repository: String
+    /// The address a package manager adds.
+    public var sourceURL: String?
+    public var packages: [Package]
+    public init(repository: String, sourceURL: String?, packages: [Package]) {
+        self.repository = repository
+        self.sourceURL = sourceURL
+        self.packages = packages
+    }
 }
 
 /// What an apelin_git_create_repository card names, and the host matches

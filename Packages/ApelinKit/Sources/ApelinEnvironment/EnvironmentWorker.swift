@@ -186,8 +186,14 @@ public final class EnvironmentWorker: @unchecked Sendable {
         case .distributionPublish:
             await startTask(DistributionPublishRequest.self, request, resultInState: true) { [self] typed, _ in
                 let (linked, files) = try distribution.preparePublish(typed)
-                return { reporter, _ in
-                    let result = try await self.distribution.publish(linked, files: files, reporter: reporter)
+                return { reporter, staging in
+                    let result = try await self.distribution.publish(
+                        linked,
+                        files: files,
+                        digests: typed.digests,
+                        staging: staging,
+                        reporter: reporter,
+                    )
                     reporter.emit("result", result)
                 }
             }

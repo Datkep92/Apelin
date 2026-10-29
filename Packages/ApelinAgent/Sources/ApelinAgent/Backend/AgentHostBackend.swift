@@ -126,6 +126,12 @@ public protocol AgentHostBackend: Sendable {
     /// One call in that session; `notFound` once the extension has exited.
     func callToolExtension(_ request: ToolExtensionCallRequest) async throws -> ToolExtensionCallResponse
     func closeToolExtension(sessionID: String) async throws
+    /// The linked package repository, the GitHub sign-in and each build's
+    /// package record, read before apelin_package_publish asks.
+    func packagePublication(_ request: PackagePublicationRequest) async throws -> PackagePublication
+    /// Builds' packages published to the linked package repository as they
+    /// were built, read to the end; the host checks they were approved.
+    func publishPackages(_ request: PackagePublishToolRequest) async throws -> PackagePublishToolResponse
 }
 
 /// A backend without the device's toolchains, SDKs, installations or other
@@ -192,6 +198,14 @@ public extension AgentHostBackend {
     }
 
     func closeToolExtension(sessionID _: String) async throws {}
+
+    func packagePublication(_: PackagePublicationRequest) async throws -> PackagePublication {
+        throw ToolDeniedError(message: "publishing packages is not available here")
+    }
+
+    func publishPackages(_: PackagePublishToolRequest) async throws -> PackagePublishToolResponse {
+        throw ToolDeniedError(message: "publishing packages is not available here")
+    }
 }
 
 // MARK: - Context

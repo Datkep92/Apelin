@@ -46,6 +46,14 @@ over the page instead: Publishing there creates or links one, after Sign In
 with GitHub when there is no account yet. Close Settings and publish again;
 the build stays as it was.
 
+A conversation publishes release builds it has made without building them
+again: asked to, it calls `apelin_package_publish` with those builds, which
+go in together — the roothide and the rootless package of one version in one
+commit —, each held to the digest its build recorded, and none goes in if
+one has changed. In Strict mode it asks first, naming the repository and
+every package with its digest; in every mode it publishes only what the user
+asked for or agreed to.
+
 ## Before distributing
 
 The first page lists what a package for other people should not carry yet,

@@ -25,6 +25,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case packageInstall = "apelin_package_install"
     case packageRemove = "apelin_package_remove"
     case packageList = "apelin_package_list"
+    case packagePublish = "apelin_package_publish"
     case deviceRespring = "apelin_device_respring"
     case packageConfirmLoaded = "apelin_package_confirm_loaded"
     case logRead = "apelin_log_read"

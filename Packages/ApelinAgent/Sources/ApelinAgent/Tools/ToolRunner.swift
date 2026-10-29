@@ -304,19 +304,20 @@ actor ToolRunner {
     /// project, nor for a call that reaches another project, nor for a
     /// command as root, nor for an issue filed in public as feedback, nor
     /// for a repository made on GitHub, nor for a project's deletion, which
-    /// cannot be undone.
+    /// cannot be undone, nor for packages published to the user's package
+    /// repository.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
              .local(.skillSave), .local(.skillRemove), .local(.feedbackSend), .local(.gitCreateRepository),
-             .local(.projectDelete):
+             .local(.projectDelete), .local(.packagePublish):
             return false
         default:
             break
         }
         switch detail {
         case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
-             .projectRename, .rootCommand, .feedback, .repositoryCreate, .projectDelete:
+             .projectRename, .rootCommand, .feedback, .repositoryCreate, .projectDelete, .packagePublish:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -539,6 +540,13 @@ actor ToolRunner {
                 let instead = await removableInstead()
                 throw ToolDeniedError(message: refusal.message + instead)
             }
+
+        case .packagePublish:
+            // The repository and packages the card named.
+            guard let publication = facts.packagePublish else {
+                throw ToolDeniedError(message: "the packages to publish could not be read")
+            }
+            return try await json(backend.publishPackages(PackagePublishToolRequest(context: context, publication: publication)))
 
         case .packageList:
             var projectID: String?

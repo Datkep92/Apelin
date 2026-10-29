@@ -142,6 +142,12 @@ extension ToolRunner {
                 throw ToolArgumentError("Not sent: \(problem).")
             }
             facts.feedback = FeedbackApproval(repository: FeedbackRules.repository, title: title, body: body)
+        case .packagePublish:
+            // Read and checked before anyone is asked; the card names what
+            // is sent, which the host and apelin-environment check again.
+            let ids = try PackagePublish.buildIDs(arguments)
+            let publication = try await backend.packagePublication(PackagePublicationRequest(context: probeContext, buildIDs: ids))
+            facts.packagePublish = try PackagePublish.approval(for: ids, publication: publication)
         case .projectSetEnvironment:
             facts.pathCheck = check { _ = try root.resolveForWrite(ProjectEnvironmentEdit.fileName, findingGitPointers: false) }
         default:

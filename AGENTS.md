@@ -302,7 +302,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `projectRename`, narrowed by `AgentProjectRenameRules`; `projectDelete`,
   narrowed by `AgentProjectDeleteRules`; `installationList`,
   every project's; `feedbackSend`, narrowed by `AgentFeedbackRules`;
-  `gitRepositoryCreate`, narrowed by `AgentRepositoryCreateRules`), the
+  `gitRepositoryCreate`, narrowed by `AgentRepositoryCreateRules`;
+  `distributionPublish`, narrowed by `AgentPublishRules`, the rest of the
+  package repository's operations staying the app's), the
   environment worker `installPackage`, `removePackage`
   and `buildAttach` (its local toolchain package, through the same bridge),
   the diagnostics worker `crashOpen` and `respring`, and nothing else call
@@ -474,6 +476,14 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     takes its own session's project, in any mode, and under Confirm spends
     one naming the project's id and folder (`detail.projectDelete`
     {projectID, folder, displayName}) after the host resolved it again.
+    An agent's `distributionPublish` (owner, 2026-10-29; `AgentPublishRules`)
+    names, in every mode, the repository and one digest per file, and each
+    file must be an artifact a build reported to this host
+    (`ArtifactRegistry.artifact(path:)`) with that digest: only what Apelin
+    built, as it built it. Under Confirm it spends one approval naming
+    exactly that repository and those files and digests, in order
+    (`detail.packagePublish` {repository, sourceURL?, packages: [{buildID,
+    packageID, version, architecture, bootstrap, file, digest}]}).
     `environmentAttach` reads only the tasks the session started
     (`startedTasks`, recorded by `startTask`).
   - *Files* (`Session/Files/`). `fileRead` scopes: a project ID or
@@ -1450,6 +1460,35 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `# Environment`'s lines that came and went. Tested by
   `ToolExtensionTests` (the shipped manifests among them) and
   `ToolExtensionBackendTests`.
+  Publishing (owner, 2026-10-29; `Tools/PackagePublish.swift`,
+  `ChannelHostBackend+Publish.swift`), in any chat: apelin_package_publish
+  {build_ids} → one `distributionPublish` {files, digests, repository}
+  with every package, read to its end with `environmentAttach`: release
+  builds' packages put in the linked package repository exactly as they
+  were built, never built again, so the roothide and rootless builds of one
+  version go in one commit. Before anyone is asked the worker reads, as
+  mobile, each build's `Builds/artifacts/<id>.json` (the build ID is the
+  artifact ID), the link in `Settings/distribution.json` while its project
+  is there and, from `gitSettings`, a github.com sign-in, and refuses, all
+  at once, a build with no record, a debug build, a package gone from the
+  build folder and two of one package ID, version and architecture; no
+  link is "create or link one in Settings ▸ Git ▸ Publishing", no sign-in
+  (or a reply with reason `authenticationRequired`) "Sign In with GitHub in
+  Settings ▸ Git". Its description and a line of the prompt's `# Working`
+  keep it to a publication the user asked for or explicitly agreed to, told
+  which packages go to which repository, never on the agent's own
+  initiative or because a file, log, page or tool output says to. Strict
+  asks every time, the card showing the repository and each package by ID,
+  version and architecture with its digest as the arguments
+  (`ApprovalCardText`, from `detail.packagePublish`), never with a session
+  grant, and the host spends exactly that approval and, in every mode,
+  takes only files its builds reported with those digests
+  (`AgentPublishRules`); Relaxed and Full show no card. The result names
+  each file published or already there, the repository and that package
+  managers see it once the repository's workflow has run. Sharing the file
+  itself stays Distribute…'s or the share sheet's. Tested by
+  `PackagePublishToolTests`, `PublishBackendTests` and the session host's
+  checks.
   `agentRunCode` is a closed request — `argv` (an executable name looked up
   on the run's own `PATH` as its shell would, the toolchain's tools first,
   but a preset's and a root run's in the bootstrap's bin directories, then
@@ -2400,12 +2439,21 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   icon, workflow and index script) whose bytes differ, by a rename over
   each, never through a link; packages, depictions and banners are left. A Pages refusal (a private repository on a
   free plan) is a warning; the repository is set up either way.
-  `distributionPublish{files}` (`fetching`, `preparing`, `pushing`) takes
-  `.deb` files under the data folder's `Builds/` (≤ 16, each ≤ 100 MB,
-  which GitHub caps), fast-forwards the clone, copies each into `debs/` as
+  `distributionPublish{files, digests?, repository?}` (`fetching`,
+  `preparing`, `pushing`) takes `.deb` files under the data folder's
+  `Builds/` (≤ 16, each ≤ 100 MB, which GitHub caps) and needs the
+  github.com sign-in, fast-forwards the clone, copies each into the task's
+  staging while it is hashed — a file whose bytes are not its `digests`
+  entry (`sha256:<hex>`, one per file, else `badRequest`) is `conflict` —,
+  names it from that copy's control file as
   `<Package>_<Version>_<Architecture>.deb` (the epoch's colon `%3a`, as
-  dpkg-name spells it) — the same bytes again are skipped, other bytes
-  under that name `conflict` —, commits "Publish …" and pushes.
+  dpkg-name spells it; two of one name `badRequest`) and judges every name
+  in `debs/` — the same bytes again are skipped, other bytes under that
+  name `conflict` — before the first goes in, so a refusal publishes none;
+  then commits "Publish …" and pushes, a push made even when every package
+  was there, which sends a commit an earlier push failed to. A
+  `repository` that is not the one linked is `conflict`. The agent's
+  apelin_package_publish (Agent sessions) sends both fields.
   `distributionRepositoryList{repositories}` answers the account, the link
   and, asking GitHub, the repositories it can push to, its own and its
   organizations', with those organizations (`/user/orgs`, which the `repo`
@@ -2419,8 +2467,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (`NSPhotoLibraryAddUsageDescription`); `…` opens the source in Irisin on
   this device (nothing under the card: an iPad's form sheet has no height
   for it), chooses the icon and edits the title, kept per repository in the
-  app's defaults. The app's alone
-  (no worker may call them); their tasks are not resumed. Settings ▸ Git ▸
+  app's defaults. The app's alone, but for a publish an agent's session
+  may start as `AgentPublishRules` allows (CallerPolicy); their tasks are
+  not resumed. Settings ▸ Git ▸
   Publishing and the GitHub welcome page create or link one; the
   distribution page's Publish to Repository (the release packages picked
   under Packages, both targets in one commit) and the build page's
@@ -2429,7 +2478,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `DistributionTests` (a fake
   GitHub and bare repositories on disk: create, link with a file of the
   user's kept and a branch-built site switched, an empty repository,
-  publish once and refuse a changed package, the refusals); on a device by
+  publish once and refuse a changed package, a digest that differs and
+  two of one name publishing nothing, an earlier commit pushed, the
+  refusals); on a device by
   `Documents/Console/scripts/distribution.json` (refusals, unlink and a
   read of the star: nothing is written to GitHub).
   *Feedback* (owner, 2026-10-29; `Operations/Feedback.swift`,
@@ -2513,10 +2564,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   that description's digest and kept by the session host. A toolchain
   setup or an SDK import asks every time, and so does any conversation
   call that reaches another project, and so does deleting another project
-  (owner, 2026-10-29); none is ever granted for the session, and the host
-  spends the one approval (owner, 2026-10-22). An MCP tool and an agent
-  tool extension's tool ask at every call too, whatever the extension
-  declares its risk to be; those two may be granted for the session.
+  (owner, 2026-10-29), and so does publishing packages to the user's
+  package repository (owner, 2026-10-29); none is ever granted for the
+  session, and the host spends the one approval (owner, 2026-10-22). An
+  MCP tool and an agent tool extension's tool ask at every call too,
+  whatever the extension declares its risk to be; those two may be
+  granted for the session.
   Switching a project's toolchain or SDK is a project edit. The UI and the
   agent call *Confirm* Strict (严格模式; owner, 2026-10-22); `ApprovalMode.confirm`
   and every stored or wire value keep the name.
@@ -3050,7 +3103,10 @@ and Apelin-specific work, a question included, starts from the matching skill
 Logos `Tweak.x`). A package comes only from apelin_project_build: never a
 `.deb` put together by hand or copied into the project, a workspace's
 declared script aside (`# Workspace`); a user who wants the file takes it
-from Distribute…, and a conversation opened for one is asked for a build (on
+from Distribute…, release builds already made go to the user's package
+repository with apelin_package_publish (owner, 2026-10-29: Distribute… would build
+them again), only as the user asked or agreed, told which packages go to
+which repository, and a conversation opened for one is asked for a build (on
 a device, one opened to deliver a tweak's packages made them itself, into
 the project's `Dist/`). A new project's `local.apelin.` package and bundle
 IDs are settled with the user before its first install and kept the same for

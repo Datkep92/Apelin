@@ -87,6 +87,12 @@ actor ArtifactRegistry {
         return artifacts.last { $0.artifactID == id }
     }
 
+    /// The newest artifact a build reported at `path`, as it spelled it.
+    func artifact(path: String) -> Artifact? {
+        loadIfNeeded()
+        return artifacts.last { $0.path == path }
+    }
+
     static func validID(_ id: String) -> Bool {
         !id.isEmpty && id.count <= 128 && !id.hasPrefix("file:") && !CanonicalPath.containsNUL(id) && !id.contains("/")
     }

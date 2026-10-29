@@ -233,6 +233,23 @@ console now goes on after a restart only past a successful respring.
       whose package is listed asks nothing when the version packaged
       before is its only warning. With no repository linked, Publish to
       Repository opens Settings ▸ Git.
+- [ ] Packages published by the agent (2026-10-29, AGENTS.md ▸ Agent
+      sessions ▸ Publishing; none of it has run on a device, and it pushes
+      to a real repository, so by hand only, on a test repository linked
+      in Settings ▸ Git ▸ Publishing). `make device-run SCRIPT=distribution`
+      still refuses a file outside `Builds/`. A project chat asked for
+      release builds for roothide and rootless, then to publish them:
+      apelin_package_publish with both build IDs, under Strict one card
+      naming the repository and both packages with their digests and no
+      "for this session"; Approve adds both files to `debs/` in one
+      "Publish …" commit that reaches GitHub, nothing built again, and the
+      reply names the source address. Asked again: both "already
+      published", no new commit. A debug build, a build whose `.deb` was
+      deleted, and the same build twice are refused before any card; a
+      `.deb` changed after its build is refused and none goes in. Unlinked:
+      the agent names Settings ▸ Git ▸ Publishing; signed out: Sign In with
+      GitHub. In Relaxed, no card, and still no publication the user did
+      not ask for. Remove the test packages afterwards.
 - [ ] A GitHub repository made by the agent (2026-10-29, AGENTS.md ▸ The
       environment worker ▸ Git and Agent sessions; none of it has run on a
       device, and it makes repositories on a real account, so by hand

@@ -3,9 +3,10 @@
 // workflow Apelin's template brings (after owngoal-dev/owngoal-packages).
 // Served by apelin-environment, which holds the github.com credential the
 // user signed in with and calls GitHub's API with it; the app's alone, but
-// for the feedback an agent files on Apelin's own repository
-// (`FeedbackSendRequest`). Starring that repository is the app's alone too
-// (`FeedbackStarRequest`).
+// for the packages an agent publishes to the linked repository
+// (`DistributionPublishRequest`) and the feedback it files on Apelin's own
+// repository (`FeedbackSendRequest`). Starring that repository is the app's
+// alone (`FeedbackStarRequest`).
 //
 // The repository's clone is a workspace project like any other, so its
 // conversation maintains it with the file and git tools; the link is
@@ -156,15 +157,42 @@ public struct DistributionRepositoryUnlinkRequest: OperationRequest {
 /// `<Package>_<Version>_<Architecture>.deb` — the same bytes already there
 /// are skipped, other bytes under that name are `conflict` —, commits
 /// "Publish …" and pushes. `files` are `.deb` files under the data folder's
-/// `Builds/`. Stages `fetching`, `preparing`, `pushing`; the final `state`
-/// carries `result` {published: [file names], skipped: [file names], commit?}.
+/// `Builds/`, at most 16. Each is copied and hashed, and every name checked,
+/// before anything goes into `debs/`, so a refusal publishes none of them.
+/// Stages `fetching`, `preparing`, `pushing`; the final `state` carries
+/// `result` {published: [file names], skipped: [file names], sourceURL,
+/// commit?}.
+///
+/// The app's, and an agent's as the host allows it (AgentPublishRules),
+/// which names both optional fields.
 public struct DistributionPublishRequest: OperationRequest {
     public typealias Response = TaskHandle
     public static let operation = AppOperation.distributionPublish
     public var files: [String]
+    /// `sha256:<64 lowercase hex>` of each file, in `files`' order: the
+    /// digests the builds recorded. A file whose bytes are not its digest is
+    /// `conflict`; a list of another length, or a digest of another shape,
+    /// `badRequest`. Nil publishes the files as they are.
+    public var digests: [String]?
+    /// `owner/name` of the repository the caller means; another one linked
+    /// is `conflict`. Nil publishes to whichever is linked.
+    public var repository: String?
 
-    public init(files: [String]) {
+    /// GitHub takes a push of this many packages at 100 MB each.
+    public static let maximumFiles = 16
+
+    public init(files: [String], digests: [String]? = nil, repository: String? = nil) {
         self.files = files
+        self.digests = digests
+        self.repository = repository
+    }
+
+    /// Whether `digest` is one a build records: `sha256:` and 64 lowercase
+    /// hex digits.
+    public static func isDigest(_ digest: String) -> Bool {
+        let hex = digest.utf8.dropFirst(7)
+        return digest.hasPrefix("sha256:") && hex.count == 64
+            && hex.allSatisfy { (48 ... 57).contains($0) || (97 ... 102).contains($0) }
     }
 }
 
@@ -252,8 +280,8 @@ public extension ApelinService {
     }
 
     /// Starts publishing; follow it with `events(of:)`.
-    func distributionPublish(files: [String]) async throws -> TaskHandle {
-        try await send(DistributionPublishRequest(files: files))
+    func distributionPublish(files: [String], digests: [String]? = nil, repository: String? = nil) async throws -> TaskHandle {
+        try await send(DistributionPublishRequest(files: files, digests: digests, repository: repository))
     }
 
     func feedbackSend(title: String, body: String) async throws -> FeedbackSendResponse {

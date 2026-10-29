@@ -119,7 +119,47 @@ actor MockBackend: AgentHostBackend {
         case checkEnvironment(toolchainID: String?, sdkID: String?)
         case feedback(title: String, body: String, evidence: ApprovalEvidence)
         case createRepository(RepositoryCreateApproval, evidence: ApprovalEvidence)
+        case publishPackages(PackagePublishApproval, evidence: ApprovalEvidence)
         case other(String)
+    }
+
+    /// What apelin_package_publish reads before it asks: a linked
+    /// repository, a sign-in, and the builds a test records.
+    var publishRepository: PackagePublication.Repository? = .init(
+        fullName: "someone/packages",
+        sourceURL: "https://someone.github.io/packages/",
+    )
+    var publishSignedIn: Bool? = true
+    var buildRecords: [String: PackageBuildRecord] = [:]
+
+    func setPublishing(repository: PackagePublication.Repository?, signedIn: Bool?) {
+        publishRepository = repository
+        publishSignedIn = signedIn
+    }
+
+    func record(_ build: PackageBuildRecord) {
+        buildRecords[build.buildID] = build
+    }
+
+    func packagePublication(_ request: PackagePublicationRequest) -> PackagePublication {
+        PackagePublication(
+            repository: publishRepository,
+            signedIn: publishSignedIn,
+            builds: request.buildIDs.map { buildRecords[$0] },
+        )
+    }
+
+    func publishPackages(_ request: PackagePublishToolRequest) -> PackagePublishToolResponse {
+        calls.append(.publishPackages(request.publication, evidence: request.context.approval))
+        let files = request.publication.packages.map { "\($0.packageID)_\($0.version)_\($0.architecture).deb" }
+        return PackagePublishToolResponse(
+            repository: request.publication.repository,
+            sourceURL: request.publication.sourceURL,
+            published: files,
+            alreadyPublished: [],
+            commit: "abc123",
+            next: "Package managers see them once the repository's workflow on GitHub has indexed debs/.",
+        )
     }
 
     /// What apelin_toolchain_list and apelin_sdk_list answer.

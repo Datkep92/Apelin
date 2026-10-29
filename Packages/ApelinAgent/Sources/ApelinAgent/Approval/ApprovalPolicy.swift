@@ -110,6 +110,9 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For apelin_project_delete: the project, resolved before asking,
     /// which is the one deleted.
     public var projectDeletion: ProjectDeleteApproval?
+    /// For apelin_package_publish: the repository and the packages,
+    /// checked before asking, as they are sent.
+    public var packagePublish: PackagePublishApproval?
 
     public init(
         tool: Tool,
@@ -344,6 +347,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
             }
             return .ask(reason: Self.repositoryReason(repository), detail: .repositoryCreate(repository))
 
+        // Packages in the user's package repository, where anyone who adds
+        // its source installs them, as a push publishes: every publication
+        // asks, the card naming the repository and each package's digest.
+        case .packagePublish:
+            guard let publication = facts.packagePublish else {
+                return .ask(reason: "The packages to publish could not be read.", detail: .none)
+            }
+            return .ask(reason: Self.publishReason(publication), detail: .packagePublish(publication))
+
         // The device's git settings, for every project: each change asks,
         // and a saved token is never on the card.
         case .gitSetAuthor, .gitSaveCredential, .gitRemoveCredential:
@@ -454,6 +466,16 @@ public struct ApprovalPolicy: Sendable, Hashable {
 
     static func feedbackReason(_ feedback: FeedbackApproval) -> String {
         "Posts this title and body as a public issue on \(feedback.repository) under your GitHub account, where anyone can read it; Apelin adds its version, the iOS version and the bootstrap below it. Each one needs your approval."
+    }
+
+    static func publishReason(_ publication: PackagePublishApproval) -> String {
+        let packages = publication.packages.map { package in
+            "\(package.packageID) \(package.version) for \(package.bootstrap) (\(package.architecture))"
+        }
+        let one = packages.count == 1
+        let what = one ? "this package" : "these \(packages.count) packages"
+        let source = publication.sourceURL.map { " (\($0))" } ?? ""
+        return "Publishes \(what) to your package repository \(publication.repository) on GitHub, as \(one ? "its build" : "their builds") made \(one ? "it" : "them"): \(packages.joined(separator: "; ")). Anyone who adds its source\(source) can install \(one ? "it" : "them"), and a version published there cannot be published again with other contents. Each publication needs your approval."
     }
 
     static func repositoryReason(_ repository: RepositoryCreateApproval) -> String {
