@@ -435,7 +435,7 @@ precondition(summaries[2].text == "The hook is off. Turning it on.")
 precondition(countsOwnCalls(summaries))
 let stillBuilding = ChatTranscript(events: Array(twoSummaries.prefix(15))) { _ in nil }.messages.last
 precondition(stillBuilding?.role == .thinking(seconds: nil, tools: 2) && stillBuilding?.runningTools == 1)
-precondition(stillBuilding?.activityTitle == "Executing 1 tool…")
+precondition(stillBuilding?.activityTitle == "Executing tool…")
 print("ok: each summary counts only the calls in its own trace")
 
 /// A message another conversation's agent sent names that conversation over
