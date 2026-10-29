@@ -1050,7 +1050,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   is seen through frames extracted as image files, as the refusal of any
   other binary now says. Every system tool is one
   host request
-  (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches), apelin_package_install →
+  (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches;
+  its findings, and apelin_project_check_distribution's, keep their `field`,
+  and a schema error adds a note naming the apelin-project-description
+  skill's schema file; a build refused over an `apelin-project.json` that
+  does not read — in Strict mode the host's "approval required" — is
+  answered with `projectCheck`'s errors, field by field), apelin_package_install →
   `installPackage` (a refused one answers its `conflict` events as
   `conflicts`), apelin_package_remove → `removePackage` (an installation
   ID, or a package ID the worker turns into its one removable installation
@@ -1138,7 +1143,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   to them gets, nothing written, digests the registry's), refused on any
   `environment.*` error with its message — an SDK newer than the
   toolchain reads is `environment.sdk.tooNewForToolchain`, as for a
-  project bound to it —, then the four strings of `environment` rewritten
+  project bound to it — and on a project file that does not read with
+  each error by its field (one lacking the `template` and `environment`
+  only apelin_project_create writes, such as a workspace rewritten by
+  hand, is told it is no description and that a workspace builds with a
+  script of its own), then the four strings of `environment` rewritten
   in `apelin-project.json` through the file tools' writer, every other
   byte kept and read back to prove it (`ProjectEnvironmentEdit`). It is a
   project edit under Confirm: the file tools could write the same field,
@@ -2000,7 +2009,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Its answer carries the `environment` binding it checked; with
   `environment` {toolchainID?, sdkID?} in the request it checks the
   project as if bound to those registered components instead — digests
-  the registry's, an unregistered one `notFound`, nothing written — which
+  the registry's, an unregistered one `notFound`, nothing written; a
+  project file that does not read answers its own check, with no
+  binding — which
   is how the agent's apelin_project_set_environment is judged before it writes
   (`ProjectCheck.binding`, `run(projectID:environment:)`).
 - **The environment** apelin-build reads through `EnvironmentRegistry`
@@ -2099,7 +2110,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   apelin_project_check_distribution counts any check error as not ready and, for a
   workspace, notes that the build checks the package. Tested by
   `ExternalBuildTests` (the declaration, the script's environment, one
-  package, the failures, the timeout, the release findings), the agent's
+  package, the failures, the timeout, the release findings, a workspace
+  rewritten as a description), the agent's
   `ExternalBuildToolTests` and the session host's approval checks.
 - **Tested** by `make harness`: the schema fixtures and the reference
   implementation, `ApelinCodeSign` against ldid's own output

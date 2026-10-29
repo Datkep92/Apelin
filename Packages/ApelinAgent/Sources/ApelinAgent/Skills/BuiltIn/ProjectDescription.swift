@@ -23,6 +23,12 @@ extension BuiltInSkills {
           apelin_project_set_environment; never type a digest.
         - `displayName` and `autoName`: the name Apelin shows.
 
+        Only apelin_project_create writes `template` and `environment`, so a
+        description written from scratch lacks them: it does not build, and
+        no toolchain or SDK can be bound to it. Never rewrite a workspace
+        (`"kind": "workspace"`) as one: it builds with a script of its own
+        (the apelin-external-build skill).
+
         ## What it builds
         - `kind`: `tweak` (a `dylib` product and `package.tweakFilter`),
           `app` (an `app` product), `cli` (an `executable`) or `preferences`

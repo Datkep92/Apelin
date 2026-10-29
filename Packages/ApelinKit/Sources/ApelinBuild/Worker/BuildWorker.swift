@@ -213,15 +213,15 @@ public final class BuildWorker: @unchecked Sendable {
 
     /// With `environment`, the check a switch to those registered
     /// components would get, nothing written; a component that is not
-    /// registered is `notFound`.
+    /// registered is `notFound`. A project file that does not read has no
+    /// binding to switch: its check answers, field by field, with none.
     public func projectCheck(_ request: ProjectCheckRequest) throws -> ProjectCheckResponse {
         if let (_, root) = try? store.root(of: request.projectID), let manifest = Workspace.manifest(at: root) {
             return Self.workspaceCheck(manifest, root: root)
         }
         let check = ProjectCheck(store: store, catalog: catalog, registry: registry)
         var candidate: ProjectDocument.EnvironmentBinding?
-        if let choice = request.environment {
-            let current = try store.locate(request.projectID).project.environment
+        if let choice = request.environment, let current = try? store.locate(request.projectID).project.environment {
             candidate = try check.binding(choice, replacing: current)
         }
         let result = check.run(projectID: request.projectID, environment: candidate)
