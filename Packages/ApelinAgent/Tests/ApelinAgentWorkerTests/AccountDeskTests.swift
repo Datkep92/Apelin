@@ -305,6 +305,89 @@ struct AccountDeskTests {
     }
 
     @Test
+    func `an added configuration lists beside its provider, reads its own key, and signs out alone`() async throws {
+        let canonical = try #require(AgentProfileID.canonicalID(for: .anthropic))
+        let added = try #require(AgentProfileID.make(for: .anthropic))
+        let store = DeliveredCredentialSource([
+            canonical: OAuthCredentials(access: "sk-ant-first", refresh: "", expires: .max),
+            added: OAuthCredentials(
+                access: "sk-ant-second", refresh: "", expires: .max,
+                extras: [AccountDesk.profileNameExtra: .string("Work")],
+            ),
+        ])
+        let desk = AccountDesk(store: store)
+        let listed = await desk.list().accounts.filter { $0.provider == .anthropic }
+        #expect(listed.map(\.id) == [canonical, added], "the provider's own is first")
+        #expect(listed[0].profileID == nil && listed[0].name == nil)
+        #expect(listed[1].profileID == added && listed[1].name == "Work")
+        #expect(listed.allSatisfy(\.signedIn))
+
+        let configuration = try await desk.apiConfiguration(for: .anthropic, profileID: added)
+        #expect(configuration.values["apiKey"] == "sk-ant-second")
+        // An id that is no configuration of this provider is refused.
+        for wrong in ["openai-compatible.abc", "github-copilot", "anthropic-api-key.."] {
+            await #expect(throws: ApelinError.self) {
+                _ = try await desk.apiConfiguration(for: .anthropic, profileID: wrong)
+            }
+            await #expect(throws: ApelinError.self) {
+                _ = try await desk.activateModels(
+                    AgentModelActivateRequest(provider: .anthropic, models: ["claude-x"], profileID: wrong),
+                    taskID: TaskID("mismatch"),
+                    reporter: SignInRecorder().reporter,
+                )
+            }
+        }
+
+        // A keychain id no provider claims is no configuration at all, and
+        // the listing stays the provider's own.
+        let stray = DeliveredCredentialSource([
+            canonical: OAuthCredentials(access: "k", refresh: "", expires: .max),
+            "anthropic-api-key..": OAuthCredentials(access: "k", refresh: "", expires: .max),
+        ])
+        let strays = await AccountDesk(store: stray).list().accounts.filter { $0.provider == .anthropic }
+        #expect(strays.map(\.id) == [canonical])
+
+        try await desk.signOut(.anthropic, profileID: added)
+        #expect(try await store.credentials(for: added) == nil)
+        #expect(try await store.credentials(for: canonical) != nil)
+    }
+
+    @Test
+    func `a named configuration saves under its own id, with its name and never the key in a listing`() async throws {
+        let canonical = try #require(AgentProfileID.canonicalID(for: .anthropic))
+        let added = try #require(AgentProfileID.make(for: .anthropic))
+        let store = DeliveredCredentialSource()
+        let desk = AccountDesk(store: store, login: Self.neverCalled, listener: Self.silent, verifyKey: { _, _, _ in })
+        let recorder = SignInRecorder()
+        let task = TaskID("named-configuration")
+        try await desk.start(
+            AgentSignInRequest(provider: .anthropic, profileID: added, profileName: "  Work key\nsecond line"),
+            taskID: task,
+            reporter: recorder.reporter,
+        )
+        try await recorder.waitFor { !$0.events.isEmpty }
+        try await desk.respond(AgentSignInRespondRequest(taskID: task, fields: [.apiKey: "sk-ant-SECRET"]))
+        try await recorder.waitFor { $0.state != nil }
+        #expect(recorder.state == .succeeded)
+        let saved = try #require(try await store.credentials(for: added))
+        #expect(saved.access == "sk-ant-SECRET")
+        #expect(saved.extras[AccountDesk.profileNameExtra] == .string("Work key"), "one line, trimmed")
+        #expect(try await store.credentials(for: canonical) == nil, "the provider's own is untouched")
+        #expect(!recorder.transcript.contains("SECRET"))
+        let account = await desk.list().accounts.first { $0.provider == .anthropic && $0.profileID != nil }
+        #expect(account?.name == "Work key")
+
+        // A configuration of another provider is refused before a task runs.
+        await #expect(throws: ApelinError.self) {
+            try await desk.start(
+                AgentSignInRequest(provider: .anthropic, profileID: "openai-compatible.abc"),
+                taskID: TaskID("wrong-provider"),
+                reporter: SignInRecorder().reporter,
+            )
+        }
+    }
+
+    @Test
     func `a candidate key is saved only after its model answers`() async throws {
         let store = DeliveredCredentialSource()
         let (started, didStart) = AsyncStream<Void>.makeStream()

@@ -101,7 +101,9 @@ final class WelcomeProvidersPage: WelcomeListPage {
             guard let self else { return }
             do {
                 let accounts = try await ApelinService.app.agentAccountList().accounts
-                guard let account = accounts.first(where: { $0.provider == provider }) else {
+                // The provider's own sign-in, not a configuration added to it
+                // in Settings: onboarding adds the first one only.
+                guard let account = accounts.first(where: { $0.provider == provider && $0.profileID == nil }) else {
                     throw ApelinError(
                         .unimplemented,
                         String(localized: "This provider is not available. You can add another provider in Settings."),

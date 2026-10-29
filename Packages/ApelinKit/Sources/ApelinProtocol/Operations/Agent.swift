@@ -198,6 +198,9 @@ public struct AgentOpenRequest: OperationRequest {
     public var provider: AgentProvider?
     /// A model identifier from the app's model settings; nil is the default.
     public var model: String?
+    /// The saved configuration of `provider` the app picked
+    /// (`AgentProfileID`); nil is the provider's own, first one.
+    public var profileID: String?
     public var approvalMode: ApprovalMode
     public var reasoningEffort: AgentReasoningEffort?
     public var serviceTier: AgentServiceTier?
@@ -219,6 +222,7 @@ public struct AgentOpenRequest: OperationRequest {
         sessionID: String? = nil,
         provider: AgentProvider? = nil,
         model: String? = nil,
+        profileID: String? = nil,
         approvalMode: ApprovalMode = .confirm,
         reasoningEffort: AgentReasoningEffort? = nil,
         serviceTier: AgentServiceTier? = nil,
@@ -232,6 +236,7 @@ public struct AgentOpenRequest: OperationRequest {
         self.sessionID = sessionID
         self.provider = provider
         self.model = model
+        self.profileID = profileID
         self.approvalMode = approvalMode
         self.reasoningEffort = reasoningEffort
         self.serviceTier = serviceTier
@@ -283,6 +288,9 @@ public struct AgentPromptRequest: OperationRequest {
     public var messageID: UUID?
     public var provider: AgentProvider?
     public var model: String?
+    /// The saved configuration of `provider` this run uses
+    /// (`AgentProfileID`); nil is the provider's own, first one.
+    public var profileID: String?
     public var reasoningEffort: AgentReasoningEffort?
     public var serviceTier: AgentServiceTier?
     public var attachments: [AgentInputAttachment]?
@@ -299,6 +307,7 @@ public struct AgentPromptRequest: OperationRequest {
         attachments: [AgentInputAttachment]? = nil,
         provider: AgentProvider? = nil,
         model: String? = nil,
+        profileID: String? = nil,
         reasoningEffort: AgentReasoningEffort? = nil,
         serviceTier: AgentServiceTier? = nil,
         approvalMode: ApprovalMode? = nil,
@@ -309,6 +318,7 @@ public struct AgentPromptRequest: OperationRequest {
         self.messageID = messageID
         self.provider = provider
         self.model = model
+        self.profileID = profileID
         self.reasoningEffort = reasoningEffort
         self.serviceTier = serviceTier
         self.attachments = attachments

@@ -6,42 +6,79 @@ extension Notification.Name {
 }
 
 /// A device preference, separate from the provider's credentials and catalog.
+///
+/// Kept per configuration (`AgentAccount.id`), so two Anthropic API keys or
+/// two OpenAI-compatible endpoints pick their models apart. What a single
+/// sign-in saved before configurations had ids is read for the provider's
+/// first one, and is cleared with it.
 enum EnabledModels {
-    private static func key(_ provider: AgentProvider) -> String {
-        "enabledModels.\(provider.rawValue)"
+    private static func key(_ prefix: String, _ id: String) -> String {
+        "\(prefix).\(id)"
     }
 
-    static func ids(for provider: AgentProvider) -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: key(provider)) ?? [])
+    /// The provider-wide keys a single sign-in kept: read for the provider's
+    /// first configuration, cleared when it signs out.
+    private static func legacyKey(_ prefix: String, _ account: AgentAccount) -> String {
+        key(prefix, account.provider.rawValue)
     }
 
-    static func save(_ models: Set<String>, custom: Set<String>, hidden: Set<String>, for provider: AgentProvider) {
-        UserDefaults.standard.set(models.sorted(), forKey: key(provider))
-        UserDefaults.standard.set(custom.sorted(), forKey: "customModels.\(provider.rawValue)")
-        UserDefaults.standard.set(hidden.sorted(), forKey: "hiddenModels.\(provider.rawValue)")
+    private static let modelsPrefix = "enabledModels"
+    private static let customPrefix = "customModels"
+    private static let hiddenPrefix = "hiddenModels"
+    private static let prefixes = [modelsPrefix, customPrefix, hiddenPrefix]
+
+    static func ids(for account: AgentAccount) -> Set<String> {
+        let defaults = UserDefaults.standard
+        if let saved = defaults.stringArray(forKey: key(modelsPrefix, account.id)) {
+            return Set(saved)
+        }
+        guard account.profileID == nil else { return [] }
+        return Set(defaults.stringArray(forKey: legacyKey(modelsPrefix, account)) ?? [])
+    }
+
+    static func customIDs(for account: AgentAccount) -> [String] {
+        let defaults = UserDefaults.standard
+        if let saved = defaults.stringArray(forKey: key(customPrefix, account.id)) {
+            return saved
+        }
+        guard account.profileID == nil else { return [] }
+        return defaults.stringArray(forKey: legacyKey(customPrefix, account)) ?? []
+    }
+
+    static func hiddenIDs(for account: AgentAccount) -> Set<String> {
+        let defaults = UserDefaults.standard
+        if let saved = defaults.stringArray(forKey: key(hiddenPrefix, account.id)) {
+            return Set(saved)
+        }
+        guard account.profileID == nil else { return [] }
+        return Set(defaults.stringArray(forKey: legacyKey(hiddenPrefix, account)) ?? [])
+    }
+
+    static func save(_ models: Set<String>, custom: Set<String>, hidden: Set<String>, for account: AgentAccount) {
+        UserDefaults.standard.set(models.sorted(), forKey: key(modelsPrefix, account.id))
+        UserDefaults.standard.set(custom.sorted(), forKey: key(customPrefix, account.id))
+        UserDefaults.standard.set(hidden.sorted(), forKey: key(hiddenPrefix, account.id))
         NotificationCenter.default.post(name: .enabledModelsChanged, object: nil)
     }
 
-    static func remove(for provider: AgentProvider) {
-        UserDefaults.standard.removeObject(forKey: key(provider))
-        UserDefaults.standard.removeObject(forKey: "customModels.\(provider.rawValue)")
-        UserDefaults.standard.removeObject(forKey: "hiddenModels.\(provider.rawValue)")
+    static func remove(for account: AgentAccount) {
+        let defaults = UserDefaults.standard
+        for prefix in prefixes {
+            defaults.removeObject(forKey: key(prefix, account.id))
+            // The first configuration also lets go of what a single sign-in
+            // saved; an added one leaves that alone.
+            if account.profileID == nil {
+                defaults.removeObject(forKey: legacyKey(prefix, account))
+            }
+        }
         NotificationCenter.default.post(name: .enabledModelsChanged, object: nil)
-    }
-
-    static func customIDs(for provider: AgentProvider) -> [String] {
-        UserDefaults.standard.stringArray(forKey: "customModels.\(provider.rawValue)") ?? []
-    }
-
-    static func hiddenIDs(for provider: AgentProvider) -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: "hiddenModels.\(provider.rawValue)") ?? [])
     }
 
     static func accounts(from accounts: [AgentAccount]) -> [AgentAccount] {
         accounts.compactMap { account in
             guard account.signedIn else { return nil }
             var enabled = account
-            let ids = ids(for: account.provider).subtracting(hiddenIDs(for: account.provider))
+            let ids = ids(for: account).subtracting(hiddenIDs(for: account))
             enabled.models = account.isAPIKeyAccount ? ids.sorted() : (account.models ?? []).filter { ids.contains($0) }
             return enabled.models?.isEmpty == false ? enabled : nil
         }

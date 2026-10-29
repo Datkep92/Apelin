@@ -51,6 +51,7 @@ enum AgentConversationRules {
             projectName: target.name,
             provider: open.provider,
             model: open.model,
+            profileID: open.profileID,
             approvalMode: opener.mode,
             reasoningEffort: open.reasoningEffort,
             serviceTier: open.serviceTier,

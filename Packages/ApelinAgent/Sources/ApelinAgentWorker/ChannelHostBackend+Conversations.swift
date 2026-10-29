@@ -19,6 +19,7 @@ public extension ChannelHostBackend {
                 projectName: target.name.rawValue,
                 provider: choice.provider,
                 model: choice.model,
+                profileID: choice.profileID,
                 approvalMode: .confirm,
                 reasoningEffort: choice.reasoningEffort,
                 serviceTier: choice.serviceTier,

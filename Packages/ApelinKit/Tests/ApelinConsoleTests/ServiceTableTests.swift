@@ -147,7 +147,7 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: AgentCredentialImportResponse()) { _ = try await $0.agentCredentialImport() }
         case .agentAccountList:
             return Row(reply: AgentAccountListResponse(accounts: [
-                AgentAccount(provider: .githubCopilot, method: .deviceCode, signedIn: true),
+                AgentAccount(provider: .githubCopilot, id: "github-copilot", method: .deviceCode, signedIn: true),
             ])) { _ = try await $0.agentAccountList() }
         case .agentSkillList:
             return Row(reply: AgentSkillListResponse(skills: [

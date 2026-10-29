@@ -541,9 +541,12 @@ final class ChatController: UIViewController {
                 }
                 let selected = ComposerModelSelection.current
                 completion(accounts.map { account in
-                    UIMenu(title: account.account ?? account.provider.displayName, options: .displayInline,
+                    UIMenu(title: account.name ?? account.account ?? account.provider.displayName,
+                           options: .displayInline,
                            children: (account.models ?? []).map { model in
-                               let checked = account.provider == selected?.provider && model == selected?.model
+                               let checked = account.provider == selected?.provider
+                                   && account.profileID == selected?.profileID
+                                   && model == selected?.model
                                return UIAction(title: model, state: checked ? .on : .off) { _ in
                                    ComposerModelSelection.current = Self.selection(of: model, in: account)
                                }
@@ -566,6 +569,7 @@ extension ChatController {
         ComposerModelSelection(
             provider: account.provider,
             model: model,
+            profileID: account.profileID,
             supportedEfforts: (account.reasoningEfforts?[model] ?? []).filter { [.low, .high, .max].contains($0) },
             supportedTiers: account.serviceTiers?[model] ?? [],
         )
@@ -585,7 +589,8 @@ extension ChatController {
             let accounts = EnabledModels.accounts(from: listed)
             if let current = ComposerModelSelection.current {
                 if let account = accounts.first(where: { account in
-                    account.provider == current.provider && (account.models ?? []).contains(current.model)
+                    account.provider == current.provider && account.profileID == current.profileID
+                        && (account.models ?? []).contains(current.model)
                 }) {
                     let refreshed = Self.selection(of: current.model, in: account)
                     if refreshed != current {
@@ -593,7 +598,10 @@ extension ChatController {
                     }
                     return
                 }
-                if listed.contains(where: { $0.provider == current.provider && $0.signedIn && $0.models == nil }) {
+                if listed.contains(where: {
+                    $0.provider == current.provider && $0.profileID == current.profileID
+                        && $0.signedIn && $0.models == nil
+                }) {
                     return
                 }
             }

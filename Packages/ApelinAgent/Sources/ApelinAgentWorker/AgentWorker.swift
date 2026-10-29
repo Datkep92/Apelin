@@ -65,13 +65,17 @@ public enum AgentWorker {
                         provider: AgentWorker.provider(AgentOpenRequest(provider: provider, model: prompt.model)),
                         thinking: .init(rawValue: prompt.reasoningEffort?.rawValue ?? "off") ?? .off,
                         serviceTier: AgentWorker.serviceTier(prompt.serviceTier),
-                        credentials: KeychainCredentialSource(accessGroup: keychainAccessGroup),
+                        credentials: try await AgentWorker.credentials(
+                            provider: provider,
+                            profileID: prompt.profileID,
+                        ),
                     )
                     await state.modelChoice.set(
                         provider: provider,
                         model: prompt.model,
                         reasoningEffort: prompt.reasoningEffort,
                         serviceTier: prompt.serviceTier,
+                        profileID: prompt.profileID,
                     )
                 }
                 guard (prompt.attachments?.count ?? 0) <= 8 else {
@@ -148,11 +152,11 @@ public enum AgentWorker {
             }
         case .agentAPIConfiguration:
             await WorkerMain.serve(AgentAPIConfigurationRequest.self, request) { query in
-                try await accounts.apiConfiguration(for: query.provider)
+                try await accounts.apiConfiguration(for: query.provider, profileID: query.profileID)
             }
         case .agentModelList:
             await WorkerMain.serve(AgentModelListRequest.self, request) { query in
-                try await accounts.models(for: query.provider)
+                try await accounts.models(for: query.provider, profileID: query.profileID)
             }
         case .agentModelActivate:
             await WorkerMain.serve(AgentModelActivateRequest.self, request) { query in
@@ -177,7 +181,7 @@ public enum AgentWorker {
             }
         case .agentSignOut:
             await WorkerMain.serve(AgentSignOutRequest.self, request) { signOut in
-                try await accounts.signOut(signOut.provider)
+                try await accounts.signOut(signOut.provider, profileID: signOut.profileID)
                 return Acknowledged()
             }
         default:
@@ -229,6 +233,27 @@ public enum AgentWorker {
             return .stored(storeID: provider.storeID, model: model)
         }
     }
+
+    /// What a session reads its credentials from: the keychain, or — for an
+    /// added configuration of a provider that keeps several — that one
+    /// configuration's credential, delivered under the provider's own store
+    /// id, the id kwwk's registry knows (as key verification already does).
+    ///
+    /// Such a configuration is an API key: never refreshed, never expiring,
+    /// and replaced only by signing in again, which configures the session
+    /// anew.
+    static func credentials(
+        provider: AgentProvider?,
+        profileID: String?,
+        keychain: KeychainCredentialSource = KeychainCredentialSource(accessGroup: keychainAccessGroup),
+    ) async throws -> any CredentialSource {
+        let provider = provider ?? .githubCopilot
+        guard let profileID, profileID != provider.storeID else { return keychain }
+        guard let stored = try await keychain.credentials(for: profileID) else {
+            throw ApelinError(.denied, "The configuration this chat uses is gone; pick a model again.")
+        }
+        return DeliveredCredentialSource([provider.storeID: stored])
+    }
 }
 
 /// The one session this process serves, and the relay of its events.
@@ -263,6 +288,11 @@ actor WorkerState {
         // Credentials the owner dropped in the inbox are taken first.
         let keychain = KeychainCredentialSource(accessGroup: AgentWorker.keychainAccessGroup)
         let imported = await CredentialInbox(home: context.assignment.home).importAll(into: keychain)
+        let credentials = try await AgentWorker.credentials(
+            provider: open.provider,
+            profileID: open.profileID,
+            keychain: keychain,
+        )
 
         let ledger = HostDigestLedger(service: context.host, projectURL: projectURL, dataFolder: dataRoot.url)
         let session: AgentSession
@@ -288,7 +318,7 @@ actor WorkerState {
                     modelChoice: modelChoice,
                 ),
                 digests: ledger,
-                credentials: keychain,
+                credentials: credentials,
             )
         } catch let error as ProviderResolutionError {
             var message = error.localizedDescription
@@ -311,6 +341,7 @@ actor WorkerState {
             model: open.model,
             reasoningEffort: open.reasoningEffort,
             serviceTier: open.serviceTier,
+            profileID: open.profileID,
         )
 
         let events = try await session.events(afterSeq: 0)

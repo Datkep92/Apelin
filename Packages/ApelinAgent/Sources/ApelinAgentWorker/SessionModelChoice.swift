@@ -9,6 +9,9 @@ public actor SessionModelChoice {
         public var model: String?
         public var reasoningEffort: AgentReasoningEffort?
         public var serviceTier: AgentServiceTier?
+        /// The configuration of `provider` the app picked (`AgentProfileID`);
+        /// nil is the provider's own, first one.
+        public var profileID: String?
     }
 
     public private(set) var current = Choice()
@@ -18,8 +21,15 @@ public actor SessionModelChoice {
         model: String? = nil,
         reasoningEffort: AgentReasoningEffort? = nil,
         serviceTier: AgentServiceTier? = nil,
+        profileID: String? = nil,
     ) {
-        current = Choice(provider: provider, model: model, reasoningEffort: reasoningEffort, serviceTier: serviceTier)
+        current = Choice(
+            provider: provider,
+            model: model,
+            reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier,
+            profileID: profileID,
+        )
     }
 
     public func set(
@@ -27,7 +37,14 @@ public actor SessionModelChoice {
         model: String?,
         reasoningEffort: AgentReasoningEffort?,
         serviceTier: AgentServiceTier?,
+        profileID: String? = nil,
     ) {
-        current = Choice(provider: provider, model: model, reasoningEffort: reasoningEffort, serviceTier: serviceTier)
+        current = Choice(
+            provider: provider,
+            model: model,
+            reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier,
+            profileID: profileID,
+        )
     }
 }

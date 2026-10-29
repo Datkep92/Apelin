@@ -65,16 +65,25 @@ public enum AgentSignInField: String, Codable, Sendable, CaseIterable {
     case callbackURL
 }
 
-/// One provider as the sign-in screen lists it. Never a secret: no token,
-/// no key, not even part of one.
+/// One saved configuration of a provider, as the sign-in screen lists it.
+/// Never a secret: no token, no key, not even part of one. A provider that
+/// keeps several (`AgentProfileID`) is listed once per saved configuration.
 public struct AgentAccount: Codable, Sendable, Equatable {
     public var provider: AgentProvider
+    /// The keychain account this configuration's credential is kept under:
+    /// the provider's own id, or one of its added configurations'
+    /// (`AgentProfileID`).
+    public var id: String
     /// How `agentSignIn` signs in when it names no method.
     public var method: AgentSignInMethod
     /// The other methods `agentSignIn` takes for this provider (OpenRouter's
     /// typed key beside its browser sign-in). Absent when there are none.
     public var alternativeMethods: [AgentSignInMethod]?
     public var signedIn: Bool
+    /// The name the reader gave an added configuration; absent for the
+    /// provider's first one, and for every provider that keeps a single
+    /// sign-in.
+    public var name: String?
     /// What tells the account apart without a secret: an API key's
     /// endpoint host. Absent for a subscription sign-in.
     public var account: String?
@@ -94,11 +103,42 @@ public struct AgentAccount: Codable, Sendable, Equatable {
         usesAPIKey ?? (method == .apiKey)
     }
 
+    enum CodingKeys: String, CodingKey {
+        case provider, id, method, alternativeMethods, signedIn, name, account, expiresAt, models, usesAPIKey
+        case reasoningEfforts, serviceTiers
+    }
+
+    /// A listing written before configurations had ids carries none: that
+    /// account is the provider's first configuration, which is exactly what
+    /// a single sign-in was.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        provider = try container.decode(AgentProvider.self, forKey: .provider)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+            ?? AgentProfileID.canonicalID(for: provider)
+            ?? provider.rawValue
+        method = try container.decode(AgentSignInMethod.self, forKey: .method)
+        alternativeMethods = try container.decodeIfPresent([AgentSignInMethod].self, forKey: .alternativeMethods)
+        signedIn = try container.decode(Bool.self, forKey: .signedIn)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        account = try container.decodeIfPresent(String.self, forKey: .account)
+        expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
+        models = try container.decodeIfPresent([String].self, forKey: .models)
+        usesAPIKey = try container.decodeIfPresent(Bool.self, forKey: .usesAPIKey)
+        reasoningEfforts = try container.decodeIfPresent(
+            [String: [AgentReasoningEffort]].self,
+            forKey: .reasoningEfforts,
+        )
+        serviceTiers = try container.decodeIfPresent([String: [AgentServiceTier]].self, forKey: .serviceTiers)
+    }
+
     public init(
         provider: AgentProvider,
+        id: String,
         method: AgentSignInMethod,
         alternativeMethods: [AgentSignInMethod]? = nil,
         signedIn: Bool,
+        name: String? = nil,
         account: String? = nil,
         expiresAt: Date? = nil,
         models: [String]? = nil,
@@ -107,9 +147,11 @@ public struct AgentAccount: Codable, Sendable, Equatable {
         serviceTiers: [String: [AgentServiceTier]]? = nil,
     ) {
         self.provider = provider
+        self.id = id
         self.method = method
         self.alternativeMethods = alternativeMethods
         self.signedIn = signedIn
+        self.name = name
         self.account = account
         self.expiresAt = expiresAt
         self.models = models
@@ -117,6 +159,62 @@ public struct AgentAccount: Codable, Sendable, Equatable {
         self.reasoningEfforts = reasoningEfforts
         self.serviceTiers = serviceTiers
     }
+}
+
+public extension AgentAccount {
+    /// This account's added configuration, nil for the provider's first one
+    /// and for every provider that keeps a single sign-in.
+    var profileID: String? {
+        guard let canonicalID = AgentProfileID.canonicalID(for: provider), id != canonicalID else { return nil }
+        return id
+    }
+}
+
+/// A saved configuration of a provider that keeps several: an Anthropic API
+/// key, or an OpenAI-compatible endpoint, each under its own keychain id and
+/// usable beside the others. A provider with one sign-in has none; its
+/// configuration is the provider itself.
+public enum AgentProfileID {
+    public static let anthropicPrefix = "anthropic-api-key"
+    public static let openAICompatiblePrefix = "openai-compatible"
+
+    /// The provider's first configuration — the keychain id a single
+    /// sign-in has always used; nil for a provider that keeps one sign-in.
+    public static func canonicalID(for provider: AgentProvider) -> String? {
+        switch provider {
+        case .anthropic: anthropicPrefix
+        case .openAICompatible: openAICompatiblePrefix
+        default: nil
+        }
+    }
+
+    /// A fresh id for another configuration of `provider`; nil for a
+    /// provider that keeps one sign-in.
+    public static func make(for provider: AgentProvider, uuid: UUID = UUID()) -> String? {
+        guard let canonicalID = canonicalID(for: provider) else { return nil }
+        return "\(canonicalID).\(uuid.uuidString.lowercased())"
+    }
+
+    /// The provider a keychain id belongs to, its first configuration
+    /// included; nil for an id no provider claims. An added configuration's
+    /// id is the canonical one, a dot and a short token.
+    public static func kind(of id: String) -> AgentProvider? {
+        for (canonicalID, kind) in pairs {
+            if id == canonicalID { return kind }
+            guard id.hasPrefix(canonicalID + ".") else { continue }
+            let suffix = id.dropFirst(canonicalID.count + 1)
+            guard !suffix.isEmpty, suffix.count <= 64,
+                  suffix.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" })
+            else { return nil }
+            return kind
+        }
+        return nil
+    }
+
+    private static let pairs: [(String, AgentProvider)] = [
+        (anthropicPrefix, .anthropic),
+        (openAICompatiblePrefix, .openAICompatible),
+    ]
 }
 
 /// Every provider Apelin's sessions can use, signed in or not, in the
@@ -140,8 +238,11 @@ public struct AgentAPIConfigurationRequest: OperationRequest {
     public typealias Response = AgentAPIConfigurationResponse
     public static let operation = AppOperation.agentAPIConfiguration
     public var provider: AgentProvider
-    public init(provider: AgentProvider) {
+    /// The added configuration to read; nil is the provider's first.
+    public var profileID: String?
+    public init(provider: AgentProvider, profileID: String? = nil) {
         self.provider = provider
+        self.profileID = profileID
     }
 }
 
@@ -156,8 +257,11 @@ public struct AgentModelListRequest: OperationRequest {
     public typealias Response = AgentModelListResponse
     public static let operation = AppOperation.agentModelList
     public var provider: AgentProvider
-    public init(provider: AgentProvider) {
+    /// The added configuration to read; nil is the provider's first.
+    public var profileID: String?
+    public init(provider: AgentProvider, profileID: String? = nil) {
         self.provider = provider
+        self.profileID = profileID
     }
 }
 
@@ -174,8 +278,10 @@ public struct AgentModelActivateRequest: OperationRequest {
     public static let operation = AppOperation.agentModelActivate
     public var provider: AgentProvider
     public var models: [String]
-    public init(provider: AgentProvider, models: [String]) {
-        self.provider = provider; self.models = models
+    /// The added configuration to verify against; nil is the provider's first.
+    public var profileID: String?
+    public init(provider: AgentProvider, models: [String], profileID: String? = nil) {
+        self.provider = provider; self.models = models; self.profileID = profileID
     }
 }
 
@@ -196,10 +302,24 @@ public struct AgentSignInRequest: OperationRequest {
     /// One of the account's `alternativeMethods`; nil is its `method`. Any
     /// other is refused `badRequest` before the task is accepted.
     public var method: AgentSignInMethod?
+    /// The added configuration this sign-in creates or replaces
+    /// (`AgentProfileID`); nil is the provider's first. An id that is not a
+    /// configuration of `provider` is refused `badRequest`.
+    public var profileID: String?
+    /// A name for this configuration, kept beside the credential and never
+    /// a secret. Absent keeps the name a replaced configuration had.
+    public var profileName: String?
 
-    public init(provider: AgentProvider, method: AgentSignInMethod? = nil) {
+    public init(
+        provider: AgentProvider,
+        method: AgentSignInMethod? = nil,
+        profileID: String? = nil,
+        profileName: String? = nil,
+    ) {
         self.provider = provider
         self.method = method
+        self.profileID = profileID
+        self.profileName = profileName
     }
 }
 
@@ -248,8 +368,11 @@ public struct AgentSignOutRequest: OperationRequest {
     public typealias Response = Acknowledged
     public static let operation = AppOperation.agentSignOut
     public var provider: AgentProvider
-    public init(provider: AgentProvider) {
+    /// The added configuration to forget; nil is the provider's first.
+    public var profileID: String?
+    public init(provider: AgentProvider, profileID: String? = nil) {
         self.provider = provider
+        self.profileID = profileID
     }
 }
 
@@ -258,20 +381,30 @@ public extension ApelinService {
         try await send(AgentAccountListRequest())
     }
 
-    func agentAPIConfiguration(provider: AgentProvider) async throws -> AgentAPIConfigurationResponse {
-        try await send(AgentAPIConfigurationRequest(provider: provider))
+    func agentAPIConfiguration(provider: AgentProvider, profileID: String? = nil) async throws -> AgentAPIConfigurationResponse {
+        try await send(AgentAPIConfigurationRequest(provider: provider, profileID: profileID))
     }
 
-    func agentModelList(provider: AgentProvider) async throws -> AgentModelListResponse {
-        try await send(AgentModelListRequest(provider: provider))
+    func agentModelList(provider: AgentProvider, profileID: String? = nil) async throws -> AgentModelListResponse {
+        try await send(AgentModelListRequest(provider: provider, profileID: profileID))
     }
 
-    func agentModelActivate(provider: AgentProvider, models: [String]) async throws -> TaskHandle {
-        try await send(AgentModelActivateRequest(provider: provider, models: models))
+    func agentModelActivate(provider: AgentProvider, models: [String], profileID: String? = nil) async throws -> TaskHandle {
+        try await send(AgentModelActivateRequest(provider: provider, models: models, profileID: profileID))
     }
 
-    func agentSignIn(provider: AgentProvider, method: AgentSignInMethod? = nil) async throws -> TaskHandle {
-        try await send(AgentSignInRequest(provider: provider, method: method))
+    func agentSignIn(
+        provider: AgentProvider,
+        method: AgentSignInMethod? = nil,
+        profileID: String? = nil,
+        profileName: String? = nil,
+    ) async throws -> TaskHandle {
+        try await send(AgentSignInRequest(
+            provider: provider,
+            method: method,
+            profileID: profileID,
+            profileName: profileName,
+        ))
     }
 
     func agentSignInRespond(taskID: TaskID, fields: [AgentSignInField: String], verifyModel: Bool? = nil) async throws {
@@ -282,8 +415,8 @@ public extension ApelinService {
         _ = try await send(AgentSignInCancelRequest(taskID: taskID))
     }
 
-    func agentSignOut(provider: AgentProvider) async throws {
-        _ = try await send(AgentSignOutRequest(provider: provider))
+    func agentSignOut(provider: AgentProvider, profileID: String? = nil) async throws {
+        _ = try await send(AgentSignOutRequest(provider: provider, profileID: profileID))
     }
 }
 

@@ -45,6 +45,10 @@ public actor AccountDesk {
     private var keyVerification: (run: SignInRun, task: Task<Void, Error>)?
     private var running: SignInRun?
 
+    /// The extra a configuration's name is kept in, beside its credential:
+    /// never a secret, and never sent to the provider.
+    static let profileNameExtra = "apelinProfileName"
+
     public init(
         store: any CredentialSource,
         login: @escaping SignInLogin = KWWKSignIn.login,
@@ -78,31 +82,80 @@ public actor AccountDesk {
         var accounts: [AgentAccount] = []
         for provider in AgentProvider.signInOrder {
             let others = Array(provider.signInMethods.dropFirst())
-            var account = AgentAccount(
-                provider: provider,
-                method: provider.signInMethod,
-                alternativeMethods: others.isEmpty ? nil : others,
-                signedIn: stored.contains(provider.storeID),
-            )
-            // An item that does not decode is still signed in: Sign Out is
-            // how it goes away.
-            if account.signedIn, let credentials = try? await store.credentials(for: provider.storeID) {
-                account.account = Self.accountLabel(provider, credentials)
-                account.expiresAt = Self.lapses(credentials)
-                account.models = ProviderModels.list(provider, credentials: credentials)
-                account.reasoningEfforts = ProviderModels.reasoningEfforts(provider, credentials: credentials)
-                account.serviceTiers = ProviderModels.serviceTiers(provider, credentials: credentials)
-                account.usesAPIKey = ProviderModels.usesAPIKey(provider, credentials: credentials) ? true : nil
+            var listed: [AgentAccount] = []
+            for id in Self.configurations(of: provider, stored: stored) {
+                var account = AgentAccount(
+                    provider: provider,
+                    id: id,
+                    method: provider.signInMethod,
+                    alternativeMethods: others.isEmpty ? nil : others,
+                    signedIn: stored.contains(id),
+                )
+                // An item that does not decode is still signed in: Sign Out is
+                // how it goes away.
+                if account.signedIn, let credentials = try? await store.credentials(for: id) {
+                    account.name = Self.profileName(credentials)
+                    account.account = Self.accountLabel(provider, credentials)
+                    account.expiresAt = Self.lapses(credentials)
+                    account.models = ProviderModels.list(provider, credentials: credentials)
+                    account.reasoningEfforts = ProviderModels.reasoningEfforts(provider, credentials: credentials)
+                    account.serviceTiers = ProviderModels.serviceTiers(provider, credentials: credentials)
+                    account.usesAPIKey = ProviderModels.usesAPIKey(provider, credentials: credentials) ? true : nil
+                }
+                listed.append(account)
             }
-            accounts.append(account)
+            // The provider's own first, then the configurations added to it by
+            // the name they were given, so two keys keep a steady order rather
+            // than one a random id decides.
+            accounts += listed.sorted { left, right in
+                if (left.profileID == nil) != (right.profileID == nil) { return left.profileID == nil }
+                return (left.name ?? left.id) < (right.name ?? right.id)
+            }
         }
         return AgentAccountListResponse(accounts: accounts)
     }
 
+    /// The keychain ids `provider` is listed under: its own, always, so it
+    /// can be signed in to; and every configuration added to it that the
+    /// keychain holds. A provider that keeps one sign-in has only its own.
+    static func configurations(of provider: AgentProvider, stored: Set<String>) -> [String] {
+        let own = provider.storeID
+        guard AgentProfileID.canonicalID(for: provider) != nil else { return [own] }
+        let added = stored.filter { $0 != own && AgentProfileID.kind(of: $0) == provider }
+        return [own] + added.sorted()
+    }
+
+    /// The keychain id `profileID` names for `provider`: the added
+    /// configuration itself, else the id a single sign-in has always used.
+    /// An id that is no configuration of `provider` is refused.
+    static func storeID(_ provider: AgentProvider, _ profileID: String?) throws -> String {
+        guard let profileID, profileID != provider.storeID else { return provider.storeID }
+        guard AgentProfileID.kind(of: profileID) == provider else {
+            throw ApelinError(.badRequest, "\(profileID) is not a saved configuration of \(provider.rawValue)")
+        }
+        return profileID
+    }
+
+    /// The name the reader gave a configuration; nil for one never named.
+    static func profileName(_ credentials: OAuthCredentials) -> String? {
+        guard case let .string(name)? = credentials.extras[profileNameExtra], !name.isEmpty else { return nil }
+        return name
+    }
+
+    /// A name as a label holds it: trimmed, one line, at most 120 characters
+    /// — the length the app's field accepts.
+    static func acceptedName(_ name: String?) -> String? {
+        guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+        return String(name.prefix { !$0.isNewline }.prefix(120))
+    }
+
     /// The explicit app-only editor reads the saved key directly; no task is
     /// created and neither account listings nor sign-in events expose it.
-    public func apiConfiguration(for provider: AgentProvider) async throws -> AgentAPIConfigurationResponse {
-        guard let credentials = try await store.credentials(for: provider.storeID) else {
+    public func apiConfiguration(
+        for provider: AgentProvider,
+        profileID: String? = nil,
+    ) async throws -> AgentAPIConfigurationResponse {
+        guard let credentials = try await store.credentials(for: try Self.storeID(provider, profileID)) else {
             throw ApelinError(.notFound, "No saved API configuration was found. Sign in to the provider first.")
         }
         guard ProviderModels.usesAPIKey(provider, credentials: credentials) else {
@@ -121,9 +174,10 @@ public actor AccountDesk {
         return AgentAPIConfigurationResponse(values: values)
     }
 
-    public func signOut(_ provider: AgentProvider) async throws {
+    public func signOut(_ provider: AgentProvider, profileID: String? = nil) async throws {
+        let id = try Self.storeID(provider, profileID)
         do {
-            try await store.remove(provider.storeID)
+            try await store.remove(id)
         } catch {
             throw ApelinError(
                 .internal,
@@ -166,8 +220,15 @@ public actor AccountDesk {
                 "\(request.provider.rawValue) does not support \(method.rawValue) sign-in. Choose another method.",
             )
         }
+        let storeID = try Self.storeID(request.provider, request.profileID)
         await stopRunning()
-        let run = SignInRun(taskID: taskID, provider: request.provider, method: method)
+        let run = SignInRun(
+            taskID: taskID,
+            provider: request.provider,
+            method: method,
+            storeID: storeID,
+            name: request.profileID == nil ? nil : Self.acceptedName(request.profileName),
+        )
         running = run
         run.work = Task { [weak self] in
             await self?.perform(run, reporter: reporter)
@@ -239,8 +300,8 @@ public actor AccountDesk {
         }
     }
 
-    public func models(for provider: AgentProvider) async throws -> AgentModelListResponse {
-        guard let credentials = try await store.credentials(for: provider.storeID) else {
+    public func models(for provider: AgentProvider, profileID: String? = nil) async throws -> AgentModelListResponse {
+        guard let credentials = try await store.credentials(for: try Self.storeID(provider, profileID)) else {
             throw ApelinError(.notFound, "Sign in to the provider first.")
         }
         return try await AgentModelListResponse(models: ProviderModels.fetch(provider, credentials: credentials))
@@ -254,7 +315,8 @@ public actor AccountDesk {
         guard !request.models.isEmpty, request.models.count <= 64,
               request.models.allSatisfy({ !$0.isEmpty && $0.count <= 256 && !$0.contains(where: \.isNewline) })
         else { throw ApelinError(.badRequest, "Select between 1 and 64 valid model IDs.") }
-        guard let credentials = try await store.credentials(for: request.provider.storeID) else {
+        let storeID = try Self.storeID(request.provider, request.profileID)
+        guard let credentials = try await store.credentials(for: storeID) else {
             throw ApelinError(.notFound, "Sign in to the provider first.")
         }
         let usesAPIKey = ProviderModels.usesAPIKey(request.provider, credentials: credentials)
@@ -262,7 +324,7 @@ public actor AccountDesk {
             throw ApelinError(.badRequest, "This OAuth provider does not require model verification.")
         }
         await stopRunning()
-        let run = SignInRun(taskID: taskID, provider: request.provider, method: .apiKey)
+        let run = SignInRun(taskID: taskID, provider: request.provider, method: .apiKey, storeID: storeID)
         running = run
         run.work = Task { [weak self, verifyKey] in
             var currentModel = ""
@@ -380,16 +442,16 @@ public actor AccountDesk {
     /// What kwwk's login gets beside its callbacks: for Kimi, the device id
     /// the stored sign-in recorded, so signing in again keeps the device
     /// Kimi knows (`KimiIdentity`).
-    private func options(for provider: AgentProvider) async -> SignInOptions {
-        guard provider == .kimiCoding else { return SignInOptions() }
-        let previous = try? await store.credentials(for: provider.storeID)
+    private func options(for run: SignInRun) async -> SignInOptions {
+        guard run.provider == .kimiCoding else { return SignInOptions() }
+        let previous = try? await store.credentials(for: run.storeID)
         return SignInOptions(kimiIdentity: KimiIdentity.identity(recordedIn: previous))
     }
 
     private func perform(_ run: SignInRun, reporter: SignInReporter) async {
         let taskID = run.taskID
         do {
-            let options = await options(for: run.provider)
+            let options = await options(for: run)
             // Not named `credentials`: Swift 6.2 reads the call in the closure
             // as the variable it initialises.
             var signedIn = try await Self.withDeadline(timeoutSeconds) { [self] in
@@ -398,9 +460,18 @@ public actor AccountDesk {
             if run.provider == .openRouter, run.method == .apiKey {
                 signedIn.extras[ProviderModels.signInMethodExtra] = .string(run.method.rawValue)
             }
+            // The name stays with the credential: the reader's, or the one a
+            // configuration being signed in again already had.
+            if let name = run.name {
+                signedIn.extras[Self.profileNameExtra] = .string(name)
+            } else if let previous = try? await store.credentials(for: run.storeID),
+                      case let .string(name)? = previous.extras[Self.profileNameExtra]
+            {
+                signedIn.extras[Self.profileNameExtra] = .string(name)
+            }
             try Task.checkCancellation()
             do {
-                try await store.store(signedIn, for: run.provider.storeID)
+                try await store.store(signedIn, for: run.storeID)
             } catch {
                 // A store error names a status, never the secret.
                 throw ApelinError(.internal, "Unable to save your sign-in: \(error.localizedDescription). Try again.")
@@ -538,6 +609,11 @@ final class SignInRun: @unchecked Sendable {
     let taskID: TaskID
     let provider: AgentProvider
     let method: AgentSignInMethod
+    /// The keychain item this sign-in saves to: the provider's own, or one
+    /// of its added configurations' (`AgentProfileID`).
+    let storeID: String
+    /// A name for that configuration; nil keeps the one it already had.
+    let name: String?
     var work: Task<Void, Never>?
 
     private let lock = NSLock()
@@ -547,10 +623,18 @@ final class SignInRun: @unchecked Sendable {
     private var deviceCode = false
     private var listener: PasteableLoopback?
 
-    init(taskID: TaskID, provider: AgentProvider, method: AgentSignInMethod) {
+    init(
+        taskID: TaskID,
+        provider: AgentProvider,
+        method: AgentSignInMethod,
+        storeID: String,
+        name: String? = nil,
+    ) {
         self.taskID = taskID
         self.provider = provider
         self.method = method
+        self.storeID = storeID
+        self.name = name
     }
 
     var loopback: PasteableLoopback? {

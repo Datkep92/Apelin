@@ -100,6 +100,14 @@ extension AgentProvider {
     }
 }
 
+extension AgentAccount {
+    /// The provider's own name, or the name the reader gave a configuration
+    /// added to it: what Settings and the model menus call this one.
+    var title: String {
+        name ?? provider.displayName
+    }
+}
+
 extension AgentSignInMethod {
     /// The row that switches a sign-in page to this method.
     var switchTitle: String {

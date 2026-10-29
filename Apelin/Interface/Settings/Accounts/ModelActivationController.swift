@@ -18,9 +18,9 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
     init(account: AgentAccount) {
         self.account = account
         let available = account.models ?? []
-        let enabled = EnabledModels.ids(for: account.provider)
-        custom = Set(EnabledModels.customIDs(for: account.provider))
-        hidden = account.isAPIKeyAccount ? EnabledModels.hiddenIDs(for: account.provider) : []
+        let enabled = EnabledModels.ids(for: account)
+        custom = Set(EnabledModels.customIDs(for: account))
+        hidden = account.isAPIKeyAccount ? EnabledModels.hiddenIDs(for: account) : []
         selected = account.isAPIKeyAccount ? enabled.subtracting(hidden) : enabled.intersection(available)
         models = account.isAPIKeyAccount
             ? Array(Set(available).union(custom).union(selected).subtracting(hidden)).sorted()
@@ -81,7 +81,9 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
     }
 
     private func updateRows() {
-        dataSource.headerTitle = { [weak self] _ in self.map { $0.account.account ?? $0.account.provider.displayName } }
+        dataSource.headerTitle = { [weak self] _ in
+            self.map { $0.account.name ?? $0.account.account ?? $0.account.provider.displayName }
+        }
         dataSource.footerTitle = { _ in String(localized: "Choose the models to show in the chat model picker. You can change this later in Model Providers.") }
         dataSource.allowsEditing = usesAPIKey
         dataSource.update([(0, shown.map { ModelRow(id: $0, selected: selected.contains($0)) })], reconfigure: true)
@@ -99,7 +101,10 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
             guard let self else { return }
             do {
                 let fetched = try await ProviderProgress.run(title: "Fetching Models", from: self) {
-                    try await ApelinService.app.agentModelList(provider: self.account.provider).models
+                    try await ApelinService.app.agentModelList(
+                        provider: self.account.provider,
+                        profileID: self.account.profileID,
+                    ).models
                 }
                 models = Array(Set(fetched).union(custom).union(selected).subtracting(hidden)).sorted()
                 updateSearchResults(for: search)
@@ -218,6 +223,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
                     let handle = try await ApelinService.app.agentModelActivate(
                         provider: self.account.provider,
                         models: self.selected.sorted(),
+                        profileID: self.account.profileID,
                     )
                     self.verification = handle
                     if Task.isCancelled {
@@ -253,7 +259,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
     }
 
     private func finishSaving() {
-        EnabledModels.save(selected, custom: custom, hidden: hidden, for: account.provider)
+        EnabledModels.save(selected, custom: custom, hidden: hidden, for: account)
         dismiss(animated: true)
     }
 }

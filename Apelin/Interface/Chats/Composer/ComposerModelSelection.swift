@@ -14,12 +14,15 @@ extension Notification.Name {
 struct ComposerModelSelection: Codable, Equatable {
     var provider: AgentProvider
     var model: String
+    /// Which saved configuration of `provider` the model belongs to: nil
+    /// for its first one, as before configurations had ids. Two Anthropic
+    /// API keys pick their models apart through this.
+    var profileID: String?
     /// The last catalog snapshot, so the effort control also restores offline.
     var supportedEfforts: [AgentReasoningEffort]
     /// The tiers the model offers, from the same snapshot; absent in a
     /// selection saved before there were any.
     var supportedTiers: [AgentServiceTier]?
-
     /// The effort sent: the reader's where the model offers it, else High,
     /// else its strongest; nil for a model that offers none.
     var effort: AgentReasoningEffort? {

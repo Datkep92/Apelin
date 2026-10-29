@@ -36,6 +36,11 @@ final class ProviderLoginController: UIViewController {
     var onFinish: (() -> Void)?
 
     private let provider: AgentProvider
+    /// Which configuration of the provider this page signs in to
+    /// (`AgentAccount.id`), and the name it was added under, if any.
+    private let accountID: String
+    private let profileID: String?
+    private let profileName: String?
     private let isEditingConfiguration: Bool
     private var savedValues: [String: String] = [:]
     /// Every way this provider signs in, its own first, as apelin-agent
@@ -120,11 +125,14 @@ final class ProviderLoginController: UIViewController {
 
     init(account: AgentAccount) {
         provider = account.provider
+        accountID = account.id
+        profileID = account.profileID
+        profileName = account.name
         methods = [account.method] + (account.alternativeMethods ?? []).filter { $0 != account.method }
         isEditingConfiguration = account.signedIn && account.isAPIKeyAccount
         method = account.isAPIKeyAccount ? .apiKey : account.method
         super.init(nibName: nil, bundle: nil)
-        title = account.provider.displayName
+        title = account.title
     }
 
     @available(*, unavailable)
@@ -224,15 +232,23 @@ final class ProviderLoginController: UIViewController {
         render()
         let method = method == methods.first ? nil : method
         let editing = isEditingConfiguration && method != .browser && method != .deviceCode
-        follower = Task { [weak self, provider] in
+        follower = Task { [weak self, provider, profileID, profileName] in
             let handle: TaskHandle
             do {
                 if editing {
-                    let configuration = try await ApelinService.app.agentAPIConfiguration(provider: provider)
+                    let configuration = try await ApelinService.app.agentAPIConfiguration(
+                        provider: provider,
+                        profileID: profileID,
+                    )
                     guard !Task.isCancelled else { return }
                     self?.savedValues = configuration.values
                 }
-                handle = try await ApelinService.app.agentSignIn(provider: provider, method: method)
+                handle = try await ApelinService.app.agentSignIn(
+                    provider: provider,
+                    method: method,
+                    profileID: profileID,
+                    profileName: profileName,
+                )
             } catch {
                 guard !Task.isCancelled else { return }
                 self?.lose(error)
@@ -319,7 +335,7 @@ final class ProviderLoginController: UIViewController {
             defer { submitting = false; updatePrimary() }
             do {
                 let accounts = try await ApelinService.app.agentAccountList().accounts
-                guard let account = accounts.first(where: { $0.provider == self.provider && $0.signedIn }),
+                guard let account = accounts.first(where: { $0.id == self.accountID && $0.signedIn }),
                       let navigation = navigationController, navigation.presentingViewController != nil
                 else { return }
                 let page = ModelActivationController(account: account)
@@ -372,7 +388,7 @@ final class ProviderLoginController: UIViewController {
         scrollView.isHidden = false
         iconView.image = provider.icon
         iconView.tintColor = nil
-        titleLabel.text = provider.displayName
+        titleLabel.text = profileName ?? provider.displayName
         subtitleLabel.text = provider.signInSummary
         primaryButton.isHidden = false
         body.isHidden = false

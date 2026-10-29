@@ -4,9 +4,10 @@ import UIKit
 
 /// Settings ▸ Model Providers: every provider apelin-agent can sign in to,
 /// in the order it lists them (kwwk's). Signed-in ones first, each with who
-/// it is signed in as under its name and a `…` menu (Edit Configuration or Sign In Again, Sign
+/// it is signed in as under its name and a `...` menu (Edit Configuration or Sign In Again, Sign
 /// Out); then the rest, those signed in to with an account apart from those
-/// that take a typed key. A search field narrows the list by name.
+/// that take a typed key. A search field narrows the list by name, and `+`
+/// adds another configuration of a provider that keeps several.
 final class ModelProvidersController: TableController, UISearchResultsUpdating {
     private enum Group: Hashable {
         case signedIn
@@ -38,7 +39,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         case status(Status)
         var id: String {
             switch self {
-            case let .account(account): account.provider.rawValue
+            case let .account(account): account.id
             case .status: "status"
             }
         }
@@ -64,6 +65,40 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     private var loader: Task<Void, Never>?
     private let search = UISearchController(searchResultsController: nil)
 
+    /// `+` adds another configuration of a provider that keeps several; the
+    /// menu is read each time it opens, in kwwk's order. A provider's own
+    /// sign-in is the row below, so this never has to come first.
+    private lazy var addButton: UIBarButtonItem = {
+        let item = UIBarButtonItem(
+            image: UIImage(systemName: "plus"),
+            menu: UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
+                completion(self?.addActions() ?? [])
+            }]),
+        )
+        item.preferredMenuElementOrder = .fixed
+        item.accessibilityLabel = String(localized: "Add Configuration")
+        item.isEnabled = false
+        return item
+    }()
+
+    /// The providers that keep several configurations, in kwwk's order.
+    private var addableProviders: [AgentProvider] {
+        var seen = Set<AgentProvider>()
+        return accounts.map(\.provider).filter { provider in
+            AgentProfileID.canonicalID(for: provider) != nil && seen.insert(provider).inserted
+        }
+    }
+
+    /// One action per such provider, titled by the provider itself: a name
+    /// is asked for next, then the provider's own sign-in page.
+    private func addActions() -> [UIMenuElement] {
+        addableProviders.map { provider in
+            UIAction(title: provider.displayName, image: provider.icon) { [weak self] _ in
+                self?.addConfiguration(provider)
+            }
+        }
+    }
+
     init() {
         super.init(style: .insetGrouped)
     }
@@ -87,6 +122,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         search.searchBar.autocapitalizationType = .none
         navigationItem.searchController = search
         navigationItem.hidesSearchBarWhenScrolling = false
+        navigationItem.rightBarButtonItem = addButton
         definesPresentationContext = true
         dataSource.headerTitle = { section in
             if case let .group(group) = section {
@@ -140,7 +176,10 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         } else {
             let shown = query.isEmpty
                 ? accounts
-                : accounts.filter { $0.provider.displayName.localizedStandardContains(query) }
+                : accounts.filter {
+                    $0.title.localizedStandardContains(query)
+                        || $0.provider.displayName.localizedStandardContains(query)
+                }
             let groups: [(Group, [AgentAccount])] = [
                 (.signedIn, shown.filter(\.signedIn)),
                 (.accounts, shown.filter { !$0.signedIn && $0.method != .apiKey }),
@@ -152,6 +191,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             }
         }
         dataSource.update(sections)
+        addButton.isEnabled = !addableProviders.isEmpty
     }
 
     // MARK: - Table
@@ -204,7 +244,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             content = .cell()
             cell.accessoryType = .disclosureIndicator
         }
-        content.text = account.provider.displayName
+        content.text = account.title
         content.textProperties.numberOfLines = 1
         content.image = account.provider.icon
         content.imageProperties.maximumSize = CGSize(width: 29, height: 29)
@@ -213,8 +253,14 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         return cell
     }
 
+    /// Who it is signed in as, under the name; a named configuration says
+    /// which provider it is a configuration of, as its name may not.
     private static func signedInLine(_ account: AgentAccount) -> String {
-        var parts = [account.account ?? String(localized: "Signed In")]
+        var parts: [String] = []
+        if account.name != nil {
+            parts.append(account.provider.displayName)
+        }
+        parts.append(account.account ?? String(localized: "Signed In"))
         if let expiresAt = account.expiresAt {
             let date = expiresAt.formatted(date: .abbreviated, time: .shortened)
             parts.append(expiresAt < Date() ? String(localized: "Expired \(date)") : String(localized: "Until \(date)"))
@@ -231,12 +277,12 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             completion(self?.accountActions(account) ?? [])
         }])
         button.frame = CGRect(x: 0, y: 0, width: 32, height: 44)
-        button.accessibilityLabel = String(localized: "\(account.provider.displayName) Options")
+        button.accessibilityLabel = String(localized: "\(account.title) Options")
         return button
     }
 
     private func accountActions(_ account: AgentAccount) -> [UIMenuElement] {
-        [
+        var actions: [UIMenuElement] = [
             UIAction(
                 title: String(localized: "Enable Models"),
                 image: UIImage(systemName: "checklist"),
@@ -251,16 +297,27 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             ) { [weak self] _ in
                 self?.signIn(account)
             },
-            UIMenu(options: .displayInline, children: [
-                UIAction(
-                    title: String(localized: "Sign Out"),
-                    image: UIImage(systemName: "rectangle.portrait.and.arrow.right"),
-                    attributes: .destructive,
-                ) { [weak self] _ in
-                    self?.confirmSignOut(account.provider)
-                },
-            ]),
         ]
+        // A provider that takes several API keys or endpoints offers one
+        // more here, beside the ones it has.
+        if AgentProfileID.canonicalID(for: account.provider) != nil {
+            actions.append(UIAction(
+                title: String(localized: "Add Configuration"),
+                image: UIImage(systemName: "plus"),
+            ) { [weak self] _ in
+                self?.addConfiguration(account.provider)
+            })
+        }
+        actions.append(UIMenu(options: .displayInline, children: [
+            UIAction(
+                title: String(localized: "Sign Out"),
+                image: UIImage(systemName: "rectangle.portrait.and.arrow.right"),
+                attributes: .destructive,
+            ) { [weak self] _ in
+                self?.confirmSignOut(account)
+            },
+        ]))
+        return actions
     }
 
     override func tableView(_: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
@@ -295,26 +352,58 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         presentPageAsFormSheet(page)
     }
 
-    private func confirmSignOut(_ provider: AgentProvider) {
+    private func confirmSignOut(_ account: AgentAccount) {
         presentConfirmation(
-            title: "Sign Out of \(provider.displayName)?",
+            title: "Sign Out of \(account.title)?",
             message: "Agent sessions that use it stop working until you sign in again.",
             confirmTitle: "Sign Out",
             destructive: true,
         ) { [weak self] in
-            self?.signOut(provider)
+            self?.signOut(account)
         }
     }
 
-    private func signOut(_ provider: AgentProvider) {
+    private func signOut(_ account: AgentAccount) {
         Task { [weak self] in
             do {
-                try await ApelinService.app.agentSignOut(provider: provider)
-                EnabledModels.remove(for: provider)
+                try await ApelinService.app.agentSignOut(provider: account.provider, profileID: account.profileID)
+                EnabledModels.remove(for: account)
                 self?.load()
             } catch {
                 self?.presentNotice(title: "Unable to Sign Out", message: error.readableMessage)
             }
         }
+    }
+
+    /// A name for one more configuration of `provider`, then its sign-in:
+    /// the name is the configuration's, and the key it saves makes it.
+    private func addConfiguration(_ provider: AgentProvider) {
+        // How the provider signs in is apelin-agent's answer, taken from the
+        // entry it lists for the provider itself.
+        guard let id = AgentProfileID.make(for: provider),
+              let listed = accounts.first(where: { $0.provider == provider })
+        else { return }
+        present(AlertInputViewController(
+            title: "Add Configuration",
+            message: "Name this configuration. It appears beside the provider in the model menu.",
+            placeholder: "Name",
+            text: "",
+            doneButtonText: "Continue",
+        ) { [weak self] value in
+            guard let self else { return }
+            let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, name.count <= 120, !name.contains(where: \.isNewline) else {
+                presentNotice(title: "Invalid Name", message: "Up to 120 characters.")
+                return
+            }
+            signIn(AgentAccount(
+                provider: provider,
+                id: id,
+                method: listed.method,
+                alternativeMethods: listed.alternativeMethods,
+                signedIn: false,
+                name: name,
+            ))
+        }, animated: true)
     }
 }

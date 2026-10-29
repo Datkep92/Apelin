@@ -1323,6 +1323,38 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   key's endpoint host as `account` (its form's default when none was
   given) and `expiresAt` only for a sign-in nothing renews (Devin's
   session) — never a secret; `agentSignOut{provider}` deletes the item.
+  Anthropic's API key and the OpenAI-compatible endpoint keep several
+  configurations, each under a keychain id of its own (`AgentProfileID`):
+  the provider's own, which a single sign-in has always used and which is
+  unchanged for every saved one, and an added `canonical.uuid`, made by
+  `AgentProfileID.make`; every other provider keeps one sign-in and has no
+  id beyond its store id. Settings ▸ Model Providers lists each signed-in
+  configuration on a row of its own, titled by the name the reader gave it
+  (`AgentAccount.name`, kept beside the credential as `apelinProfileName`:
+  never a secret, never sent to the provider; absent for the provider's
+  own), and its `...` menu offers Add Configuration beside Enable Models,
+  Sign In and Sign Out — a name and then the same sign-in page, whose key
+  saves to that configuration. The screen's `+` offers the same for the
+  providers that keep several (Anthropic and OpenAI-compatible, in kwwk's
+  order, once the listing has arrived), so a second key needs no saved one
+  first. `agentSignIn{provider, method?, profileID?,
+  profileName?}` writes there: a name given now stays with the
+  configuration, one absent keeps the name it already had, and an id that
+  is no configuration of `provider` is refused `badRequest` before the task
+  is accepted. `agentAPIConfiguration`, `agentModelList`,
+  `agentModelActivate` and `agentSignOut` take the same `profileID`, and
+  `agentSignOut` deletes only that configuration's item. `EnabledModels`
+  keeps enabled, custom and hidden IDs per `AgentAccount.id`, so two keys
+  pick their models apart; the provider-wide key a single sign-in wrote is
+  read for the provider's own configuration and cleared with it. A session
+  carries the choice as `AgentOpenRequest`/`AgentPromptRequest.profileID`
+  and `SessionModelChoice.profileID`; the worker hands the session that
+  configuration's credential under the provider's own store id
+  (`DeliveredCredentialSource`), an API key that is never refreshed, so two
+  keys or two endpoints run side by side, and the provider's own (nil)
+  reads the keychain as it always has. The chat's picker keeps
+  `ComposerModelSelection.profileID`, so a conversation's next run reads the
+  key its model was chosen under.
   The saved API key appears only in the app-only `agentAPIConfiguration`
   reply requested by Edit Configuration; it is never an event or log. No
   refresh token or authorization code is exposed; the device code is the one
