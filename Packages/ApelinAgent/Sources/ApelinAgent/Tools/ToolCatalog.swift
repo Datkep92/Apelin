@@ -362,7 +362,7 @@ public extension AgentToolName {
                 "argv": .object([
                     "type": "array",
                     "items": .object(["type": "string"]),
-                    "description": "A plain command: executable name, then arguments.",
+                    "description": "A plain command: an executable name, found on shell_run's PATH (the toolchain's tools first), or a path, then arguments.",
                 ]),
                 "command": Schema.string("Shell text, when a plain argv is not enough."),
                 "script": Schema.string("Script source, run by interpreter."),

@@ -49,6 +49,22 @@ struct ChatTranscript {
     private var unanswered: UUID?
     /// The run's output so far, from its latest `received`.
     private var receivedTokens: Int?
+    /// Where the message streaming now began among `rows`, and the row it
+    /// answered then, from its `messageStarted` until anything but its
+    /// stream comes: a `messageDiscarded` (kwwk asks for it again) takes
+    /// back what it showed, so the reply that follows is not drawn twice.
+    private var attempt: (rows: Int, unanswered: UUID?)?
+    /// A model request failed and is being made again, and nothing has
+    /// come of it yet (`reconnecting`): the running summary says so.
+    private var reconnecting = false
+    /// What ends `attempt`: anything but its stream, or news that may come
+    /// meanwhile (a title, a message queued, the count).
+    private static let endsAttempt: Set<String> = [
+        "prompt", "steer", "message", "toolCall", "toolResult", "approvalRequested", "approvalResolved",
+        "error", "finished", "compactionStarted", "compactionFinished", TaskEvent.stateKind,
+    ]
+    /// What ends `reconnecting`: the request answered, or the run moved on.
+    private static let endsReconnecting = endsAttempt.union(["messageStarted", "thinking", "toolCallPreparing", "text"])
 
     /// `conversationTitle` names another conversation of the project by its
     /// session ID, for a message its agent sent. `sending` are messages sent
@@ -83,6 +99,12 @@ struct ChatTranscript {
             let text = payload?["text"]?.stringValue ?? ""
             let id = Self.rowID("event:\(index)")
             lastEventTime = event.time
+            if Self.endsAttempt.contains(event.kind) {
+                attempt = nil
+            }
+            if Self.endsReconnecting.contains(event.kind) {
+                reconnecting = false
+            }
             switch event.kind {
             case "prompt", "steer":
                 finishThinking(at: event.time)
@@ -121,8 +143,23 @@ struct ChatTranscript {
             case "messageStarted":
                 assistant = nil
                 finishThinking(at: event.time)
+                attempt = (rows.count, unanswered)
                 startThinking(id: id, at: event.time)
                 isWorking = true
+            case "messageDiscarded":
+                // The rows it made go, and what it answered is unanswered
+                // again: the stand-in its thought replaced comes back, and
+                // the next attempt's thought takes its id once more.
+                guard let attempt else { break }
+                rows.removeSubrange(attempt.rows...)
+                firstRows = firstRows.filter { $0.value < attempt.rows }
+                thinking = nil
+                thinkingStarted = nil
+                assistant = nil
+                unanswered = attempt.unanswered
+                self.attempt = nil
+            case "reconnecting":
+                reconnecting = true
             case "thinking":
                 if thinking == nil {
                     startThinking(id: id, at: event.time)
@@ -272,7 +309,7 @@ struct ChatTranscript {
                     quietDeadline = deadline
                 }
             }
-            Self.keepTrailingSummaryRunning(&messages, receivedTokens: receivedTokens)
+            Self.keepTrailingSummaryRunning(&messages, receivedTokens: receivedTokens, reconnecting: reconnecting)
         }
         messages += queued
         for draft in sending where !messages.contains(where: { $0.id == draft.id }) {
@@ -335,8 +372,13 @@ struct ChatTranscript {
     /// While the turn runs, its last summary stays unfinished across tool
     /// calls and approvals. Each thought ends when a tool starts, so without
     /// this the title would flip between "Thought for…" and the running one.
-    /// It carries the run's output so far and the newest call in its trace.
-    private static func keepTrailingSummaryRunning(_ rows: inout [ChatMessage], receivedTokens: Int?) {
+    /// It carries the run's output so far, the newest call in its trace and
+    /// whether a failed request is being made again.
+    private static func keepTrailingSummaryRunning(
+        _ rows: inout [ChatMessage],
+        receivedTokens: Int?,
+        reconnecting: Bool,
+    ) {
         guard let index = rows.lastIndex(where: { !$0.role.needsApproval }) else { return }
         guard case let .thinking(_, tools) = rows[index].role else {
             settleCount(&rows, reply: index, receivedTokens: receivedTokens)
@@ -346,6 +388,7 @@ struct ChatTranscript {
         rows[index].runningTools = rows[index].trace.count(where: \.awaitsResult)
         rows[index].receivedTokens = receivedTokens
         rows[index].banner = rows[index].trace.last { $0.role == .tool }?.banner
+        rows[index].isReconnecting = reconnecting
     }
 
     /// While the run writes a reply, the summary just above it is finished

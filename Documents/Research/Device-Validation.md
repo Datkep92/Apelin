@@ -248,6 +248,28 @@ console now goes on after a restart only past a successful respring.
       stale installation id refused before asking, with what Apelin can
       remove instead; a toolchain listed as not the agent's and its
       removal refused.
+- [ ] A turn the network failed (2026-10-29, AGENTS.md ▸ Agent sessions
+      ▸ `NetworkRecovery`; none of it has run on a device). Send a message
+      that runs a few tools and turn on Airplane Mode while it runs, for
+      about a minute: the running summary reads "Reconnecting…" (正在重新连接…)
+      and VoiceOver reads it as the title; once Airplane Mode is off the
+      turn goes on by itself, with no error row and no 继续, and the trace
+      lists each call once. Turned on mid-reply, the partial text goes and
+      the reply comes back once, never under it. With Airplane Mode left on
+      past about three minutes the turn still ends with the provider's
+      error. Stop during "Reconnecting…" ends the turn at once, as
+      stopped. An "An SSL error has occurred" seen again after this is a
+      handshake that failed three times; note the network it was on.
+- [ ] shell_run's argv on the toolchain's PATH (2026-10-29, AGENTS.md ▸
+      Agent sessions ▸ `agentRunCode`; none of it has run on a device). In
+      a project with a toolchain set up, `argv` `["clang", "-c", "x.c"]`,
+      `["nm", "x.o"]` and `["otool", "-hv", "x.o"]` run by name;
+      `["clang++", "x.cpp", "-o", "x"]` links libc++ (the link runs under
+      its own name, not as clang); with Swift, `["swiftc", "x.swift"]`
+      compiles; the tool directory's absolute `clang` and `["./build.sh"]`
+      in the project run; a name on no directory says where it looked and
+      names `bash -c`. In Strict each still asks; `root: true` with
+      `irisin-cli` still runs the bootstrap's.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

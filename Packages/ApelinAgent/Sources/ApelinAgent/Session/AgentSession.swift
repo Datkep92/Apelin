@@ -137,6 +137,10 @@ public actor AgentSession {
                 tools: runner.agentTools(mcp: mcpTools),
                 messages: transcript,
             ),
+            // a request the network failed waits for it to come back
+            streamFn: NetworkRecovery.stream(path: configuration.network) {
+                _ = try? await log.append(.reconnecting)
+            },
             toolExecution: .sequential,
             sessionId: configuration.id,
             cwd: root.path,
@@ -688,6 +692,11 @@ public actor AgentSession {
                         ?? "The model provider returned an error. Try again.",
                 ))
             }
+        case .streamRewind:
+            // kwwk gave up the message it was streaming; the next one replaces it
+            await record(.messageDiscarded)
+        case .streamRetry:
+            await record(.reconnecting)
         case let .compactEnd(outcome):
             // kwwk compacted on its own, as the context filled
             if case .compacted = outcome {

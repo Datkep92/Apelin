@@ -516,6 +516,10 @@ actor EventRelay {
             return [("steer", .object(["text": .string(text)]))]
         case .messageStarted:
             return [("messageStarted", nil)]
+        case .messageDiscarded:
+            return [("messageDiscarded", nil)]
+        case .reconnecting:
+            return [("reconnecting", nil)]
         case .toolCallPreparing:
             return [("toolCallPreparing", nil)]
         case let .textDelta(text):
