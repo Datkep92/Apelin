@@ -1,7 +1,7 @@
 extension BuiltInSkills {
     static let packagingAndInstall = SkillDocument(
         name: "apelin-packaging-and-install",
-        description: "From a successful build to a confirmed load: the package artifact, install through the system installer, maintainer scripts, respring, apelin_package_confirm_loaded, and removal.",
+        description: "From a successful build to a confirmed load: the package artifact, install through the system installer and what to do when another package is in its way, maintainer scripts, respring, apelin_package_confirm_loaded, and removal.",
         body: """
         # Packaging and install
 
@@ -26,6 +26,26 @@ extension BuiltInSkills {
         - Installation goes through Irisin's installer. There is no `dpkg` or
           `apt` for you to call, and `shell_run` must not try; the
           apelin-package-dependencies skill covers what installs a dependency.
+
+        ## When another package is in the way
+        The installer resolves nothing: it never removes a package to make
+        room for yours. An install fails when an installed package owns one
+        of its files (`… is owned by …; Replaces is required`) or when its
+        `package.conflicts` or `package.breaks` names an installed package
+        (`Conflicting final packages`). The result's `conflicts` then names
+        each package in the way, the file, and the `installationID` when
+        Apelin installed it.
+        - After renaming the package ID, or reusing a product name another
+          package already installs, remove the installation named there
+          with `apelin_package_remove` (in Strict mode the user confirms it),
+          then install again. A package Apelin did not install is the
+          user's to remove with their package manager: ask them.
+        - Adding `conflicts` or `breaks` removes nothing; it only makes the
+          install fail while that package is there.
+        - Name a package in `package.replaces` only when the user wants
+          yours to take over its files.
+        - Never rename the dylib or drop a file to get past the failure
+          without telling the user.
 
         ## Maintainer scripts
         Add one only when the task needs it (postinst, prerm, …), as a project
@@ -74,12 +94,13 @@ extension BuiltInSkills {
           whether it can be removed. Read it instead of rebuilding or
           reinstalling to get an id, and instead of asking another project's
           conversation to remove its package.
-        - `apelin_package_remove` takes that installation id, or the package id
-          alone, and removes only what a project's build installed: bootstrap
-          packages, Apelin itself and its toolchains (removed in Settings) are
-          out of reach, and a package installed some other way is the user's
-          to remove with their package manager. In Strict mode every removal
-          asks.
+        - `apelin_package_remove` takes that installation id, one an install
+          returned or a refused install names in `conflicts`, or the package
+          id alone, and removes only what a project's build installed:
+          bootstrap packages, Apelin itself and its toolchains (removed in
+          Settings) are out of reach, and a package installed some other way
+          is the user's to remove with their package manager. In Strict mode
+          every removal asks.
         """,
     )
 }

@@ -108,6 +108,13 @@ final class MacPipelineTests: XCTestCase {
             let paths = Set(contents.entries.map(\.path))
             XCTAssertTrue(paths.contains(prefix + "/Library/MobileSubstrate/DynamicLibraries/HelloTweak.dylib"), "\(paths)")
             XCTAssertTrue(paths.contains(prefix + "/Library/MobileSubstrate/DynamicLibraries/HelloTweak.plist"), "\(paths)")
+            // What the host looks up when irisind refuses the install: the
+            // deb's files as dpkg lists them, and no folder.
+            let files = try XCTUnwrap(record.packageFiles)
+            XCTAssertEqual(Set(files), Set(contents.entries.filter { $0.kind != .directory }.map(\.path)))
+            XCTAssertTrue(files.contains(prefix + "/Library/MobileSubstrate/DynamicLibraries/HelloTweak.dylib"), "\(files)")
+            XCTAssertTrue(files.contains(prefix + "/Library/MobileSubstrate/DynamicLibraries/HelloTweak.plist"), "\(files)")
+            XCTAssertEqual(record.wireArtifact.packageFiles, files, "the artifact event carries them to the host")
 
             // And through the tools a person would use.
             if let dpkgDeb = dpkgDeb() {

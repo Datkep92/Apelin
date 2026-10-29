@@ -43,6 +43,9 @@ public struct ArtifactRecord: Codable, Sendable, Equatable {
     public var log: String
     public var loadCheck: BuildLoadCheck?
     public var createdAt: Date
+    /// What the deb installs (`BuildArtifact.packageFiles`); nil in a
+    /// record written before it was kept.
+    public var packageFiles: [String]?
 
     public var wireArtifact: BuildArtifact {
         BuildArtifact(
@@ -56,7 +59,18 @@ public struct ArtifactRecord: Codable, Sendable, Equatable {
             packagingDigest: packagingDigest,
             path: path,
             projectID: projectID,
+            packageFiles: packageFiles,
         )
+    }
+
+    /// The regular files and links a package installs, as dpkg lists them:
+    /// fewest components first, so a capped list keeps an app's executable
+    /// and a tweak's dylib before the resources under them.
+    static func packageFiles(of contents: DebArchiveReader.Contents) -> [String] {
+        let files = contents.entries.filter { $0.kind != .directory }.map(\.path)
+        let sorted = files.map { (depth: $0.split(separator: "/").count, path: $0) }
+            .sorted { ($0.depth, $0.path) < ($1.depth, $1.path) }
+        return sorted.prefix(BuildArtifact.maximumPackageFiles).map(\.path)
     }
 }
 

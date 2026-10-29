@@ -364,7 +364,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     depends on `wiki.qaq.irisin (>= 4.7.3)` — from 4.7.3 irisind takes an external client only at euid 0, which the session host is; nothing running as mobile may call it. `installPackage{artifactID,
     digest}` takes a build's artifact — recorded by the host from the build
     worker's own `artifact` event (`path` inside the data folder, `digest`,
-    `packageID`, `version`, `projectID`, `packagingDigest`) —, a toolchain
+    `packageID`, `version`, `projectID`, `packagingDigest`, `packageFiles`) —, a toolchain
     package `toolchain-<id>` from apelin-environment:
     `Environment/Artifacts/<artifactID>.deb`, which must be
     `wiki.qaq.apelin.toolchain.<id>` (the one Apelin-prefixed family a
@@ -380,9 +380,18 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     the installation record (`installations/<id>.json`: project and build,
     artifact digest, package, version, the lowercase-UUID transaction ID it
     chose, then irisind's receipt) and submits the staged copy by
-    descriptor. `removePackage{installationID}` acts only on a record whose
-    install succeeded and whose package is still installed at that version,
-    with no newer record of the package (whose ID the refusal names);
+    descriptor. When irisind refuses it, and only then, the host names who
+    is in the way (`InstallConflicts`): each installed package whose
+    `var/lib/dpkg/info/<package>.list` lists a file the build recorded
+    (unless the deb Replaces it), or that the deb's unversioned Conflicts
+    or Breaks names (the host compares no versions), as a `conflict` event
+    (`InstallConflict`, with the installation `removePackage` takes when
+    Apelin made it); the failure says who and how to clear it before
+    irisind's own words, which stand alone when nothing is found. irisind
+    decided already, and nothing is removed. `removePackage{installationID}`
+    acts only on a record whose install succeeded and whose package is
+    still installed at that version, with no newer record of the package
+    (whose ID the refusal names);
     bootstrap core, Irisin, Apelin and essential or required packages are
     refused both ways, and so is installing over a package Apelin did not
     install (`ManagedPackagePolicy`). The agent removes only what a build
@@ -1042,7 +1051,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   other binary now says. Every system tool is one
   host request
   (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches), apelin_package_install →
-  `installPackage`, apelin_package_remove → `removePackage` (an installation
+  `installPackage` (a refused one answers its `conflict` events as
+  `conflicts`), apelin_package_remove → `removePackage` (an installation
   ID, or a package ID the worker turns into its one removable installation
   before asking: the card names its package, version and project, and
   `detail.packageRemoval` the installation, as before; an ID
@@ -2022,6 +2032,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
 - **The artifact** is registered at `~/Documents/wiki.qaq.apelin/Builds/artifacts/<artifactID>.json`
   (`ArtifactRecord`): the deb's path and `sha256:` digest, both description
   digests as built, the products with their digests and UUIDs, the dSYMs,
+  the regular files and links the deb installs as dpkg lists them
+  (`packageFiles`, fewest components first, at most 256), read back from
+  the deb by both builds,
   and `loadCheck` (`BuildLoadCheck`: marker `ApelinLoaded <buildID>`,
   subsystem the package ID, the dylib and its filter plist — `<dylib name>.plist`
   beside it — logically and under this install root, the filter). The file

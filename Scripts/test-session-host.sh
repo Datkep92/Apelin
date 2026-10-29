@@ -27,6 +27,7 @@ sources=(
     "$root/Apelind/Session/Install/ArtifactRegistry.swift"
     "$root/Apelind/Session/Install/DebControlPeek.swift"
     "$root/Apelind/Session/Install/InstallBridge.swift"
+    "$root/Apelind/Session/Install/InstallConflicts.swift"
     "$root/Apelind/Session/Install/InstallService.swift"
     "$root/Apelind/Session/Install/InstallationStore.swift"
     "$root/Apelind/Session/Install/ManagedPackagePolicy.swift"

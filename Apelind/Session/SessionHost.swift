@@ -67,6 +67,7 @@ final class SessionHost: @unchecked Sendable {
             artifacts: artifacts,
             installations: installations,
             packages: DpkgStatusDatabase(installRoot: installRoot),
+            fileLists: DpkgFileLists(installRoot: installRoot),
             approvals: approvals,
         )
         scopes = FileScopes(installRoot: installRoot, dataFolder: dataFolder)

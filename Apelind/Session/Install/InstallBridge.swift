@@ -13,7 +13,9 @@ import Foundation
 /// the build's), read its control file, apply the managed-package rules and
 /// the agent's Confirm-mode rule, write the installation record with a
 /// transaction ID chosen here, hand irisind the staged copy by descriptor,
-/// relay its events into the task and keep its receipt.
+/// relay its events into the task and keep its receipt. When irisind refuses
+/// it, name the installed packages in its way (`InstallConflicts`), read
+/// from the package database only then.
 ///
 /// Every step that changes something is on disk first, so a host that stops
 /// mid-way resumes: a staged install is submitted again under the same
@@ -38,6 +40,7 @@ actor InstallBridge {
     private let artifacts: ArtifactRegistry
     private let installations: InstallationStore
     private let packages: InstalledPackageSource
+    private let fileLists: PackageFileLists
     private let approvals: ApprovalLedger
     private let pollInterval: TimeInterval
     private var checkedService = false
@@ -49,6 +52,7 @@ actor InstallBridge {
         artifacts: ArtifactRegistry,
         installations: InstallationStore,
         packages: InstalledPackageSource,
+        fileLists: PackageFileLists,
         approvals: ApprovalLedger,
         pollInterval: TimeInterval = 0.25,
     ) {
@@ -58,6 +62,7 @@ actor InstallBridge {
         self.artifacts = artifacts
         self.installations = installations
         self.packages = packages
+        self.fileLists = fileLists
         self.approvals = approvals
         self.pollInterval = pollInterval
     }
@@ -212,6 +217,27 @@ actor InstallBridge {
         return handle
     }
 
+    /// Who is in the way of the install irisind just refused: the package's
+    /// files as its build recorded them and its control's relations, against
+    /// the package database as it is now.
+    private func conflicts(
+        blocking record: InstallationRecord,
+        staged: URL,
+    ) async -> (found: [InstallConflict], explanation: String?) {
+        let files = await artifacts.artifact(record.artifactID)?.packageFiles ?? []
+        let control = try? readControl(staged)
+        guard let installed = try? packages.installedPackages() else { return ([], nil) }
+        let found = await InstallConflicts.find(
+            packageID: record.packageID,
+            packageFiles: files,
+            control: control,
+            installed: installed,
+            lists: fileLists,
+            records: installations.all(),
+        )
+        return (found, InstallConflicts.explanation(found, installed: installed))
+    }
+
     private func checkAgentInstall(artifact: ArtifactRegistry.Artifact?, session: String?) async throws {
         guard let artifact else { throw ApelinError(.denied, "the agent installs build artifacts only") }
         guard await approvals.mode(session: session).asks else { return }
@@ -314,11 +340,15 @@ actor InstallBridge {
                     $0.status = .failed
                     $0.receipt = receipt
                 }
-                await registry.finish(
-                    taskID,
-                    .failed,
-                    message: final.failureText ?? "Irisin could not complete the installation. Try again.",
-                )
+                let inTheWay = await conflicts(blocking: record, staged: staged)
+                for conflict in inTheWay.found {
+                    await registry.append(taskID, kind: "conflict", payload: try? JSONValue(encoding: conflict))
+                }
+                var message = final.failureText ?? "Irisin could not complete the installation. Try again."
+                if let explanation = inTheWay.explanation {
+                    message = final.failureText.map { "\(explanation) Irisin reported: \($0)" } ?? explanation
+                }
+                await registry.finish(taskID, .failed, message: message)
             }
         } catch {
             if record.status == .staged {
