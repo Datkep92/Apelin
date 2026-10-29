@@ -5,10 +5,10 @@
 ///
 /// A tool that acts on what Apelin keeps — its projects and templates, the
 /// packages it installs, the device, toolchains and SDKs, conversations,
-/// memory, skills, its settings — is `apelin_<scope>_<verb>`; a generic
-/// verb on the session's own project is `<domain>_<verb>`: `file_*`,
-/// `shell_run` and the repository's `git_*`. MCP tools keep kwwk's
-/// `mcp__<server>__<tool>`.
+/// memory, skills, its settings — or reaches past the device, as the web
+/// fetch does, is `apelin_<scope>_<verb>`; a generic verb on the session's
+/// own project is `<domain>_<verb>`: `file_*`, `shell_run` and the
+/// repository's `git_*`. MCP tools keep kwwk's `mcp__<server>__<tool>`.
 public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case fileWrite = "file_write"
     case fileEdit = "file_edit"
@@ -41,6 +41,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case skillSave = "apelin_skill_save"
     case skillRemove = "apelin_skill_remove"
     case notificationSend = "apelin_notification_send"
+    case webFetch = "apelin_web_fetch"
     case projectCheckDistribution = "apelin_project_check_distribution"
     case templateList = "apelin_template_list"
     case projectList = "apelin_project_list"

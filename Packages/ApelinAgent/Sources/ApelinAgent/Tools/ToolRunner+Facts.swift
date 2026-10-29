@@ -52,6 +52,10 @@ extension ToolRunner {
             let removal = try await removalToAsk(arguments)
             facts.installationID = removal.installationID
             facts.removedPackage = removal.listed
+        case .webFetch:
+            // An address that would never be fetched is refused before
+            // anyone is asked about it.
+            _ = try WebFetch.target(arguments.requireString("url"))
         case .gitPush:
             // The branch the card names is the one pushed: an omitted one is
             // read now and sent explicitly.

@@ -89,6 +89,21 @@ struct ApprovalMatrixTests {
     }
 
     @Test
+    func `Confirm: a web fetch asks unless the user presets it, and runs in Relaxed and Full`() {
+        defer { home.remove() }
+        let facts = InvocationFacts(tool: .local(.webFetch))
+        #expect(AgentToolName.webFetch.risk == .readOnly && AgentToolName.webFetch.isSensitiveRead)
+        #expect(!ApprovalPresets.default.readTools.contains(.webFetch))
+        #expect(verdict(.confirm, facts) == .ask(reason: "This action is not in your approved presets. Review it before running.", detail: .none))
+        #expect(ToolRunner.allowsSessionScope(.local(.webFetch), detail: .none))
+        var presets = ApprovalPresets.default
+        presets.readTools.insert(.webFetch)
+        #expect(verdict(.confirm, facts, presets: presets) == .allow(.preset("apelin_web_fetch")))
+        #expect(verdict(.relaxed, facts) == .allow(.relaxed))
+        #expect(verdict(.full, facts) == .allow(.relaxed))
+    }
+
+    @Test
     func `Confirm: presets are edited by the user and only presettable tools count`() throws {
         defer { home.remove() }
         var presets = ApprovalPresets.default

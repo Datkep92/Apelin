@@ -985,6 +985,19 @@ precondition(earlierTitles == callTitles(earlierNames.compactMap { AgentToolName
 precondition(!earlierTitles.contains { $0.contains("_") }, "an earlier name is titled, not spelled out")
 print("ok: calls recorded under the earlier tool names read as today's do")
 
+/// A web fetch is titled by the site it reads.
+func webFetchTitle(_ arguments: String) -> String? {
+    let call = event(1, "toolCall", [
+        "id": .string("w"), "tool": .string(AgentToolName.webFetch.rawValue), "arguments": .string(arguments),
+    ])
+    return ChatTranscript(events: [call, event(2, "finished")]) { _ in nil }
+        .messages.flatMap(\.trace).first { $0.role == .tool }?.text
+}
+
+precondition(webFetchTitle(#"{"url":"https://docs.example.com/guide?x=1"}"#) == "Read docs.example.com")
+precondition(webFetchTitle("{}") == "Read a webpage")
+print("ok: a web fetch is titled by its site")
+
 checkTranscriptFold()
 
 checkToolCallDetail()

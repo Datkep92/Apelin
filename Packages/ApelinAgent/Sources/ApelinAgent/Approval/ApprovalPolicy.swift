@@ -22,8 +22,9 @@ public struct ApprovalPresets: Sendable, Hashable, Codable {
         self.commands = commands
     }
 
-    /// Every read tool except the screen and the UI tree; respring; a few
-    /// read-only commands that stay inside the project.
+    /// Every read tool except the screen, the UI tree and the web fetch
+    /// (`isSensitiveRead`); respring; a few read-only commands that stay
+    /// inside the project.
     public static let `default` = ApprovalPresets(
         readTools: Set(AgentToolName.allCases.filter { $0.risk == .readOnly && !$0.isSensitiveRead }),
         systemTools: [.deviceRespring],
@@ -306,7 +307,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
              .packageList, .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
-             .conversationList, .conversationRead, .toolchainList, .sdkList:
+             .conversationList, .conversationRead, .toolchainList, .sdkList, .webFetch:
             if presets.readTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
             }
