@@ -180,6 +180,26 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] Agent tool extensions in a conversation (2026-10-29, AGENTS.md ▸
+      Agent sessions ▸ Agent tool extensions; none of it has run on a
+      device, and it needs a model provider). On roothide and rootless,
+      with the Disassembler 1.1.0 and Assembler 1.0.0 packages installed,
+      open a project's chat: its tools are `assemble`, `disassemble` and
+      `symbols`, and asked what it has, the model names both extensions.
+      Under Strict each call asks, the card naming the extension, and
+      "for this session" lets the same call run again without a card. Ask
+      it to assemble `ret` for arm64 (`c0035fd6`), to list the defined
+      symbols of a binary it built (the absolute path, `Builds/…`), to
+      disassemble that binary's `_main`, and for `symbols` with `output:
+      file`: the listing shows in the conversation as a card that opens
+      in Quick Look, and file_read reads the `Attachments/` copy the
+      result names. Ask it to disassemble a symbol the binary lacks: the
+      call fails with the Disassembler's own words. Kill the extension's process
+      while the chat is open (`killall apelin-disassembler`): the next
+      call opens it again and answers. Remove the Assembler package with
+      the chat open: the next message's tools have no `assemble`, and the
+      model was told it went; install it again and it comes back. Close
+      the chat: no `apelin-disassembler` process is left.
 - [ ] A GitHub repository made by the agent (2026-10-29, AGENTS.md ▸ The
       environment worker ▸ Git and Agent sessions; none of it has run on a
       device, and it makes repositories on a real account, so by hand

@@ -1,3 +1,4 @@
+import struct ApelinToolCore.ToolManifestPolicy
 import Foundation
 import KWWKAgent
 import KWWKAI
@@ -32,6 +33,10 @@ public struct AgentSessionConfiguration: Sendable {
     /// host decides (`AgentOpenRequest.hostRestarted`): when it has history,
     /// the next message's `<system-state>` says its paths may be stale.
     public var hostRestarted: Bool
+    /// Whom the agent tool extensions under the install root must belong
+    /// to for their tools to be offered: root, as the package manager
+    /// installs them and the host requires; the tests' own user.
+    public var toolExtensionPolicy: ToolManifestPolicy
 
     public init(
         id: String = UUID().uuidString,
@@ -48,6 +53,7 @@ public struct AgentSessionConfiguration: Sendable {
         systemState: SystemStateSource = .device,
         network: NetworkPath = .system,
         hostRestarted: Bool = false,
+        toolExtensionPolicy: ToolManifestPolicy = ToolManifestPolicy(),
     ) {
         self.id = id
         self.project = project
@@ -63,5 +69,6 @@ public struct AgentSessionConfiguration: Sendable {
         self.systemState = systemState
         self.network = network
         self.hostRestarted = hostRestarted
+        self.toolExtensionPolicy = toolExtensionPolicy
     }
 }

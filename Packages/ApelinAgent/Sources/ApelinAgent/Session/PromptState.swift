@@ -29,18 +29,26 @@ struct PromptState: Equatable {
     /// to read them.
     static let maximumDelta = 4000
 
+    /// `toolExtensions`: the extensions whose tools the session offers now,
+    /// which only change between runs; nil reads what is installed.
     static func read(
         _ configuration: AgentSessionConfiguration,
         root: ScopedRoot,
         skills: [SkillDocument],
         device: DeviceFacts = .current,
+        toolExtensions: [OfferedToolExtension]? = nil,
     ) -> PromptState {
         let memory = try? MemoryStore(root: configuration.dataRoot.url).read().forProject(configuration.project.id)
+        let extensions = toolExtensions ?? ToolExtensionOffer.read(
+            installRoot: configuration.installRoot,
+            policy: configuration.toolExtensionPolicy,
+        ).extensions
+        let inputs = EnvironmentPrompt.inputs(configuration, root: root, device: device, toolExtensions: extensions)
         return PromptState(
             instructions: SystemPrompt.projectInstructions(in: root),
             skills: skills,
             memory: memory?.records,
-            environment: EnvironmentPrompt.section(EnvironmentPrompt.inputs(configuration, root: root, device: device)),
+            environment: EnvironmentPrompt.section(inputs),
             buildSystem: ProjectBuildSystem.read(in: root),
         )
     }

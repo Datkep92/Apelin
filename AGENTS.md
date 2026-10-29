@@ -519,7 +519,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     host copies each into an unlinked file in `var/lib/apelin/attachments`
     (≤ 8 per call, ≤ 32 MB each) and passes a read-only descriptor, to the
     extension over its SCM_RIGHTS socket and back to the caller in the
-    reply, with `byteCount` and `sha256` (`AttachmentCopies`).
+    reply, with `byteCount` and `sha256` (`AttachmentCopies`). The
+    extension inherits the host's working directory, never the project's.
+    An agent session's caller is apelin-agent (2026-10-29; Agent
+    sessions ▸ Agent tool extensions): its gate decides whether a call
+    runs, and the host, holding the call to the manifest (the tool, its
+    arguments to the schema), decides nothing again, since the extension
+    runs as mobile as the worker does.
   - *Notifications* (`Session/Notice/`, after Xrash's). The host posts as
     the app (`NoticePoster`: `UNUserNotificationCenter` through the private
     `initWithBundleIdentifier:`, looked up at run time) when an agent
@@ -1415,6 +1421,35 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   show no card. A
   reply with reason `authenticationRequired` becomes "GitHub
   authorization is needed: … Sign In with GitHub in Settings ▸ Git".
+  Agent tool extensions (2026-10-29, `Tools/ToolExtensions.swift`,
+  `Tools/ToolExtensionSessions.swift`; Milestone 1 §6), in any chat: an
+  installed extension's tools are the agent's own. The worker reads the
+  manifests as the host does (`ToolManifestValidator.discover` on the
+  install root, root's files only) when the session opens and before each
+  message that starts a run, and offers each tool by Agent tool names'
+  rule; a manifest that does not validate is left out alone, and whatever
+  is left out is logged. A definition is the manifest's description, a
+  sentence naming the extension and saying it runs as mobile outside the
+  project (so the model gives absolute paths), and its schema with the
+  `reason`; a blank optional argument is dropped before kwwk holds the
+  call to the schema, an empty one before the host does. The first call of
+  one of an extension's tools opens it (`toolHostOpen`, never before: the
+  host keeps 16 for the device), the session keeps it, a call answered
+  `notFound` (the extension exited) opens it again once and is made again,
+  and the session closes them with itself. Each call carries the
+  manifest's `timeoutSeconds`; an `error` answer is the call's failure,
+  "<extension> answered <code>: <message>"; the text is the result, and
+  each returned file is copied into `Attachments/`, named in the text with
+  its size for file_read and handed to the `toolResult` attachments as
+  file_show's copies are, an image put before the model too. Strict asks
+  every call, the reason naming the extension and the declared `risk`
+  letting nothing through, with a session grant as for an MCP tool, bound
+  to the extension's version; Relaxed and Full run it. An extension installed or removed while a chat
+  is open changes its tools between runs, never during one or a
+  compaction, and that message's `<system-state>` says so with
+  `# Environment`'s lines that came and went. Tested by
+  `ToolExtensionTests` (the shipped manifests among them) and
+  `ToolExtensionBackendTests`.
   `agentRunCode` is a closed request — `argv` (an executable name looked up
   on the run's own `PATH` as its shell would, the toolchain's tools first,
   but a preset's and a root run's in the bootstrap's bin directories, then
@@ -1545,10 +1580,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `file_show`, `shell_run`, and the repository's nine `git_*`. MCP tools
   keep kwwk's `mcp__<server>__<tool>`. Lowercase, `[a-z0-9_]`, a letter
   first, no `__`, at most 64 characters, which every provider takes
-  (`AgentToolNameTests`). The names are ApelinProtocol's `AgentToolName`,
-  which the session host's approval rules, the app's titles and widget and
-  the agent read; what each tool does stays in ApelinAgent's
-  `ToolCatalog`. `AgentToolName.legacyNames` keeps the names 0.1.8 and
+  (`AgentToolNameTests`). An agent tool extension's tools keep their
+  manifest's names (`disassemble`, `symbols`, `assemble`) when a name
+  keeps that rule, is no name `AgentToolName.canonical` knows, takes no
+  `reason` argument and is declared by one installed extension only;
+  otherwise the tool is left out, both of a duplicate
+  (`ToolExtensionOffer`). Apelin's own names are ApelinProtocol's
+  `AgentToolName`, which the session host's approval rules, the app's
+  titles and widget and the agent read; what each tool does stays in
+  ApelinAgent's `ToolCatalog`. `AgentToolName.legacyNames` keeps the names 0.1.8 and
   before used (and `notify_user`), and `canonical` answers the tool either
   kind of name means: the app titles an old conversation's calls as new
   ones, the widget and apelin_conversation_read show today's names, and the
@@ -2471,7 +2511,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   setup or an SDK import asks every time, and so does any conversation
   call that reaches another project, and so does deleting another project
   (owner, 2026-10-29); none is ever granted for the session, and the host
-  spends the one approval (owner, 2026-10-22).
+  spends the one approval (owner, 2026-10-22). An MCP tool and an agent
+  tool extension's tool ask at every call too, whatever the extension
+  declares its risk to be; those two may be granted for the session.
   Switching a project's toolchain or SDK is a project edit. The UI and the
   agent call *Confirm* Strict (严格模式; owner, 2026-10-22); `ApprovalMode.confirm`
   and every stored or wire value keep the name.
@@ -3207,12 +3249,17 @@ does not move, and the skill says so), and which of cmake,
 dpkg-deb, git, ldid, make, ninja, perl, python3 and xcrun are on shell_run's
 search path (`DevelopmentEnvironment.searchPath`,
 the host's own list), dpkg-deb, when found, for a workspace's declared script
-alone, and the two folders the read tools reach besides the project
-(`ReadOnlyRoots`). It is part of the session's snapshot, holds nothing
+alone, the two folders the read tools reach besides the project
+(`ReadOnlyRoots`), and the agent tool extensions whose tools it offers,
+each with its version, ID and tools, saying they run outside the project
+and ask in Strict mode (none when none is). It is part of the session's
+snapshot, holds nothing
 that changes unless the environment does — no time, size or duration,
-everything sorted — and a toolchain or SDK registered or removed later
-reaches an open session as the lines that went and came, in its next
-message's `<system-state>`.
+everything sorted — and a toolchain or SDK registered or removed later,
+or an extension installed or removed, reaches an open session as the
+lines that went and came, in its next message's `<system-state>` (that
+of the next run's first message for an extension, whose tools change
+with it).
 A project's conversation gets the project once, on the message that starts
 its first run (`Session/ProjectContext.swift`): a `<project-context>` block
 before the user's text, which the model sees and the app's event does not —
@@ -3236,7 +3283,10 @@ Every provider caches a prefix of the request: the tools and the system
 prompt, then the messages. kwwk takes a run's system prompt and tools once,
 when the run starts (`Agent.snapshotContext`), so every request of a run
 sends the same ones; the tool list is `AgentToolName`'s order and static
-text, fixed per process; every request carries the session ID as
+text, then the MCP tools, then the agent tool extensions' by extension ID
+and manifest order, which change only when an extension is installed or
+removed and then only between runs (Agent sessions ▸ Agent tool
+extensions); every request carries the session ID as
 `sessionId`, which kwwk sends as `prompt_cache_key` (OpenAI's Responses API,
 Copilot's GPT route), Codex's `session-id`/`thread-id`, OpenRouter's
 `x-session-id` and Grok's `x-grok-conv-id`; Anthropic (API key, Claude

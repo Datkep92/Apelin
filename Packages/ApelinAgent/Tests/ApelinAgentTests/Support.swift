@@ -520,6 +520,47 @@ actor MockBackend: AgentHostBackend {
         calls.append(.conversationStop(sessionID: request.sessionID, close: request.close))
         return ConversationActionToolResponse(sessionID: request.sessionID, done: request.close ? "closed" : "stopped")
     }
+
+    // MARK: Agent tool extensions
+
+    /// The extension of each tool session the host opened, in order; the
+    /// session's ID is `tool-session-<n>`.
+    var toolSessionsOpened: [String] = []
+    var toolSessionsClosed: [String] = []
+    /// Every call made, in a session the host had or not.
+    var toolCalls: [ToolExtensionCallRequest] = []
+    /// Sessions the host let go when their extension exited.
+    var toolSessionsEnded: Set<String> = []
+    /// What a call in a session the host has answers.
+    var toolAnswer: @Sendable (ToolExtensionCallRequest) -> ToolExtensionCallResponse = { request in
+        ToolExtensionCallResponse(text: "\(request.tool) ran")
+    }
+
+    func setToolAnswer(_ answer: @escaping @Sendable (ToolExtensionCallRequest) -> ToolExtensionCallResponse) {
+        toolAnswer = answer
+    }
+
+    /// The extension of `sessionID` exits, and the host lets the session go.
+    func endToolSession(_ sessionID: String) {
+        toolSessionsEnded.insert(sessionID)
+    }
+
+    func openToolExtension(id: String) -> String {
+        toolSessionsOpened.append(id)
+        return "tool-session-\(toolSessionsOpened.count)"
+    }
+
+    func callToolExtension(_ request: ToolExtensionCallRequest) throws -> ToolExtensionCallResponse {
+        toolCalls.append(request)
+        guard !toolSessionsEnded.contains(request.sessionID) else {
+            throw ApelinError(.notFound, "no tool session \(request.sessionID)")
+        }
+        return toolAnswer(request)
+    }
+
+    func closeToolExtension(sessionID: String) {
+        toolSessionsClosed.append(sessionID)
+    }
 }
 
 /// Collects session events in order.

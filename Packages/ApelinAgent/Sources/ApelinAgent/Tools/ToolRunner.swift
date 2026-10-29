@@ -32,6 +32,8 @@ actor ToolRunner {
     /// Writes an event to the session's log: apelin_notification_send's `notice`.
     let record: (@Sendable (AgentSessionEvent) async throws -> Void)?
     let webFetch: WebFetch
+    /// The agent tool extensions' sessions, opened as their tools are called.
+    let toolExtensions: ToolExtensionSessions
     private var notices = UserNotices()
 
     init(
@@ -60,6 +62,7 @@ actor ToolRunner {
         self.readOnlyRoots = readOnlyRoots
         self.record = record
         self.webFetch = webFetch
+        toolExtensions = ToolExtensionSessions(backend: backend)
     }
 
     @discardableResult
@@ -78,10 +81,16 @@ actor ToolRunner {
         notices.turnEnded()
     }
 
+    /// The session closes: the extensions it started go with it.
+    func closeToolExtensions() async {
+        await toolExtensions.closeAll()
+    }
+
     static let maxImageBytes = 4 * 1024 * 1024
 
-    /// kwwk tool definitions for the §7 tools plus wrapped MCP tools.
-    nonisolated func agentTools(mcp: [AgentTool]) -> [AgentTool] {
+    /// kwwk tool definitions for the §7 tools, then wrapped MCP tools, then
+    /// the tools of the agent tool extensions offered.
+    nonisolated func agentTools(mcp: [AgentTool], extensions: [OfferedToolExtension] = []) -> [AgentTool] {
         let offered = AgentToolName.allCases.filter { !project.isTemporary || !$0.isProjectOnly }
         var tools = offered.map { name in
             AgentTool(
@@ -116,6 +125,27 @@ actor ToolRunner {
             }
             tools.append(wrapped)
         }
+        for definition in extensions.flatMap(\.definitions) {
+            let extensionTool = definition.tool
+            var agentTool = AgentTool(
+                name: extensionTool.name,
+                label: extensionTool.name,
+                description: definition.description,
+                parameters: definition.parameters,
+            ) { id, args, cancellation, _ in
+                try await self.run(
+                    .toolExtension(extensionTool),
+                    toolCallID: id,
+                    arguments: ToolReason.removing(from: args),
+                    cancellation: cancellation,
+                    mcp: nil,
+                )
+            }
+            // A blank optional argument is dropped before kwwk holds the
+            // call to the schema, which an empty enum or `minLength` fails.
+            agentTool.omitsBlankOptionalArguments = true
+            tools.append(agentTool)
+        }
         return tools
     }
 
@@ -130,6 +160,8 @@ actor ToolRunner {
     ) async throws -> AgentToolResult {
         let arguments = switch tool {
         case let .local(name): ToolArguments.normalized(arguments, for: name)
+        // The host holds the arguments to the extension's own schema.
+        case let .toolExtension(tool): ToolArguments.normalized(arguments, keeping: tool.required)
         case .mcp: arguments
         }
         // Before the gate: a workspace that declares no build has nothing to
@@ -144,13 +176,21 @@ actor ToolRunner {
         let toolName: String = switch tool {
         case let .local(name): name.rawValue
         case let .mcp(name): name
+        case let .toolExtension(tool): tool.name
+        }
+        // A grant for an extension's tool holds for the version it was
+        // given for: an upgrade mid-session asks again.
+        let bound: String? = if case let .toolExtension(tool) = tool {
+            "\(tool.extensionID) \(tool.extensionVersion)"
+        } else {
+            facts.description?.digest
         }
         let fingerprint = ApprovalFingerprint.make(
             tool: toolName,
             arguments: arguments,
             workingDirectory: workingDirectory,
             projectID: project.id,
-            digest: facts.description?.digest,
+            digest: bound,
         )
 
         let ask = { (reason: String, detail: ApprovalDetail) async throws -> ApprovalEvidence in
@@ -180,6 +220,9 @@ actor ToolRunner {
 
         if let mcp {
             return try await mcp(arguments)
+        }
+        if case let .toolExtension(tool) = tool {
+            return try await runExtension(tool, arguments: arguments, cancellation: cancellation)
         }
         guard case let .local(name) = tool else { throw ToolDeniedError(message: "unknown tool") }
         var context = HostCallContext(

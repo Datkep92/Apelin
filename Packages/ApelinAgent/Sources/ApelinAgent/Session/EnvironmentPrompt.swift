@@ -73,6 +73,8 @@ enum EnvironmentPrompt {
         var commandsFound: Set<String>?
         /// The folders the read tools reach besides the project.
         var readOnlyRoots: ReadOnlyRoots = .none
+        /// The agent tool extensions whose tools the session offers.
+        var toolExtensions: [OfferedToolExtension] = []
 
         var environment: DevelopmentEnvironment {
             DevelopmentEnvironment.resolve(registered, binding: binding)
@@ -92,8 +94,13 @@ enum EnvironmentPrompt {
     }
 
     /// Read from the registries in the data folder and, in a project, its
-    /// `apelin-project.json`.
-    static func inputs(_ configuration: AgentSessionConfiguration, root: ScopedRoot, device: DeviceFacts) -> Inputs {
+    /// `apelin-project.json`; the extensions are the session's offer.
+    static func inputs(
+        _ configuration: AgentSessionConfiguration,
+        root: ScopedRoot,
+        device: DeviceFacts,
+        toolExtensions: [OfferedToolExtension] = [],
+    ) -> Inputs {
         let inProject = !configuration.project.isTemporary
         return Inputs(
             registered: RegisteredEnvironment.read(DataFolder(root: configuration.dataRoot.url)),
@@ -104,6 +111,7 @@ enum EnvironmentPrompt {
             home: configuration.dataRoot.home.path,
             commandsFound: configuration.installRoot.map(commandsFound(installRoot:)),
             readOnlyRoots: ReadOnlyRoots(installRoot: configuration.installRoot, dataRoot: configuration.dataRoot),
+            toolExtensions: toolExtensions,
         )
     }
 
@@ -143,6 +151,7 @@ enum EnvironmentPrompt {
         if let line = readOnlyLine(inputs.readOnlyRoots) {
             lines.append(line)
         }
+        lines += ToolExtensionOffer.environmentLines(inputs.toolExtensions)
         // The records are files mobile can write: whatever they hold stays
         // on its line.
         return lines.map(ProjectTree.printable).joined(separator: "\n")

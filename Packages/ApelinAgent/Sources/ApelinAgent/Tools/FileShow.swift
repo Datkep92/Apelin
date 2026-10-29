@@ -11,7 +11,8 @@ import UniformTypeIdentifiers
 /// copies are listed in the result's `details`, which no provider reads.
 /// The session hands them to the call's `toolResult` event, and the app
 /// shows them as it shows any attachment: images in an album, other files
-/// as cards, each opening in Quick Look.
+/// as cards, each opening in Quick Look. An extension tool's returned files
+/// go the same way (`ToolRunner.runExtension`).
 enum FileShow {
     /// The most files one call shows, as many as a message carries.
     static let maximumFiles = 8
@@ -20,9 +21,13 @@ enum FileShow {
     /// The copies a file_show call made; none for a failed call or any other
     /// tool's.
     static func attachments(of tool: String, result: AgentToolResult, isError: Bool) -> [AgentAttachment] {
-        guard tool == AgentToolName.fileShow.rawValue, !isError,
-              case let .object(details)? = result.details, case let .array(items)? = details[detailsKey]
-        else { return [] }
+        guard tool == AgentToolName.fileShow.rawValue, !isError else { return [] }
+        return copies(in: result.details)
+    }
+
+    /// The copies `details(_:)` lists.
+    static func copies(in details: JSONValue?) -> [AgentAttachment] {
+        guard case let .object(details)? = details, case let .array(items)? = details[detailsKey] else { return [] }
         return items.compactMap { item in
             guard case let .object(fields) = item, case let .string(path)? = fields["path"],
                   case let .string(name)? = fields["name"], case let .string(mimeType)? = fields["mimeType"]
@@ -31,13 +36,18 @@ enum FileShow {
         }
     }
 
+    /// The copies, as a result's `details`, which no provider reads.
+    static func details(_ copies: [AgentAttachment]) -> JSONValue {
+        .object([detailsKey: .array(copies.map { copy in
+            .object(["path": .string(copy.path), "name": .string(copy.name), "mimeType": .string(copy.mimeType)])
+        })])
+    }
+
     /// What the model reads, the shown paths, and the copies for the session.
     static func result(_ copies: [AgentAttachment], paths: [String]) -> AgentToolResult {
         AgentToolResult(
             content: [.text(TextContent(text: "Shown to the user in this conversation: \(paths.joined(separator: ", "))."))],
-            details: .object([detailsKey: .array(copies.map { copy in
-                .object(["path": .string(copy.path), "name": .string(copy.name), "mimeType": .string(copy.mimeType)])
-            })]),
+            details: details(copies),
         )
     }
 

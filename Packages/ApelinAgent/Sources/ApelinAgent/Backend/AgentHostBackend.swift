@@ -120,6 +120,12 @@ public protocol AgentHostBackend: Sendable {
     /// A public issue on Apelin's own repository with the user's GitHub
     /// sign-in; the host checks it was approved.
     func sendFeedback(_ request: FeedbackToolRequest) async throws -> FeedbackToolResponse
+    /// An installed agent tool extension, started by the host as mobile
+    /// after its own check of the manifest: the tool session its calls name.
+    func openToolExtension(id: String) async throws -> String
+    /// One call in that session; `notFound` once the extension has exited.
+    func callToolExtension(_ request: ToolExtensionCallRequest) async throws -> ToolExtensionCallResponse
+    func closeToolExtension(sessionID: String) async throws
 }
 
 /// A backend without the device's toolchains, SDKs, installations or other
@@ -176,6 +182,16 @@ public extension AgentHostBackend {
     func createRepository(_: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse {
         throw ToolDeniedError(message: "creating repositories is not available here")
     }
+
+    func openToolExtension(id _: String) async throws -> String {
+        throw ToolDeniedError(message: "agent tool extensions are not available here")
+    }
+
+    func callToolExtension(_: ToolExtensionCallRequest) async throws -> ToolExtensionCallResponse {
+        throw ToolDeniedError(message: "agent tool extensions are not available here")
+    }
+
+    func closeToolExtension(sessionID _: String) async throws {}
 }
 
 // MARK: - Context

@@ -23,6 +23,9 @@ public actor AgentSession {
     private let gate: ApprovalGate
     private let runner: ToolRunner
     private let mcpManager: MCPManager?
+    private let mcpTools: [AgentTool]
+    /// The agent tool extensions whose tools the agent has now.
+    private var toolExtensions: ToolExtensionOffer
     private var unsubscribe: Unsubscribe?
     private var runTask: Task<Void, Never>?
     /// From the moment a run's loop returns until its end is recorded: a
@@ -142,8 +145,18 @@ public actor AgentSession {
             record: { _ = try await log.append($0) },
         )
         let (mcpManager, mcpTools) = await MCPBridge.connect(configuration.mcpServers)
+        let toolExtensions = ToolExtensionOffer.read(
+            installRoot: configuration.installRoot,
+            policy: configuration.toolExtensionPolicy,
+        )
+        toolExtensions.logLeftOut()
         let skills = SkillCatalog.load(userDirectory: configuration.dataRoot.skills)
-        let snapshot = PromptState.read(configuration, root: root, skills: skills.skills)
+        let snapshot = PromptState.read(
+            configuration,
+            root: root,
+            skills: skills.skills,
+            toolExtensions: toolExtensions.extensions,
+        )
         let systemPrompt = Self.systemPrompt(configuration, root: root, state: snapshot)
 
         let agent = Agent(options: AgentOptions(
@@ -151,7 +164,7 @@ public actor AgentSession {
                 systemPrompt: systemPrompt,
                 model: resolved.model,
                 thinkingLevel: configuration.thinking,
-                tools: runner.agentTools(mcp: mcpTools),
+                tools: runner.agentTools(mcp: mcpTools, extensions: toolExtensions.extensions),
                 messages: transcript,
             ),
             // a request the network failed waits for it to come back
@@ -178,6 +191,8 @@ public actor AgentSession {
         self.gate = gate
         self.runner = runner
         self.mcpManager = mcpManager
+        self.mcpTools = mcpTools
+        self.toolExtensions = toolExtensions
         // read in the log's opening pass, so the log is not read again
         submitted = log.opened.userMessageIDs
         hasTitle = log.opened.hasTitle
@@ -228,13 +243,33 @@ public actor AgentSession {
         }
     }
 
-    /// What the system prompt would show now.
+    /// What the system prompt would show now, with the extensions whose
+    /// tools the agent has.
     private func currentState() -> PromptState {
         PromptState.read(
             configuration,
             root: workspace,
             skills: SkillCatalog.load(userDirectory: configuration.dataRoot.skills).skills,
+            toolExtensions: toolExtensions.extensions,
         )
+    }
+
+    /// Gives the agent the tools of the extensions installed now. Only
+    /// between runs and compactions: a run keeps the tools it started with,
+    /// and setting them during a compaction would undo it. The model hears
+    /// of the change in the same message's delta, as its tools change.
+    private func refreshToolExtensions() {
+        guard runTask == nil, compaction == nil else { return }
+        let installed = ToolExtensionOffer.read(
+            installRoot: configuration.installRoot,
+            policy: configuration.toolExtensionPolicy,
+        )
+        guard installed != toolExtensions else { return }
+        installed.logLeftOut()
+        if installed.extensions != toolExtensions.extensions {
+            agent.state.tools = runner.agentTools(mcp: mcpTools, extensions: installed.extensions)
+        }
+        toolExtensions = installed
     }
 
     /// Takes the system prompt afresh: after a compaction, for the run that
@@ -309,6 +344,7 @@ public actor AgentSession {
         let restartUntoldBefore = restartUntold
         var changes: [String] = []
         if delta {
+            refreshToolExtensions()
             let now = currentState()
             changes = now.changes(since: told)
             told = now
@@ -686,6 +722,7 @@ public actor AgentSession {
         unsubscribe?()
         unsubscribe = nil
         await mcpManager?.shutdown()
+        await runner.closeToolExtensions()
         await log.close()
     }
 
@@ -768,15 +805,20 @@ public actor AgentSession {
                     project: configuration.project,
                 )
             }
+            // An extension tool's files, its images among them, are copied
+            // already (`ToolRunner.runExtension`).
+            let attachments = toolExtensions.offers(name)
+                ? (isError ? [] : FileShow.copies(in: result.details))
+                : result.content.compactMap { block in
+                    guard case let .image(image) = block, let data = Data(base64Encoded: image.data) else { return nil }
+                    return try? saveAttachment(name: "Image", mimeType: image.mimeType, data: data)
+                } + FileShow.attachments(of: name, result: result, isError: isError)
             await record(.toolCallFinished(ToolResultRecord(
                 id: id,
                 name: name,
                 output: Self.summarize(result),
                 isError: isError,
-                attachments: result.content.compactMap { block in
-                    guard case let .image(image) = block, let data = Data(base64Encoded: image.data) else { return nil }
-                    return try? saveAttachment(name: "Image", mimeType: image.mimeType, data: data)
-                } + FileShow.attachments(of: name, result: result, isError: isError),
+                attachments: attachments,
             )))
         case .agentEnd:
             // The event carries only this run's messages; the transcript is

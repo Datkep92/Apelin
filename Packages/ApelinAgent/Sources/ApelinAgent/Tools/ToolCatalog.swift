@@ -572,9 +572,13 @@ enum ToolReason {
 /// sees it. A required one is left for the tool to refuse.
 enum ToolArguments {
     static func normalized(_ arguments: JSONValue, for tool: AgentToolName) -> JSONValue {
+        normalized(arguments, keeping: requiredKeys(tool.parameters).union(tool.argumentsWhereEmptyMeansSomething))
+    }
+
+    /// `arguments` without the empty ones not named in `kept`.
+    static func normalized(_ arguments: JSONValue, keeping kept: Set<String>) -> JSONValue {
         guard case var .object(fields) = arguments else { return arguments }
-        let required = requiredKeys(tool.parameters).union(tool.argumentsWhereEmptyMeansSomething)
-        for (key, value) in fields where !required.contains(key) && isEmpty(value) {
+        for (key, value) in fields where !kept.contains(key) && isEmpty(value) {
             fields[key] = nil
         }
         return .object(fields)

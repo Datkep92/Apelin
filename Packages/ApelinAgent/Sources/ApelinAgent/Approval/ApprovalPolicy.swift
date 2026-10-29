@@ -55,6 +55,9 @@ public struct InvocationFacts: Sendable, Hashable {
         case local(AgentToolName)
         /// A tool from an MCP server; always treated as a system tool.
         case mcp(String)
+        /// A tool of an installed agent tool extension; treated as an MCP
+        /// tool is, whatever risk its manifest declares.
+        case toolExtension(ExtensionTool)
     }
 
     public var tool: Tool
@@ -187,6 +190,13 @@ public struct ApprovalPolicy: Sendable, Hashable {
         switch facts.tool {
         case let .mcp(name):
             return .ask(reason: "\(name) is a tool from an MCP server. Review it before running.", detail: .none)
+        case let .toolExtension(tool):
+            // The extension runs as mobile, as this worker does: the host
+            // starts it and passes the call on, deciding nothing again.
+            return .ask(
+                reason: "\(tool.name) is a tool of \(tool.extensionName) \(tool.extensionVersion), an agent tool extension that runs in its own process. Review it before running.",
+                detail: .none,
+            )
         case let .local(tool):
             return evaluateConfirm(tool, facts: facts, root: root)
         }
@@ -475,7 +485,8 @@ public struct ApprovalPolicy: Sendable, Hashable {
 }
 
 /// Binds an approval to tool, arguments, working directory, project, and
-/// the description digest when there is one.
+/// the description digest when there is one (an agent tool extension's id
+/// and version for its tools).
 public enum ApprovalFingerprint {
     public static func make(
         tool: String,
