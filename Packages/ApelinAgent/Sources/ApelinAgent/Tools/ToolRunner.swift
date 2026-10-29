@@ -325,7 +325,15 @@ actor ToolRunner {
 
         case .fileCreate: return try text(files.createFile(arguments))
 
-        case .fileRead: return try text(files.readFile(arguments))
+        case .fileRead:
+            // An image comes back as a picture, as a screenshot does.
+            if let image = try files.readImage(arguments) {
+                return AgentToolResult(content: [
+                    .text(TextContent(text: image.summary)),
+                    .image(ImageContent(data: image.data.base64EncodedString(), mimeType: image.mimeType)),
+                ])
+            }
+            return try text(files.readFile(arguments))
 
         case .fileList: return try text(files.list(arguments))
 

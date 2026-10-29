@@ -180,6 +180,18 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] file_read showing images (2026-10-29; Mac tests only, needs a model
+      provider). On the jp vphones (iOS 26.4 and 27), in a conversation
+      with a model that takes images: a screenshot sent with a message
+      read again by file_read from its `Attachments/` path several turns
+      later and described correctly; a downloaded animated GIF over
+      512 KB read at frame 0 and at a later frame; an iPhone HEIC photo put
+      in the project coming back upright as JPEG; a frame extracted from a
+      video with ffmpeg through shell_run (where ffmpeg is installed)
+      read and described; a Mach-O still refused with the image hint. The
+      picture landing in the transcript's album each time, and a
+      provider without vision (DeepSeek) answering from the summary line
+      alone, without an error.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

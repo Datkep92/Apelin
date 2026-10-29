@@ -92,7 +92,7 @@ public extension AgentToolName {
         case .fileWrite: "Create a file or replace its whole content, inside the project."
         case .fileEdit: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set."
         case .fileCreate: "Create a new project file; fails if it already exists."
-        case .fileRead: "Read a project file, optionally a range of lines."
+        case .fileRead: "Read a project file, optionally a range of lines. An image (PNG, JPEG, GIF, HEIC, WebP, TIFF or BMP), such as an attached one, comes back as a picture you can see, scaled down; frame picks one frame of an animated image."
         case .fileList: "List a project folder."
         case .fileGrep: "Search project files with a regular expression."
         case .fileFind: "Find project files whose names match a glob."
@@ -335,6 +335,7 @@ public extension AgentToolName {
                 "path": Schema.string("Path relative to the project root."),
                 "offset": Schema.integer("First line to return, 1-based."),
                 "limit": Schema.integer("Number of lines to return."),
+                "frame": Schema.integer("For an image with several frames, such as an animated GIF, the 0-based frame to show. Default: its primary image, the first frame of an animation."),
             ], required: ["path"])
         case .fileList:
             Schema.object([

@@ -977,7 +977,16 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   one walk of the project per write, with no cap, for a `.git` elsewhere
   that names it — a folder the walk cannot read refuses the write), so no config or hook
   they write can feed the host's git presets. They read it freely; the
-  repository changes through the git operations. Every system tool is one
+  repository changes through the git operations. file_read shows an image
+  file as a picture (`FileImage`, 2026-10-29): the format is ImageIO's
+  reading of the bytes, never the name, so an attachment under
+  `Attachments/` reads too — PNG, JPEG, GIF, HEIC, HEIF, WebP, TIFF or
+  BMP, up to 32 MB and 64 megapixels —, one frame of it (`frame`, else
+  the primary image) upright, at most 1568 px a side and 3 MB, as PNG
+  when the file has transparency and JPEG otherwise, after a line saying
+  what it is; text that only begins like an image reads as text. A video
+  is seen through frames extracted as image files, as the refusal of any
+  other binary now says. Every system tool is one
   host request
   (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches), apelin_package_install →
   `installPackage`, apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded → a
@@ -2746,7 +2755,8 @@ last one cached. Known in kwwk, not worked around:
 `ProviderImageBudget.clamp` drops the oldest image one at a time past a
 provider's limit (5 for Copilot, Kimi and OpenAI-compatible endpoints, 90
 for Anthropic, 200 for OpenAI and Codex), so each later image moves the
-change point and rewrites the cache from there; and its native compaction
+change point and rewrites the cache from there (an image dropped so can be
+read again with file_read, as one more); and its native compaction
 requests (`AnthropicProvider.swift`, `OpenAIResponsesProvider.swift`) are
 encoded without sorted keys, so they probably miss the conversation's cache.
 The device check is `Documents/Research/Device-Validation.md` ▸ Still to run
