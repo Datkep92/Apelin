@@ -26,7 +26,7 @@ struct FileReadImageTests {
         )
     }
 
-    static let canEncodeHEIC = encoded([picture(width: 8, height: 8)], as: "public.heic") != nil
+    static let canEncodeHEIC: Bool = encoded([picture(width: 8, height: 8)], as: "public.heic") != nil
 
     // MARK: Pictures
 
