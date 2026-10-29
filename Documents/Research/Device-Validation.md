@@ -180,6 +180,14 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] Messages queued during a run (2026-10-29, none of it has run on a
+      device; needs a model provider). Two messages sent while a reply
+      runs, a third typed and not sent, then Stop: the composer holds all
+      three, oldest first, with the first two's files, and "2 Messages Not
+      Sent" shows (and VoiceOver says it); the same with the conversation
+      in the background, said when it is opened; a run that fails with a
+      message queued (a provider error, Wi-Fi off) followed by a run that
+      takes the message, nothing put back.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

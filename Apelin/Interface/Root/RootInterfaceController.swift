@@ -82,6 +82,9 @@ final class RootInterfaceController: UIViewController {
         }
         ChatWidgetPublisher.shared.attach(chatRuntime)
         chatRuntime.onDraftRestored = { [weak self] id in self?.chatController.restoreDraft(for: id) }
+        chatRuntime.onUnsentReturned = { [weak self] id, returned in
+            self?.chatController.unsentReturned(returned, to: id)
+        }
         chatRuntime.onError = { [weak self] error in
             self?.presentNotice(title: "Unable to Load Chats", message: error.readableMessage)
         }
