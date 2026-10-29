@@ -192,6 +192,15 @@ console now goes on after a restart only past a successful respring.
       installed untouched. On rootless, a removal with no such line. The
       agent, asked to remove a toolchain or an SDK, sending the user to
       Settings and deleting nothing.
+- [ ] Saying what was not tested (2026-10-29; none of it has run on a
+      device). A project chat on the iOS 26 and the iOS 27 vphones asked
+      for a visible change to a SpringBoard tweak (a gesture, the Dock's
+      spacing): after `apelin_package_confirm_loaded` it reads the screen,
+      drives the change with `apelin_screen_interact` and reads it again;
+      its final reply lists each changed behaviour it did not drive under
+      Not tested, in the reply's language, with how to check it, and does
+      not call the task done while the main behaviour is untested. Under
+      Strict, declining a screen action leaves that behaviour Not tested.
 - [ ] Waking the device from the agent (2026-10-29; none of it has run on
       a device). A wake and a lock round trip on the iOS 26 and the iOS 27
       vphones, iPhone and iPad, with no passcode: `uiAction` `press`
