@@ -5,10 +5,10 @@ import Foundation
 /// with it; one still there keeps them, a temporary conversation has no
 /// project to lose, and a `Projects/` that did not read takes nothing.
 func checkDeletedProjects() {
-    let weather = ChatSummary(title: "Rain", updated: Date(), projectName: "Weather")
-    let weatherToo = ChatSummary(title: "Wind", updated: Date(), projectName: "Weather")
-    let clock = ChatSummary(title: "Alarm", updated: Date(), projectName: "Clock")
-    let general = ChatSummary(title: "Hello", updated: Date(), projectName: nil)
+    let weather = ChatSummary(title: "Rain", lastInteraction: Date(), projectName: "Weather")
+    let weatherToo = ChatSummary(title: "Wind", lastInteraction: Date(), projectName: "Weather")
+    let clock = ChatSummary(title: "Alarm", lastInteraction: Date(), projectName: "Clock")
+    let general = ChatSummary(title: "Hello", lastInteraction: Date(), projectName: nil)
     let chats = [weather, clock, general, weatherToo]
 
     let gone = DeletedProjects.gone(from: chats, listed: ["Clock", ".Weather.creating-1a2b3c4d"])
@@ -18,7 +18,7 @@ func checkDeletedProjects() {
     precondition(DeletedProjects.gone(from: chats, listed: nil) == DeletedProjects.Gone(), "a listing that did not read takes nothing away")
     precondition(DeletedProjects.gone(from: [general], listed: []).conversations.isEmpty, "a temporary conversation has no project to lose")
     // The same name in another normalisation is the same folder.
-    let café = ChatSummary(title: "Menu", updated: Date(), projectName: "Caf\u{E9}")
+    let café = ChatSummary(title: "Menu", lastInteraction: Date(), projectName: "Caf\u{E9}")
     precondition(DeletedProjects.gone(from: [café], listed: ["Cafe\u{301}"]).conversations.isEmpty, "a name is compared as text, not as bytes")
 
     // The listing, read where a project is deleted.

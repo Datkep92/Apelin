@@ -4,7 +4,8 @@
 # follows a turn, how the trace sheet lists a summary's steps, how dropped
 # messages go back to the composer, which conversations a deleted project
 # takes with it, which tool results are builds the star prompt counts and
-# how often it asks, against the harness modules.
+# how often it asks, and the order the sidebar lists conversations in,
+# against the harness modules.
 # Usage: test-chat-transcript.sh <ApelinKit modules directory>
 set -euo pipefail
 
@@ -28,6 +29,7 @@ sources=(
     "$root/Apelin/Interface/Chats/DroppedMessages.swift"
     "$root/Apelin/Interface/Chats/DeletedProjects.swift"
     "$root/Apelin/Interface/Chats/TurnFollowing.swift"
+    "$root/Apelin/Interface/Root/SidebarOrder.swift"
     "$root/Apelin/Interface/Feedback/CompletedBuilds.swift"
     "$root/Apelin/Interface/Feedback/StarPromptState.swift"
     "$root/Tests/ChatTranscript/TranscriptFold.swift"
@@ -38,6 +40,7 @@ sources=(
     "$root/Tests/ChatTranscript/DeletedProjectsCheck.swift"
     "$root/Tests/ChatTranscript/CompletedBuildsCheck.swift"
     "$root/Tests/ChatTranscript/StarPromptStateCheck.swift"
+    "$root/Tests/ChatTranscript/SidebarOrderCheck.swift"
     "$root/Tests/ChatTranscript/main.swift"
 )
 

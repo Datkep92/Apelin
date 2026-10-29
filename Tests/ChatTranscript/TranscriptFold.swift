@@ -137,7 +137,7 @@ private func checkCache(seed: UInt64, seen: inout FoldCoverage) {
     let log = FoldLog.make(count: 240, random: &random)
     var files = FoldFiles()
     var cache = ChatTranscriptCache()
-    var record = ChatRecord(summary: ChatSummary(title: "Fold", updated: Date()))
+    var record = ChatRecord(summary: ChatSummary(title: "Fold", lastInteraction: Date()))
     var renamed = false
     var clock = Date.distantPast
     while record.events.count < log.events.count {

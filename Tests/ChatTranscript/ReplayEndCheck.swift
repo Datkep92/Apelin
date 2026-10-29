@@ -26,7 +26,7 @@ func checkReplayEnd() {
     precondition(shown.isWorking, "the turn it saw start still runs")
 
     func reopened() -> ChatRecord {
-        var record = ChatRecord(summary: ChatSummary(title: "Build", updated: Date(), isWorking: true))
+        var record = ChatRecord(summary: ChatSummary(title: "Build", lastInteraction: Date(), isWorking: true))
         record.task = TaskHandle(taskID: .make(), kind: .agent)
         record.events = history
         record.reopen(as: TaskHandle(taskID: .make(), kind: .agent))

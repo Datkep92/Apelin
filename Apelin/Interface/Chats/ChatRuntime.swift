@@ -130,12 +130,12 @@ final class ChatRuntime {
     func newChat(project: String?, preferring current: UUID?) -> ChatSummary {
         let untouched = records.values.filter { $0.summary.projectName == project && isUntouched($0) }
         let reused = untouched.first { $0.summary.id == current }
-            ?? untouched.max { $0.summary.updated < $1.summary.updated }
-        let summary = reused?.summary ?? ChatSummary.untitled(updated: Date(), projectName: project)
+            ?? untouched.max { $0.summary.lastInteraction < $1.summary.lastInteraction }
+        let summary = reused?.summary ?? ChatSummary.untitled(lastInteraction: Date(), projectName: project)
         if reused == nil {
             records[summary.id] = ChatRecord(summary: summary)
         }
-        records[summary.id]?.summary.updated = Date()
+        records[summary.id]?.summary.lastInteraction = Date()
         changed(summary.id)
         return records[summary.id]?.summary ?? summary
     }
@@ -313,12 +313,8 @@ final class ChatRuntime {
     /// message is taken out again and the draft put back in an empty
     /// composer before the task throws.
     func submit(_ draft: ComposerDraft, to id: UUID) -> Task<Void, Error> {
-        guard var record = records[id] else { return Task {} }
-        record.sending = (record.sending ?? []) + [draft]
-        if record.draft.id == draft.id {
-            record.draft = ComposerDraft()
-        }
-        records[id] = record
+        guard records[id] != nil else { return Task {} }
+        records[id]?.submit(draft)
         changed(id)
         return Task {
             do {
@@ -386,7 +382,6 @@ final class ChatRuntime {
             descriptors: descriptors,
         )
         records[id]?.summary.nameAfterFirstMessage(text: draft.text, attachmentName: draft.attachments.first?.name)
-        records[id]?.summary.updated = Date()
         changed(id)
     }
 
@@ -548,10 +543,10 @@ final class ChatRuntime {
                     let wasWorking = records[id]?.summary.isWorking
                     let current = transcript(id)
                     let isWorking = current.isWorking || current.isCompacting
+                    // The row's state, never its place in the sidebar: only
+                    // the reader's New Chat and messages move that
+                    // (`lastInteraction`), however much the agent writes.
                     records[id]?.summary.isWorking = isWorking
-                    if let last = batch.events.last {
-                        records[id]?.summary.updated = last.time
-                    }
                     // A wait that ran out with nothing, as an idle session's
                     // does every 20 s, has nothing to write or show. A turn's
                     // start and end are written at once, what streams between

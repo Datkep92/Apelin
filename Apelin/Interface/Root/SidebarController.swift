@@ -11,10 +11,10 @@ import UIKit
 /// the detail column's bar. With no project open the title is Apelin's,
 /// with no menu, and a new conversation is a temporary one, kept apart from
 /// every project's. Below it the project's conversations, a plain inset
-/// grouped table: the pinned ones, then the rest under the day they were
-/// last active. At the bottom a new conversation on the
-/// left, and Projects beside Settings on the right: glass on iOS 26, the toolbar's blur
-/// before it.
+/// grouped table: the pinned ones, then the rest under the day the reader
+/// last started or wrote in each (`SidebarOrder`). At the bottom a new
+/// conversation on the left, and Projects beside Settings on the right:
+/// glass on iOS 26, the toolbar's blur before it.
 final class SidebarController: UIViewController {
     private enum Section: Hashable {
         case pinned
@@ -87,7 +87,7 @@ final class SidebarController: UIViewController {
             return
         }
         project = candidate
-        selectedID = chats.max { $0.updated < $1.updated }?.id
+        selectedID = SidebarOrder.newest(chats)?.id
         applySnapshot()
         onSelect?(selectedID.flatMap(chat), false)
     }
@@ -299,17 +299,14 @@ final class SidebarController: UIViewController {
         let shown = query.isEmpty ? chats : chats.filter {
             $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
         }
-        let newestFirst = shown.sorted { $0.updated > $1.updated }
-        let pinned = newestFirst.filter(\.isPinned)
+        let order = SidebarOrder.sections(of: shown)
         // Pinning moves a row between existing sections. Inserting or deleting
         // its section in the same diff turns that move into a section fade.
         snapshot.appendSections([.pinned])
-        snapshot.appendItems(pinned.map(\.id))
-        let calendar = Calendar.current
-        let days = Dictionary(grouping: newestFirst) { calendar.startOfDay(for: $0.updated) }
-        for (day, rows) in days.sorted(by: { $0.key > $1.key }) {
-            snapshot.appendSections([.day(day)])
-            snapshot.appendItems(rows.filter { !$0.isPinned }.map(\.id))
+        snapshot.appendItems(order.pinned)
+        for day in order.days {
+            snapshot.appendSections([.day(day.start)])
+            snapshot.appendItems(day.chats)
         }
         let current = dataSource.snapshot()
         let old = Set(current.itemIdentifiers)
@@ -318,8 +315,8 @@ final class SidebarController: UIViewController {
         let hasChanges = !reconfigured.isEmpty || current.sectionIdentifiers != snapshot.sectionIdentifiers
             || current.itemIdentifiers != snapshot.itemIdentifiers
             || snapshot.itemIdentifiers.contains { current.sectionIdentifier(containingItem: $0) != snapshot.sectionIdentifier(containingItem: $0) }
-        // Streamed text changes the runtime timestamp on every batch, but it
-        // must not rebuild an unchanged row while its swipe actions are open.
+        // Streamed text changes nothing here, and an unchanged row is never
+        // rebuilt: its open swipe actions would close.
         tableView.backgroundView?.isHidden = !shown.isEmpty
         guard tableView.isFilled else {
             pacing.begin()

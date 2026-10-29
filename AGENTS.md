@@ -1930,8 +1930,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   darker grey — a
   title on one line each, with a system activity indicator at the trailing
   edge while `ChatSummary.isWorking` is true (and "Working" as the row's
-  accessibility value). `SidebarController.setWorking(_:for:)` reconfigures
-  that row without changing selection or order; the runtime derives working state from prompt/finished events.
+  accessibility value). `SidebarController.refresh()` reconfigures a row
+  whose title or working state changed without changing selection or order; the runtime derives working state from prompt/finished events.
   The saved conversation is restored at launch; an iPhone, or any drawer
   layout, without one creates a new chat only after its project selection
   is restored. New Chat reuses the project's untouched conversation (no
@@ -1943,8 +1943,19 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   project, deleting the picked conversation, or a window narrowing onto the
   icon starts one. The drawer's pan yields to content scrolled sideways (a
   code block, a table, the attachments) and to a text selection. Pinned
-  conversations come first, the rest under the day they were last active (Today, Yesterday, the weekday
-  within the week, then the date); a leading swipe pins, a trailing one
+  conversations come first, the rest under the day the reader last started
+  or wrote in each (Today, Yesterday, the weekday
+  within the week, then the date), newest first (owner, 2026-10-29:
+  `SidebarOrder` by `ChatSummary.lastInteraction`, saved as `updated`).
+  New Chat sets that time, on an untouched conversation it reuses too, and
+  so does each message the reader sends, a queued one included, the moment
+  Send is tapped; nothing the agent or another conversation does changes
+  it — output, a title, an approval asked, a message
+  `apelin_conversation_send` delivers, a compaction, a reopened session's
+  replay —, nor do picking a row, Approve, Deny, Stop, pinning or
+  renaming, so the list holds still while conversations work in the
+  background. A conversation an agent opened keeps the time the app took
+  it in (`ChatAdoption`) until the reader writes in it. A leading swipe pins, a trailing one
   deletes (and offers Stop while a turn is running), a long press offers the same actions, and an empty list shows a filled symbol, its
   words left to VoiceOver. Settings and the picker are form
   sheets through Xrash's `presentAsFormSheet` (`Interface/Components/`). The
@@ -3382,7 +3393,8 @@ fragment. The chat's ListViewKit keeps its own update mechanism.
   rendered it is the views). `ApelinWidgets.appex` (`Widgets/Extension/`,
   embedded by the app target's Embed Foundation Extensions phase). Small: the
   conversation that most needs a look — waiting for an approval, then
-  working, then the most recent — with the mark, a status line and its dot
+  working, then any other, and among those the one the reader last started
+  or wrote in, as the sidebar orders them — with the mark, a status line and its dot
   (`Approve: Install`, 需要授权 · 安装: "Needs Approval · Install" did not
   fit the small widget's one line), the title and the project dimmed; a tap opens
   it, where a waiting approval stands in for the composer. Medium: the

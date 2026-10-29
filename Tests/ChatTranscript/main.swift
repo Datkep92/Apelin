@@ -202,7 +202,7 @@ let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("
 try FileManager.default.createDirectory(at: storageURL, withIntermediateDirectories: true)
 defer { try? FileManager.default.removeItem(at: storageURL) }
 let storage = ChatStore(folder: DataFolder(root: storageURL))
-let record = ChatRecord(summary: ChatSummary(title: "Deletion regression", updated: Date()))
+let record = ChatRecord(summary: ChatSummary(title: "Deletion regression", lastInteraction: Date()))
 try await storage.save(record, revision: 1)
 let savedRecords = try await storage.load()
 precondition(savedRecords.count == 1, "A chat saved through the temporary-directory alias must load")
@@ -210,7 +210,7 @@ try await storage.remove(record.summary.id)
 try await storage.save(record, revision: 2)
 let deletedRecords = try await storage.load()
 precondition(deletedRecords.isEmpty, "A queued save must not resurrect a deleted chat")
-let unsaved = ChatRecord(summary: ChatSummary(title: "Unsaved", updated: Date()))
+let unsaved = ChatRecord(summary: ChatSummary(title: "Unsaved", lastInteraction: Date()))
 try await storage.remove(unsaved.summary.id)
 try await storage.save(unsaved, revision: 3)
 let unsavedRecords = try await storage.load()
@@ -513,7 +513,7 @@ print("ok: messages from other conversations name their sender")
 // opener's project, once; agentList adopts what the app missed.
 let openerSession = UUID().uuidString.lowercased()
 let childSession = UUID().uuidString.lowercased()
-let opener = ChatRecord(summary: ChatSummary(title: "Plan", updated: Date(), projectName: "Clock"), sessionID: openerSession, task: TaskHandle(taskID: TaskID("opener-task"), kind: .agent))
+let opener = ChatRecord(summary: ChatSummary(title: "Plan", lastInteraction: Date(), projectName: "Clock"), sessionID: openerSession, task: TaskHandle(taskID: TaskID("opener-task"), kind: .agent))
 let opened: JSONValue = .object([
     "sessionID": .string(childSession),
     "task": .object(["taskID": .string("child-task"), "kind": .string("agent")]),
@@ -523,7 +523,7 @@ let opened: JSONValue = .object([
 let adopted = ChatAdoption.record(opened: opened, parent: opener, records: [opener], now: Date(timeIntervalSince1970: 7))
 precondition(adopted?.sessionID == childSession && adopted?.task == TaskHandle(taskID: TaskID("child-task"), kind: .agent))
 precondition(adopted?.summary.projectName == "Clock" && adopted?.summary.title == "Docs" && adopted?.summary.isWorking == true)
-precondition(adopted?.summary.updated == Date(timeIntervalSince1970: 7) && adopted?.events.isEmpty == true)
+precondition(adopted?.summary.lastInteraction == Date(timeIntervalSince1970: 7) && adopted?.events.isEmpty == true)
 precondition(ChatAdoption.record(opened: opened, parent: opener, records: [opener, adopted!]) == nil, "a conversation is adopted once")
 var untitled = opened
 if case var .object(fields) = untitled {
@@ -533,7 +533,7 @@ if case var .object(fields) = untitled {
 
 precondition(ChatAdoption.record(opened: untitled, parent: opener, records: [opener])?.summary.title == "Write the README")
 precondition(ChatAdoption.record(opened: .object(["sessionID": .string("not-a-uuid")]), parent: opener, records: [opener]) == nil)
-let general = ChatRecord(summary: ChatSummary(title: "General", updated: Date(), projectName: nil), sessionID: openerSession)
+let general = ChatRecord(summary: ChatSummary(title: "General", lastInteraction: Date(), projectName: nil), sessionID: openerSession)
 precondition(ChatAdoption.record(opened: opened, parent: general, records: [general]) == nil, "a conversation naming no project is not adopted from General Chat")
 /// One opened in another project, General Chat's or a project's, goes there.
 var elsewhere = opened
@@ -582,7 +582,7 @@ precondition(hostQueued.messages.filter { $0.id == sent.id }.count == 1)
 precondition(hostQueued.messages.last?.id == sent.id && hostQueued.messages.last?.isQueued == true)
 print("ok: a sent message shows at once and its prompt or queued echo replaces it")
 
-var sendingRecord = ChatRecord(summary: ChatSummary(title: "Send", updated: Date()))
+var sendingRecord = ChatRecord(summary: ChatSummary(title: "Send", lastInteraction: Date()))
 let second = ComposerDraft(text: "And test it")
 sendingRecord.sending = [sent, second]
 let taken = sendingRecord.takeEchoed(by: [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])])
@@ -590,39 +590,39 @@ precondition(taken.map(\.draft.id) == [sent.id] && sendingRecord.sending?.map(\.
 _ = sendingRecord.takeEchoed(by: [event(2, "queued", ["id": .string(second.id.uuidString), "text": .string("And test it")])])
 precondition(sendingRecord.sending == nil)
 
-var failed = ChatRecord(summary: ChatSummary(title: "Failed", updated: Date()))
+var failed = ChatRecord(summary: ChatSummary(title: "Failed", lastInteraction: Date()))
 failed.sending = [sent]
 precondition(failed.takeBack(sent) && failed.sending == nil, "a failed send leaves no row")
 precondition(failed.draft.id == sent.id && failed.draft.text == "Build it" && failed.draft.attachments == [file])
 precondition(ChatTranscript(events: failed.events, sending: failed.sending ?? []) { _ in nil }.messages.isEmpty)
-var typedSince = ChatRecord(summary: ChatSummary(title: "Typed", updated: Date()))
+var typedSince = ChatRecord(summary: ChatSummary(title: "Typed", lastInteraction: Date()))
 typedSince.sending = [sent]
 typedSince.draft = ComposerDraft(text: "Next")
 precondition(!typedSince.takeBack(sent) && typedSince.draft.text == "Next" && typedSince.sending == nil, "what was typed since stays")
-var recordedFirst = ChatRecord(summary: ChatSummary(title: "Recorded", updated: Date()))
+var recordedFirst = ChatRecord(summary: ChatSummary(title: "Recorded", lastInteraction: Date()))
 recordedFirst.sending = [sent]
 recordedFirst.events = [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]
 precondition(!recordedFirst.takeBack(sent) && recordedFirst.draft.text.isEmpty, "a message the host recorded is not put back")
 print("ok: an echo settles its message and a failed send takes it back into an empty draft")
 
-var killed = ChatRecord(summary: ChatSummary(title: "Killed", updated: Date()))
+var killed = ChatRecord(summary: ChatSummary(title: "Killed", lastInteraction: Date()))
 killed.sending = [sent]
 killed.reclaimUnsent()
 precondition(killed.sending == nil && killed.draft.id == sent.id && killed.draft.attachments == [file], "an unechoed message returns to the draft")
 precondition(killed.takeEchoed(by: [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]).isEmpty)
 precondition(killed.draft.text.isEmpty, "a returned draft the host did take empties on its echo")
-var edited = ChatRecord(summary: ChatSummary(title: "Edited", updated: Date()))
+var edited = ChatRecord(summary: ChatSummary(title: "Edited", lastInteraction: Date()))
 edited.sending = [sent]
 edited.reclaimUnsent()
 edited.draft.text = "Build it twice"
 _ = edited.takeEchoed(by: [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])])
 precondition(edited.draft.text == "Build it twice", "an edited draft stays")
-var merged = ChatRecord(summary: ChatSummary(title: "Merged", updated: Date()))
+var merged = ChatRecord(summary: ChatSummary(title: "Merged", lastInteraction: Date()))
 merged.sending = [sent]
 merged.draft = ComposerDraft(text: "Typed after")
 merged.reclaimUnsent()
 precondition(merged.draft.text == "Build it\n\nTyped after" && merged.draft.attachments == [file])
-var settled = ChatRecord(summary: ChatSummary(title: "Settled", updated: Date()))
+var settled = ChatRecord(summary: ChatSummary(title: "Settled", lastInteraction: Date()))
 settled.sending = [sent]
 settled.events = [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]
 settled.reclaimUnsent()
@@ -714,7 +714,7 @@ let history = [
     event(9, "steer", ["text": .string("From another chat")]),
     event(10, "messageStarted"), event(11, "message", ["text": .string("Noted.")]), event(12, "finished"),
 ]
-var reopened = ChatRecord(summary: ChatSummary(title: "Story", updated: Date()))
+var reopened = ChatRecord(summary: ChatSummary(title: "Story", lastInteraction: Date()))
 reopened.task = TaskHandle(taskID: .make(), kind: .agent)
 reopened.events = history
 let before = ChatTranscript(events: reopened.events, sending: [sent]) { _ in nil }.messages
@@ -745,12 +745,12 @@ precondition(Array(after.prefix(before.count - 1)) == Array(before.prefix(before
 precondition(Set(after.map(\.id)).count == after.count, "and no id repeats, though the numbering started again")
 precondition(after.last { $0.role == .user }?.id == sent.id && after.last?.text == "Done")
 precondition(reopened.take([event(12, "text", ["text": .string(" now")])]).count == 1, "after the replay, everything is taken")
-var unknownHistory = ChatRecord(summary: ChatSummary(title: "Lost", updated: Date()))
+var unknownHistory = ChatRecord(summary: ChatSummary(title: "Lost", lastInteraction: Date()))
 unknownHistory.events = history
 unknownHistory.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
 precondition(unknownHistory.take([event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]).count == 1,
              "a task that replays nothing starts with the new message")
-var firstTask = ChatRecord(summary: ChatSummary(title: "New", updated: Date()))
+var firstTask = ChatRecord(summary: ChatSummary(title: "New", lastInteraction: Date()))
 firstTask.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
 precondition(firstTask.take([event(1, "error", ["message": .string("Sign in first")])]).count == 1,
              "a conversation with no history reads its first task from the start, an early error included")
@@ -759,7 +759,7 @@ sameTask.reopen(as: reopened.task!)
 precondition(sameTask.events == reopened.events && sameTask.cursor == EventSeq(12), "the same task again reads on")
 // Compact… reopens a stopped session with no message after the replay:
 // the compaction it asked for is new, one already in the history is not.
-var compacted = ChatRecord(summary: ChatSummary(title: "Long", updated: Date()))
+var compacted = ChatRecord(summary: ChatSummary(title: "Long", lastInteraction: Date()))
 compacted.task = TaskHandle(taskID: .make(), kind: .agent)
 compacted.events = history + [event(13, "compactionStarted"), event(14, "compactionFinished", ["outcome": .string("compacted")])]
 compacted.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
@@ -817,7 +817,7 @@ print("ok: a Compact… that compacted is a row where it happened, which opens t
 /// A name the reader gives a conversation is kept: the agent's `title`
 /// events and the first message's opening no longer replace it, a name of
 /// nothing but spaces changes nothing, and the name survives a relaunch.
-var renamed = ChatSummary.untitled(updated: Date(), projectName: nil)
+var renamed = ChatSummary.untitled(lastInteraction: Date(), projectName: nil)
 renamed.suggestTitle("Opening words")
 precondition(renamed.title == "Opening words" && renamed.isNamedByReader == nil, "an unnamed conversation takes suggestions")
 precondition(!renamed.rename(to: " \n\t "), "a name with nothing in it is refused")
@@ -842,7 +842,7 @@ print("ok: a renamed conversation keeps its name over the agent's titles and acr
 /// language the app runs in now, and named after its first message. One an
 /// earlier version saved as the words New Chat, in any of the app's
 /// languages, reads as untitled too, unless the reader typed them.
-var fresh = ChatSummary.untitled(updated: Date(), projectName: "Clock")
+var fresh = ChatSummary.untitled(lastInteraction: Date(), projectName: "Clock")
 precondition(fresh.isUntitled && fresh.displayTitle == String(localized: "New Chat"), "a new conversation has only a placeholder")
 let freshFile = try JSONEncoder().encode(ChatRecord(summary: fresh))
 let freshSaved = try JSONDecoder().decode(ChatRecord.self, from: freshFile).summary
@@ -853,13 +853,13 @@ fresh.nameAfterFirstMessage(text: "Then the home screen", attachmentName: nil)
 precondition(fresh.title == "Hook the lock screen", "a later message does not")
 fresh.suggestTitle("Lock screen tweak")
 precondition(fresh.displayTitle == "Lock screen tweak", "the agent's title replaces the first message's")
-var attachedOnly = ChatSummary.untitled(updated: Date(), projectName: nil)
+var attachedOnly = ChatSummary.untitled(lastInteraction: Date(), projectName: nil)
 attachedOnly.nameAfterFirstMessage(text: "", attachmentName: "crash.ips")
 precondition(attachedOnly.title == "crash.ips", "a message of attachments alone is named after the first")
-var nothingSent = ChatSummary.untitled(updated: Date(), projectName: nil)
+var nothingSent = ChatSummary.untitled(lastInteraction: Date(), projectName: nil)
 nothingSent.nameAfterFirstMessage(text: "", attachmentName: nil)
 precondition(nothingSent.isUntitled, "nothing to name it after leaves it untitled, never the words New Chat")
-var longOpening = ChatSummary.untitled(updated: Date(), projectName: nil)
+var longOpening = ChatSummary.untitled(lastInteraction: Date(), projectName: nil)
 longOpening.nameAfterFirstMessage(text: String(repeating: "a", count: 200), attachmentName: nil)
 precondition(longOpening.title.count == 80, "the opening is its first 80 characters")
 
@@ -909,7 +909,7 @@ do {
     ]
     var titles = ["s1": "Docs"]
     var cache = ChatTranscriptCache()
-    var chat = ChatRecord(summary: ChatSummary(title: "Cached", updated: Date()), events: senderTurn)
+    var chat = ChatRecord(summary: ChatSummary(title: "Cached", lastInteraction: Date()), events: senderTurn)
     // before any of these turns has gone quiet
     let early = Date(timeIntervalSince1970: 0)
     func cached(_ record: ChatRecord, followed: Set<UUID> = [], now: Date = early) -> ChatTranscript {
@@ -947,8 +947,8 @@ do {
 
     // the page's conversation stays while another one is built; followed
     // ones stay whatever is built
-    let other = ChatRecord(summary: ChatSummary(title: "Other", updated: Date()), events: senderTurn)
-    let followed = ChatRecord(summary: ChatSummary(title: "Followed", updated: Date()), events: senderTurn)
+    let other = ChatRecord(summary: ChatSummary(title: "Other", lastInteraction: Date()), events: senderTurn)
+    let followed = ChatRecord(summary: ChatSummary(title: "Followed", lastInteraction: Date()), events: senderTurn)
     let keepers: Set = [followed.summary.id]
     let followedFirst = cached(followed, followed: keepers)
     let shown = cached(chat, followed: keepers)
@@ -970,7 +970,7 @@ do {
 
     // a turn gone quiet is built again once its deadline has passed, when
     // the page's wake asks, with the running summary standing in
-    let quietChat = ChatRecord(summary: ChatSummary(title: "Quiet", updated: Date()), events: replied)
+    let quietChat = ChatRecord(summary: ChatSummary(title: "Quiet", lastInteraction: Date()), events: replied)
     let beforeQuiet = cached(quietChat, now: replyAt.addingTimeInterval(1))
     let quietAt = replyAt.addingTimeInterval(ChatTranscript.quietInterval)
     precondition(beforeQuiet.messages.last?.role == .assistant && beforeQuiet.quietDeadline == quietAt)
@@ -1030,3 +1030,5 @@ checkDeletedProjects()
 checkCompletedBuilds()
 
 checkStarPromptState()
+
+try checkSidebarOrder()
