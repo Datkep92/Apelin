@@ -1,26 +1,30 @@
 import ApelinCore
 import ApelinProtocol
 import CryptoKit
+import SPIndicator
 import Then
 import UIKit
 
 /// One release build for one distribution target, started as the page
-/// opens: its stages while it runs, then Export Package for the one
-/// `.deb` it made, or Retry. A workspace's build runs its own script, and
-/// what the build finds in the package it wrote (a placeholder identifier,
-/// a version packaged before, another package for the other target) is
-/// listed under the outcome. The `…` menu holds the build's whole log and,
-/// once the package is ready, Publish, which adds it to the linked package
-/// repository (Settings ▸ Git ▸ Publishing) and pushes it.
+/// opens: its stages while it runs, then Distribute for the one `.deb` it
+/// made, or Retry. Distribute is the page's prominent action, and its menu
+/// keeps the two ways out apart: Share Package hands the file to the share
+/// sheet, Publish to Repository adds it to the linked package repository
+/// and pushes it, or, with none linked, opens Settings ▸ Git, where
+/// Publishing creates or links one. A workspace's build runs its own
+/// script, and what the build finds in the package it wrote (a placeholder
+/// identifier, a version packaged before, another package for the other
+/// target) is listed under the outcome. The `…` menu holds the build's
+/// whole log and, once the package is ready, the same two choices.
 @MainActor
 final class DistributionBuildController: TableController {
     private enum Stage: Int {
-        case preparing, compiling, running, packaging, verifying, readyToExport
+        case preparing, compiling, running, packaging, verifying, readyToDistribute
 
         /// apelin-build's own stages, or a workspace's script's
         /// (`ExternalBuild`: `script`, then `verify`).
         static func stages(for method: ProjectBuildMethod) -> [Stage] {
-            method == .script ? [.preparing, .running, .verifying, .readyToExport] : [.preparing, .compiling, .packaging, .verifying, .readyToExport]
+            method == .script ? [.preparing, .running, .verifying, .readyToDistribute] : [.preparing, .compiling, .packaging, .verifying, .readyToDistribute]
         }
 
         var title: String {
@@ -30,7 +34,7 @@ final class DistributionBuildController: TableController {
             case .running: String(localized: "Running Build Script")
             case .packaging: String(localized: "Packaging")
             case .verifying: String(localized: "Verifying Package")
-            case .readyToExport: String(localized: "Ready to Export")
+            case .readyToDistribute: String(localized: "Ready to Distribute")
             }
         }
 
@@ -73,29 +77,65 @@ final class DistributionBuildController: TableController {
     private var logLines: [String] = []
     private weak var logPage: TaskLogController?
     private var dataSource: TableDataSource<Section, Row, RowContent>!
-    private lazy var exportButton = UIBarButtonItem(
-        title: String(localized: "Export"),
-        primaryAction: UIAction { [weak self] _ in self?.exportPackage() },
-    )
-    private lazy var moreButton = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: moreMenu)
-        .then { $0.accessibilityLabel = String(localized: "More") }
+    /// While the package is read back for Share Package or Publish to
+    /// Repository: neither starts again until it is done.
+    private var isPreparingPackage = false {
+        didSet { distributeButton.isEnabled = !isPreparingPackage }
+    }
 
-    /// The log always; Publish once there is a package.
-    private var moreMenu: UIMenu {
-        var items = [
-            UIAction(title: String(localized: "Build Log"), image: UIImage(systemName: "doc.plaintext")) { [weak self] _ in
-                self?.openLog()
-            },
-        ]
+    /// The menus read the page as they open, so neither is rebuilt when the
+    /// build ends or a package is being read back.
+    private lazy var distributeButton: UIBarButtonItem = .init(
+        title: String(localized: "Distribute"),
+        menu: UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
+            guard let self else { completion([]); return }
+            completion(distributionActions(anchor: distributeButton))
+        }]),
+    ).then {
+        // iOS 26's prominent style (the same value), a bold title before it
+        $0.style = .done
+    }
+
+    private lazy var moreButton = UIBarButtonItem(
+        image: UIImage(systemName: "ellipsis"),
+        menu: UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
+            completion(self?.moreMenuElements() ?? [])
+        }]),
+    ).then { $0.accessibilityLabel = String(localized: "More") }
+
+    /// Distribute's choices once there is a package, then the log.
+    private func moreMenuElements() -> [UIMenuElement] {
+        var elements: [UIMenuElement] = []
         if artifact != nil, work == nil {
-            items.append(UIAction(
-                title: String(localized: "Publish…"),
+            elements.append(UIMenu(options: .displayInline, children: distributionActions(anchor: moreButton)))
+        }
+        elements.append(UIAction(title: String(localized: "Build Log"), image: UIImage(systemName: "doc.plaintext")) { [weak self] _ in
+            self?.openLog()
+        })
+        return elements
+    }
+
+    /// Share Package and Publish to Repository; the share sheet points at
+    /// `anchor`, the item whose menu they were chosen from.
+    private func distributionActions(anchor: UIBarButtonItem) -> [UIMenuElement] {
+        let attributes: UIMenuElement.Attributes = isPreparingPackage ? .disabled : []
+        return [
+            UIAction(
+                title: String(localized: "Share Package"),
+                image: UIImage(systemName: "square.and.arrow.up"),
+                attributes: attributes,
+            ) { [weak self, weak anchor] _ in
+                guard let anchor else { return }
+                self?.sharePackage(from: anchor)
+            },
+            UIAction(
+                title: String(localized: "Publish to Repository"),
                 image: UIImage(systemName: "shippingbox"),
+                attributes: attributes,
             ) { [weak self] _ in
                 self?.publish()
-            })
-        }
-        return UIMenu(children: items)
+            },
+        ]
     }
 
     init(projectName: String, target: BuildBootstrap, method: ProjectBuildMethod) {
@@ -217,22 +257,19 @@ final class DistributionBuildController: TableController {
         let running = work != nil
         navigationController?.isModalInPresentation = running
         navigationItem.hidesBackButton = running
-        let primary: UIBarButtonItem
-        if running {
-            primary = UIBarButtonItem(
+        let primary: UIBarButtonItem = if running {
+            UIBarButtonItem(
                 title: String(localized: "Stop"),
                 primaryAction: UIAction { [weak self] _ in self?.work?.cancel() },
             )
         } else if artifact != nil {
-            exportButton.isEnabled = true
-            primary = exportButton
+            distributeButton
         } else {
-            primary = UIBarButtonItem(
+            UIBarButtonItem(
                 title: String(localized: "Retry"),
                 primaryAction: UIAction { [weak self] _ in self?.start() },
             )
         }
-        moreButton.menu = moreMenu
         // the right bar's items run from the trailing edge in
         navigationItem.rightBarButtonItems = [primary, moreButton]
     }
@@ -364,40 +401,42 @@ final class DistributionBuildController: TableController {
         }.value
     }
 
-    private func exportPackage() {
-        guard let artifact, artifact.bootstrap == target.rawValue, exportButton.isEnabled else { return }
-        exportButton.isEnabled = false
+    /// The package to the share sheet, read back against its digest first.
+    private func sharePackage(from anchor: UIBarButtonItem) {
+        guard let artifact, artifact.bootstrap == target.rawValue, work == nil, !isPreparingPackage else { return }
+        isPreparingPackage = true
         Task { [weak self] in
             guard let self else { return }
-            defer { exportButton.isEnabled = true }
+            defer { isPreparingPackage = false }
             do {
                 let url = try await Self.verifiedPackage(artifact)
                 guard self.artifact == artifact else { return }
                 let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-                sheet.popoverPresentationController?.barButtonItem = exportButton
+                sheet.popoverPresentationController?.barButtonItem = anchor
                 present(sheet, animated: true)
             } catch {
                 guard self.artifact == artifact else { return }
-                presentNotice(title: "Unable to Export", message: error.readableMessage)
+                presentNotice(title: "Unable to Share", message: error.readableMessage)
             }
         }
     }
 
-    /// The package into the linked package repository: checked as an export
-    /// is, confirmed with where it goes, then followed as a task.
+    /// The package into the linked package repository: checked as a share
+    /// is, confirmed with where it goes, then followed as a task. With no
+    /// repository linked, Settings ▸ Git instead, where one is set up.
     private func publish() {
-        guard let artifact, artifact.bootstrap == target.rawValue, work == nil else { return }
+        guard let artifact, artifact.bootstrap == target.rawValue, work == nil, !isPreparingPackage else { return }
+        isPreparingPackage = true
         Task { [weak self] in
             guard let self else { return }
+            defer { isPreparingPackage = false }
             do {
-                let url = try await Self.verifiedPackage(artifact)
                 guard let linked = try await ApelinService.app.distributionRepositoryList(repositories: false).linked else {
-                    presentNotice(
-                        title: "No Package Repository",
-                        message: "Create or link one in Settings ▸ Git ▸ Publishing first.",
-                    )
+                    openRepositorySetup()
                     return
                 }
+                let url = try await Self.verifiedPackage(artifact)
+                guard self.artifact == artifact else { return }
                 presentConfirmation(
                     title: "Publish to \(linked.fullName)?",
                     message: "The package is added to the repository’s debs folder, committed and pushed. Devices with \(linked.sourceURL) see it within a few minutes.",
@@ -427,5 +466,14 @@ final class DistributionBuildController: TableController {
                 presentNotice(title: "Unable to Publish", message: error.readableMessage)
             }
         }
+    }
+
+    /// Settings ▸ Git over this page, which stays as it is: Publishing
+    /// there creates or links a repository, after Sign In when GitHub has
+    /// no account yet. The indicator says why it opened.
+    private func openRepositorySetup() {
+        guard presentedViewController == nil else { return }
+        SPIndicator.present(title: String(localized: "No Package Repository"), preset: .error, haptic: .warning)
+        SettingsViewController.presentGit(from: self)
     }
 }

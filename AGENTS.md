@@ -2422,8 +2422,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   app's defaults. The app's alone
   (no worker may call them); their tasks are not resumed. Settings ▸ Git ▸
   Publishing and the GitHub welcome page create or link one; the
-  distribution build page's `…` menu publishes its verified package
-  (Publish to Package Repository). Tested by `DistributionTests` (a fake
+  distribution build page's Distribute ▸ Publish to Repository (in its
+  `…` menu too) publishes its verified package, and with none linked opens
+  Settings at its Git page instead. Tested by `DistributionTests` (a fake
   GitHub and bare repositories on disk: create, link with a file of the
   user's kept and a branch-built site switched, an empty repository,
   publish once and refuse a changed package, the refusals); on a device by
@@ -2988,8 +2989,15 @@ the user chooses one target and taps Build. The first page lists the
 distribution check's warnings for that target, offers Ask Agent to Prepare (a
 prompt sent to the project's conversation), and asks before building with
 warnings left; Build pushes `DistributionBuildController`, which sends one
-build request, shows only that target's progress, keeps the build log behind
-its `…` menu and exports its one verified package. Choosing another target
+build request, shows only that target's progress and keeps the build log behind
+its `…` menu. Once its one package is verified, the page's primary action is
+Distribute (2026-10-29: the bar's prominent style on iOS 26, a bold title
+before it), whose menu, repeated in `…`, keeps sharing and publishing apart:
+Share Package hands the `.deb` to the share sheet, and Publish to Repository
+adds it to the linked package repository or, with none linked, opens
+Settings at its Git page (`SettingsViewController.presentGit`) over the
+build page, where Publishing sets one up, after Sign In if GitHub has no
+account yet. Choosing another target
 requires going back and a new run. The table uses stable diffable identities and
 reconfigures progress rows in place. Each release build produces its own package
 and dSYM through the existing complete build pipeline (see `Documents/Distribution.md`).

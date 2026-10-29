@@ -200,6 +200,17 @@ final class SettingsViewController: TableController {
         navigationController?.pushViewController(page, animated: true)
     }
 
+    /// Settings as the sidebar's gear opens it, but already at Git, for a
+    /// page whose next step is set up there: a package repository, and the
+    /// GitHub sign-in it needs. Back leads to the rest of Settings.
+    static func presentGit(from presenter: UIViewController) {
+        let settings = SettingsViewController()
+        // the Git page's Back is made from the title and back button mode
+        // this page sets as it loads
+        settings.loadViewIfNeeded()
+        presenter.presentPageAsFormSheet(settings, openedAt: GitSettingsController())
+    }
+
     /// Closes Settings and shows the welcome pages from the start.
     private func openOnboarding() {
         guard let root = view.window?.rootViewController as? RootInterfaceController else { return }

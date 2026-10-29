@@ -7,9 +7,11 @@ release build for that target, showing Preparing, Compiling, Packaging and
 Verifying (a workspace: Preparing, Running Build Script and Verifying); its
 `…` menu has the Build Log. Stop cancels that build; the page
 stays open with its outcome, and Retry starts a new build for the same
-target. Once it succeeds, Export Package opens the system share sheet with its
-one `.deb` file. Go back, choose the other target and tap Build to make a
-separate package. Exporting does not install either package.
+target. Once it succeeds, **Distribute** is the page's primary action. Its
+menu, repeated in the `…` menu, has **Share Package**, which opens the
+system share sheet with the build's one `.deb` file, and **Publish to
+Repository** (below). Go back, choose the other target and tap Build to make a
+separate package. Neither installs the package.
 
 ## Publishing to a package repository
 
@@ -21,13 +23,17 @@ owngoal-dev/owngoal-packages, or links one the user has, adding what the
 template has and it lacks. Its clone is a workspace project, which its own
 conversation maintains (the agent's `apelin-package-repository` skill).
 
-Once a release build succeeds, the build page's `…` menu has **Publish to
-Package Repository**: the package, checked against its digest as Export
-checks it, goes into the repository's `debs/` as
+Once a release build succeeds, **Distribute ▸ Publish to Repository** on the
+build page publishes it: the package, checked against its digest as Share
+Package checks it, goes into the repository's `debs/` as
 `<Package>_<Version>_<Architecture>.deb`, is committed and pushed, and the
 workflow indexes it; sources that added the address see it within a few
 minutes. Publishing the same package again does nothing; a different
 package under a published version is refused, so raise the version first.
+With no repository linked yet, Publish to Repository opens Settings ▸ Git
+over the build page instead: Publishing there creates or links one, after
+Sign In with GitHub when there is no account yet. Close Settings and
+publish again; the build stays as it was.
 
 ## Before distributing
 
@@ -84,7 +90,7 @@ wrote and lists, under the outcome and among the agent's build diagnostics:
 - `distribution.package.id.differs`: the other target's latest release package
   has another ID.
 
-They are warnings, as above; the package can still be exported.
+They are warnings, as above; the package can still be shared and published.
 
 For a project apelin-build builds, use its existing build and packaging description:
 
@@ -106,7 +112,7 @@ field; old requests retain their current-device behavior. Each target has its
 own task, build directory, artifact ID and dSYMs. The worker reads the finished
 Debian archive back, validates its structure and package identity/architecture,
 checks the bytes against the recorded digest, then publishes the artifact.
-The export page checks the digest again before presenting the share sheet.
+The build page checks the digest again before it shares or publishes the package.
 
 Builds retain the existing cancellation, on-demand session-host lifecycle and
 resumption behavior. A distribution page itself is transient; if it is closed

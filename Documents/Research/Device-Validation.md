@@ -200,6 +200,23 @@ console now goes on after a restart only past a successful respring.
       the chat open: the next message's tools have no `assemble`, and the
       model was told it went; install it again and it comes back. Close
       the chat: no `apelin-disassembler` process is left.
+- [ ] Distribute on the distribution build page (2026-10-29, AGENTS.md ▸
+      Project display names and external project actions; none of it has
+      run on a device). A release build on the iPhone and the iPad vphone,
+      on iOS 26 and iOS 27: while it runs, Stop, and after a failure,
+      Retry, as before; once Ready to Distribute completes, Distribute is
+      the bar's trailing item, in the prominent style (a bold title before
+      iOS 26), its menu Share Package and Publish to Repository, and the
+      `…` menu has the same two above Build Log. Share Package from either
+      menu opens the share sheet, on the iPad pointing at the item it was
+      chosen from. With no package repository linked, Publish to
+      Repository shows "No Package Repository" at the top and opens
+      Settings at Git over the build page, Back leading to Settings:
+      signed out of GitHub it offers Sign In…, signed in Create
+      Repository… and Link Repository…; with one linked, closing Settings
+      leaves the build page as it was and Publish to Repository asks to
+      publish to it. In Chinese the labels read 分发, 分享软件包 and
+      发布到仓库.
 - [ ] A GitHub repository made by the agent (2026-10-29, AGENTS.md ▸ The
       environment worker ▸ Git and Agent sessions; none of it has run on a
       device, and it makes repositories on a real account, so by hand
