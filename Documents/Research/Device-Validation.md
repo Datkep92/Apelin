@@ -200,6 +200,12 @@ console now goes on after a restart only past a successful respring.
       the chat open: the next message's tools have no `assemble`, and the
       model was told it went; install it again and it comes back. Close
       the chat: no `apelin-disassembler` process is left.
+      Run so far (2026-10-29, build 23 from CI, iOS 26.4 iPhone vphone,
+      roothide, Relaxed, deepseek-v4-pro through an OpenAI-compatible key):
+      a headless project chat called `assemble` (`ret` for arm64: `c0 03 5f
+      d6`), `symbols` on `/usr/lib/dyld` (`__dyld_start` at `0x30f0`) and
+      `disassemble` there (four instructions), each answered, and the
+      reply quoted them. The rest is still to run.
 - [ ] Distribute on the distribution build page (2026-10-29, AGENTS.md ▸
       Project display names and external project actions; none of it has
       run on a device). A release build on the iPhone and the iPad vphone,
@@ -839,6 +845,10 @@ console now goes on after a restart only past a successful respring.
       another https image, the next install in a Strict chat asks once (a
       packaging change) and the new icon shows; with it removed, the deb
       has no `Icon` and the package manager draws its default.
+      Run so far (2026-10-29, build 23, iOS 26.4 iPhone vphone, roothide):
+      a tweak project made from tweak 0.1.1 has the tweak icon's URL in
+      `package.icon`, and its Debug build's deb names it in `Icon:`; the
+      install and Irisin's list are still to run.
 - [ ] Restarting an app installed again (2026-10-29, AGENTS.md ▸ Agent
       sessions ▸ apelin_package_install; none has run on a device). In an
       app project's conversation, with the app open from its last install:
