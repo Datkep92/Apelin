@@ -180,6 +180,14 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] Showing a project file with `file_show` (2026-10-29, none of it has
+      run on a device). Asked to see an image, a PDF and a log, the agent
+      calls `file_show`, which runs without asking in Strict mode; the
+      image comes up in an album and the PDF and the log as cards under
+      the call, each opening in Quick Look; the trace names the call
+      ("Show notes.pdf", "Show 3 files"); a copy stays as it was after the
+      agent edits the file; the same in General Chat; and the conversation
+      reopened after the session host restarts still shows them.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

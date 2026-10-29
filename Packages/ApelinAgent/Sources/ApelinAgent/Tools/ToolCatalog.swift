@@ -62,7 +62,9 @@ public extension AgentToolName {
              .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitFetch, .gitPull, .gitClone,
              .conversationCreate, .conversationSend, .conversationStop, .projectSetEnvironment, .notificationSend:
             .writeProject
-        case .fileRead, .fileList, .fileGrep, .fileFind, .sdkAnalyzeFramework, .sdkReadHeader,
+        // file_show copies a project file into the workspace's Attachments
+        // and shows it to the user on this device; nothing else changes.
+        case .fileRead, .fileList, .fileGrep, .fileFind, .fileShow, .sdkAnalyzeFramework, .sdkReadHeader,
              .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
@@ -96,6 +98,7 @@ public extension AgentToolName {
         case .fileList: "List a project folder."
         case .fileGrep: "Search project files with a regular expression."
         case .fileFind: "Find project files whose names match a glob."
+        case .fileShow: "Show project files to the user in this conversation: images in an album, other files (a PDF, a log, a text file) as cards, each opening in Quick Look. Use it when the user wants to see a file; a path or a file: link in your reply opens nothing. Each file is copied as it is now, at most \(FileShow.maximumFiles) at a time and \(AgentSession.maximumAttachmentBytes >> 20) MB each. You are told what was shown, not what the files contain."
         case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, only for a step that truly needs uid 0, such as irisin-cli install for a dependency (apelin-package-dependencies skill); it asks every time unless the mode is Full, and what it writes is root's."
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
         case .sdkReadHeader: "Read one header of a framework in the registered SDK."
@@ -336,6 +339,14 @@ public extension AgentToolName {
                 "offset": Schema.integer("First line to return, 1-based."),
                 "limit": Schema.integer("Number of lines to return."),
             ], required: ["path"])
+        case .fileShow:
+            Schema.object([
+                "paths": .object([
+                    "type": "array",
+                    "items": .object(["type": "string"]),
+                    "description": .string("Files relative to the project root, 1 to \(FileShow.maximumFiles)."),
+                ]),
+            ], required: ["paths"])
         case .fileList:
             Schema.object([
                 "path": Schema.string("Folder relative to the project root; omit for the root."),

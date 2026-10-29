@@ -333,6 +333,8 @@ actor ToolRunner {
 
         case .fileFind: return try text(files.find(arguments))
 
+        case .fileShow: return try files.show(arguments)
+
         case .projectCheckDistribution:
             let bootstrap = try Self.bootstrap(arguments)
             return try await json(backend.checkDistribution(DistributionCheckRequest(

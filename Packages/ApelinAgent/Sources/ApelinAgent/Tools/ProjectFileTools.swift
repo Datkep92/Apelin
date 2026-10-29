@@ -163,6 +163,16 @@ struct ProjectFileTools: Sendable {
     /// Reads UTF-8 text from a canonical path inside the root. Refuses
     /// binary files and files over the limit.
     func readText(_ canonical: String, limit: Int = maxReadBytes) throws -> String {
+        let data = try readData(canonical, limit: limit)
+        if data.prefix(8192).contains(0) {
+            throw ToolArgumentError("\(root.relative(canonical)) is a binary file")
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// The bytes of a regular file at a canonical path inside the root,
+    /// opened without following a link. Refuses files over the limit.
+    func readData(_ canonical: String, limit: Int) throws -> Data {
         guard root.contains(canonical) else { throw PathPolicyError.outsideRoot(canonical) }
         let fd = open(canonical, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
         guard fd >= 0 else {
@@ -178,12 +188,12 @@ struct ProjectFileTools: Sendable {
                 "\(root.relative(canonical)) is \(info.st_size) bytes, over the \(limit)-byte limit",
             )
         }
-        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
-        let data = handle.readDataToEndOfFile()
-        if data.prefix(8192).contains(0) {
-            throw ToolArgumentError("\(root.relative(canonical)) is a binary file")
+        // One byte past the limit, for a file that grew since fstat.
+        let data = FileHandle(fileDescriptor: fd, closeOnDealloc: false).readData(ofLength: limit + 1)
+        guard data.count <= limit else {
+            throw ToolArgumentError("\(root.relative(canonical)) grew past the \(limit)-byte limit while it was read")
         }
-        return String(decoding: data, as: UTF8.self)
+        return data
     }
 
     /// Regular files below `directory`, without following links out of the
