@@ -69,6 +69,8 @@ make install DEVICE_HOST=<address> FLAVOR=roothide
 
 You need `dpkg`, `ldid`, `zstd` and `swiftformat` from your preferred package manager. There is no Simulator build. Notes for contributors are in [AGENTS.md](AGENTS.md), and you can drive the app headless through the [console](Documents/Console.md).
 
+The [three-release session and storage refactor plan](Documents/Plan/Session-Storage-Refactor.md) defines the lifecycle, history, attachment and recovery work, including acceptance and rollback requirements. It keeps file-based storage and the current kwwk revision.
+
 ## Acknowledgements
 
 Apple's Command Line Tools and iPhoneOS SDKs remain Apple's, under Apple's terms. Apelin never ships them. The SDK repository [owngoal-dev/iOS-SDKs](https://github.com/owngoal-dev/iOS-SDKs) is forked from [xybp888/iOS-SDKs](https://github.com/xybp888/iOS-SDKs).
