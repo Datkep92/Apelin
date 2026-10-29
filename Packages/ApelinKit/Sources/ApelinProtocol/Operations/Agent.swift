@@ -433,7 +433,8 @@ public struct AgentListRequest: OperationRequest {
     public typealias Response = AgentListResponse
     public static let operation = AppOperation.agentList
     /// Only this project's sessions, named by its `projectID` or its folder;
-    /// absent, every project's for the app and the caller's own for an agent.
+    /// absent, every project's for the app, the caller's own for an agent in
+    /// a project, and every project's it may reach for one in General Chat.
     public var projectID: String?
     public var projectName: String?
 
@@ -444,9 +445,16 @@ public struct AgentListRequest: OperationRequest {
 }
 
 public struct AgentListResponse: Codable, Sendable, Equatable {
+    /// For an agent, the sessions that have not run since the session host
+    /// started too, each by its newest task, which has ended.
     public var sessions: [AgentSessionSummary]
-    public init(sessions: [AgentSessionSummary] = []) {
+    /// How many projects an agent in General Chat may not list without the
+    /// user's approval (Strict), left out of a list that named none; absent
+    /// when none was.
+    public var unreachedProjects: Int?
+    public init(sessions: [AgentSessionSummary] = [], unreachedProjects: Int? = nil) {
         self.sessions = sessions
+        self.unreachedProjects = unreachedProjects
     }
 }
 

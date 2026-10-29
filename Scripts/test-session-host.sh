@@ -42,6 +42,7 @@ sources=(
     "$root/Apelind/Session/Agent/AgentRunCodePresets.swift"
     "$root/Apelind/Session/Agent/AgentApprovals.swift"
     "$root/Apelind/Session/Agent/AgentConversationRules.swift"
+    "$root/Apelind/Session/Agent/AgentConversationList.swift"
     "$root/Apelind/Session/Agent/AgentEnvironmentRules.swift"
     "$root/Apelind/Session/Agent/AgentExternalBuildRules.swift"
     "$root/Apelind/Session/Agent/AgentProjectRenameRules.swift"

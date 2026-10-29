@@ -102,15 +102,16 @@ extension ToolRunner {
 
     /// The project a conversation call names, resolved before asking: none
     /// (or this one) keeps the call in the session's project; another one is
-    /// what the card names and where the call goes. General Chat names one.
+    /// what the card names and where the call goes. General Chat names one,
+    /// except to list: the host then lists every project's it may reach.
     private func gatherProjectReach(
         _ name: AgentToolName,
         arguments: JSONValue,
         into facts: inout InvocationFacts,
     ) async throws {
         guard let reference = arguments.argNonEmptyString("project") else {
-            if project.isTemporary {
-                throw ToolArgumentError("General Chat has no conversations of its own: name the project with project (its projectID or folder name, as apelin_project_list answers them)")
+            if project.isTemporary, name != .conversationList {
+                throw ToolArgumentError("General Chat has no conversations of its own: name the project with project (its projectID or folder name; apelin_conversation_list gives each conversation's, apelin_project_list every project's)")
             }
             return
         }

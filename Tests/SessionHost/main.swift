@@ -801,6 +801,177 @@ do {
     check(AgentConversationRules.title(" \n ") == nil, "and an empty one is none")
 }
 
+// MARK: - An agent lists the conversations that have not run since the host started
+
+do {
+    let home = scratchPath + "/stored-home"
+    let data = DataFolder(home: home)
+    write(data.projects.path + "/Docs/apelin-project.json", #"{"projectID": "p-docs"}"#)
+    write(data.projects.path + "/Far/apelin-project.json", #"{"projectID": "p-far"}"#)
+    write(data.projects.path + "/Many/apelin-project.json", #"{"projectID": "p-many"}"#)
+    let docs = try AgentProjects.resolve(home: home, projectID: "p-docs", projectName: nil)
+    func stored(_ projectID: String) -> String {
+        let session = UUID().uuidString.lowercased()
+        write(data.sessions.path + "/\(session)/session.json", #"{"id": "\#(session)", "project": {"id": "\#(projectID)", "name": "x"}}"#)
+        return session
+    }
+    let state = scratch.appendingPathComponent("stored-state")
+    let tasks = state.appendingPathComponent("tasks")
+
+    // What the last host left: sessions of Docs, one opened by another and
+    // opened twice, one of Far, a temporary chat, one whose folder is a
+    // link, one with no session.json, and the caller's own earlier task.
+    let earlier = TaskRegistry(directory: tasks)
+    await earlier.load()
+    let titled = stored("p-docs")
+    let titledTask = await earlier.create(kind: .agent, owner: .agent, ownerKey: titled)
+    await earlier.append(titledTask.taskID, kind: "title", payload: .object(["text": .string("Docs pass")]))
+    let child = stored("p-docs")
+    let childFirst = await earlier.create(kind: .agent, owner: .agent, ownerKey: child)
+    await earlier.finish(childFirst.taskID, .succeeded)
+    usleep(2000)
+    let childTask = await earlier.create(kind: .agent, owner: .agent, ownerKey: child)
+    // Reopened, its task replays the history before anything new.
+    await earlier.append(childTask.taskID, kind: "prompt", payload: .object(["text": .string("Write the README")]))
+    await earlier.append(childTask.taskID, kind: "prompt", payload: .object(["text": .string("Shorter")]))
+    AgentSessionLineage.save(AgentSessionLineage.Record(parentSessionID: titled, depth: 1), session: child, state: state)
+    let distant = stored("p-far")
+    let distantTask = await earlier.create(kind: .agent, owner: .agent, ownerKey: distant)
+    let temporary = stored("temporary:" + UUID().uuidString)
+    let temporaryTask = await earlier.create(kind: .agent, owner: .agent, ownerKey: temporary)
+    let linked = UUID().uuidString.lowercased()
+    write(scratchPath + "/stored-elsewhere/session.json", #"{"project": {"id": "p-docs"}}"#)
+    symlink(scratchPath + "/stored-elsewhere", data.sessions.path + "/" + linked)
+    let linkedTask = await earlier.create(kind: .agent, owner: .agent, ownerKey: linked)
+    let unwritten = UUID().uuidString.lowercased()
+    _ = await earlier.create(kind: .agent, owner: .agent, ownerKey: unwritten)
+    let caller = stored("p-docs")
+    let callerEarlier = await earlier.create(kind: .agent, owner: .agent, ownerKey: caller)
+
+    // The next host: every task that was running interrupted, an empty table.
+    let registry = TaskRegistry(directory: tasks)
+    for record in await registry.load() {
+        await registry.interrupt(record.id)
+    }
+    let table = AgentSessionTable()
+    func session(_ id: String, in project: ResolvedProject, mode: ApprovalMode) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: project,
+            mode: mode,
+            createdAt: Date(),
+        )
+        await table.add(entry)
+        return entry
+    }
+    func list(_ entry: AgentSessionTable.Entry, project: String? = nil) async throws -> AgentListResponse {
+        try await AgentConversationList.list(
+            AgentListRequest(projectName: project),
+            caller: entry,
+            table: table,
+            registry: registry,
+            home: home,
+            state: state,
+        )
+    }
+    let own = await session(caller, in: docs, mode: .confirm)
+
+    // A record read back from disk keeps its times to the second, so the
+    // stored ones come in no order the test can name.
+    let listed = try await list(own)
+    check(
+        Set(listed.sessions.dropLast().map(\.sessionID)) == [titled, child] && listed.sessions.last?.sessionID == caller,
+        "a project's list names its sessions the host has not run since it started, then the running ones: \(listed.sessions.map(\.sessionID))",
+    )
+    let titledListed = listed.sessions.first { $0.sessionID == titled }
+    check(
+        titledListed?.task == titledTask && titledListed?.state == .interrupted && titledListed?.title == "Docs pass"
+            && titledListed?.projectID == "p-docs" && titledListed?.projectName == "Docs",
+        "each by its task, ended, with the title its agent gave it and its project",
+    )
+    let childListed = listed.sessions.first { $0.sessionID == child }
+    check(childListed?.task == childTask && childListed?.parentSessionID == titled, "a session opened twice by its newest task, with its opener")
+    check(listed.sessions.first { $0.sessionID == caller }?.task == own.task, "a running session by the task it runs, never an earlier one")
+    check(listed.unreachedProjects == nil, "and a project's list leaves no project out")
+
+    // Reading: the task a list names, of a project the caller reaches.
+    let attach = { (taskID: TaskID, entry: AgentSessionTable.Entry) in
+        try await AgentConversationList.mayAttach(taskID, caller: entry, table: table, registry: registry, home: home)
+    }
+    let readsStored = await (try? attach(titledTask.taskID, own)) != nil
+    check(readsStored, "a stored session's task is read as any ended one's")
+    await expectErrorAsync("not a session's earlier task", code: .denied) { try await attach(childFirst.taskID, own) }
+    await expectErrorAsync("nor a running session's earlier task", code: .denied) { try await attach(callerEarlier.taskID, own) }
+    await expectErrorAsync("nor a temporary chat's", code: .denied) { try await attach(temporaryTask.taskID, own) }
+    await expectErrorAsync("nor one whose folder is a link", code: .denied) { try await attach(linkedTask.taskID, own) }
+    await expectErrorAsync("nor another project's the user has not let it reach", code: .denied) { try await attach(distantTask.taskID, own) }
+    let build = await registry.create(kind: .build, owner: .build, ownerKey: titled)
+    await expectErrorAsync("nor a task that is no conversation", code: .denied) { try await attach(build.taskID, own) }
+
+    // Another project: under Strict only once the user let it reach it.
+    await expectErrorAsync("another project's list asks first", code: .denied) { _ = try await list(own, project: "Far") }
+    _ = await table.allowProject("p-far", session: caller)
+    let farListed = try await list(own, project: "Far")
+    check(farListed.sessions.map(\.sessionID) == [distant], "then lists that project's")
+    let readsFar = await (try? attach(distantTask.taskID, own)) != nil
+    check(readsFar, "and reads it")
+
+    // General Chat: every project's it may reach, never a temporary chat's.
+    let generalID = UUID().uuidString.lowercased()
+    let general = await session(
+        generalID,
+        in: ResolvedProject(id: "temporary:" + generalID, name: generalID, path: data.root.path + "/Temporary/" + generalID),
+        mode: .confirm,
+    )
+    let strict = try await list(general)
+    check(strict.sessions.isEmpty && strict.unreachedProjects == 3, "General Chat under Strict lists no project it may not reach, and says how many")
+    _ = await table.allowProject("p-docs", session: generalID)
+    let reached = try await list(general)
+    check(
+        Set(reached.sessions.dropLast().map(\.sessionID)) == [titled, child] && reached.sessions.last?.sessionID == caller,
+        "then the ones it may: \(reached.sessions.map(\.sessionID))",
+    )
+    check(reached.unreachedProjects == 2, "and counts the rest")
+    let relaxedID = UUID().uuidString.lowercased()
+    let relaxed = await session(
+        relaxedID,
+        in: ResolvedProject(id: "temporary:" + relaxedID, name: relaxedID, path: data.root.path + "/Temporary/" + relaxedID),
+        mode: .relaxed,
+    )
+    let everything = try await list(relaxed)
+    check(
+        Set(everything.sessions.map(\.sessionID)) == [titled, child, distant, caller],
+        "in Relaxed mode General Chat lists every project's, and no temporary chat: \(everything.sessions.map(\.sessionID))",
+    )
+    check(everything.unreachedProjects == nil, "leaving none out")
+    check(everything.sessions.allSatisfy { $0.projectName != nil }, "each with its project")
+
+    // At most maximumStoredSessions, the most recently active.
+    var many: [String] = []
+    let later = TaskRegistry(directory: tasks)
+    await later.load()
+    for _ in 0 ... AgentConversationList.maximumStoredSessions {
+        let session = stored("p-many")
+        await later.finish(later.create(kind: .agent, owner: .agent, ownerKey: session).taskID, .succeeded)
+        many.append(session)
+        if many.count == 1 {
+            usleep(2000)
+        }
+    }
+    let manyListed = try await AgentConversationList.list(
+        AgentListRequest(projectName: "Many"),
+        caller: relaxed,
+        table: table,
+        registry: later,
+        home: home,
+        state: state,
+    )
+    check(manyListed.sessions.count == AgentConversationList.maximumStoredSessions, "a list names at most \(AgentConversationList.maximumStoredSessions) sessions that have not run")
+    check(!manyListed.sessions.contains { $0.sessionID == many[0] }, "the most recently active")
+    check(zip(manyListed.sessions, manyListed.sessions.dropFirst()).allSatisfy { $0.updatedAt <= $1.updatedAt }, "oldest first")
+}
+
 // MARK: - Protected edit
 
 do {

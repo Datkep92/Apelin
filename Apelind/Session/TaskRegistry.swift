@@ -210,6 +210,16 @@ actor TaskRegistry {
         events[id]?.last { $0.kind == kind && $0.payload?[field]?.stringValue == value }
     }
 
+    /// The newest event of `kind`, searched over the whole log.
+    func lastEvent(_ id: TaskID, kind: String) -> TaskEvent? {
+        events[id]?.last { $0.kind == kind }
+    }
+
+    /// Every task of `kind`, finished or not, in no order.
+    func records(kind: TaskKind) -> [Record] {
+        records.values.filter { $0.kind == kind }
+    }
+
     /// Marks the cancel; the caller tells the owning worker. A task with no
     /// worker to stop it ends here.
     func requestCancel(_ id: TaskID) throws -> Record {

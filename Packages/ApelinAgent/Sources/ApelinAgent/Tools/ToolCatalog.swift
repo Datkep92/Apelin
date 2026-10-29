@@ -140,7 +140,7 @@ public extension AgentToolName {
         case .projectCheckDistribution: "Before a distribution build, list what the package should not carry yet: the template's name, description, author or first version, a local identifier, an app without an icon, a version already packaged for the target, and any error that would stop the build. A workspace's package is checked by its release build instead."
         case .conversationCreate: "Open another conversation, in this project or the one project names, with a first message, and return at once with its session id and link. Another agent works on it in parallel, under the same approval mode, and the user sees it in the sidebar. Collect its answer with apelin_conversation_read."
         case .conversationSend: "Send a message to another conversation, as if the user typed it; it waits there if that conversation is busy. Name its project with project when it is not this one. Read the answer with apelin_conversation_read."
-        case .conversationList: "List the conversations of this project, or of the one project names: session id, link, title, state (open, waitingForApproval or ended), the conversation that opened each, and when it was last active."
+        case .conversationList: "List the conversations of this project, or of the one project names; in General Chat, without project, of every project you may reach. Each with its session id, link, title, its project when not this one, state (open, waitingForApproval or ended), the conversation that opened it, and when it was last active. An ended one can still be read, but takes no message until the user reopens it."
         case .conversationRead: "Read a conversation of this project, or of the one project names: its state (running, waitingForApproval, idle or ended), the assistant's messages after after_seq, the approvals it is waiting on, and last_seq to pass as after_seq next time. With wait_seconds, wait until it finishes a turn after after_seq, asks for approval, or ends."
         case .conversationStop: "Stop the turn a conversation you opened is running. With close: true, also end the conversation and free its place; the user can still reopen it from the sidebar."
         case .toolchainList: "List the toolchains set up on this device (id, Command Line Tools version, components, the newest SDK each reads, self-test results) and the releases Apelin can set up from Apple's catalog, each with its download size, requirements and why this device cannot take it, if so; and which toolchain this project binds."
@@ -159,7 +159,7 @@ public extension AgentToolName {
             Schema.object([:], required: [])
         case .conversationList:
             Schema.object([
-                "project": Self.projectParameter,
+                "project": Self.listedProjectParameter,
             ], required: [])
         case .conversationCreate:
             Schema.object([
@@ -177,7 +177,7 @@ public extension AgentToolName {
             Schema.object([
                 "session_id": Schema.string("Session id from apelin_conversation_create or apelin_conversation_list."),
                 "after_seq": Schema.integer("Only messages after this point: last_seq from the previous read. Omit for the whole conversation."),
-                "wait_seconds": Schema.integer("Wait up to this long, 0 to \(ConversationReadToolRequest.maximumWaitSeconds), for a turn after after_seq to finish; to wait longer, read again. Default 0."),
+                "wait_seconds": Schema.integer("Wait up to this long, 0 to \(ConversationReadToolRequest.maximumWaitSeconds), for a turn after after_seq to finish; to wait longer, read again. The user sees nothing new while you wait, so for long work wait about 60 at a time. Default 0."),
                 "project": Self.projectParameter,
             ], required: ["session_id"])
         case .toolchainSetup:
@@ -459,6 +459,8 @@ public extension AgentToolName {
 
     /// The conversation tools' other project.
     internal static let projectParameter = Schema.string("Another project, by its projectID or folder name (apelin_project_list and apelin_project_create answer both): required in General Chat, omit for this project. A call that reaches another project asks the user in Strict mode.")
+    /// apelin_conversation_list's, which General Chat may leave out.
+    internal static let listedProjectParameter = Schema.string("Another project, by its projectID or folder name (apelin_project_list answers both): omit for this project, or in General Chat for every project you may reach. Naming another project asks the user in Strict mode.")
 }
 
 /// Every tool asks for a short reason, which the app shows while the call

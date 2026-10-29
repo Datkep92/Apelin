@@ -43,21 +43,28 @@ enum AgentHandler: DomainHandler {
             return await attach(request, host: host)
         case .agentList:
             return await request.serve(AgentListRequest.self) { list in
-                // An agent lists its own project's conversations, or another
-                // project's it may reach.
-                let caller = try await callerSession(request, host: host)
-                var projectID = caller?.project.id
+                // An agent lists its own project's conversations, another
+                // project's it may reach, or in General Chat every one's it
+                // may reach, with those that have not run since the host
+                // started.
+                if let caller = try await callerSession(request, host: host) {
+                    return try await AgentConversationList.list(
+                        list,
+                        caller: caller,
+                        table: .shared,
+                        registry: host.registry,
+                        home: host.home,
+                        state: host.stateDirectory,
+                    )
+                }
+                // The app's: the sessions it may follow, every project's or one's.
+                var projectID: String?
                 if list.projectID != nil || list.projectName != nil {
-                    let named = try AgentProjects.resolve(
+                    projectID = try AgentProjects.resolve(
                         home: host.home,
                         projectID: list.projectID,
                         projectName: list.projectName,
-                    )
-                    if let caller {
-                        let reachable = await AgentSessionTable.shared.mayReach(named.id, session: caller.sessionID)
-                        try AgentConversationRules.mayReach(named, caller: caller, reachable: reachable)
-                    }
-                    projectID = named.id
+                    ).id
                 }
                 return await AgentListResponse(sessions: AgentSessionTable.shared.summaries(
                     registry: host.registry,
@@ -348,17 +355,18 @@ enum AgentHandler: DomainHandler {
     }
 
     /// An agent reads its own project's conversations, and another
-    /// project's it may reach.
+    /// project's it may reach (`AgentConversationList.mayAttach`).
     private static func attach(_ request: HostRequest, host: SessionHost) async -> HostReply {
         do {
             if let caller = try await callerSession(request, host: host) {
                 let attach = try request.decode(AgentAttachRequest.self)
-                let target = await AgentSessionTable.shared.entry(task: attach.taskID)
-                var reachable = false
-                if let target {
-                    reachable = await AgentSessionTable.shared.mayReach(target.project.id, session: caller.sessionID)
-                }
-                try AgentConversationRules.mayRead(attach.taskID, target: target, caller: caller, reachable: reachable)
+                try await AgentConversationList.mayAttach(
+                    attach.taskID,
+                    caller: caller,
+                    table: .shared,
+                    registry: host.registry,
+                    home: host.home,
+                )
             }
         } catch {
             return request.fail(error)
