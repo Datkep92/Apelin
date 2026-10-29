@@ -12,6 +12,7 @@ DERIVED_DATA        ?= /private/tmp/apelin-deriveddata
 
 DEVICE_DESTINATION  := generic/platform=iOS
 PRODUCTS_DIR        := $(DERIVED_DATA)/Build/Products/$(CONFIGURATION)-iphoneos
+TARGET_INTERMEDIATES := $(DERIVED_DATA)/Build/Intermediates.noindex/Apelin.build/$(CONFIGURATION)-iphoneos
 APP_BUNDLE          := $(PRODUCTS_DIR)/Apelin.app
 DAEMON_BINARY       := $(PRODUCTS_DIR)/apelind
 # The workers apelind's session host spawns; each one's entitlements are
@@ -62,6 +63,7 @@ ACCESSIBILITY_CHECK := $(ROOT_DIR)/Scripts/check-accessibility.py
 STALE_STRINGS_CHECK := $(ROOT_DIR)/Scripts/check-stale-strings.py
 FORMAT_STRINGS_CHECK := $(ROOT_DIR)/Scripts/check-format-strings.py
 TRANSLATIONS_CHECK := $(ROOT_DIR)/Scripts/check-translations.py
+CATALOG_KEYS_CHECK := $(ROOT_DIR)/Scripts/check-catalog-keys.py
 SYMBOL_CHECK        := $(ROOT_DIR)/Scripts/check-symbol-availability.py
 RPATH_CHECK         := $(ROOT_DIR)/Scripts/check-rpath-dependencies.py
 # The device harness: console scripts and suites on a vphone or a device,
@@ -245,6 +247,7 @@ check:
 	@test -d "$(PROJECT)" || { echo "error: Apelin.xcodeproj is missing" >&2; exit 66; }
 	@for script in "$(DEB_PACKAGER)" "$(DEVICE_INSTALLER)" "$(VERSION_APPLIER)" "$(XCODEBUILD_WRAPPER)" \
 		"$(LICENSE_COLLECTOR)" "$(ACCESSIBILITY_CHECK)" "$(STALE_STRINGS_CHECK)" "$(FORMAT_STRINGS_CHECK)" "$(TRANSLATIONS_CHECK)" \
+		"$(CATALOG_KEYS_CHECK)" \
 		"$(SYMBOL_CHECK)" "$(RPATH_CHECK)" "$(SCHEMA_FIXTURES_CHECK)" "$(TEMPLATES_CHECK)" \
 		"$(EXTENSIONS_PACKAGER)" "$(AGENT_TOOLS_BUILDER)" "$(DEVICE_TOOL)"; do \
 		test -x "$$script" || { echo "error: $${script#$(ROOT_DIR)/} is not executable" >&2; exit 66; }; \
@@ -527,6 +530,11 @@ else
 build: sdk-tier check harness
 endif
 	$(IOS_BUILD)
+	@# xcodebuild never merges what the compiler extracted into a catalog, so a
+	@# new string is only there if someone put it there.
+	@"$(CATALOG_KEYS_CHECK)" \
+		"$(ROOT_DIR)/Apelin/Resources/Localizable.xcstrings" "$(TARGET_INTERMEDIATES)/Apelin.build" \
+		"$(ROOT_DIR)/Widgets/Extension/Resources/Localizable.xcstrings" "$(TARGET_INTERMEDIATES)/ApelinWidgets.build"
 
 # The packaging half of `deb`, without a build: CI and deb-all package one
 # build twice through it.

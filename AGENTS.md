@@ -1779,7 +1779,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   names): `make check` runs `Scripts/check-translations.py`, which refuses
   a key missing one. Use the words the siblings already use for the same
   English string — Fila, Irisin, Xrash, iGhostVT and Inspector ship the
-  same languages.
+  same languages. xcodebuild never merges a new key into a catalog (only
+  the IDE does), so a string added outside Xcode is in no catalog and shows
+  in English everywhere: `make build` runs `Scripts/check-catalog-keys.py`
+  over the app's and the widget's `.stringsdata`, which refuses a key the
+  compiler extracted that its catalog lacks (the Model Providers menu's
+  "Edit", 2026-10-29). Put each one in by hand, with its translations.
 - **Licenses**: the reviewed discipline (`Licenses/README.md`). A dependency's
   notices land in `Licenses/` and `review.json` in the commit that adds it.
   GPL-family text fails the build except for an entry in `review.json` ▸
