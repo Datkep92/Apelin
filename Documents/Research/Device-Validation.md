@@ -542,6 +542,20 @@ console now goes on after a restart only past a successful respring.
       tokens compacts, from the menu and on its own at 75 % of the window,
       with no such error, kwwk's own summary where Anthropic's came back
       empty.
+- [ ] A program the agent builds and runs itself (2026-10-29, AGENTS.md ▸
+      the system prompt, `apelin-device-executables`; none has run on a
+      device, the skill quotes a field conversation). On the iOS 26.4 and
+      iOS 27.0.1 iPhone vphones (roothide) and a rootless device: a C
+      program built with shell_run's clang (`clang -arch arm64 probe.c -o
+      probe -framework CoreFoundation -framework CoreVideo`) that calls
+      `CVPixelBufferCreate` for a 64×64 BGRA buffer with
+      `kCVPixelBufferIOSurfacePropertiesKey` an empty dictionary and
+      prints the status. Expected: unsigned, exit 137; signed `ldid
+      -S<cli template's Tool.entitlements>`, -6662; signed with the
+      skill's `Tool.entitlements`, 0. Then, in a Strict chat, ask for an
+      mp4 made into a GIF: the agent reads the skill, writes the file
+      into the project, signs before the first run (a card for ldid and
+      one for the run) and does not rewrite its decoder over -6662.
 
 ## SDK and toolchain matrix (2026-10-19)
 

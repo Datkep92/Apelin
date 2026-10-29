@@ -55,8 +55,10 @@ extension BuiltInSkills {
            from `APELIN_BOOTSTRAP`, `-DAPELIN_PACKAGE_ID=…`) when the code
            tests them, as the apelin-bootstrap-paths helper does.
         2. Sign every Mach-O with `ldid -S` (`-S<entitlements.plist>` when it
-           needs entitlements); unsigned code does not load, and the
-           installer signs nothing for you.
+           needs entitlements: a command-line tool takes the
+           apelin-device-executables skill's `Tool.entitlements`, whose IOKit
+           classes the GPU and media frameworks need); unsigned code does not
+           load, and the installer signs nothing for you.
         3. Lay the package out in a staging folder under the build's
            `TMPDIR`: a tweak's dylib at
            `$APELIN_PREFIX/Library/MobileSubstrate/DynamicLibraries/<Name>.dylib`
