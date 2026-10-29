@@ -99,7 +99,7 @@ public extension AgentToolName {
         case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, only for a step that truly needs uid 0, such as irisin-cli install for a dependency (apelin-package-dependencies skill); it asks every time unless the mode is Full, and what it writes is root's."
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
         case .sdkReadHeader: "Read one header of a framework in the registered SDK."
-        case .projectBuild: "Build the project; returns structured diagnostics and artifacts with their digests."
+        case .projectBuild: "Build the project: the only way to make its package, which stays in Apelin's build folder. Returns structured diagnostics and artifacts with their digests; apelin_package_install takes the package artifact."
         case .packageInstall: "Install a built package artifact through the system installer; returns the transaction and installation record."
         case .packageRemove: "Remove a package Apelin built and installed, by its installation record id."
         case .deviceRespring: "Restart SpringBoard."

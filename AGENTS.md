@@ -2562,7 +2562,12 @@ knowledge gets wrong: an Apelin tweak is plain Objective-C hooked with
 `MSHookMessageEx` (the template's `Sources/Tweak.m`), with no Logos or Theos,
 and Apelin-specific work, a question included, starts from the matching skill
 (on a device, General Chat answered from memory that the template was a
-Logos `Tweak.x`). It keeps apelin_notification_send for what the reader
+Logos `Tweak.x`). A package comes only from apelin_project_build: never a
+`.deb` put together by hand or copied into the project, a workspace's
+declared script aside (`# Workspace`); a user who wants the file takes it
+from Distribute…, and a conversation opened for one is asked for a build (on
+a device, one opened to deliver a tweak's packages made them itself, into
+the project's `Dist/`). It keeps apelin_notification_send for what the reader
 would want to know while away (a long build, install or setup ended, something
 to do on the device), never routine progress, the reply or the turn's end. It
 asks for independent tool calls in
@@ -2626,8 +2631,8 @@ through `apelin_package_install`, a dependency through the user in Irisin — an
 shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
 `irisin-cli` (root-only, and the daemon takes an external client only at euid
 0) do not work for the agent. `apelin-packaging-and-install` and `apelin-crash-triage` cover
-install/respring/confirm and reading a crash. `apelin-external-build` is the workspace
-build: the declaration, what the script gets and must write, and how its
+where the package stays, install/respring/confirm and reading a crash.
+`apelin-external-build` is the workspace build: the declaration, what the script gets and must write, and how its
 package is installed. `apelin-git-workflow` (owner, 2026-10-25) is keeping the
 project's history for the user: commit on your own once a change builds
 unless the user drives git, `git_commit` with `all`, messages, `.gitignore`,
@@ -2707,7 +2712,8 @@ get relative paths or `$APELIN_PROJECT_ROOT` (on the iPhone vphone, `pwd -P`
 in the data folder printed `/var/mobile/Documents/…`), and which of cmake,
 dpkg-deb, git, ldid, make, ninja, perl, python3 and xcrun are on shell_run's
 search path (`DevelopmentEnvironment.searchPath`,
-the host's own list). It is part of the session's snapshot, holds nothing
+the host's own list), dpkg-deb, when found, for a workspace's declared script
+alone. It is part of the session's snapshot, holds nothing
 that changes unless the environment does — no time, size or duration,
 everything sorted — and a toolchain or SDK registered or removed later
 reaches an open session as the lines that went and came, in its next

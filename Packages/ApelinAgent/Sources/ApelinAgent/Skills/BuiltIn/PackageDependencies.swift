@@ -14,7 +14,7 @@ extension BuiltInSkills {
         and digest), then `apelin_package_confirm_loaded` and `apelin_package_remove`, as the
         apelin-packaging-and-install skill says. That path keeps the approval, the
         load check and the removal handle working; nothing else does. Never
-        place the `.deb` yourself, and never install it with irisin-cli.
+        build or place a `.deb` yourself, and never install it with irisin-cli.
 
         ## A dependency from a repository → irisin-cli as root
         A project may depend on a package from a repository the user has (an
