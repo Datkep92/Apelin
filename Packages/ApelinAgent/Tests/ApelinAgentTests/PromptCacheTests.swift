@@ -215,7 +215,7 @@ struct PromptCacheTests {
         #expect(blocks[3].contains("- Local time: Sunday 2026-10-25 00:05, Asia/Shanghai (UTC+08:00)."))
         for block in blocks {
             #expect(block.contains("; preferred: zh-Hans-CN, en-US; region CN."))
-            #expect(block.contains("- Reply in the language the user writes in; when that is unclear, in Chinese"))
+            #expect(block.contains("- Write to the user in the language they write in, progress notes included; when that is unclear, in Chinese"))
         }
         let told = Self.changes(blocks[1])
         #expect(told.contains("  - memory added (all chats): Editor: Prefers tabs."), "\(told)")
@@ -477,7 +477,7 @@ struct PromptCacheTests {
         #expect(block.utf8.count < 400, "\(block.utf8.count) bytes")
         let none = SystemState.make(SystemState.Facts(languages: [], region: nil, date: Self.beforeMidnight, timeZone: Self.zone, mode: .confirm))
         #expect(none.contains("- System language: not known."))
-        #expect(none.contains("- Reply in the language the user writes in.\n"))
+        #expect(none.contains("- Write to the user in the language they write in, progress notes included.\n"))
     }
 
     @Test

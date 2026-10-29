@@ -177,11 +177,30 @@ struct SkillAndPromptTests {
         let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
                                        skills: [], mcpServers: [])
         #expect(prompt.contains("# Responses"))
-        #expect(prompt.contains("- Reply in the language the user writes in. When that is unclear (code, a log, a single word, a pasted file), reply in the system language that <system-state> names."))
+        #expect(prompt.contains("When that is unclear (code, a log, a single word, a pasted file), write in the system language that <system-state> names."))
         #expect(prompt.contains("Code, identifiers, paths and commit messages stay as the repository has them"))
         #expect(prompt.contains("Do not paste tool output"))
         #expect(prompt.contains("never use a tool just to show"))
         #expect(prompt.contains("progress note is one short line"))
+    }
+
+    /// On a device, Chinese chats got English progress notes between tool
+    /// calls ("Build passed. Installing."): the rule said "Reply", and the
+    /// notes took the language of the English tool results before them.
+    @Test
+    func `progress notes are in the user's language, in the prompt and in every message's block`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
+                                       skills: [], mcpServers: [])
+        let responses = try #require(prompt.range(of: "# Responses")?.upperBound)
+        let working = try #require(prompt.range(of: "# Working")?.lowerBound)
+        let section = prompt[responses ..< working]
+        #expect(section.contains("- Write in the language the user writes in — your reply, every progress note between tool calls and every question you ask — even when the tool results you read are in English."))
+        #expect(section.contains("- While a task runs, a progress note is one short line in the user's language"))
+        let facts = try SystemState.Facts(languages: ["zh-Hans-CN"], region: "CN", date: Date(),
+                                          timeZone: #require(TimeZone(identifier: "UTC")), mode: .confirm)
+        #expect(SystemState.make(facts).contains("- Write to the user in the language they write in, progress notes included; when that is unclear, in Chinese"))
     }
 
     /// On a device, General Chat asked how to make a tweak with Apelin was
