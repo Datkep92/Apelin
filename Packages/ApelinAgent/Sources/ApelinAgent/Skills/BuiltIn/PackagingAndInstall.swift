@@ -54,7 +54,8 @@ extension BuiltInSkills {
           reconnect.
         - `apelin_package_confirm_loaded` with the `buildID` and the target process reports
           the marker log line and whether the filter selects the target,
-          separately; the image list is not read. The marker is logged once,
+          separately; its `loaded` rests on the marker alone, since the image
+          list is never read, on any iOS version. The marker is logged once,
           when the target starts, and is only seen while `apelin_package_confirm_loaded`
           listens (15 s; 30 s with a respring): for a SpringBoard tweak pass
           `respring: true` instead of a separate `apelin_device_respring`. For an app, your

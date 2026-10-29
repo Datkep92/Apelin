@@ -1011,7 +1011,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `installPackage`, apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded → a
   `confirmLoaded` task with the session's project read to its end (with
   `respring: true` it carries `trigger: respring` and is gated as apelin_device_respring;
-  it never asks for `imageCheck`), apelin_log_read → a `logStream` of
+  it never asks for `imageCheck`, and answers the host's `loaded` with a
+  `basis` saying it rests on the marker alone, no image field beside it),
+  apelin_log_read → a `logStream` of
   at most 10 s, list/read/symbolicate crashes → `crashList`, `crashOpen`
   (descriptor), `crashSymbolicate`, screen/UI → `captureScreen`,
   `readUITree`, `uiAction`, the framework tools' SDK → `sdkList` (the
@@ -1477,7 +1479,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   target's launch is seen only with the trigger, or with the target
   relaunched during the window. The filter from `apelin-project.json` is
   checked statically. The image list is **never read** (the evidence says
-  `notRead`): reading SpringBoard's image list panicked the iOS 27.0.1
+  `notRead`, naming no iOS version, since it holds on every one): reading
+  SpringBoard's image list panicked the iOS 27.0.1
   kernel on 2026-10-17, twice with the task-port read of dyld's image
   infos in place and once more through the region-path walk
   (`proc_pidinfo PROC_PIDREGIONPATHINFO`) alone. Both readers and

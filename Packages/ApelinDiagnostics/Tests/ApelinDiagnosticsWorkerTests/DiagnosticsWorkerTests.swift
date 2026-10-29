@@ -267,7 +267,8 @@ final class DiagnosticsWorkerTests: XCTestCase {
             XCTFail("an image check was accepted")
         } catch let error as ApelinError {
             XCTAssertEqual(error.code, .badRequest)
-            XCTAssertTrue(error.message.contains("panicked the iOS 27 kernel"), error.message)
+            XCTAssertTrue(error.message.contains("on every iOS version"), error.message)
+            XCTAssertNil(error.message.range(of: #"iOS \d"#, options: .regularExpression), error.message)
         }
         XCTAssertTrue(events.all.isEmpty, "a refused request starts nothing")
     }
@@ -288,6 +289,7 @@ final class DiagnosticsWorkerTests: XCTestCase {
         XCTAssertEqual(response.evidence.map(\.passed), [false, false, true])
         XCTAssertTrue(response.evidence[0].detail.hasPrefix("absent"))
         XCTAssertTrue(response.evidence[1].detail.hasPrefix("notRead:"), response.evidence[1].detail)
+        XCTAssertNil(response.evidence[1].detail.range(of: #"iOS \d"#, options: .regularExpression), response.evidence[1].detail)
     }
 
     /// The task: accepted at once, then `stage` events, the host's respring,

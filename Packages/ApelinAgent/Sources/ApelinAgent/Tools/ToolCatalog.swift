@@ -103,7 +103,7 @@ public extension AgentToolName {
         case .packageInstall: "Install a built package artifact through the system installer; returns the transaction and installation record."
         case .packageRemove: "Remove a package Apelin built and installed, by its installation record id."
         case .deviceRespring: "Restart SpringBoard."
-        case .packageConfirmLoaded: "Check that a build is loaded in its target process by its marker log line, and whether its filter selects the target. Pass respring: true for a SpringBoard tweak: the marker is logged once at launch and only seen while listening."
+        case .packageConfirmLoaded: "Check that a build is loaded in its target process by its marker log line, and whether its filter selects the target. loaded rests on the marker alone: the target's image list is never read, on any iOS version. Pass respring: true for a SpringBoard tweak: the marker is logged once at launch and only seen while listening."
         case .logRead: "Listen to the live system log for up to \(ReadLogsRequest.maximumListenSeconds) seconds and answer the lines logged meanwhile, for a process or subsystem. iOS keeps no log history: a line logged before the call is never seen. A tweak's line logged once at launch is apelin_package_confirm_loaded's to hear (with respring: true for SpringBoard)."
         case .crashList: "List crash report ids, newest first."
         case .crashRead: "Read a crash report by id."
