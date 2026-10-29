@@ -80,6 +80,10 @@ public struct BuildResponse: Sendable, Hashable, Codable {
     public var artifacts: [BuildArtifact]
     /// The tail of the build log, bounded by the host.
     public var logExcerpt: String
+    /// After a Debug build while nothing the project built is installed,
+    /// the identifiers Apelin made up for it (`PlaceholderIdentifiers`);
+    /// the agent adds it, the host never does.
+    public var identifierHint: String?
 
     public init(
         buildID: String,

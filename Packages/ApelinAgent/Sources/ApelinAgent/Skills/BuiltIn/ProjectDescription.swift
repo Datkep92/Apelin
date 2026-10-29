@@ -83,7 +83,10 @@ extension BuiltInSkills {
 
         ## package
         `{id, name, version, description, author, section, layout, …}`:
-        - `id`: the Debian package name. `version`: a Debian version.
+        - `id`: the Debian package name; a new project's is a
+          `local.apelin.` placeholder to settle with the user before its
+          first install (the apelin-packaging-and-install skill's Package
+          identity). `version`: a Debian version.
           `section`: Tweaks, Utilities, Development, System, Applications or
           Addons. Optional: `maintainer`, `longDescription` (a list of lines).
         - `icon`: the image a package manager shows beside the package, its

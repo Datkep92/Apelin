@@ -1132,7 +1132,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   and a schema error adds a note naming the apelin-project-description
   skill's schema file; a build refused over an `apelin-project.json` that
   does not read — in Strict mode the host's "approval required" — is
-  answered with `projectCheck`'s errors, field by field), apelin_package_install →
+  answered with `projectCheck`'s errors, field by field; a Debug build of a
+  project with a description that succeeds while `installationList` shows
+  nothing of the project installed adds `identifierHint`, naming the
+  `local.apelin.` package ID and app bundle ID still there, to ask the user
+  about before installing: `PlaceholderIdentifiers`), apelin_package_install →
   `installPackage` (a refused one answers its `conflict` events as
   `conflicts`; an app project's success adds `relaunchHint`,
   `AppRelaunch`: a copy already running keeps the previous build, which
@@ -1163,6 +1167,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (a list kind, such as the tweak's `filterBundles`, takes an array of
   strings, which apelin-build judges; apelin_template_list lists its
   default), allowed under Confirm like a project edit, answering the project's link
+  and, read by the worker from the folder made, an `identifierHint` naming
+  the placeholder identifiers it carries (the user's permanent ones go in
+  `values` as packageID and bundleID, built-ins every template takes)
   — the new project's chat builds it, which apelin_conversation_create
   naming the project opens with the task (asking under Confirm, as any
   call into another project does), and this one's file tools stay where
@@ -2835,7 +2842,10 @@ session's project in either mode, without asking — the label the file
 tools may write in its manifest anyway, outside every approval digest —,
 with `automatic: true` as `onlyIfAutomatic`, the session's own project's
 alone (the prompt's way to name a placeholder once the user states a goal,
-a user's or an external rename winning as above); another project only by
+a user's or an external rename winning as above; its result names the
+`local.apelin.` identifiers the project still carries, `identifierHint`,
+since the new project's name is the moment to settle them, and a rename the
+user asked for names none); another project only by
 its projectID, and under Confirm only by spending one approval the app gave
 that session naming exactly that project and name
 (`detail.projectRename` {projectID, folder, currentName, displayName}),
@@ -2966,7 +2976,13 @@ Logos `Tweak.x`). A package comes only from apelin_project_build: never a
 declared script aside (`# Workspace`); a user who wants the file takes it
 from Distribute…, and a conversation opened for one is asked for a build (on
 a device, one opened to deliver a tweak's packages made them itself, into
-the project's `Dist/`). It keeps apelin_notification_send for what the reader
+the project's `Dist/`). A new project's `local.apelin.` package and bundle
+IDs are settled with the user before its first install and kept the same for
+debug and release builds; once its package is installed, the agent never
+changes one on its own, since a new identifier is another package, and agrees
+a migration with the user first (2026-10-29: a package ID changed while
+preparing a release, after a debug package was installed, and the user met
+installer errors moving between them). It keeps apelin_notification_send for what the reader
 would want to know while away (a long build, install or setup ended, something
 to do on the device), never routine progress, the reply or the turn's end,
 sends the model to a known source with apelin_web_fetch, never a search
@@ -3058,7 +3074,12 @@ through `apelin_package_install`, a dependency through the user in Irisin — an
 shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
 `irisin-cli` (root-only, and the daemon takes an external client only at euid
 0) do not work for the agent. `apelin-packaging-and-install` and `apelin-crash-triage` cover
-where the package stays, install/respring/confirm (an app installed again
+where the package stays, its identity (the placeholders asked about before
+the first install and changed everywhere `file_grep` finds them, the same
+identifiers for debug and release, and changing an installed one: another
+package, so the old installation is removed with the user's agreement before
+the new one installs, and nothing keyed by the old ID follows),
+install/respring/confirm (an app installed again
 restarted with icli's `app kill --force`, then `app launch`) and reading a
 crash. `apelin-external-build` is the workspace
 build: the declaration, what the script gets and must write, and how its

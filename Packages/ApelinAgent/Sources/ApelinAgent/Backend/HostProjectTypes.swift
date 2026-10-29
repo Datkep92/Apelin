@@ -98,10 +98,14 @@ public struct ProjectCreateToolResponse: Sendable, Hashable, Codable {
     public var name: String
     /// `apelin://project/<projectID>`, which opens it in the app.
     public var link: String
-    public init(projectID: String, name: String) {
+    /// The identifiers Apelin made up for it, to ask the user about
+    /// (`PlaceholderIdentifiers`); the agent adds it, the host never does.
+    public var identifierHint: String?
+    public init(projectID: String, name: String, identifierHint: String? = nil) {
         self.projectID = projectID
         self.name = name
         link = ApelinLink.project(projectID)
+        self.identifierHint = identifierHint
     }
 }
 
@@ -191,6 +195,9 @@ public struct ProjectRenameToolResponse: Sendable, Hashable, Codable {
     public var changed: Bool
     /// `apelin://project/<projectID>`, which opens it in the app.
     public var link: String
+    /// After an automatic rename, the identifiers Apelin made up for the
+    /// project (`PlaceholderIdentifiers`); the agent adds it.
+    public var identifierHint: String?
     public init(projectID: String, folder: String, displayName: String, changed: Bool) {
         self.projectID = projectID
         self.folder = folder

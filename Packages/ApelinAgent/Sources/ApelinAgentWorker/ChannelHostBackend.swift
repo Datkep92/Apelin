@@ -284,7 +284,21 @@ public struct ChannelHostBackend: AgentHostBackend {
                 }
             },
         ))
-        return ProjectCreateToolResponse(projectID: created.projectID, name: created.name)
+        return ProjectCreateToolResponse(
+            projectID: created.projectID,
+            name: created.name,
+            identifierHint: createdRoot(created.name).flatMap(PlaceholderIdentifiers.createHint),
+        )
+    }
+
+    /// The folder `projectCreate` just made under `Projects/`, as mobile
+    /// reads it; nil when it is not there or leads elsewhere.
+    private func createdRoot(_ name: String) -> ScopedRoot? {
+        guard let projects = try? ScopedRoot(projectsURL),
+              let path = try? projects.resolveExisting(name),
+              projects.relative(path) == name
+        else { return nil }
+        return try? ScopedRoot(URL(fileURLWithPath: path, isDirectory: true))
     }
 
     public func renameProject(_ request: ProjectRenameToolRequest) async throws -> ProjectRenameToolResponse {

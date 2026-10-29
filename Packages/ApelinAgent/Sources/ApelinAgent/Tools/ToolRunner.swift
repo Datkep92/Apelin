@@ -388,13 +388,20 @@ actor ToolRunner {
             guard let target = facts.renamedProject else {
                 throw ToolDeniedError(message: "the project to rename could not be identified")
             }
-            return try await json(backend.renameProject(ProjectRenameToolRequest(
+            let automatic = arguments.argBool("automatic") ?? false
+            var renamed = try await backend.renameProject(ProjectRenameToolRequest(
                 context: context,
                 projectID: target.id,
                 folder: target.name.rawValue,
                 displayName: arguments.requireString("display_name").trimmingCharacters(in: .whitespaces),
-                automatic: arguments.argBool("automatic") ?? false,
-            )))
+                automatic: automatic,
+            ))
+            // A new project named for its goal: the moment to settle the
+            // identifiers Apelin made up for it.
+            if automatic, target.id == project.id {
+                renamed.identifierHint = PlaceholderIdentifiers.renameHint(in: root)
+            }
+            return json(renamed)
 
         case .projectDelete:
             // The project the card named.
@@ -449,12 +456,16 @@ actor ToolRunner {
                 throw ToolDeniedError(message: "the build description could not be checked")
             }
             let configuration = BuildConfiguration(rawValue: arguments.argString("configuration") ?? "debug") ?? .debug
-            return try await json(backend.build(BuildRequest(
+            var built = try await backend.build(BuildRequest(
                 context: context,
                 configuration: configuration,
                 buildDescriptionDigest: digest,
                 bootstrap: Self.bootstrap(arguments),
-            )))
+            ))
+            if built.succeeded, configuration == .debug, facts.externalBuild == nil {
+                built.identifierHint = await firstInstallIdentifierHint()
+            }
+            return json(built)
 
         case .packageInstall:
             guard let state = facts.description else {
@@ -797,6 +808,17 @@ actor ToolRunner {
             changed: edit.changed,
             warnings: checked.diagnostics.filter { $0.severity == "warning" }.map(\.message),
         )
+    }
+
+    /// A Debug build's note on the identifiers Apelin made up, while
+    /// nothing this project built is installed; nil too when that list does
+    /// not read, since then nothing says the first install is still ahead.
+    private func firstInstallIdentifierHint() async -> String? {
+        guard let hint = PlaceholderIdentifiers.buildHint(in: root),
+              let installed = try? await backend.installations(InstallationListToolRequest(projectID: project.id)),
+              installed.installations.isEmpty
+        else { return nil }
+        return hint
     }
 
     /// The skills folder's tools; unavailable where the session has none.

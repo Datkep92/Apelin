@@ -22,7 +22,7 @@ enum AppRelaunch {
     /// `CFBundleIdentifier` of the first `app` product's Info.plist, read
     /// inside the project; nil when it does not read or is not spelled as a
     /// bundle id, since the file is the project's, whatever it holds.
-    private static func bundleID(_ manifest: [String: Any], in root: ScopedRoot) -> String? {
+    static func bundleID(_ manifest: [String: Any], in root: ScopedRoot) -> String? {
         let products = manifest["products"] as? [[String: Any]] ?? []
         guard let infoPlist = products.first(where: { $0["type"] as? String == "app" })?["infoPlist"] as? String,
               let path = try? root.resolveExisting(infoPlist),

@@ -1,7 +1,7 @@
 extension BuiltInSkills {
     static let packagingAndInstall = SkillDocument(
         name: "apelin-packaging-and-install",
-        description: "From a successful build to a confirmed load: the package artifact, install through the system installer and what to do when another package is in its way, maintainer scripts, respring, apelin_package_confirm_loaded, and removal.",
+        description: "From a successful build to a confirmed load: the package artifact, the package and bundle identifiers to settle before the first install and how to change one after it, install through the system installer and what to do when another package is in its way, maintainer scripts, respring, apelin_package_confirm_loaded, and removal.",
         body: """
         # Packaging and install
 
@@ -20,6 +20,38 @@ extension BuiltInSkills {
           project chat's More (…) menu: it runs a release build for the
           bootstrap they choose, then exports that package or publishes it to
           their package repository.
+
+        ## Package identity
+        - A new project's `package.id` in apelin-project.json, and an app's
+          `CFBundleIdentifier` in its Info.plist, start as `local.apelin.…`
+          placeholders Apelin made up from the folder name. Before the first
+          install, ask the user for permanent reverse-DNS identifiers, or
+          whether to keep these, and write each one everywhere the project
+          spells it: `file_grep` for `local.apelin.` finds each place, such
+          as an app's `application-identifier` entitlement and a preference
+          bundle's `Root.plist` domain. `apelin_project_create` takes them
+          up front as `packageID` and `bundleID` in `values`.
+        - Debug and release builds carry the same identifiers: a release is
+          the same package at a higher version, never a renamed one.
+        - `apelin_package_list` with this project says whether a package of
+          it is installed. Once one is, its identifiers are established:
+          never change them on your own, and never assume a build under a
+          new package ID upgrades the installed package in place. The new ID
+          is another package, and the old one stays installed until it is
+          removed. When the user wants one changed, agree the migration with
+          them before installing:
+          - A new package that installs a file the old one installed (the
+            same dylib or app bundle) is refused, naming the old package in
+            `conflicts` (below); one that installs none goes in beside it,
+            and both stay installed. Either way the plan is to remove the old
+            installation with `apelin_package_remove` (in Strict mode it
+            asks), then install the new package, and only with the user's
+            agreement.
+          - Nothing follows the identity: an app's data and preferences, a
+            preferences domain named for the package ID (the preference
+            bundle template's) and anything else keyed by the old bundle ID
+            or package ID stay where they were. Say so, and ask whether any
+            of it must be carried over before the old package goes.
 
         ## Install
         - Call `apelin_package_install` with the `package` artifact's `id` and `digest`
@@ -47,10 +79,11 @@ extension BuiltInSkills {
         (`Conflicting final packages`). The result's `conflicts` then names
         each package in the way, the file, and the `installationID` when
         Apelin installed it.
-        - After renaming the package ID, or reusing a product name another
-          package already installs, remove the installation named there
-          with `apelin_package_remove` (in Strict mode the user confirms it),
-          then install again. A package Apelin did not install is the
+        - After a package ID change the user agreed to (Package identity,
+          above), or reusing a product name another package already
+          installs, remove the installation named there with
+          `apelin_package_remove` (in Strict mode the user confirms it), then
+          install again. A package Apelin did not install is the
           user's to remove with their package manager: ask them.
         - Adding `conflicts` or `breaks` removes nothing; it only makes the
           install fail while that package is there.
