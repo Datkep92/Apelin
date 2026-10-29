@@ -445,8 +445,13 @@ final class SidebarController: UIViewController {
     private func refreshProjects() async {
         do {
             projects = try await ProjectSummary.load()
-            if let name = project?.name, let resolved = projects.first(where: { $0.name == name }),
-               resolved != project
+            // A project whose folder went takes its conversations, and the
+            // sidebar leaves it for General Chat, as Delete in All Projects does.
+            let deleted = await runtime.forgetDeletedProjects()
+            if let name = project?.name, deleted.contains(name) {
+                switchProject(to: nil)
+            } else if let name = project?.name, let resolved = projects.first(where: { $0.name == name }),
+                      resolved != project
             {
                 project = resolved
             } else if let name = UserDefaults.standard.string(forKey: "chat.selectedProject"),

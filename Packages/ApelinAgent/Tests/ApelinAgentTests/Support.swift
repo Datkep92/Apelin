@@ -90,6 +90,7 @@ actor MockBackend: AgentHostBackend {
         case confirmLoaded(build: String, target: String)
         case createProject(template: String, name: String, values: [String: TemplateValue])
         case renameProject(projectID: String, displayName: String, automatic: Bool)
+        case deleteProject(projectID: String, folder: String, evidence: ApprovalEvidence)
         case gitStatus
         case gitDiff(path: String?, staged: Bool)
         case gitStage([String])
@@ -448,6 +449,11 @@ actor MockBackend: AgentHostBackend {
     func renameProject(_ request: ProjectRenameToolRequest) -> ProjectRenameToolResponse {
         calls.append(.renameProject(projectID: request.projectID, displayName: request.displayName, automatic: request.automatic))
         return ProjectRenameToolResponse(projectID: request.projectID, folder: request.folder, displayName: request.displayName, changed: true)
+    }
+
+    func deleteProject(_ request: ProjectDeleteToolRequest) -> ProjectDeleteToolResponse {
+        calls.append(.deleteProject(projectID: request.projectID, folder: request.folder, evidence: request.context.approval))
+        return ProjectDeleteToolResponse(projectID: request.projectID, folder: request.folder)
     }
 
     func toolchains(context _: HostCallContext) -> ToolchainListToolResponse {

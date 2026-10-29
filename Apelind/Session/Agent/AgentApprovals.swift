@@ -370,6 +370,18 @@ actor AgentSessionTable {
         entries.values.first { $0.task.taskID == taskID }
     }
 
+    /// The sessions of `projectID` whose task has not ended, oldest first:
+    /// the ones a deletion of the project closes.
+    func running(project projectID: String, registry: TaskRegistry) async -> [Entry] {
+        var running: [Entry] = []
+        for entry in entries.values.filter({ $0.project.id == projectID }).sorted(by: { $0.createdAt < $1.createdAt }) {
+            if let record = await registry.record(entry.task.taskID), !record.state.isTerminal {
+                running.append(entry)
+            }
+        }
+        return running
+    }
+
     /// The title the session's agent gave it (its `title` event).
     func setTitle(_ title: String, session: String) {
         entries[session]?.title = title

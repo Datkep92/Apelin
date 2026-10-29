@@ -66,6 +66,8 @@ final class ChatRuntime {
                     rmdir(DataFolder.app.root.appendingPathComponent("Temporary/" + record.summary.id.uuidString).path)
                 }
             }
+            // a project deleted while the app was away
+            await forget(DeletedProjects.gone(from: summaries, listed: DeletedProjects.listing(in: .app)))
             isLoaded = true
             onChange?()
             // A host that does not answer yet is not an error, and runs
@@ -175,6 +177,34 @@ final class ChatRuntime {
         defer { onChange?() }
         for id in ids {
             try await removeRecord(id)
+        }
+    }
+
+    /// Takes away the conversations of every project whose folder has gone
+    /// from `Projects/` (`DeletedProjects`), as `deleteProject` takes them
+    /// once it has removed the folder itself. Answers the projects gone.
+    @discardableResult
+    func forgetDeletedProjects() async -> Set<String> {
+        guard isLoaded else { return [] }
+        let gone = DeletedProjects.gone(from: summaries, listed: DeletedProjects.listing(in: .app))
+        guard !gone.conversations.isEmpty else { return [] }
+        await forget(gone)
+        onChange?()
+        return gone.projects
+    }
+
+    /// Their banners withdrawn, any session the host left open closed —
+    /// an agent's deletion closed its own, so nothing waits on the host
+    /// here —, and their histories removed; a history that cannot be
+    /// removed is tried again with the next change.
+    private func forget(_ gone: DeletedProjects.Gone) async {
+        for id in gone.conversations {
+            let session = records[id]?.sessionID
+            ConversationNotices.shared.withdraw(session: session)
+            if let session {
+                Task { try? await ApelinService.app.agentClose(sessionID: session) }
+            }
+            try? await removeRecord(id)
         }
     }
 

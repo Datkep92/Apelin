@@ -101,6 +101,9 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For apelin_feedback_send: the issue, checked before asking, as it is
     /// sent.
     public var feedback: FeedbackApproval?
+    /// For apelin_project_delete: the project, resolved before asking,
+    /// which is the one deleted.
+    public var projectDeletion: ProjectDeleteApproval?
 
     public init(
         tool: Tool,
@@ -276,6 +279,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 detail: .projectRename(rename),
             )
 
+        // Another project, gone for good with its files and conversations:
+        // every deletion asks, naming the project, and none is granted for
+        // the session.
+        case .projectDelete:
+            guard let deletion = facts.projectDeletion else {
+                return .ask(reason: "The project to delete could not be identified.", detail: .none)
+            }
+            return .ask(reason: Self.deletionReason(deletion), detail: .projectDelete(deletion))
+
         // The project's own repository, changed in the project: like an
         // edit, and nothing leaves the device. A fetch, pull or clone
         // only brings commits in; pull never merges, clone never
@@ -412,6 +424,10 @@ public struct ApprovalPolicy: Sendable, Hashable {
             " (\(ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)))"
         } ?? ""
         return "Sets up Command Line Tools \(setup.version) (\(components)) on this device: Apple's package\(size) is downloaded from Apple, adapted, installed as a package through Irisin for every project and self-tested; if no registered SDK fits it, one is imported from an enabled SDK source first. Each install needs your approval."
+    }
+
+    static func deletionReason(_ deletion: ProjectDeleteApproval) -> String {
+        "Deletes the project \(deletion.folder) (shown as “\(deletion.displayName)”) from this device: its folder with every file in it, and its conversations, which are closed first. This cannot be undone. Each deletion needs your approval."
     }
 
     static func feedbackReason(_ feedback: FeedbackApproval) -> String {

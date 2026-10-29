@@ -4,7 +4,8 @@ import ApelinProtocol
 import Foundation
 
 /// What apelin-build serves (Workers/Build/main.swift is one call to this):
-/// `extensionList`, `projectCreate` and `projectCheck` answered directly;
+/// `extensionList`, `projectCreate`, `projectCheck`, `projectRename` and
+/// `projectDelete` answered directly;
 /// `buildStart` accepted, then run on its own thread as the task the host
 /// registered, every stage, log line, diagnostic and the artifact an event,
 /// ending in a `state` event that also carries the artifact's ID and digest
@@ -66,6 +67,10 @@ public final class BuildWorker: @unchecked Sendable {
         case .projectRename:
             return await WorkerMain.serve(ProjectRenameRequest.self, request) {
                 try ProjectMetadata.rename($0, in: dataFolder)
+            }
+        case .projectDelete:
+            return await WorkerMain.serve(ProjectDeleteRequest.self, request) {
+                try ProjectDeletion.delete($0, in: dataFolder)
             }
         case .buildStart:
             guard let taskID = request.taskID else {

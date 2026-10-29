@@ -180,6 +180,23 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] A project deleted by the agent (2026-10-29, AGENTS.md ▸ Project
+      display names ▸ Deleting a project; none of it has run on a device,
+      it needs a model provider, and it deletes, so by hand only, on a
+      throwaway project). In General Chat, "delete the project <name>"
+      under Strict: one card naming the folder and the name the sidebar
+      shows and saying it cannot be undone, with no "for this session";
+      Approve removes `Projects/<folder>` whole (a link inside it removed,
+      what it named left), its running conversation stopped first, and the
+      sidebar, All Projects, delivered banners and the widget no longer
+      show the project or its chats, the open page going to General Chat
+      when it showed that project; `Builds/<projectID>/` stays, as after
+      the app's own Delete. Deny deletes nothing. Relaxed and Full delete
+      without a card. From the project's own chat it is refused with where
+      to delete it instead, in every mode, nothing asked. A project's folder
+      removed while the app is closed (by Fila) has its chats gone at the
+      next launch. Asked to "clean up" without naming a project, the agent
+      deletes nothing.
 - [ ] The folders a removed toolchain leaves (2026-10-29, AGENTS.md ▸
       Install bridge; none of it has run on a device). On roothide:
       Settings ▸ Toolchains ▸ Remove leaving no

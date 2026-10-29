@@ -165,8 +165,10 @@ struct ProjectCreationTests {
         let home = try TemporaryHome()
         defer { home.remove() }
         #expect(AgentToolName.screenInteract.summary.contains("Never in Apelin itself (wiki.qaq.apelin)"))
+        // A project is deleted by its own tool, never by taps through All Projects.
+        #expect(AgentToolName.screenInteract.summary.contains("a project is deleted with apelin_project_delete"))
         let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [], mcpServers: [])
         let line = prompt.split(separator: "\n").first { $0.contains("never on Apelin's own screen") }
-        #expect(line?.contains("deleting a project") == true)
+        #expect(line?.contains("A project is deleted with apelin_project_delete, never through Apelin's screen.") == true)
     }
 }

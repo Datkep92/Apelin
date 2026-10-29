@@ -1024,3 +1024,5 @@ checkToolCallDetail()
 checkTraceStep()
 
 checkDroppedMessages()
+
+checkDeletedProjects()

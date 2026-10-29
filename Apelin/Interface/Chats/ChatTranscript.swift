@@ -602,6 +602,7 @@ struct ChatTranscript {
         case .templateList: return String(localized: "List project templates")
         case .projectList: return String(localized: "List projects")
         case .projectRename: return String(localized: "Rename the project")
+        case .projectDelete: return String(localized: "Delete a project")
         case .projectCreate:
             let project = values?["name"]?.stringValue ?? ""
             return project.isEmpty ? String(localized: "Create a project") : String(localized: "Create \(project)")

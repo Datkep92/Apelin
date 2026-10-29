@@ -31,8 +31,8 @@ public struct ApprovalRequest: Sendable, Hashable, Codable {
     public var reason: String
     public var detail: ApprovalDetail
     /// Whether "for this session" may be offered. Never for package removal,
-    /// a push, an issue filed as feedback, or a request bound to a
-    /// description digest (the host's ledger keeps those).
+    /// a push, an issue filed as feedback, a project's deletion, or a
+    /// request bound to a description digest (the host's ledger keeps those).
     public var allowsSessionScope: Bool
 
     public init(
@@ -101,6 +101,23 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// A public issue on Apelin's own repository: the whole title and body.
     /// The host lets through only the issue it names, once.
     case feedback(FeedbackApproval)
+    /// Another project deleted for good. The host lets through only the
+    /// deletion of the project it names, once.
+    case projectDelete(ProjectDeleteApproval)
+}
+
+/// What an apelin_project_delete card names, and the host matches its
+/// deletion to (AgentProjectDeleteRules): the project, its folder and the
+/// name the sidebar shows.
+public struct ProjectDeleteApproval: Sendable, Hashable, Codable {
+    public var projectID: String
+    public var folder: String
+    public var displayName: String
+    public init(projectID: String, folder: String, displayName: String) {
+        self.projectID = projectID
+        self.folder = folder
+        self.displayName = displayName
+    }
 }
 
 /// What an apelin_feedback_send card names, and the host matches its issue

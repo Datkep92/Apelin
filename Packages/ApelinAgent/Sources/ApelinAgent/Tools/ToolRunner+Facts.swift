@@ -103,6 +103,8 @@ extension ToolRunner {
             facts.sdkImport = try await importToAsk(arguments)
         case .projectRename:
             try await gatherRename(arguments, into: &facts)
+        case .projectDelete:
+            facts.projectDeletion = try await deletionToAsk(arguments)
         case .skillSave:
             facts.skillChange = try skillTools().change(saving: arguments)
         case .skillRemove:
@@ -187,6 +189,24 @@ extension ToolRunner {
             folder: target.name.rawValue,
             currentName: listed?.displayName ?? target.name.rawValue,
             displayName: name,
+        )
+    }
+
+    /// The project a deletion names, resolved before asking: another one
+    /// than this session's, which it runs in, and never a temporary chat's.
+    /// The card names it by its folder and the name the sidebar shows, and
+    /// the host deletes that one only.
+    private func deletionToAsk(_ arguments: JSONValue) async throws -> ProjectDeleteApproval {
+        let target = try await backend.resolveProject(arguments.requireString("project"))
+        guard !target.isTemporary else { throw ToolDeniedError(message: "a temporary chat has no project to delete") }
+        guard target.id != project.id else {
+            throw ToolDeniedError(message: "this conversation's own project cannot be deleted from here, since this conversation runs in it: the user deletes it in Projects ▸ All Projects…, or asks from General Chat or another project's conversation")
+        }
+        let listed = try? await backend.projects().projects.first { $0.projectID == target.id }
+        return ProjectDeleteApproval(
+            projectID: target.id,
+            folder: target.name.rawValue,
+            displayName: listed?.displayName ?? target.name.rawValue,
         )
     }
 

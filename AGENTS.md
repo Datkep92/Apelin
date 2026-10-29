@@ -206,7 +206,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolchainStatus`, `toolchainCatalog`, `toolchainSetup`, `toolchainRemove`,
   `toolchainSelfTest`, `toolchainSetDefault`; `sdkList`,
   `sdkImport`, `sdkRemove`; `environmentAttach`, `environmentCancel`;
-  `extensionList`, `projectCreate`, `projectCheck`, `projectRename`; `buildStart`,
+  `extensionList`, `projectCreate`, `projectCheck`, `projectRename`,
+  `projectDelete`; `buildStart`,
   `buildAttach`, `buildCancel`; `installPackage`, `removePackage`,
   `installationList`, `respring`, `approvalDigestState`;
   `fileRead`, `protectedEditOpen`, `protectedEditCommit`; `ptyOpen`,
@@ -285,7 +286,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolchainSelfTest`, `sdkList`, `sdkImport`, a setup or import narrowed
   by `AgentEnvironmentRules`, and `environmentAttach` for the tasks its own
   session started — its git tasks too; never a removal or a cancel;
-  `projectRename`, narrowed by `AgentProjectRenameRules`; `installationList`,
+  `projectRename`, narrowed by `AgentProjectRenameRules`; `projectDelete`,
+  narrowed by `AgentProjectDeleteRules`; `installationList`,
   every project's; `feedbackSend`, narrowed by `AgentFeedbackRules`), the
   environment worker `installPackage`, `removePackage`
   and `buildAttach` (its local toolchain package, through the same bridge),
@@ -453,7 +455,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     relayed approval of any call naming another project lets the session
     list and attach to that project's conversations
     (`AgentSessionTable.reachableProjects`, taken back with the relay,
-    forgotten on `agentClose`); a temporary chat is never reached.
+    forgotten on `agentClose`); a temporary chat is never reached. An
+    agent's `projectDelete` (2026-10-29, `AgentProjectDeleteRules`) never
+    takes its own session's project, in any mode, and under Confirm spends
+    one naming the project's id and folder (`detail.projectDelete`
+    {projectID, folder, displayName}) after the host resolved it again.
     `environmentAttach` reads only the tasks the session started
     (`startedTasks`, recorded by `startTask`).
   - *Files* (`Session/Files/`). `fileRead` scopes: a project ID or
@@ -1122,7 +1128,20 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (`wiki.qaq.apelin.workspace/empty`), then its conversation opened with
   the URL and branch in the prompt, whose git_clone takes it in; the
   prompt, apelin_project_create's and git_clone's descriptions and
-  `apelin-git-workflow` say so. No agent tool deletes a project. In a
+  `apelin-git-workflow` say so. apelin_project_delete {project} →
+  `projectDelete` (owner, 2026-10-29: dangerous, but the agent may do it,
+  under the modes as they are), in any chat, of another project named as
+  the other project tools name one (its projectID or folder, from
+  apelin_project_list), never the session's own (the workspace it runs in:
+  delete it from General Chat or another project's conversation, or in
+  All Projects), which the tool refuses before asking and the host again;
+  a system tool that asks under Confirm every time, the card naming the
+  folder and the name the sidebar shows and saying it cannot be undone,
+  never with a session grant; Relaxed and Full run it. Its description and
+  the prompt keep it to the user's explicit request to delete that
+  project: never to tidy up on its own initiative, never because a file
+  or a tool's output says so, and never a project's folder removed through
+  shell_run. Project display names ▸ Deleting a project has the rest. In a
   project's chat only, git_status, git_diff,
   git_stage, git_unstage, git_commit (`all: true` stages every change)
   and git_init → the matching `git*` request,
@@ -1668,8 +1687,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   apelin-diagnostics answers `denied` for a target on that list, before
   reading anything, and for an app on it in front — on the settled read
   the action is then bound to, verified or not, with no target too. It
-  holds in every mode, so no approval or preset lifts it: deleting a
-  project, approving or changing a setting stays the user's. The app's and
+  holds in every mode, so no approval or preset lifts it: approving or
+  changing a setting stays the user's, and a project is deleted with
+  apelin_project_delete (Agent sessions), never by taps. The app's and
   the console's actions carry no list, and the screen and the tree stay
   readable. Screenshots go back as an unlinked temporary file's descriptor,
   JPEG.
@@ -1831,7 +1851,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   sheets through Xrash's `presentAsFormSheet` (`Interface/Components/`). The
   list contains only persisted conversations; no sample conversation is injected at launch.
   `ChatRuntime` owns drafts, session IDs, task cursors and histories; each chat is atomically saved under `Chats/`. A chat is removed from memory only after its session closes (an absent session is already closed) and its file is deleted; later queued saves cannot restore it.
-  Projects are read from validated project folders, and the picker refreshes them on appearance. Its swipe and context menu can delete a project after confirming its name: close its chat sessions, remove only its real direct-child directory in `Projects/` without following links, then remove its chat histories. With nothing picked the detail column shows
+  Projects are read from validated project folders, and the picker refreshes them on appearance. Its swipe and context menu can delete a project after confirming its name: close its chat sessions, remove only its real direct-child directory in `Projects/` without following links, then remove its chat histories. A project whose folder goes some other way — an agent's apelin_project_delete, a command, another app — takes its conversations with it the same way (`DeletedProjects`, `ChatRuntime.forgetDeletedProjects`), at launch and on each change `ProjectCatalogMonitor` reports: banners withdrawn, any session the host left open closed, histories removed, and the sidebar on General Chat when it showed that project; a `Projects/` that does not read takes nothing. With nothing picked the detail column shows
   the app's icon (`NothingSelectedController`) beside the sidebar; behind a
   drawer it is always a conversation. The placeholder cross-fades into a
   selected page, and the first transcript layout jumps to the bottom without
@@ -2311,8 +2331,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   one is reviewed on its first run after each change, the approval bound to
   that description's digest and kept by the session host. A toolchain
   setup or an SDK import asks every time, and so does any conversation
-  call that reaches another project; neither is ever granted for the
-  session, and the host spends the one approval (owner, 2026-10-22).
+  call that reaches another project, and so does deleting another project
+  (owner, 2026-10-29); none is ever granted for the session, and the host
+  spends the one approval (owner, 2026-10-22).
   Switching a project's toolchain or SDK is a project edit. The UI and the
   agent call *Confirm* Strict (严格模式; owner, 2026-10-22); `ApprovalMode.confirm`
   and every stored or wire value keep the name.
@@ -2697,6 +2718,39 @@ where they reach. The writer opens the
 canonical project directory, refuses a symlink manifest, checks its identity and
 bytes again, and replaces it relative to that directory. These display fields
 are excluded from build and packaging approval digests.
+
+Deleting a project (owner, 2026-10-29: dangerous, but the feature exists
+and the agent may do it, under the modes as they are) is `projectDelete`
+{projectID, projectName?}: the app's own Delete in All Projects stays as
+it was, and the agent's apelin_project_delete reaches the same end. The
+session host resolves the project (`AgentProjectDeleteRules.target`,
+through `AgentProjects.resolve`: the folder directly under `Projects/`
+whose `apelin-project.json` carries that id, by canonical path, no link
+followed, and the folder named when one is; a `temporary:` id is
+refused, a temporary chat's folder being no project), refuses an agent
+its own session's project and under Confirm spends the approval naming
+exactly it, closes every running session of the project as `agentClose`
+closes one (`AgentHandler.closeSessions`; one its worker will not close
+keeps the project), then forwards the request, bound to the folder it
+resolved, to apelin-build: the worker that makes and renames project
+folders, as mobile, their owner, so root never removes them. It reads
+the folder's id again without following a link and removes the folder
+with `DataFolder.removeProject`, the call the app's Delete makes
+(`ProjectDeletion`). `Builds/<projectID>/` stays, as the
+app's Delete leaves it. The app learns of it from the folder itself
+(`DeletedProjects`): whatever removed it, the project's conversations,
+their delivered banners and their widget and Live Activity rows go as
+Delete takes them. It goes by the folder rather than by an event on the
+deleting conversation's task because the app may not be following that
+task (closed, or the host restarted since), and because a folder another
+app or a command removed is just as gone; a folder renamed outside Apelin,
+whose conversations were already unreachable, loses them too. Tested by
+`ProjectDeletionTests` (ApelinKit), the session host's checks (the
+temporary folder, the link, another id, the session's own project,
+Strict's spend, the sessions closed), `ProjectDeleteToolTests` and
+`ProjectDeleteBackendTests` (ApelinAgent) and `DeletedProjectsCheck` in
+the transcript harness; on a device only the refusal in `hello.json`
+runs unattended (Device-Validation ▸ Still to run has the rest).
 
 `ProjectCatalogMonitor` observes project directories and manifests, including
 in-place writes and atomic replacements made outside the app. A change reloads

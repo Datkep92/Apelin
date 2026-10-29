@@ -43,8 +43,10 @@ enum CallerPolicy {
         .sdkList, .sdkImport, .environmentAttach,
         .extensionList,
         // A rename is its own project's, or another's only as the user
-        // approved it (AgentProjectRenameRules).
-        .projectCreate, .projectCheck, .projectRename,
+        // approved it (AgentProjectRenameRules). A deletion is never its
+        // own project's, and another's under Confirm only as the user
+        // approved exactly it (AgentProjectDeleteRules).
+        .projectCreate, .projectCheck, .projectRename, .projectDelete,
         .buildStart, .buildAttach, .buildCancel,
         // The installations it lists are every project's, as removal takes
         // any build's; a toolchain's or a file's is listed as not its to remove.

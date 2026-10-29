@@ -634,6 +634,10 @@ actor EventRelay {
         // (AgentFeedbackRules).
         case let .feedback(feedback):
             payload["detail"] = .object(["feedback": (try? ApelinCore.JSONValue(encoding: feedback)) ?? .null])
+        // The project the host matches an agent's projectDelete to
+        // (AgentProjectDeleteRules).
+        case let .projectDelete(deletion):
+            payload["detail"] = .object(["projectDelete": (try? ApelinCore.JSONValue(encoding: deletion)) ?? .null])
         }
         return .object(payload)
     }

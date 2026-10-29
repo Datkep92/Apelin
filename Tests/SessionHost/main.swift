@@ -2799,6 +2799,117 @@ do {
     check(!noSession, "a worker with no session renames nothing")
 }
 
+// MARK: - A project is deleted only in its real folder, never by its own session, and under Strict as approved
+
+do {
+    check(CallerPolicy.allows(.worker(.agent, instance: "s"), .projectDelete), "the agent may ask for a deletion")
+    check(!CallerPolicy.allows(.worker(.build, instance: nil), .projectDelete), "the build worker may not")
+    check(!CallerPolicy.allows(.worker(.environment, instance: nil), .projectDelete), "nor the environment worker")
+    check(AppOperation.projectDelete.domain == .project, "ProjectHandler serves it")
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-delete-tasks"))
+    await registry.load()
+    let home = scratch.appendingPathComponent("delete-home", isDirectory: true)
+    let data = DataFolder(home: home.path)
+    func project(_ folder: URL, id: String) {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? Data(#"{"projectID":"\#(id)"}"#.utf8).write(to: folder.appendingPathComponent("apelin-project.json"))
+    }
+    project(data.projects.appendingPathComponent("Mine", isDirectory: true), id: "p-delete-mine")
+    project(data.projects.appendingPathComponent("Theirs", isDirectory: true), id: "p-delete-theirs")
+    // A folder of Projects/ that is a link to a project kept elsewhere.
+    let elsewhere = scratch.appendingPathComponent("delete-elsewhere/Outside", isDirectory: true)
+    project(elsewhere, id: "p-delete-outside")
+    try? FileManager.default.createSymbolicLink(at: data.projects.appendingPathComponent("Linked"), withDestinationURL: elsewhere)
+    // A temporary chat's working folder, which is no project.
+    let temporary = UUID().uuidString
+    project(data.root.appendingPathComponent("Temporary/\(temporary)", isDirectory: true), id: "temporary:\(temporary)")
+    let homePath = CanonicalPath.resolve(home.path)!
+
+    func code(_ delete: ProjectDeleteRequest) -> ApelinError.Code? {
+        do {
+            _ = try AgentProjectDeleteRules.target(delete, home: homePath)
+            return nil
+        } catch {
+            return (error as? ApelinError)?.code ?? .internal
+        }
+    }
+    let theirs = try? AgentProjectDeleteRules.target(ProjectDeleteRequest(projectID: "p-delete-theirs"), home: homePath)
+    check(theirs?.name == "Theirs" && theirs?.path == homePath + "/Documents/wiki.qaq.apelin/Projects/Theirs", "a project is found by its id, in its own folder")
+    check(code(ProjectDeleteRequest(projectID: "temporary:\(temporary)")) == .badRequest, "a temporary chat's folder is no project to delete")
+    check(code(ProjectDeleteRequest(projectID: "p-delete-outside")) == .notFound, "nor a project behind a link out of Projects/, by its id")
+    check(code(ProjectDeleteRequest(projectID: "p-delete-outside", projectName: "Linked")) == .notFound, "or by the link's name")
+    check(code(ProjectDeleteRequest(projectID: "p-delete-theirs", projectName: "Mine")) == .conflict, "a folder holding another id is refused")
+    check(code(ProjectDeleteRequest(projectID: "p-delete-none")) == .notFound, "an id no project has is refused")
+    check(code(ProjectDeleteRequest(projectID: "")) == .badRequest, "and no id at all")
+    check(FileManager.default.fileExists(atPath: elsewhere.path), "deciding removes nothing")
+
+    let sessions = AgentSessionTable.shared
+    func session(_ id: String, mode: ApprovalMode, project: ResolvedProject? = nil) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: project ?? ResolvedProject(id: "p-delete-mine", name: "Mine", path: homePath + "/Documents/wiki.qaq.apelin/Projects/Mine"),
+            mode: mode,
+            createdAt: Date(),
+        )
+        await sessions.add(entry)
+        return entry
+    }
+    guard let target = theirs else { fatalError("no project to delete") }
+    let strict = await session("delete-strict", mode: .confirm)
+    func authorized(_ entry: AgentSessionTable.Entry?, _ project: ResolvedProject = target) async -> ApelinError? {
+        await AgentProjectDeleteRules.authorize(project, session: entry?.sessionID, registry: registry)
+    }
+    // What apelin-agent writes into apelin_project_delete's approvalRequested
+    // (ApelinAgentWorker's tests hold that shape).
+    func ask(_ approvalID: String, tool: String = "apelin_project_delete", projectID: String = "p-delete-theirs", folder: String = "Theirs") async {
+        await registry.append(strict.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(approvalID), "tool": .string(tool),
+            "detail": .object([AgentProjectDeleteRules.detailKey: .object([
+                "projectID": .string(projectID), "folder": .string(folder), "displayName": .string("Weather"),
+            ])]),
+        ]))
+    }
+    let unasked = await authorized(strict)
+    check(unasked?.code == .denied, "Strict deletes another project only as the user approved it")
+    await ask("delete-1", folder: "Mine")
+    await sessions.record(strict.sessionID, approvalID: "delete-1", decision: .approve)
+    await ask("delete-2", tool: "apelin_project_rename")
+    await sessions.record(strict.sessionID, approvalID: "delete-2", decision: .approve)
+    let otherFolder = await authorized(strict)
+    let unspent = await sessions.approvedIDs(strict.sessionID)
+    check(otherFolder != nil && unspent == ["delete-1", "delete-2"], "an approval covers the folder it named, by this tool only, and stays unspent")
+    await ask("delete-3")
+    let asked = await authorized(strict)
+    check(asked != nil, "asking is not approving")
+    await sessions.record(strict.sessionID, approvalID: "delete-3", decision: .approve)
+    let approved = await authorized(strict)
+    check(approved == nil, "the approved deletion goes through")
+    let again = await authorized(strict)
+    check(again != nil, "once: the next one asks again")
+    for mode in [ApprovalMode.relaxed, .full] {
+        let entry = await session("delete-\(mode.rawValue)", mode: mode)
+        let other = await authorized(entry)
+        let own = await authorized(entry, entry.project)
+        check(other == nil, "\(mode.rawValue) deletes another project without asking")
+        check(own?.code == .denied && own?.message.contains("General Chat") == true, "but never its own, in \(mode.rawValue) too, saying where it is deleted from")
+    }
+    let ownStrict = await authorized(strict, strict.project)
+    check(ownStrict?.code == .denied, "nor under Strict")
+    let generalChat = await session("delete-general", mode: .relaxed, project: ResolvedProject(id: "temporary:\(temporary)", name: temporary, path: "/"))
+    let fromGeneral = await authorized(generalChat)
+    check(fromGeneral == nil, "General Chat deletes a project")
+    let noSession = await authorized(nil)
+    check(noSession?.code == .denied, "a worker with no session deletes nothing")
+
+    // The sessions a deletion closes: the project's own that still run.
+    let open = await session("delete-theirs-open", mode: .relaxed, project: target)
+    let ended = await session("delete-theirs-ended", mode: .relaxed, project: target)
+    await registry.finish(ended.task.taskID, .succeeded, message: "closed")
+    let closing = await sessions.running(project: target.id, registry: registry).map(\.sessionID)
+    check(closing == [open.sessionID], "a deletion closes the project's running sessions only (\(closing))")
+}
+
 // MARK: - Feedback is posted under Strict only as the user approved exactly it
 
 do {
