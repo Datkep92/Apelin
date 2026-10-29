@@ -327,7 +327,7 @@ struct SkillAndPromptTests {
             .split(whereSeparator: \.isWhitespace).joined(separator: " ")
         #expect(loop.contains("5. Check the behaviour itself, not only that it loaded"))
         #expect(loop.contains("drive it with `apelin_screen_interact`"))
-        #expect(loop.contains("Report what you could not drive as Not tested."))
+        #expect(loop.contains("Report what you could not drive or see as Not tested."))
     }
 
     /// On a device, a tweak whose filter could not be set was created with

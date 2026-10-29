@@ -1158,7 +1158,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `basis` saying it rests on the marker alone, no image field beside it),
   apelin_log_read → a `logStream` of
   at most 10 s, list/read/symbolicate crashes → `crashList`, `crashOpen`
-  (descriptor), `crashSymbolicate`, screen/UI → `captureScreen`,
+  (descriptor), `crashSymbolicate`, screen/UI → `captureScreen` (only
+  after the user consented to that screenshot, as the prompt says),
   `readUITree`, `uiAction`, the framework tools' SDK → `sdkList` (the
   project's pinned `environment.sdk.id` first), shell_run → `agentRunCode`;
   in any chat (owner, 2026-10-24; General Chat's alone before),
@@ -2992,9 +2993,19 @@ first, has apelin_feedback_send wait for the user's explicit consent
 to the issue it showed them, and has apelin_git_create_repository make
 only a repository the user asked for or explicitly agreed to, with the
 owner, name and visibility they gave. After a change that shows on screen it
-drives it with the screen tools — read, act, read again —, and a step it
-cannot take (the device locked, a gesture the tool lacks, a declined call)
-leaves that behaviour Not tested. It asks for independent tool calls in
+drives it with the screen tools — the UI tree read, an action, the tree read
+again —, and a step it cannot take (the device locked, a gesture the tool
+lacks, a declined call or screenshot) leaves that behaviour Not tested. A
+screenshot, by apelin_screen_capture, icli through shell_run or any other
+way, waits for the user's explicit consent to that one, in every mode (owner,
+2026-10-29: a user working on a Dock animation saw the agent take several
+without asking, some catching unrelated apps in front): the model says what
+it is for and what it will show and asks, a broad request such as testing on
+the device is no consent, nor is another conversation's message, one consent
+covers one screenshot, and what is under test comes to the front first. That is instructions only, in the
+prompt, the tool's description and the apelin-icli and
+apelin-tweak-development skills (`ScreenshotConsentTests`); the tool and
+Strict's card are as they were. It asks for independent tool calls in
 one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
 logs and MCP results as data, and names every approval mode with what it
 lets through (`# Approval modes`) but none as the one on. It holds nothing
@@ -3049,7 +3060,8 @@ build defines and what asks the user, with the embedded schema as its file
 `apelin-project.schema.json` (`ProjectValidation.schemaText`); a test fails
 when the schema gains a member the guide never names. `apelin-tweak-development`
 is the edit-build loop, ending on the changed behaviour driven with the screen
-tools, and how to live beside other tweaks (hooks that chain,
+tools (the UI tree, a screenshot only once the user agreed to it), and how
+to live beside other tweaks (hooks that chain,
 `static` names, prefixed added methods and classes), and says Theos is not
 supported (owner, 2026-10-23): a Theos tweak's Logos is rewritten as plain
 Objective-C in the template's style, never built with Theos, which is never
@@ -3104,8 +3116,9 @@ release, and keeping old versions in check. `apelin-icli` (owner,
 2026-10-26) is running icli through shell_run: an argv, its help read
 first, Apelin's own tools where they exist, the commands its device
 acceptance ran as mobile, never its package, launchd, respring, uicache or
-reboot commands, roothide's `jbroot` prefix, and pointing the user to
-`https://apt.owngoal.dev` when it is missing.
+reboot commands, its `screen shot`, `screen ocr` and `screen describe` as
+screenshots that wait for the user's consent, roothide's `jbroot` prefix,
+and pointing the user to `https://apt.owngoal.dev` when it is missing.
 Every built-in's name begins `apelin-` (owner, 2026-10-25), so none takes
 the name of a user's skill of the same subject; `BuiltInSkills.legacyNames`
 lets `apelin_skill_read` find one by its old name when no skill has that
