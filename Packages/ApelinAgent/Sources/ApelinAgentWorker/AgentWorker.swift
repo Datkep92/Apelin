@@ -236,6 +236,10 @@ actor WorkerState {
     /// What the session runs with now, which a conversation it opens starts with.
     let modelChoice = SessionModelChoice()
     private var session: AgentSession?
+    /// An open is under way. It takes the place before its first
+    /// suspension, so an open the host sends meanwhile is refused rather
+    /// than served by a second session writing the same log.
+    private var opening = false
     private var taskID: TaskID?
     private var context: WorkerContext?
     private var relay: Task<Void, Never>?
@@ -243,7 +247,9 @@ actor WorkerState {
     private var finished = false
 
     func open(_ open: AgentOpenRequest, taskID: TaskID, context: WorkerContext) async throws {
-        guard session == nil else { throw ApelinError(.conflict, "this process already serves a session") }
+        guard session == nil, !opening else {
+            throw ApelinError(.conflict, "this process already serves or is opening a session")
+        }
         guard let sessionID = context.assignment.sessionID, SessionEventLog.isValidSessionID(sessionID) else {
             throw ApelinError(.badRequest, "an agent session needs a session id from the host")
         }
@@ -260,6 +266,9 @@ actor WorkerState {
         let dataRoot = ApelinDataRoot(home: home)
         let projectURL = dataRoot.workspace(for: identity.name, temporaryID: open.temporaryID)
 
+        opening = true
+        // one that fails leaves the place free for the host to try again
+        defer { opening = false }
         // Credentials the owner dropped in the inbox are taken first.
         let keychain = KeychainCredentialSource(accessGroup: AgentWorker.keychainAccessGroup)
         let imported = await CredentialInbox(home: context.assignment.home).importAll(into: keychain)

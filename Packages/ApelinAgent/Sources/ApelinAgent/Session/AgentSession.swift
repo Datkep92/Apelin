@@ -155,14 +155,9 @@ public actor AgentSession {
         self.gate = gate
         self.runner = runner
         self.mcpManager = mcpManager
-        for record in try await log.records(afterSeq: 0) {
-            if case let .userMessage(id, _, _) = record.event {
-                submitted.insert(id)
-            }
-            if case .titleUpdated = record.event {
-                hasTitle = true
-            }
-        }
+        // read in the log's opening pass, so the log is not read again
+        submitted = log.opened.userMessageIDs
+        hasTitle = log.opened.hasTitle
         for diagnostic in skills.diagnostics {
             _ = try? await log.append(.error(message: "A skill has a problem. \(diagnostic)"))
         }
@@ -615,7 +610,8 @@ public actor AgentSession {
         get async { await gate.pending }
     }
 
-    /// Events after `afterSeq`, then live ones. Pass 0 for everything.
+    /// Events after `afterSeq`, then live ones. Pass 0 for everything. It
+    /// returns at once: the history is read from disk as the stream goes.
     public func events(afterSeq: UInt64) async throws -> AsyncStream<SessionEventRecord> {
         try await log.attach(afterSeq: afterSeq)
     }
@@ -835,15 +831,7 @@ public actor AgentSession {
     }
 
     private static func closeAbandonedApprovals(_ log: SessionEventLog) async throws {
-        var open: [String] = []
-        for record in try await log.records(afterSeq: 0) {
-            switch record.event {
-            case let .approvalRequested(request): open.append(request.id)
-            case let .approvalResolved(id, _): open.removeAll { $0 == id }
-            default: break
-            }
-        }
-        for id in open {
+        for id in log.opened.openApprovals {
             try await log.append(.approvalResolved(requestID: id, decision: .deny(reason: "the session restarted")))
         }
     }
