@@ -19,6 +19,10 @@ extension ToolRunner {
         case .fileList, .fileGrep, .fileFind:
             let path = arguments.argString("path") ?? "."
             facts.pathCheck = check { _ = try root.resolveExisting(path) }
+        case .fileShow:
+            // The first path that leaves the project, if one does.
+            let checks = (arguments.argStrings("paths") ?? []).map { path in check { _ = try root.resolveExisting(path) } }
+            facts.pathCheck = checks.first { $0 != .inside } ?? .inside
         case .shellRun:
             facts.command = try CommandClassifier.classify(arguments)
             facts.runsAsRoot = arguments.argBool("root") ?? false

@@ -540,6 +540,13 @@ struct ChatTranscript {
         case .fileEdit: return path.isEmpty ? String(localized: "Edit a file") : String(localized: "Edit \(path)")
         case .fileList: return String(localized: "List files")
         case .fileGrep, .fileFind: return String(localized: "Search files")
+        case .fileShow:
+            guard case let .array(items)? = values?["paths"] else { return String(localized: "Show a file") }
+            let paths = items.compactMap(\.stringValue)
+            if paths.count > 1 {
+                return String(localized: "Show \(paths.count) files")
+            }
+            return paths.first.map { String(localized: "Show \($0)") } ?? String(localized: "Show a file")
         case .shellRun: return String(localized: "Run a command")
         case .sdkAnalyzeFramework, .sdkReadHeader: return String(localized: "Read the SDK")
         case .projectBuild: return String(localized: "Build the project")

@@ -17,6 +17,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case fileList = "file_list"
     case fileGrep = "file_grep"
     case fileFind = "file_find"
+    case fileShow = "file_show"
     case shellRun = "shell_run"
     case sdkAnalyzeFramework = "apelin_sdk_analyze_framework"
     case sdkReadHeader = "apelin_sdk_read_header"

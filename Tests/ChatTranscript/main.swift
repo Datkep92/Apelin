@@ -65,7 +65,26 @@ let notified = ChatTranscript(events: [
 ]) { _ in nil }.messages
 precondition(notified.count == 1 && notified[0].trace.map(\.text) == ["Send a notification"],
              "a notice shows only as its call, named in the trace: \(notified.flatMap(\.trace).map(\.text))")
-print("ok: empty thoughts, subsecond reasoning, standalone tools and ended turns")
+/// A file the agent shows is an assistant row of its result's attachments,
+/// shown as any attachment is: a PDF as a document card.
+let shownFiles = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("Let me see the notes")]),
+    event(2, "toolCall", ["id": .string("s1"), "tool": .string("file_show"), "arguments": .string("{\"paths\":[\"Docs/notes.pdf\"]}")]),
+    event(3, "toolResult", ["id": .string("s1"), "output": .string("Shown to the user in this conversation: Docs/notes.pdf."), "attachments": .array([
+        .object(["path": .string("Attachments/0f1e"), "name": .string("notes.pdf"), "mimeType": .string("application/pdf")]),
+    ])]),
+    event(4, "toolCall", ["id": .string("s2"), "tool": .string("file_show"), "arguments": .string("{\"paths\":[\"a.png\",\"b.log\"]}")]),
+    event(5, "toolCall", ["id": .string("s3"), "tool": .string("file_show"), "arguments": .string("{}")]),
+    event(6, "message", ["text": .string("There they are.")]),
+    event(7, "finished"),
+]) { item in
+    ComposerAttachment(name: item.name, data: Data(item.path.utf8), isImage: item.mimeType.hasPrefix("image/"))
+}.messages
+precondition(shownFiles.contains { $0.role == .assistant && $0.attachments.map(\.name) == ["notes.pdf"] && !$0.attachments[0].isImage },
+             "a shown PDF is a document attachment of the reply: \(shownFiles.map(\.attachments))")
+precondition(shownFiles.flatMap(\.trace).filter { $0.role == .tool }.map(\.text) == ["Show Docs/notes.pdf", "Show 2 files", "Show a file"],
+             "\(shownFiles.flatMap(\.trace).map(\.text))")
+print("ok: empty thoughts, subsecond reasoning, standalone tools, shown files and ended turns")
 
 /// The approval card shows what the decision is bound to: why the gate
 /// asked, a changed description's diff, then the arguments read by name

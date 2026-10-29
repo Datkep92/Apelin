@@ -720,7 +720,7 @@ public actor AgentSession {
                 attachments: result.content.compactMap { block in
                     guard case let .image(image) = block, let data = Data(base64Encoded: image.data) else { return nil }
                     return try? saveAttachment(name: "Image", mimeType: image.mimeType, data: data)
-                },
+                } + FileShow.attachments(of: name, result: result, isError: isError),
             )))
         case .agentEnd:
             // The event carries only this run's messages; the transcript is
