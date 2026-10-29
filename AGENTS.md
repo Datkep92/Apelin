@@ -1186,12 +1186,22 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `prompt` {text, from}, the model reading one line before it naming the
   sending conversation (`ConversationSender`), and the app names the
   sender over the bubble. apelin_conversation_list {project?} → `agentList`
-  {projectID?}, one project's sessions only, each with `parentSessionID`
-  and its link, titled by the session's own `title` events as the host
-  relays them; apelin_conversation_read {project?} → `agentList` for the task,
-  then `agentAttach` of a task of that project's sessions only, read from
-  the start (`ConversationReader`: state running, waitingForApproval,
-  idle or ended, the approvals still waiting, the assistant's `message`
+  {projectID?}, one project's sessions only — in General Chat, naming
+  none, every project's it may reach: all in Relaxed and Full, under
+  Strict those the user let it reach, saying how many it left out
+  (`unreachedProjects`) —, each with `parentSessionID`, its link and, from
+  another project, its folder, titled by the session's own `title` events
+  as the host relays them. The session table starts empty with every host
+  and apelind exits when idle, so an agent's list (the app's stays the
+  table's) also names the sessions that have not run since the host
+  started (`AgentConversationList`, 2026-10-29): each by the newest agent
+  task the registry kept, ended and read like any ended one, in the
+  project its `session.json` names when that is under `Projects/`, at most
+  200, the most recently active; apelin_conversation_read {project?} →
+  `agentList` for the task, then `agentAttach` of a task of that
+  project's sessions only, read from the start (`ConversationReader`:
+  state running, waitingForApproval, idle or ended, the approvals still
+  waiting (none once it ended), the assistant's `message`
   and `error` texts after `after_seq`, cut at 32 KiB with `last_seq`
   where the next read goes on), and with `wait_seconds` (0–180, under the
   provider's five-minute cache: Prompt caching, below) attaching
