@@ -97,7 +97,9 @@ extension BuiltInSkills {
           executables?, classes?}`. The packager writes the filter plist
           beside the dylib, which must be laid out under
           `/Library/MobileSubstrate/DynamicLibraries/`; do not ship one
-          yourself.
+          yourself. A new tweak's `bundles` come from the template's
+          `filterBundles`, an array of bundle IDs in apelin_project_create's
+          `values`, such as `["com.apple.Preferences"]`.
         - `maintainerScripts`: `{preinst?, postinst?, prerm?, postrm?}`, each
           a project file. Only `@PREFIX@` and `@ROOTFS@` are substituted;
           `sh -n` must pass. They run as root and the install card shows

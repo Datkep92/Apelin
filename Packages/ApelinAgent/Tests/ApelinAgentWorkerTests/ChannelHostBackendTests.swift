@@ -191,6 +191,36 @@ struct ChannelHostBackendTests {
         #expect(response.transactionID == "tx-1")
     }
 
+    /// The tweak template's filterBundles is a list of bundle IDs: its
+    /// default is listed as one, and one given is sent as a JSON array.
+    @Test
+    func `a list template value is listed and sent as a JSON array`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.extensionList, reply: ExtensionListResponse(extensions: [
+            DevelopmentExtension(id: "wiki.qaq.apelin.dev.tweak", version: "0.1.0", kind: .tweak, displayName: "Tweak Development", templates: [
+                TemplateSummary(id: "wiki.qaq.apelin.dev.tweak/objc-hook", displayName: "Objective-C Tweak", parameters: [
+                    TemplateParameter(name: "filterBundles", kind: "bundleIDList", defaultValue: .array([.string("com.apple.springboard")])),
+                    TemplateParameter(name: "mixed", kind: "bundleIDList", defaultValue: .array([.string("a.b"), .number(1)])),
+                ]),
+            ]),
+        ]))
+        let templates = try await fixture.backend.projectTemplates().templates
+        #expect(templates.first?.parameters.map(\.defaultValue) == [.list(["com.apple.springboard"]), nil])
+
+        fixture.host.on(.projectCreate, reply: ProjectCreateResponse(projectID: "p-1", name: "Settings Tweak", path: "/p"))
+        _ = try await fixture.backend.createProject(ProjectCreateToolRequest(
+            context: fixture.context(),
+            templateID: "wiki.qaq.apelin.dev.tweak/objc-hook",
+            name: "Settings Tweak",
+            values: ["filterBundles": .list(["com.apple.springboard", "com.apple.Preferences"]), "displayName": .string("X")],
+        ))
+        let sent = try #require(fixture.host.requests(ProjectCreateRequest.self).first)
+        #expect(sent.values == [
+            "filterBundles": .array([.string("com.apple.springboard"), .string("com.apple.Preferences")]),
+            "displayName": .string("X"),
+        ])
+    }
+
     @Test
     func `respring is the host's closed operation`() async throws {
         let fixture = try Fixture()

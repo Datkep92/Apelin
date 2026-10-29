@@ -264,7 +264,7 @@ public extension AgentToolName {
                 "name": Schema.string("Project folder name: a few words, no slashes. It never changes later."),
                 "values": .object([
                     "type": "object",
-                    "description": "Template parameters by name, each a string, boolean or integer; omit for the defaults.",
+                    "description": #"Template parameters by name, each a string, boolean or integer, or for a list kind (bundleIDList, executableList) an array of strings, such as {"filterBundles": ["com.apple.Preferences"]}; omit for the defaults."#,
                 ]),
             ], required: ["template", "name"])
         case .memorySave:

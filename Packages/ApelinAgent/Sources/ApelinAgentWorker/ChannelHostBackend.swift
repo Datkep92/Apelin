@@ -252,6 +252,7 @@ public struct ChannelHostBackend: AgentHostBackend {
                 case let .string(text): .string(text)
                 case let .boolean(flag): .bool(flag)
                 case let .integer(number): .number(Double(number))
+                case let .list(items): .array(items.map(ApelinCore.JSONValue.string))
                 }
             },
         ))
@@ -277,6 +278,8 @@ public struct ChannelHostBackend: AgentHostBackend {
         case let .string(text): .string(text)
         case let .bool(flag): .boolean(flag)
         case let .number(number) where number.rounded() == number && abs(number) < 1e15: .integer(Int(number))
+        // A list kind's default, such as the tweak's filterBundles.
+        case let .array(items) where items.allSatisfy { $0.stringValue != nil }: .list(items.compactMap(\.stringValue))
         default: nil
         }
     }

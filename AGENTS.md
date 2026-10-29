@@ -990,8 +990,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   project's pinned `environment.sdk.id` first), shell_run → `agentRunCode`;
   in any chat (owner, 2026-10-24; General Chat's alone before),
   apelin_template_list → `extensionList` (isolated extensions left out)
-  and apelin_project_create{template, name, values} → `projectCreate`,
-  allowed under Confirm like a project edit, answering the project's link
+  and apelin_project_create{template, name, values} → `projectCreate`
+  (a list kind, such as the tweak's `filterBundles`, takes an array of
+  strings, which apelin-build judges; apelin_template_list lists its
+  default), allowed under Confirm like a project edit, answering the project's link
   — the new project's chat builds it, which apelin_conversation_create
   naming the project opens with the task (asking under Confirm, as any
   call into another project does), and this one's file tools stay where
@@ -2514,7 +2516,8 @@ code, a log, one word, a pasted file — the system language `<system-state>`
 names; code, identifiers, paths and commit messages as the repository has
 them; owner, 2026-10-25), the result first with no preamble, a
 greeting answered with a greeting (no tools, no survey of the project), then the
-checks actually run and any real blocker. `# Responses` makes concision bite —
+checks actually run, any real blocker and any part of the request not done as
+asked (a setting left at its default). `# Responses` makes concision bite —
 match the length to the task, and do not paste tool output, files, diffs or
 logs back, narrate the steps or recap at the end; a progress note is one short
 line (owner, 2026-10-24). `# Working` opens with what a model's general
