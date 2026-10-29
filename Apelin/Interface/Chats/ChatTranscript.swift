@@ -241,7 +241,7 @@ struct ChatTranscript {
                     add(ChatMessage(id: id, role: .compaction, text: payload?["summary"]?.stringValue ?? ""))
                 }
             case TaskEvent.stateKind:
-                if let state = payload?["state"]?.stringValue.flatMap(TaskState.init(rawValue:)), state.isTerminal {
+                if Self.endsTask(event) {
                     finishThinking(at: event.time)
                     isWorking = false
                     isCompacting = false
@@ -323,6 +323,13 @@ struct ChatTranscript {
     static func userMessageID(of event: TaskEvent) -> UUID? {
         guard ["prompt", "steer", "queued"].contains(event.kind) else { return nil }
         return event.payload?["id"]?.stringValue.flatMap(UUID.init(uuidString:))
+    }
+
+    /// Whether an event is the `state` a task ends with, which ends its
+    /// turn: the host appends nothing after it.
+    static func endsTask(_ event: TaskEvent) -> Bool {
+        guard event.kind == TaskEvent.stateKind else { return false }
+        return event.payload?["state"]?.stringValue.flatMap(TaskState.init(rawValue:))?.isTerminal == true
     }
 
     /// While the turn runs, its last summary stays unfinished across tool
