@@ -758,6 +758,17 @@ console now goes on after a restart only past a successful respring.
       lists are copied into its `Packaging/Tool.entitlements`. In a Strict
       chat, another new cli project's first build, its description
       untouched, asks nothing.
+- [ ] The templates' package icon (2026-10-29, AGENTS.md ▸ Live chat and
+      project UI ▸ the templates; none has run on a device). With
+      app and tweak 0.1.1 and cli and preferences 0.1.2 installed, on the
+      iOS 26.4 and iOS 27.0.1 iPhone vphones (roothide) and a rootless
+      device: a new project of each kind builds and installs, and Irisin's
+      installed list shows the kind's icon from Pages beside it. A tweak
+      published to the user's package repository shows the same icon in
+      the source once Pages has indexed it. With `package.icon` changed to
+      another https image, the next install in a Strict chat asks once (a
+      packaging change) and the new icon shows; with it removed, the deb
+      has no `Icon` and the package manager draws its default.
 - [ ] Restarting an app installed again (2026-10-29, AGENTS.md ▸ Agent
       sessions ▸ apelin_package_install; none has run on a device). In an
       app project's conversation, with the app open from its last install:

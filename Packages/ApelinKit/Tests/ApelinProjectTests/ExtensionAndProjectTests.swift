@@ -81,6 +81,12 @@ final class ExtensionAndProjectTests: XCTestCase {
                 ], catalog: catalog, registry: sampleRegistry(), projectID: projectID)
                 XCTAssertEqual(created.root.lastPathComponent, name)
                 XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: store.projectsDirectory.path), [name], "staging left behind")
+                // a package manager shows the extension's own icon, from Pages
+                XCTAssertEqual(
+                    try store.locate(projectID).project.package.icon,
+                    "https://owngoal-dev.github.io/Apelin/icons/\(manifest.id).png",
+                    template.id,
+                )
 
                 let reference = scratch.appendingPathComponent("reference")
                 let architectures = JSONWriter.compact(.object(JSONObject(Bootstrap.allCases.compactMap { bootstrap in

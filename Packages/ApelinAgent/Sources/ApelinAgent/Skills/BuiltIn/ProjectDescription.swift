@@ -86,6 +86,13 @@ extension BuiltInSkills {
         - `id`: the Debian package name. `version`: a Debian version.
           `section`: Tweaks, Utilities, Development, System, Applications or
           Addons. Optional: `maintainer`, `longDescription` (a list of lines).
+        - `icon`: the image a package manager shows beside the package, its
+          control `Icon`: an `https://` URL in printable ASCII, at most 2048
+          bytes. Every template writes its extension's icon on Apelin's
+          Pages, such as
+          `https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.dev.tweak.png`.
+          Keep it, or put in an https image the user gives as their own. It
+          is not an app's own icon, which its Info.plist names.
         - Relations: `depends`, `recommends`, `suggests`, `conflicts`,
           `breaks`, `replaces` and `provides`, each item like `"name (>=
           1.0)"`, alternatives joined by ` | `; `dependsByBootstrap`

@@ -104,6 +104,8 @@ final class MacPipelineTests: XCTestCase {
             XCTAssertEqual(control.package, "com.example.hellotweak")
             XCTAssertEqual(control.architecture, record.architecture)
             XCTAssertEqual(control["Depends"], "firmware (>= 16.0), mobilesubstrate")
+            let icon = "https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.dev.tweak.png"
+            XCTAssertEqual(control["Icon"], icon, "the template's package icon")
             let prefix = bootstrap == .rootless ? "/var/jb" : ""
             let paths = Set(contents.entries.map(\.path))
             XCTAssertTrue(paths.contains(prefix + "/Library/MobileSubstrate/DynamicLibraries/HelloTweak.dylib"), "\(paths)")
@@ -118,9 +120,10 @@ final class MacPipelineTests: XCTestCase {
 
             // And through the tools a person would use.
             if let dpkgDeb = dpkgDeb() {
-                let info = try runTool(dpkgDeb, ["-f", record.path, "Package", "Version", "Architecture", "Depends"])
+                let info = try runTool(dpkgDeb, ["-f", record.path, "Package", "Version", "Architecture", "Depends", "Icon"])
                 XCTAssertEqual(info.status, 0, info.output)
                 XCTAssertTrue(info.output.contains("Architecture: \(record.architecture)"), info.output)
+                XCTAssertTrue(info.output.contains("Icon: \(icon)\n"), info.output)
                 let listing = try runTool(dpkgDeb, ["-c", record.path])
                 XCTAssertEqual(listing.status, 0, listing.output)
                 XCTAssertTrue(listing.output.contains(".\(prefix)/Library/MobileSubstrate/DynamicLibraries/HelloTweak.dylib"), listing.output)

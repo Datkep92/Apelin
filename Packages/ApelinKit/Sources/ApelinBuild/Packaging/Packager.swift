@@ -146,6 +146,7 @@ public struct Packager: Sendable {
             description: description,
         )
         control["Name"] = package.name
+        control["Icon"] = package.icon
         control["Author"] = package.author
         control["Maintainer"] = package.maintainer ?? package.author
         control["Section"] = package.section

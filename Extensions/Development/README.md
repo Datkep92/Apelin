@@ -20,6 +20,13 @@ run time (`requirements.runtimeDependencies` and its support components'),
 so a template that builds also runs. The packager derives `Depends` from the
 manifest; nothing is retyped in the control files.
 
+Every template's `package.icon` is its extension's own icon on Apelin's
+Pages, `https://owngoal-dev.github.io/Apelin/icons/<id>.png` (from app and
+tweak 0.1.1, cli and preferences 0.1.2), so a package built from it shows
+that icon in a package manager until the user names their own;
+`check-templates.py` fails a template whose icon is another or not a file
+in `Documents/Site`.
+
 ## What each template proves
 
 - **objc-hook** — a dylib filtered to `com.apple.springboard` that calls

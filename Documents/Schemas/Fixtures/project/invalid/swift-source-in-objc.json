@@ -5,8 +5,8 @@
   "template": {
     "extensionID": "wiki.qaq.apelin.dev.cli",
     "templateID": "c",
-    "version": "0.1.1",
-    "digest": "sha256:8346da3d9a0681055789e16493b86bc5c3c12cf4729e602fd8a525dfa1404d13"
+    "version": "0.1.2",
+    "digest": "sha256:ba1812f5d18b75f193dde0277db553e147c1f01e2f0e7f14fe1eb43907dc59ff"
   },
   "environment": {
     "toolchain": {
