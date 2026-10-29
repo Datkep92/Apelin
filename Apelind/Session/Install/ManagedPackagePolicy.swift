@@ -207,10 +207,13 @@ enum ManagedPackagePolicy {
             )
         }
         // A later install of the same package supersedes this record.
-        if records.contains(where: {
+        if let newer = records.filter({
             $0.packageID == record.packageID && $0.status == .installed && $0.createdAt > record.createdAt
-        }) {
-            throw ApelinError(.conflict, "A newer installation of \(record.packageID) exists. Remove that installation instead.")
+        }).max(by: { $0.createdAt < $1.createdAt }) {
+            throw ApelinError(
+                .conflict,
+                "A newer installation of \(record.packageID) exists: \(newer.installationID). Remove that installation instead.",
+            )
         }
     }
 }

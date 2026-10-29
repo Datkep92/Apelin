@@ -481,6 +481,8 @@ do {
     check(CallerPolicy.allows(.app, .protectedEditCommit), "the app may edit")
     check(CallerPolicy.allows(.worker(.agent, instance: "s"), .buildStart), "the agent may build")
     check(CallerPolicy.allows(.worker(.agent, instance: "s"), .approvalDigestState), "the agent may read the ledger")
+    check(CallerPolicy.allows(.worker(.agent, instance: "s"), .installationList), "the agent may list installations")
+    check(!CallerPolicy.allows(.worker(.environment, instance: nil), .installationList) && !CallerPolicy.allows(.worker(.diagnostics, instance: nil), .installationList), "no other worker lists installations")
     check(CallerPolicy.allows(.worker(.agent, instance: "s"), .toolHostCall), "the agent may call tools")
     check(CallerPolicy.allows(.worker(.agent, instance: "s"), .confirmLoaded) && CallerPolicy.allows(.worker(.agent, instance: "s"), .confirmLoadedAttach), "the agent starts and reads a load check")
     // Accounts are the app's alone: a session's agent never starts, answers
@@ -1632,6 +1634,86 @@ do {
     _ = await bridge().resume(registry.record(crashedAgain.taskID)!)
     let again = try await waitForEnd(registry, crashedAgain)
     check(again.state == .succeeded && irisin.lock.withLock { irisin.duplicates } == duplicatesBefore + 1, "a staged install is submitted again under its own ID and answered dup")
+
+    // The list: per package still installed, its newest record, and whether
+    // this caller's removal would act on it. An agent in Relaxed mode, so
+    // only the bridge's own rules decide.
+    func installedResult(_ handle: TaskHandle) async throws -> InstallResult? {
+        try await waitForEnd(registry, handle).events.first { $0.kind == "result" }?.payload?.decode(InstallResult.self)
+    }
+    let lister = Caller.worker(.agent, instance: "lister")
+    await approvals.setMode(.relaxed, session: "lister")
+    let older = try await installedResult(install.install(InstallPackageRequest(artifactID: "art-1", digest: digest), caller: .app))
+    let newer = try await installedResult(install.install(InstallPackageRequest(artifactID: "art-1", digest: digest), caller: .app))
+    let hello = try await install.list(InstallationListRequest(packageID: "com.example.hello"), caller: lister)
+    check(hello.installations.map(\.installationID) == [newer?.installationID ?? "-"], "a package installed twice is listed once, by its newest installation")
+    check(hello.installations.first.map { $0.removable && $0.reason == nil && $0.projectID == "p-1" && $0.buildID == buildTask.taskID.rawValue && $0.version == "1.0" } == true, "the row names the version, project and build, removable")
+    do {
+        _ = try await install.remove(RemovePackageRequest(installationID: older?.installationID ?? "-"), caller: .app)
+        check(false, "a superseded installation is not removed")
+    } catch let error as ApelinError {
+        check(error.code == .conflict && error.message.contains(newer?.installationID ?? "-"), "the refusal of a superseded installation names the newer one")
+    }
+    let everything = try await install.list(InstallationListRequest(), caller: lister)
+    check(everything.installations.map(\.packageID) == ["com.example.hello", "com.example.resume"], "every package still installed is listed, newest first (\(everything.installations.map(\.packageID)))")
+    // The agent installs build artifacts only, and removes only those.
+    let fileForAgent = everything.installations.first { $0.packageID == "com.example.resume" }
+    check(fileForAgent.map { !$0.removable && ($0.reason ?? "").contains("from a file") } == true, "the agent sees a file the app installed as not its to remove")
+    let fileForApp = try await install.list(InstallationListRequest(packageID: "com.example.resume"), caller: .app)
+    check(fileForApp.installations.first?.removable == true, "the app sees that file's package as removable")
+    await expectErrorAsync("the agent removing a file the app installed", code: .denied) {
+        _ = try await install.remove(RemovePackageRequest(installationID: resumeID), caller: lister)
+    }
+    let byProject = try await install.list(InstallationListRequest(projectID: "p-1"), caller: lister)
+    let otherProject = try await install.list(InstallationListRequest(projectID: "p-2"), caller: lister)
+    check(byProject.installations.map(\.packageID) == ["com.example.hello"] && otherProject.installations.isEmpty, "the list is filtered by project")
+
+    irisin.lock.withLock { irisin.installedVersions["com.example.hello"] = "2.0" }
+    let replaced = try await install.list(InstallationListRequest(packageID: "com.example.hello"), caller: lister)
+    check(replaced.installations.first.map { !$0.removable && ($0.reason ?? "").contains("now version 2.0") } == true, "a package changed outside Apelin is listed as not removable, with the refusal")
+    irisin.lock.withLock { irisin.installedVersions["com.example.hello"] = "1.0" }
+
+    // A removal under way is the package's newest record: the install
+    // before it is not offered while it runs.
+    try await installations.update(newer?.installationID ?? "-") { $0.status = .removing }
+    let removing = try await install.list(InstallationListRequest(packageID: "com.example.hello"), caller: lister)
+    check(removing.installations.map(\.installationID) == [newer?.installationID ?? "-"] && removing.installations.first?.removable == false, "a package being removed is listed by that removal, not removable")
+    try await installations.update(newer?.installationID ?? "-") { $0.status = .installed }
+
+    let failing = data + "/failing.deb"
+    makeDeb(at: failing, package: "com.example.failing", version: "1")
+    irisin.lock.withLock { irisin.failNext = true }
+    let failed = try await install.install(InstallPackageRequest(artifactID: "file:failing.deb", digest: sha256(failing)), caller: .app)
+    let failedState = try await waitForEnd(registry, failed).state
+    check(failedState == .failed, "the failing install fails")
+    // Even with the package on the device (installed some other way since).
+    irisin.lock.withLock { irisin.installedVersions["com.example.failing"] = "1" }
+    let failedListed = try await install.list(InstallationListRequest(packageID: "com.example.failing"), caller: .app)
+    check(failedListed.installations.isEmpty, "a failed install is not listed")
+    irisin.lock.withLock { irisin.installedVersions["com.example.failing"] = nil }
+
+    // A toolchain is the app's or the environment worker's to remove, never
+    // the agent's, whatever its mode.
+    let toolchain = try await installedResult(install.install(
+        InstallPackageRequest(artifactID: "toolchain-abc123", digest: toolchainDigest),
+        caller: environmentCaller,
+    ))
+    let toolchainForAgent = try await install.list(
+        InstallationListRequest(packageID: "wiki.qaq.apelin.toolchain.abc123"),
+        caller: lister,
+    )
+    let toolchainForApp = try await install.list(InstallationListRequest(packageID: "wiki.qaq.apelin.toolchain.abc123"), caller: .app)
+    check(toolchainForAgent.installations.first.map { !$0.removable && ($0.reason ?? "").contains("Settings") } == true, "the agent sees a toolchain as not its to remove")
+    check(toolchainForApp.installations.first?.removable == true, "the app sees the toolchain as removable")
+    await expectErrorAsync("the agent removing a toolchain", code: .denied) {
+        _ = try await install.remove(RemovePackageRequest(installationID: toolchain?.installationID ?? "-"), caller: lister)
+    }
+
+    let removedNewer = try await install.remove(RemovePackageRequest(installationID: newer?.installationID ?? "-"), caller: lister)
+    let removedState = try await waitForEnd(registry, removedNewer).state
+    check(removedState == .succeeded, "the agent removes the newest installation")
+    let gone = try await install.list(InstallationListRequest(packageID: "com.example.hello"), caller: lister)
+    check(gone.installations.isEmpty, "a removed package is not listed")
 }
 
 // MARK: - Toolchain setup end to end

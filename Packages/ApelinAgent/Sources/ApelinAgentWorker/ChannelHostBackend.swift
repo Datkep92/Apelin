@@ -12,7 +12,9 @@ import Foundation
 /// Mapping (tool → host operation):
 /// apelin_project_build → `buildStart`, then its task read to the end;
 /// apelin_package_install → `installPackage` likewise; apelin_package_remove →
-/// `removePackage`; apelin_device_respring → `respring`; apelin_package_confirm_loaded → a `confirmLoaded` task with the session's
+/// `removePackage`; apelin_package_list (and apelin_package_remove's package id)
+/// → `installationList`, every project's;
+/// apelin_device_respring → `respring`; apelin_package_confirm_loaded → a `confirmLoaded` task with the session's
 /// project (and `trigger: respring` when asked), read to its end, the image
 /// list never asked for;
 /// apelin_log_read → a bounded `logStream` read to its end; apelin_crash_list →
@@ -55,6 +57,8 @@ public struct ChannelHostBackend: AgentHostBackend {
     static let logExcerptBytes = 8 * 1024
     /// git_diff hands the model at most this much; a path narrows it.
     public static let maximumDiffBytes = 64 * 1024
+    /// apelin_package_list hands the model at most this many installations.
+    public static let maximumInstallations = 50
 
     /// apelin_conversation_read hands the model at most this much text.
     public static let maximumConversationBytes = 32 * 1024
@@ -334,6 +338,31 @@ public struct ChannelHostBackend: AgentHostBackend {
             transactionID: handle.taskID.rawValue,
             succeeded: end.state == .succeeded,
             message: end.message ?? "",
+        )
+    }
+
+    /// The host's rows, with the folder each project is under now, which is
+    /// what the model names a project by.
+    public func installations(_ request: InstallationListToolRequest) async throws -> InstallationListToolResponse {
+        let listed = try await service.installationList(packageID: request.packageID, projectID: request.projectID)
+            .installations
+        let known = await (try? projects().projects) ?? []
+        let folders = Dictionary(known.map { ($0.projectID, $0.folder) }, uniquingKeysWith: { first, _ in first })
+        return InstallationListToolResponse(
+            installations: listed.prefix(Self.maximumInstallations).map { row in
+                ListedInstallation(
+                    installationID: row.installationID,
+                    packageID: row.packageID,
+                    version: row.version,
+                    projectID: row.projectID,
+                    project: row.projectID.flatMap { folders[$0] },
+                    buildID: row.buildID,
+                    installedAt: row.installedAt,
+                    removable: row.removable,
+                    reason: row.reason,
+                )
+            },
+            truncated: listed.count > Self.maximumInstallations,
         )
     }
 

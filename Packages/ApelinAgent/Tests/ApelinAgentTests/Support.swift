@@ -1,4 +1,5 @@
 @testable import ApelinAgent
+import struct ApelinProtocol.ApelinError
 import Foundation
 
 /// A throwaway home with `Documents/wiki.qaq.apelin/Projects/<name>/`.
@@ -198,9 +199,42 @@ actor MockBackend: AgentHostBackend {
         return InstallResponse(transactionID: "tx-1", installationID: "inst-1", packageID: "wiki.qaq.hello", version: "1.0", succeeded: true)
     }
 
-    func removePackage(_ request: RemovePackageRequest) -> RemovePackageResponse {
+    /// What apelin_package_list answers, newest first, as the host would;
+    /// nil for a host that cannot list them, so a removal goes by its id.
+    var installedPackages: [ListedInstallation]?
+    /// Whether that list was cut short.
+    var installationsTruncated = false
+    /// Every installation list asked for, package and project; a read, so
+    /// not among `calls`.
+    var installationQueries: [InstallationListToolRequest] = []
+    /// What the host answers a removal with instead of removing.
+    var removalRefusal: ApelinError?
+
+    func setInstallations(_ installations: [ListedInstallation], truncated: Bool = false) {
+        installedPackages = installations
+        installationsTruncated = truncated
+    }
+
+    func setRemovalRefusal(_ refusal: ApelinError?) {
+        removalRefusal = refusal
+    }
+
+    func removePackage(_ request: RemovePackageRequest) throws -> RemovePackageResponse {
+        if let removalRefusal {
+            throw removalRefusal
+        }
         calls.append(.removePackage(request.installationID))
         return RemovePackageResponse(transactionID: "tx-2", succeeded: true)
+    }
+
+    func installations(_ request: InstallationListToolRequest) throws -> InstallationListToolResponse {
+        installationQueries.append(request)
+        guard let installedPackages else { throw ToolDeniedError(message: "installed packages are not available here") }
+        let listed = installedPackages.filter {
+            (request.packageID == nil || $0.packageID == request.packageID)
+                && (request.projectID == nil || $0.projectID == request.projectID)
+        }
+        return InstallationListToolResponse(installations: listed, truncated: installationsTruncated)
     }
 
     func respring(_: RespringRequest) -> RespringResponse {

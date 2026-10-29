@@ -63,6 +63,9 @@ public struct InvocationFacts: Sendable, Hashable {
     public var description: DescriptionState?
     /// For apelin_package_remove: the installation record it removes.
     public var installationID: String?
+    /// That installation as apelin_package_list lists it, when the backend
+    /// found it: what the card names.
+    public var removedPackage: ListedInstallation?
     /// For git_push: where it pushes, and what.
     public var push: GitPushTarget?
     /// For the git settings tools: what they change, in words, without a
@@ -300,7 +303,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
             )
 
         case .fileRead, .fileList, .fileGrep, .fileFind, .sdkAnalyzeFramework, .sdkReadHeader,
-             .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
+             .packageList, .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
              .conversationList, .conversationRead, .toolchainList, .sdkList:
@@ -371,10 +374,19 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 return .ask(reason: "The package to remove could not be identified.", detail: .none)
             }
             return .ask(
-                reason: "Removing a package requires your approval.",
+                reason: Self.removalReason(facts.removedPackage),
                 detail: .packageRemoval(installationID: installationID),
             )
         }
+    }
+
+    /// Names what goes and whose build it was, which may be another
+    /// project's: the host removes any installation it made.
+    static func removalReason(_ removed: ListedInstallation?) -> String {
+        guard let removed else { return "Removing a package requires your approval." }
+        let project = removed.project ?? removed.projectID
+        let installedBy = project.map { ", installed by the project \($0)," } ?? ""
+        return "Removing \(removed.packageID) \(removed.version)\(installedBy) requires your approval."
     }
 
     static func setupReason(_ setup: ToolchainSetupApproval) -> String {

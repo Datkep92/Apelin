@@ -21,8 +21,8 @@ extension BuiltInSkills {
           id, the diff and every maintainer script. Do not add maintainer scripts
           unless the task needs them; they run as root.
         - The result carries a `transactionID` and, on success, an
-          `installationID`. Keep the installation id: it is the only handle for
-          `apelin_package_remove`.
+          `installationID`, which `apelin_package_remove` takes;
+          `apelin_package_list` finds it again later.
         - Installation goes through Irisin's installer. There is no `dpkg` or
           `apt` for you to call, and `shell_run` must not try; the
           apelin-package-dependencies skill covers what installs a dependency.
@@ -68,10 +68,18 @@ extension BuiltInSkills {
           load no tweaks at all.
 
         ## Removal
-        - `apelin_package_remove` takes an `installationID` from an install in this
-          project. Packages Apelin did not build and install, bootstrap packages
-          and Apelin itself are out of reach, and removal is confirmed every
-          time.
+        - `apelin_package_list` lists what Apelin installed that is still on
+          the device, from every project and conversation: per package, the
+          installation id, version, the project whose build it was, and
+          whether it can be removed. Read it instead of rebuilding or
+          reinstalling to get an id, and instead of asking another project's
+          conversation to remove its package.
+        - `apelin_package_remove` takes that installation id, or the package id
+          alone, and removes only what a project's build installed: bootstrap
+          packages, Apelin itself and its toolchains (removed in Settings) are
+          out of reach, and a package installed some other way is the user's
+          to remove with their package manager. In Strict mode every removal
+          asks.
         """,
     )
 }

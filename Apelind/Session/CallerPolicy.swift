@@ -46,7 +46,9 @@ enum CallerPolicy {
         // approved it (AgentProjectRenameRules).
         .projectCreate, .projectCheck, .projectRename,
         .buildStart, .buildAttach, .buildCancel,
-        .installPackage, .removePackage, .respring, .approvalDigestState,
+        // The installations it lists are every project's, as removal takes
+        // any build's; a toolchain's or a file's is listed as not its to remove.
+        .installPackage, .removePackage, .installationList, .respring, .approvalDigestState,
         .fileRead,
         .logStream, .crashList, .crashOpen, .crashSymbolicate,
         .confirmLoaded, .confirmLoadedAttach, .captureScreen, .readUITree, .uiAction,

@@ -63,7 +63,7 @@ public extension AgentToolName {
              .conversationCreate, .conversationSend, .conversationStop, .projectSetEnvironment, .notificationSend:
             .writeProject
         case .fileRead, .fileList, .fileGrep, .fileFind, .sdkAnalyzeFramework, .sdkReadHeader,
-             .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
+             .packageList, .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
              .conversationList, .conversationRead, .toolchainList, .sdkList:
@@ -92,7 +92,7 @@ public extension AgentToolName {
         case .fileWrite: "Create a file or replace its whole content, inside the project."
         case .fileEdit: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set."
         case .fileCreate: "Create a new project file; fails if it already exists."
-        case .fileRead: "Read a project file, optionally a range of lines."
+        case .fileRead: "Read a project file, optionally a range of lines. An image (PNG, JPEG, GIF, HEIC, WebP, TIFF or BMP), such as an attached one, comes back as a picture you can see, scaled down; frame picks one frame of an animated image."
         case .fileList: "List a project folder."
         case .fileGrep: "Search project files with a regular expression."
         case .fileFind: "Find project files whose names match a glob."
@@ -101,7 +101,8 @@ public extension AgentToolName {
         case .sdkReadHeader: "Read one header of a framework in the registered SDK."
         case .projectBuild: "Build the project; returns structured diagnostics and artifacts with their digests."
         case .packageInstall: "Install a built package artifact through the system installer; returns the transaction and installation record."
-        case .packageRemove: "Remove a package Apelin built and installed, by its installation record id."
+        case .packageRemove: "Remove a package a project's build installed: give its installation id from apelin_package_install or apelin_package_list, or its package id. A package installed some other way is the user's to remove with their package manager."
+        case .packageList: "List the packages Apelin installed that are still on this device, newest first, from every project: each one's installation id (what apelin_package_remove takes), package id, version, the project whose build it was, and whether it can be removed, with why not."
         case .deviceRespring: "Restart SpringBoard."
         case .packageConfirmLoaded: "Check that a build is loaded in its target process by its marker log line, and whether its filter selects the target. Pass respring: true for a SpringBoard tweak: the marker is logged once at launch and only seen while listening."
         case .logRead: "Listen to the live system log for up to \(ReadLogsRequest.maximumListenSeconds) seconds and answer the lines logged meanwhile, for a process or subsystem. iOS keeps no log history: a line logged before the call is never seen. A tweak's line logged once at launch is apelin_package_confirm_loaded's to hear (with respring: true for SpringBoard)."
@@ -335,6 +336,7 @@ public extension AgentToolName {
                 "path": Schema.string("Path relative to the project root."),
                 "offset": Schema.integer("First line to return, 1-based."),
                 "limit": Schema.integer("Number of lines to return."),
+                "frame": Schema.integer("For an image with several frames, such as an animated GIF, the 0-based frame to show. Default: its primary image, the first frame of an animation."),
             ], required: ["path"])
         case .fileList:
             Schema.object([
@@ -403,8 +405,14 @@ public extension AgentToolName {
             ], required: ["artifact_id", "artifact_digest"])
         case .packageRemove:
             Schema.object([
-                "installation_id": Schema.string("Installation record id from apelin_package_install."),
-            ], required: ["installation_id"])
+                "installation_id": Schema.string("Installation id from apelin_package_install or apelin_package_list."),
+                "package_id": Schema.string("Or the package id, e.g. local.apelin.my-tweak, whose one installation Apelin can remove is removed. Give one of the two."),
+            ], required: [])
+        case .packageList:
+            Schema.object([
+                "package_id": Schema.string("Only this package id."),
+                "project": Schema.string("Only what this project's builds installed, by its projectID or folder name from apelin_project_list; omit for every project."),
+            ], required: [])
         case .deviceRespring:
             Schema.object([:], required: [])
         case .packageConfirmLoaded:

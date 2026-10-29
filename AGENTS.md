@@ -207,8 +207,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolchainSelfTest`, `toolchainSetDefault`; `sdkList`,
   `sdkImport`, `sdkRemove`; `environmentAttach`, `environmentCancel`;
   `extensionList`, `projectCreate`, `projectCheck`, `projectRename`; `buildStart`,
-  `buildAttach`, `buildCancel`; `installPackage`, `removePackage`, `respring`,
-  `approvalDigestState`;
+  `buildAttach`, `buildCancel`; `installPackage`, `removePackage`,
+  `installationList`, `respring`, `approvalDigestState`;
   `fileRead`, `protectedEditOpen`, `protectedEditCommit`; `ptyOpen`,
   `ptyAttach`, `ptyResize`, `ptyClose`; `logStream`, `crashList`,
   `crashOpen`, `crashSymbolicate`; `confirmLoaded`, `confirmLoadedAttach`, `captureScreen`,
@@ -285,7 +285,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolchainSelfTest`, `sdkList`, `sdkImport`, a setup or import narrowed
   by `AgentEnvironmentRules`, and `environmentAttach` for the tasks its own
   session started — its git tasks too; never a removal or a cancel;
-  `projectRename`, narrowed by `AgentProjectRenameRules`), the environment worker `installPackage`, `removePackage`
+  `projectRename`, narrowed by `AgentProjectRenameRules`; `installationList`,
+  every project's), the environment worker `installPackage`, `removePackage`
   and `buildAttach` (its local toolchain package, through the same bridge),
   the diagnostics worker `crashOpen` and `respring`, and nothing else call
   anything. Workers: `apelin-environment` (toolchain, SDKs, git, transfer
@@ -380,10 +381,19 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     artifact digest, package, version, the lowercase-UUID transaction ID it
     chose, then irisind's receipt) and submits the staged copy by
     descriptor. `removePackage{installationID}` acts only on a record whose
-    install succeeded and whose package is still installed at that version;
+    install succeeded and whose package is still installed at that version,
+    with no newer record of the package (whose ID the refusal names);
     bootstrap core, Irisin, Apelin and essential or required packages are
     refused both ways, and so is installing over a package Apelin did not
-    install (`ManagedPackagePolicy`). The installed state is read from
+    install (`ManagedPackagePolicy`). The agent removes only what a build
+    installed, never a toolchain's record or a file's; apelin-environment
+    only its toolchains'.
+    `installationList{packageID?, projectID?}` is the read side, the app's
+    and the agent's: per package still installed, its newest record
+    (installation ID, package, version, project and build; a removal under
+    way counts), newest first, with `removable` and the refusal
+    `removePackage` from that caller would give as `reason`; the records
+    themselves stay root's. The installed state is read from
     `var/lib/dpkg/status`, never through a package manager's binary.
     `respring` is irisind's.
   - *Approvals* (`Session/Approval/`). The host keeps the Confirm-mode ledger:
@@ -1005,10 +1015,27 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   one walk of the project per write, with no cap, for a `.git` elsewhere
   that names it — a folder the walk cannot read refuses the write), so no config or hook
   they write can feed the host's git presets. They read it freely; the
-  repository changes through the git operations. Every system tool is one
+  repository changes through the git operations. file_read shows an image
+  file as a picture (`FileImage`, 2026-10-29): the format is ImageIO's
+  reading of the bytes, never the name, so an attachment under
+  `Attachments/` reads too — PNG, JPEG, GIF, HEIC, HEIF, WebP, TIFF or
+  BMP, up to 32 MB and 64 megapixels —, one frame of it (`frame`, else
+  the primary image) upright, at most 1568 px a side and 3 MB, as PNG
+  when the file has transparency and JPEG otherwise, after a line saying
+  what it is; text that only begins like an image reads as text. A video
+  is seen through frames extracted as image files, as the refusal of any
+  other binary now says. Every system tool is one
   host request
   (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches), apelin_package_install →
-  `installPackage`, apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded → a
+  `installPackage`, apelin_package_remove → `removePackage` (an installation
+  ID, or a package ID the worker turns into its one removable installation
+  before asking: the card names its package, version and project, and
+  `detail.packageRemoval` the installation, as before; an ID
+  `installationList` shows as not removable, or does not show, is refused
+  before asking, and a host refusal answers what can be removed instead),
+  apelin_package_list → `installationList` (in any chat, every project's,
+  a read preset, the folder of each project added),
+  apelin_device_respring, apelin_package_confirm_loaded → a
   `confirmLoaded` task with the session's project read to its end (with
   `respring: true` it carries `trigger: respring` and is gated as apelin_device_respring;
   it never asks for `imageCheck`), apelin_log_read → a `logStream` of
@@ -2786,7 +2813,8 @@ last one cached. Known in kwwk, not worked around:
 `ProviderImageBudget.clamp` drops the oldest image one at a time past a
 provider's limit (5 for Copilot, Kimi and OpenAI-compatible endpoints, 90
 for Anthropic, 200 for OpenAI and Codex), so each later image moves the
-change point and rewrites the cache from there; and its native compaction
+change point and rewrites the cache from there (an image dropped so can be
+read again with file_read, as one more); and its native compaction
 requests (`AnthropicProvider.swift`, `OpenAIResponsesProvider.swift`) are
 encoded without sorted keys, so they probably miss the conversation's cache.
 The device check is `Documents/Research/Device-Validation.md` ▸ Still to run
