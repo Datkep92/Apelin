@@ -184,6 +184,49 @@ struct SkillAndPromptTests {
         #expect(prompt.contains("progress note is one short line"))
     }
 
+    /// On a device, a project chat said it was done with a gesture, the
+    /// Dock's spacing and a settings list it had built and installed but
+    /// never run, and the user had to send it back.
+    @Test
+    func `a reply lists the behaviour it did not exercise as Not tested`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let id = UUID().uuidString
+        let general = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
+        for project in [home.project, general] {
+            let prompt = SystemPrompt.make(project: project, projectRoot: home.projectURL.path,
+                                           skills: BuiltInSkills.all, mcpServers: [])
+            let responses = try #require(prompt.range(of: "# Responses")?.upperBound)
+            let working = try #require(prompt.range(of: "# Working")?.lowerBound)
+            let section = prompt[responses ..< working]
+            #expect(section.contains("proves only that the code built, installed or loaded, not that it behaves as asked"))
+            #expect(section.contains("say something works only if you saw it work on this device yourself"))
+            #expect(section.contains("under \"Not tested\", in the reply's language, one line each with how the user can check it"))
+            #expect(section.contains("Never call a task done while its main behaviour is untested"))
+        }
+    }
+
+    @Test
+    func `after a change that shows on screen the agent drives it with the screen tools`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
+                                       skills: [], mcpServers: [])
+        let working = try #require(prompt.range(of: "# Working")?.upperBound)
+        let device = try #require(prompt.range(of: "# This device")?.lowerBound)
+        let section = prompt[working ..< device]
+        #expect(section.contains("After a change that shows on screen, exercise it"))
+        #expect(section.contains("act with apelin_screen_interact"))
+        #expect(section.contains("the user declines the call"))
+        #expect(section.contains("that behaviour is Not tested: say so, never guess how it behaves"))
+        // The tweak loop ends on the behaviour, not on the load check.
+        let loop = BuiltInSkills.tweakDevelopment.body
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        #expect(loop.contains("5. Check the behaviour itself, not only that it loaded"))
+        #expect(loop.contains("drive it with `apelin_screen_interact`"))
+        #expect(loop.contains("Report what you could not drive as Not tested."))
+    }
+
     /// On a device, General Chat asked how to make a tweak with Apelin was
     /// answered from what the model knew of Theos: a Logos `Tweak.x` with
     /// `%hook`, and no skill read.

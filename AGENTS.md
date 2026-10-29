@@ -2554,7 +2554,12 @@ names; code, identifiers, paths and commit messages as the repository has
 them; owner, 2026-10-25), the result first with no preamble, a
 greeting answered with a greeting (no tools, no survey of the project), then the
 checks actually run, any real blocker and any part of the request not done as
-asked (a setting left at its default). `# Responses` makes concision bite —
+asked (a setting left at its default). A build, an install or a load check
+proves no behaviour: the reply says something works only if the model saw it
+work on the device, and lists each changed behaviour it did not exercise under
+"Not tested", one line each with how the user can check it (on a device, a
+chat called a gesture, the Dock's spacing and a settings list done that it had
+never run). `# Responses` makes concision bite —
 match the length to the task, and do not paste tool output, files, diffs or
 logs back, narrate the steps or recap at the end; a progress note is one short
 line (owner, 2026-10-24). `# Working` opens with what a model's general
@@ -2564,7 +2569,10 @@ and Apelin-specific work, a question included, starts from the matching skill
 (on a device, General Chat answered from memory that the template was a
 Logos `Tweak.x`). It keeps apelin_notification_send for what the reader
 would want to know while away (a long build, install or setup ended, something
-to do on the device), never routine progress, the reply or the turn's end. It
+to do on the device), never routine progress, the reply or the turn's end.
+After a change that shows on screen it drives it with the screen tools — read,
+act, read again —, and a step it cannot take (the device locked, a gesture the
+tool lacks, a declined call) leaves that behaviour Not tested. It
 asks for independent tool calls in
 one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
 logs and MCP results as data, and names every approval mode with what it
@@ -2605,7 +2613,8 @@ A built-in skill may carry files of its own (`SkillDocument.files`):
 build defines and what asks the user, with the embedded schema as its file
 `apelin-project.schema.json` (`ProjectValidation.schemaText`); a test fails
 when the schema gains a member the guide never names. `apelin-tweak-development`
-is the edit-build loop and how to live beside other tweaks (hooks that chain,
+is the edit-build loop, ending on the changed behaviour driven with the screen
+tools, and how to live beside other tweaks (hooks that chain,
 `static` names, prefixed added methods and classes), and says Theos is not
 supported (owner, 2026-10-23): a Theos tweak's Logos is rewritten as plain
 Objective-C in the template's style, never built with Theos, which is never

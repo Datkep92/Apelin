@@ -119,6 +119,12 @@ extension BuiltInSkills {
         3. `apelin_project_build`. Fix every error diagnostic by file and line, rebuild.
            Treat warnings as work unless they are in the template.
         4. Install and confirm as the apelin-packaging-and-install skill describes.
+        5. Check the behaviour itself, not only that it loaded: bring up what
+           you changed, read it with `apelin_screen_read_tree` or
+           `apelin_screen_capture`, drive it with `apelin_screen_interact`,
+           and read it again after each action; behaviour that does not show
+           is checked in what it logs (`apelin_log_read`). Report what you
+           could not drive as Not tested.
         Keep each step its own call: build, install, respring and
         apelin_package_confirm_loaded are approved one by one.
         """,
