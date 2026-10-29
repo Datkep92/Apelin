@@ -11,7 +11,8 @@ final class ChatMessageRow: ListRowView {
     static let horizontalPadding: CGFloat = 20
     /// The widest a row's content gets: the composer's card at its widest
     /// (750 pt less its 10 pt gap each side), so text lines up with it. The
-    /// list stays the full width, so the margins beside it still scroll.
+    /// list spans the page's safe area side to side, so the margins beside
+    /// the content still scroll.
     static let readableWidth: CGFloat = 730
 
     /// A row's insets at `width`: the padding, or more to centre the content
