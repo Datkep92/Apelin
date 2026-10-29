@@ -10,9 +10,10 @@ import UIKit
 /// name, replaces the message list and restores that conversation’s draft.
 /// Each conversation gets a fresh list and its own scrolling state.
 ///
-/// The messages fill the page; the composer sits at its foot, on the
-/// keyboard when it is up, no wider than 750 pt and centred, and the list
-/// scrolls clear of it.
+/// The messages fill the page across its safe area; the composer sits at
+/// its foot, on the keyboard when it is up, no wider than 750 pt and centred
+/// in the safe area, and the list scrolls clear of it. Each side keeps its
+/// own inset: a vertical bar (iPhone Duo) takes one side and not the other.
 final class ChatController: UIViewController {
     /// The conversation shown, nil until the first is picked.
     private(set) var chat: ChatSummary?
@@ -168,11 +169,14 @@ final class ChatController: UIViewController {
             } else {
                 make.bottom.equalTo(view.keyboardLayoutGuide.snp.top)
             }
-            make.centerX.equalToSuperview()
+            // Centred in the safe area, not on the page: a vertical bar
+            // insets one side only, and centring on the page would take the
+            // same width off the other side as well.
+            make.centerX.equalTo(view.safeAreaLayoutGuide)
             make.width.lessThanOrEqualTo(750)
             make.leading.greaterThanOrEqualTo(view.safeAreaLayoutGuide)
             make.trailing.lessThanOrEqualTo(view.safeAreaLayoutGuide)
-            make.width.equalToSuperview().priority(.low)
+            make.width.equalTo(view.safeAreaLayoutGuide).priority(.low)
         }
         composerBackground.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview()
@@ -206,7 +210,7 @@ final class ChatController: UIViewController {
         }, for: .touchUpInside)
         view.addSubview(latestMessageButton)
         latestMessageButton.snp.makeConstraints { make in
-            make.centerX.equalToSuperview()
+            make.centerX.equalTo(view.safeAreaLayoutGuide)
             make.bottom.equalTo(composerBackground.snp.top).offset(-8)
             make.size.equalTo(44)
         }
@@ -219,7 +223,7 @@ final class ChatController: UIViewController {
         messageList.layer.mask = nil
         messageList.removeFromSuperview()
         messageList = ListView<ChatMessage>()
-        messageList.frame = view.bounds
+        messageList.frame = messageListFrame
         messageList.contentInset = contentInset
         messageList.verticalScrollIndicatorInsets = indicatorInset
         messageList.backgroundColor = .clear
@@ -286,9 +290,21 @@ final class ChatController: UIViewController {
         if #available(iOS 26, *) {
             messageList.topEdgeEffect.isHidden = true
         }
+        // Top to bottom of the page, so it scrolls under the bar and the
+        // composer, but side to side only across the safe area: a row lays
+        // itself out across the list's whole width, and a vertical bar's
+        // strip is the bar's. The margins inside it still scroll.
         messageList.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
+            make.top.bottom.equalToSuperview()
+            make.leading.trailing.equalTo(view.safeAreaLayoutGuide)
         }
+    }
+
+    /// Where the constraints put the list: the page, less the safe area's
+    /// sides.
+    private var messageListFrame: CGRect {
+        let insets = view.safeAreaInsets
+        return view.bounds.inset(by: UIEdgeInsets(top: 0, left: insets.left, bottom: 0, right: insets.right))
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -303,7 +319,7 @@ final class ChatController: UIViewController {
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
         // read before the list takes the new width
-        let width = view.bounds.width
+        let width = messageListFrame.width
         guard width != lastLayoutWidth else { return }
         if lastLayoutWidth > 0, !needsInitialScroll, distanceFromLatestMessage <= 2 {
             holdsLatestMessage = true

@@ -1683,6 +1683,20 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   back: CI passes its run number, a local build the commit count.
   `Configuration/Version.xcconfig` holds the marketing version and the number
   an Xcode-run build carries; `make set-version` writes both.
+- **The SDK tier** (2026-10-29): the app is linked against the iOS 27.1 SDK
+  or later (`IOS_SDK_TIER` in the Makefile). The SDK, not the floor, picks
+  how an iPhone Duo treats the app: from 27.1 it runs edge to edge, its
+  navigation and toolbar items in one vertical bar beside the content (on
+  the outer display and the inner one held sideways), and the safe area's
+  sides differ; against 27.0 it stays clear of the status bar's edge, and
+  against 26 it sits centred with empty space around it. The floor stays
+  `IPHONEOS_DEPLOYMENT_TARGET`. `make build` and `make install-app` refuse
+  an older SDK (`sdk-tier`), `_package` reads the SDK back from the
+  `Apelin.app` it ships (`vtool -show-build`), and CI runs on the
+  `xcode-27` image with Xcode 27.1 selected by name, since that image's
+  default may be newer. A layout reads size class and the space it has,
+  insets each edge by its own safe-area inset, and leaves bars to the
+  navigation controllers; nothing asks whether it is on an iPhone Duo.
 - **Strings**: one catalogue, `Apelin/Resources/Localizable.xcstrings`, kept
   the manual way — a key Xcode cannot see stays `extractionState: manual`,
   `make check` refuses `stale`. Prune by hand with Xcode closed, passing every
@@ -1774,10 +1788,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `UISplitViewController`, with the sidebar's navigation controller and
   `DetailNavigator`, whose picked page — `ChatController` or the icon —
   is the stack's root. The window's horizontal size
-  class picks the layout. Regular: a 340 pt sidebar beside the navigator,
-  hidden or brought back by the button first on the navigator's bar.
-  Compact (an iPhone): the navigator is the screen and the sidebar a
-  drawer under it, the window's width less 64 pt (at most 400): the same
+  class and width pick the layout, never the idiom or a device's size.
+  Regular with room for 340 pt of sidebar beside a page 402 pt wide, an
+  iPhone's (an iPad, an iPhone Duo's inner display held sideways): a 340 pt
+  sidebar beside the navigator, hidden or brought back by the button first
+  on the navigator's bar. Compact, or regular without that room (an
+  iPhone, the Duo's outer display, its inner display held upright: 669 pt,
+  where the sidebar beside it left the page 329 and, at the 27.1 SDK tier,
+  no room for the page's title): the navigator is the screen and the
+  sidebar a drawer under it, the window's width less 64 pt (at most 400): the same
   button (`line.3.horizontal`) or a pan to the right on a root page slides
   the page aside, dimmed; a tap or a pan to the left on the shade, VoiceOver's
   escape, or picking or starting a conversation slides it back. A pushed
@@ -1882,8 +1901,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   over 512 characters handed to the delegate, and its edit menu. Its
   icons are SF Symbols on `ComposerIconButton`, an element with the
   button trait and the name of its action. It
-  sits on `view.keyboardLayoutGuide`, no wider than 750 pt and centred,
-  on a ground that reaches past the page's foot, and the list's bottom
+  sits on `view.keyboardLayoutGuide`, no wider than 750 pt and centred in
+  the safe area (centred on the page, a vertical bar's inset on one side
+  took the same width off the other), on a ground that reaches past the
+  page's foot, and the list's bottom
   inset follows it. Its actions reach `ChatController` through
   `ComposerView.Delegate`; Send shows the message at once, a local row
   under the draft's UUID, and empties the composer; the host's `prompt` or
@@ -2537,6 +2558,12 @@ build: the app is not run on the iOS Simulator. Report which of those actually
 ran. On a device, `make device-test` (the smoke suite, under a minute) after
 every install, `SUITE=regression` before calling a change done, on an iPhone
 and an iPad vphone both.
+An iPhone Duo's inner display, either way up, can be looked at on the
+iPhone Duo simulator with the banner's screenshot-only build; where the
+simulator SDK is older than `IOS_SDK_TIER`, a copy of that build with its
+executable's SDK stamped to the tier (`vtool -set-build-version`) shows the
+tier's layout, vertical bar and all. It shows nothing of the outer display
+or the fold: those take Xcode 27.1's Device Hub or a device.
 What has run on a device so far, and what is still to run, is
 `Documents/Research/Device-Validation.md`; keep it current rather than
 adding a dated record beside it.
@@ -2662,7 +2689,7 @@ adding a dated record beside it.
 - `ChatRuntime.transcript` brings a conversation's rows up to date only when they would differ (`ChatTranscriptCache`, kept for the followed conversations and the page's). `ChatTranscript` is a fold: new events (`ChatRecord.events` are only appended to) are read onto the rows the earlier ones made (`append`), and the rows shown are made afresh from those, as a build from every event at once at the same `now` makes them (`Tests/ChatTranscript/TranscriptFold.swift` compares the two over random logs). A change to the messages it is sending, or a `quietDeadline` passed since it was shown, shows the rows again, so the refresh `ChatQuietWatch` asks for at the deadline adds the stand-in; only a sender's new title builds it again from every event. A row equal to one shown before is that very value, so the page's comparison stops at its storage. The composer is told of its approval request and its Stop only when either changes, a long-poll that ran out with nothing writes nothing, and a conversation is written once at a time, then once more with what changed meanwhile.
 - Working state comes from session events, never a late send acknowledgement. Completed zero-second, zero-tool thought rows are omitted. A positive duration without tools shows only the duration; tools without a positive duration show only their count; “and” joins the clauses only when both values are positive. Thought headers use Litext numeric transitions, with reduced motion respected. User messages and reply text are selectable.
 - The conversation alternates a single thinking summary with response content. Consecutive thinking steps merge across tools and approvals. Tool calls and completed approvals stay out of the main transcript; tapping the summary opens their ordered trace in a form sheet, a list of the steps, provider-supplied thinking included, each opening its own plain text. Headers use body-size 50% primary text aligned to the body margin, with a sentence for duration and tool count. Pending approval still replaces the composer.
-- Every agent tool, MCP tools included, requires a short `reason` (`ToolReason`), stripped from the arguments before the approval gate, the fingerprint, the tool or the host sees them; the `toolCall` event keeps it. The file tools end their result's first line with `+a -b` lines added and removed. While a turn runs, its trailing summary stays unfinished across calls and approvals, the run's received tokens climbing at the trailing end of its title line (and of the summary above the reply while the reply streams). Once the summary has a call, `ToolCallBannerView` shows one line under it, at the reading width, between hairlines on a 5% grey ground drawn out to the row's edges: the newest call in its trace (`ToolCallBanner`), by its reason, or its title for a call made without one, and for a file tool (`ToolCallBanner.fileTools`) the file's name first, then the lines added in green and removed in red once its result is in, read from the result's first line (a failed call has none), so truncation takes the end of the reason, never the numbers. Thinking after a call leaves that call there; nothing of the thinking shows (owner, 2026-10-24: no thinking tail, typing or character fade). On the same summary, a new call, or its counts coming in, fades in over 0.2 s; the line's first call, a row taken over by another summary and everything under Reduce Motion show at once. VoiceOver reads the line after the title: the reason, then the file and its counts in words as its value. Only the running summary in the transcript has it; the trace sheet lists every call and opens each whole. The running summary reads “Reconnecting…” after a `reconnecting`, until the request made again streams or the run moves on, else “Executing N tools…” only while N calls await a result, “Thinking…” otherwise, and its title changes at most once a second: the first change at once, the latest of the rest when the second is up. A running summary stands in under a prompt, or under images a tool returned, until the turn shows something, with the id its next thought takes, and `toolCallPreparing` starts one while the model writes a call's arguments, so a turn never shows a gap. One stands in under the turn's last reply (or error) too once the running turn has gone `ChatTranscript.quietInterval` (1.5 s) without an event — the model may be writing a call it has not announced, or the provider has stalled —, never under a running summary or a waiting approval. The transcript is given the time (`now`) and answers `quietDeadline`; the page builds its rows again once, then (`ChatQuietWatch`), and nothing polls. The reply's next thought, call or message start takes the stand-in's id, so it becomes that row with no flash, and more of the reply ends it. A `messageDiscarded` takes back the rows its message made, while it was still streaming, and leaves unanswered again what it answered, so the stand-in comes back under the same id and the retried reply is drawn once, never under the partial one. Transcript content is centred in at most 730 pt, the composer card's widest, so the two edges line up; the list itself stays full width, so its margins scroll.
+- Every agent tool, MCP tools included, requires a short `reason` (`ToolReason`), stripped from the arguments before the approval gate, the fingerprint, the tool or the host sees them; the `toolCall` event keeps it. The file tools end their result's first line with `+a -b` lines added and removed. While a turn runs, its trailing summary stays unfinished across calls and approvals, the run's received tokens climbing at the trailing end of its title line (and of the summary above the reply while the reply streams). Once the summary has a call, `ToolCallBannerView` shows one line under it, at the reading width, between hairlines on a 5% grey ground drawn out to the row's edges: the newest call in its trace (`ToolCallBanner`), by its reason, or its title for a call made without one, and for a file tool (`ToolCallBanner.fileTools`) the file's name first, then the lines added in green and removed in red once its result is in, read from the result's first line (a failed call has none), so truncation takes the end of the reason, never the numbers. Thinking after a call leaves that call there; nothing of the thinking shows (owner, 2026-10-24: no thinking tail, typing or character fade). On the same summary, a new call, or its counts coming in, fades in over 0.2 s; the line's first call, a row taken over by another summary and everything under Reduce Motion show at once. VoiceOver reads the line after the title: the reason, then the file and its counts in words as its value. Only the running summary in the transcript has it; the trace sheet lists every call and opens each whole. The running summary reads “Reconnecting…” after a `reconnecting`, until the request made again streams or the run moves on, else “Executing N tools…” only while N calls await a result, “Thinking…” otherwise, and its title changes at most once a second: the first change at once, the latest of the rest when the second is up. A running summary stands in under a prompt, or under images a tool returned, until the turn shows something, with the id its next thought takes, and `toolCallPreparing` starts one while the model writes a call's arguments, so a turn never shows a gap. One stands in under the turn's last reply (or error) too once the running turn has gone `ChatTranscript.quietInterval` (1.5 s) without an event — the model may be writing a call it has not announced, or the provider has stalled —, never under a running summary or a waiting approval. The transcript is given the time (`now`) and answers `quietDeadline`; the page builds its rows again once, then (`ChatQuietWatch`), and nothing polls. The reply's next thought, call or message start takes the stand-in's id, so it becomes that row with no flash, and more of the reply ends it. A `messageDiscarded` takes back the rows its message made, while it was still streaming, and leaves unanswered again what it answered, so the stand-in comes back under the same id and the retried reply is drawn once, never under the partial one. Transcript content is centred in at most 730 pt, the composer card's widest, so the two edges line up; the list itself spans the page's safe area side to side, so its margins scroll, and stops at a vertical bar's strip, which is the bar's (iPhone Duo at the 27.1 SDK tier: a trailing safe-area inset on one side only).
 - `ProjectPickerController` lists real projects; `NewProjectController` chooses a catalog template, using its default parameters and calls `projectCreate`. Settings includes a read-only Templates catalog with single-line names with source-file byte counts at the trailing edge, no subtitles and no disclosure navigation. The built-in `wiki.qaq.apelin.workspace/empty` template creates only a workspace identity manifest, atomically and without SDK/toolchain requirements. It supplies no build or install baseline; a build requires a real build description.
 
 - Templates are a single read-only release catalog, with additions and corrections submitted as repository pull requests. There is no create/delete action or separate user template library. `make template-archive` validates and reproducibly packs sources, support files and licenses as `Apelin_<version>_Templates.tar.zst`; CI records its checksum and Release publishes that exact artifact without rebuilding. The command-line tool templates' `Tool.entitlements` carry the app templates' GPU and IOSurface IOKit user-client list under both keys from `wiki.qaq.apelin.dev.cli` 0.1.1 (owner, 2026-10-29; `make check` holds the app's entitlements and every app and cli template's to `Scripts/check-gpu-entitlements.py`, while a tweak or preference bundle, a library, runs with its host process's), and a project keeps the entitlements its template wrote, so a cli project made from 0.1.0 has no list until one is added, a build description change Strict reviews.
