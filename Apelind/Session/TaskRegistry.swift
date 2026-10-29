@@ -107,6 +107,7 @@ actor TaskRegistry {
                 unfinished.append(record)
             }
         }
+        dropSupersededAgentTasks()
         return unfinished.sorted { $0.createdAt < $1.createdAt }
     }
 
@@ -140,6 +141,9 @@ actor TaskRegistry {
         )
         events[id] = []
         persist(id)
+        if kind == .agent, let ownerKey {
+            dropSupersededAgentTasks(of: ownerKey)
+        }
         return TaskHandle(taskID: id, kind: kind)
     }
 
@@ -270,6 +274,32 @@ actor TaskRegistry {
     }
 
     // MARK: Private
+
+    /// Removes, records and logs both, every finished agent task a newer
+    /// task of the same session supersedes, of `session` or of every one.
+    /// Each reopen of a session starts a task that replays its whole history,
+    /// and `load` reads every log back into memory before the host answers
+    /// anything: a conversation reopened ten times left ten copies, 69 MB
+    /// read at each start. Only a session's newest task is ever read again
+    /// (`AgentConversationList`), so it is kept, finished or not, and so is
+    /// every task still running.
+    private func dropSupersededAgentTasks(of session: String? = nil) {
+        var bySession: [String: [Record]] = [:]
+        for record in records.values where record.kind == .agent {
+            guard let key = record.ownerKey, session == nil || key == session else { continue }
+            bySession[key, default: []].append(record)
+        }
+        for tasks in bySession.values where tasks.count > 1 {
+            let order = { (record: Record) in (record.createdAt, record.lastSeq.rawValue, record.id.rawValue) }
+            let newest = tasks.max { order($0) < order($1) }
+            for record in tasks where record.id != newest?.id && record.state.isTerminal {
+                records.removeValue(forKey: record.id)
+                events.removeValue(forKey: record.id)
+                unlink(eventsURL(record.id).path)
+                unlink(recordURL(record.id).path)
+            }
+        }
+    }
 
     private func pending(_ id: TaskID, _ afterSeq: EventSeq) -> [TaskEvent] {
         let all = events[id] ?? []

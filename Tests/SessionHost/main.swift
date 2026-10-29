@@ -183,6 +183,51 @@ do {
     check(finished?.state == .succeeded, "finished tasks stay finished")
 }
 
+// MARK: - A reopened session keeps only its newest agent task
+
+do {
+    let directory = scratch.appendingPathComponent("superseded-tasks")
+    func onDisk(_ handle: TaskHandle, in folder: URL = directory) -> Bool {
+        FileManager.default.fileExists(atPath: folder.appendingPathComponent("\(handle.taskID.rawValue).events.jsonl").path)
+            || FileManager.default.fileExists(atPath: folder.appendingPathComponent("\(handle.taskID.rawValue).json").path)
+    }
+    let session = UUID().uuidString.lowercased()
+    let other = UUID().uuidString.lowercased()
+    // What an earlier host left of the same session, read further down.
+    let earlier = scratch.appendingPathComponent("superseded-earlier")
+    let stale = TaskRegistry(directory: earlier)
+    await stale.load()
+    let staleTask = await stale.create(kind: .agent, owner: .agent, ownerKey: session)
+    await stale.finish(staleTask.taskID, .failed)
+    usleep(2000)
+    let first = TaskRegistry(directory: directory)
+    await first.load()
+    let older = await first.create(kind: .agent, owner: .agent, ownerKey: session)
+    await first.append(older.taskID, kind: "prompt", payload: .object(["text": .string("history")]))
+    await first.finish(older.taskID, .failed)
+    let otherTask = await first.create(kind: .agent, owner: .agent, ownerKey: other)
+    await first.finish(otherTask.taskID, .succeeded)
+    usleep(2000)
+    let reopened = await first.create(kind: .agent, owner: .agent, ownerKey: session)
+    let olderGone = await first.record(older.taskID) == nil
+    check(olderGone && !onDisk(older), "a reopen drops the session's finished task, record and log")
+    let kept = await (first.record(reopened.taskID), first.record(otherTask.taskID))
+    check(kept.0 != nil && kept.1 != nil && onDisk(otherTask), "and keeps its new task and other sessions' tasks")
+
+    // Two finished tasks of one session, as an earlier host left them. A
+    // record keeps its time to the second; the reopened task, which
+    // replayed the history first, is the longer.
+    await first.append(reopened.taskID, kind: "prompt", payload: .object(["text": .string("history")]))
+    for name in ["\(staleTask.taskID.rawValue).json", "\(staleTask.taskID.rawValue).events.jsonl"] {
+        try FileManager.default.copyItem(at: earlier.appendingPathComponent(name), to: directory.appendingPathComponent(name))
+    }
+    await first.finish(reopened.taskID, .succeeded)
+    let next = TaskRegistry(directory: directory)
+    await next.load()
+    let afterLoad = await (next.record(staleTask.taskID), next.record(reopened.taskID))
+    check(afterLoad.0 == nil && !onDisk(staleTask) && afterLoad.1 != nil, "load drops a session's finished tasks but the newest")
+}
+
 // MARK: - Builds and environment tasks start again after a restart
 
 /// apelin-build in miniature, over a real channel: it answers a task's
