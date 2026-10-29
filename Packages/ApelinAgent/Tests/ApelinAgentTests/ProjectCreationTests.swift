@@ -1,4 +1,5 @@
 @testable import ApelinAgent
+import enum ApelinProtocol.AgentToolName
 import Foundation
 import KWWKAgent
 import KWWKAI
@@ -87,5 +88,36 @@ struct ProjectCreationTests {
         #expect(general.contains("apelin_template_list"))
         let project = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [], mcpServers: [])
         #expect(!project.contains("# General Chat"))
+    }
+
+    /// A repository goes into an Empty workspace whose conversation clones
+    /// it, as New Project does; a template it fell back to was the wrong
+    /// project. Each place that names one step names the others with it.
+    @Test
+    func `Every chat imports a repository through an Empty workspace's conversation`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let steps = ["wiki.qaq.apelin.workspace/empty", "apelin_conversation_create", "git_clone"]
+        func namesEveryStep(_ text: String) -> Bool {
+            steps.allSatisfy { text.contains($0) }
+        }
+        for chat in try [home.project, generalChat()] {
+            let prompt = SystemPrompt.make(project: chat, projectRoot: home.projectURL.path, skills: [], mcpServers: [])
+            let line = prompt.split(separator: "\n").first { $0.contains(steps[0]) }.map(String.init)
+            #expect(line.map(namesEveryStep) == true, "\(chat.id)")
+        }
+        #expect(namesEveryStep(AgentToolName.projectCreate.summary))
+        #expect(AgentToolName.gitClone.summary.contains("apelin_project_create"))
+        #expect(namesEveryStep(BuiltInSkills.gitWorkflow.body))
+    }
+
+    @Test
+    func `The screen tools leave Apelin's own screen to the user`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        #expect(AgentToolName.screenInteract.summary.contains("Never in Apelin itself (wiki.qaq.apelin)"))
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [], mcpServers: [])
+        let line = prompt.split(separator: "\n").first { $0.contains("never on Apelin's own screen") }
+        #expect(line?.contains("deleting a project") == true)
     }
 }

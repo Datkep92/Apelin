@@ -498,6 +498,29 @@ do {
     check(!CallerPolicy.allows(environment, .agentRunCode), "the environment worker does not")
 }
 
+// MARK: - An agent and Apelin's own screen
+
+do {
+    func forwarded(_ action: UIActionRequest, from caller: Caller) throws -> WireRequest {
+        try AgentUIActionRules.scoped(WireRequest(action), caller: caller)
+    }
+    let tap = UIAction.tap(x: 200, y: 4)
+    let agent = Caller.worker(.agent, instance: "s")
+    for sent: [String]? in [nil, [], ["com.apple.springboard"]] {
+        let action = try forwarded(UIActionRequest(targetID: "wiki.qaq.apelin", action: tap, refusedBundleIDs: sent), from: agent)
+            .decode(UIActionRequest.self)
+        check(action.refusedBundleIDs == ["wiki.qaq.apelin"], "an agent's UI action refuses Apelin whatever it sent (\(String(describing: sent)))")
+        check(action.targetID == "wiki.qaq.apelin" && action.action == tap, "and is otherwise as it was sent")
+    }
+    let app = try forwarded(UIActionRequest(action: tap), from: .app)
+    let appAction = try app.decode(UIActionRequest.self)
+    check(appAction.refusedBundleIDs == nil, "the app's and the console's UI actions refuse nothing")
+    check(!String(decoding: app.payload, as: UTF8.self).contains("refusedBundleIDs"), "and carry no list on the wire")
+    expectError("an agent's UI action that does not read is refused", code: .badRequest) {
+        _ = try AgentUIActionRules.scoped(WireRequest(operation: .uiAction, payload: Data("{}".utf8)), caller: agent)
+    }
+}
+
 // MARK: - An agent's conversations stay in its project, under its mode
 
 do {

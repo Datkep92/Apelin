@@ -183,10 +183,15 @@ public struct UIActionRequest: OperationRequest {
     public static let operation = AppOperation.uiAction
     public var targetID: String?
     public var action: UIAction
+    /// Apps the action may not reach, as a target or in front: the session
+    /// host's to set, never a caller's (Apelin itself for an agent).
+    /// Absent on the wire when nil.
+    public var refusedBundleIDs: [String]?
 
-    public init(targetID: String? = nil, action: UIAction) {
+    public init(targetID: String? = nil, action: UIAction, refusedBundleIDs: [String]? = nil) {
         self.targetID = targetID
         self.action = action
+        self.refusedBundleIDs = refusedBundleIDs
     }
 }
 

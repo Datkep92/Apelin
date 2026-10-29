@@ -180,6 +180,17 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] An agent kept off Apelin's own screen, and a repository imported
+      from any chat (2026-10-29, AGENTS.md ▸ Diagnostics and ▸ Agent
+      sessions; none of it has run on a device; needs a model provider).
+      With Apelin in front, apelin_screen_interact's tap, swipe and typed
+      text are refused, nothing on Apelin's screen changing, in Relaxed,
+      in Full and in Strict after Approve; target_id wiki.qaq.apelin is
+      refused too; with Settings in front the same tap goes through; the
+      console's `diagnostics` script, whose tap is the app's, still runs.
+      In General Chat and in a tweak project's chat, "import <an HTTPS
+      repository>" makes an Empty workspace and opens its conversation,
+      which clones the repository with git_clone, never a template project.
 - [ ] Messages queued during a run (2026-10-29, none of it has run on a
       device; needs a model provider). Two messages sent while a reply
       runs, a third typed and not sent, then Stop: the composer holds all

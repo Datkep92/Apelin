@@ -1,7 +1,7 @@
 extension BuiltInSkills {
     static let gitWorkflow = SkillDocument(
         name: "apelin-git-workflow",
-        description: "Keeping a project's history in git for the user: when to commit on your own, how (git_commit with all, messages, .gitignore), git_init for a project without a repository, and pushing only when asked.",
+        description: "Keeping a project's history in git for the user: when to commit on your own, how (git_commit with all, messages, .gitignore), git_init for a project without a repository, importing a repository into a workspace, and pushing only when asked.",
         body: """
         # Keeping the project in git
 
@@ -50,6 +50,11 @@ extension BuiltInSkills {
         ## Remotes
         - `git_clone` imports a repository into a workspace, also one that has
           only the empty repository it was made with.
+        - From any other chat, a repository goes into a new workspace, whatever
+          it holds: `apelin_project_create` with
+          `wiki.qaq.apelin.workspace/empty`, then `apelin_conversation_create`
+          naming it, the URL and branch in its prompt; that conversation runs
+          `git_clone`. New Project does the same with a repository address.
         - Push only when asked: `git_status` and `git_diff` first, then
           `git_push` to the branch it is on; never forced. A rejected push is
           `git_fetch` and `git_pull`, then the push again.
