@@ -35,13 +35,24 @@ public struct BuildDiagnostic: Sendable, Hashable, Codable {
     public var file: String?
     public var line: Int?
     public var column: Int?
+    /// The member of `file` a check found wrong, as a JSON pointer such as
+    /// `/configurations/Debug/linkFlags`.
+    public var field: String?
     public var message: String
 
-    public init(severity: Severity, file: String? = nil, line: Int? = nil, column: Int? = nil, message: String) {
+    public init(
+        severity: Severity,
+        file: String? = nil,
+        line: Int? = nil,
+        column: Int? = nil,
+        field: String? = nil,
+        message: String,
+    ) {
         self.severity = severity
         self.file = file
         self.line = line
         self.column = column
+        self.field = field
         self.message = message
     }
 }

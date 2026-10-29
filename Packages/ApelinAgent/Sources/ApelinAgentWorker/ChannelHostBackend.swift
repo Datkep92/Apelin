@@ -134,12 +134,17 @@ public struct ChannelHostBackend: AgentHostBackend {
         let check = await configuration == .release && bootstrap != nil
             ? (try? distributionCheck(bootstrap: bootstrap))
             : nil
-        let warnings = (check?.diagnostics ?? []).filter(Self.isDistributionWarning).map(Self.diagnostic)
-        let handle = try await service.buildStart(
-            projectID: project.id,
-            configuration: configuration,
-            bootstrap: bootstrap,
-        )
+        let warnings = (check?.diagnostics ?? []).filter(Self.isDistributionWarning)
+        let handle: TaskHandle
+        do {
+            handle = try await service.buildStart(
+                projectID: project.id,
+                configuration: configuration,
+                bootstrap: bootstrap,
+            )
+        } catch let refusal as ApelinError {
+            throw await unreadProjectRefusal() ?? refusal
+        }
         var buildID = handle.taskID.rawValue
         var diagnostics = warnings
         var artifacts: [ApelinAgent.BuildArtifact] = []
@@ -148,7 +153,7 @@ public struct ChannelHostBackend: AgentHostBackend {
             switch event.kind {
             case "diagnostic":
                 if let diagnostic = try? event.payload?.decode(ProjectDiagnostic.self) {
-                    diagnostics.append(Self.diagnostic(diagnostic))
+                    diagnostics.append(diagnostic)
                 }
             case "artifact":
                 if let artifact = try? event.payload?.decode(ApelinProtocol.BuildArtifact.self) {
@@ -185,10 +190,28 @@ public struct ChannelHostBackend: AgentHostBackend {
         return BuildResponse(
             buildID: buildID,
             succeeded: end.state == .succeeded,
-            diagnostics: diagnostics,
+            diagnostics: Self.diagnostics(diagnostics),
             artifacts: artifacts,
             logExcerpt: log.text,
         )
+    }
+
+    /// A project file that does not read is refused before its build
+    /// starts: by apelin-build, its errors run together, or in Strict mode
+    /// by the host, which then has no description to match and says only
+    /// that approval is required. The check names each error's field, and
+    /// the refusal where the schema is; nil when the file reads, so the
+    /// refusal stands as it came.
+    private func unreadProjectRefusal() async -> ApelinError? {
+        guard let check = try? await service.projectCheck(projectID: project.id) else { return nil }
+        let unread = check.diagnostics.filter { Self.unreadProjectCodes.contains($0.code) }
+        guard !unread.isEmpty else { return nil }
+        var message = "apelin-project.json does not read, so the build did not start: "
+            + unread.map(Self.fieldAndMessage).joined(separator: "; ")
+        if unread.contains(where: { $0.code == Self.schemaErrorCode }) {
+            message += ". " + Self.schemaPointer
+        }
+        return ApelinError(.badRequest, message)
     }
 
     // MARK: distribution
@@ -200,10 +223,9 @@ public struct ChannelHostBackend: AgentHostBackend {
     public func checkDistribution(_ request: DistributionCheckRequest) async throws -> DistributionCheckResponse {
         let check = try await distributionCheck(bootstrap: Self.bootstrap(request.bootstrap))
         let issues = check.diagnostics.filter { $0.severity == .error || Self.isDistributionWarning($0) }
-            .map(Self.diagnostic)
         return DistributionCheckResponse(
             ready: issues.isEmpty,
-            issues: issues,
+            issues: Self.diagnostics(issues),
             note: check.buildSystem == .external
                 ? "This workspace's package is checked when its build script writes it: a release build lists what it finds among its diagnostics."
                 : nil,
@@ -302,8 +324,35 @@ public struct ChannelHostBackend: AgentHostBackend {
             severity: severity,
             file: diagnostic.file,
             line: diagnostic.line,
+            column: diagnostic.column,
+            field: diagnostic.field,
             message: diagnostic.message,
         )
+    }
+
+    /// Each finding with its field, and after a schema error a note saying
+    /// where the schema is.
+    static func diagnostics(_ found: [ProjectDiagnostic]) -> [BuildDiagnostic] {
+        var diagnostics = found.map(diagnostic)
+        if found.contains(where: { $0.code == schemaErrorCode }) {
+            diagnostics.append(BuildDiagnostic(severity: .note, file: "apelin-project.json", message: schemaPointer))
+        }
+        return diagnostics
+    }
+
+    /// What apelin-build's check reports when `apelin-project.json` did not
+    /// read: the file itself, its JSON, or its schema.
+    static let unreadProjectCodes: Set = ["project.unreadable", "project.json", schemaErrorCode]
+    /// A member the schema does not allow, lacks or types wrongly; its field
+    /// says which.
+    static let schemaErrorCode = "project.invalid"
+
+    static let schemaPointer = "apelin-project.json does not match its schema; each error's field is the member to fix. Read the apelin-project-description skill and its file apelin-project.schema.json (apelin_skill_read) before editing it."
+
+    /// A finding as the check first wrote it, its field in front:
+    /// `/configurations/Debug/linkerFlags: unknown member`.
+    static func fieldAndMessage(_ diagnostic: ProjectDiagnostic) -> String {
+        diagnostic.field.map { "\($0): \(diagnostic.message)" } ?? diagnostic.message
     }
 
     public func install(_ request: InstallRequest) async throws -> InstallResponse {

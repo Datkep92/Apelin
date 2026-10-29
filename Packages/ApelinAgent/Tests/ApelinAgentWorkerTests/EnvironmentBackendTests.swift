@@ -170,6 +170,28 @@ struct EnvironmentBackendTests {
     }
 
     @Test
+    func `a switch on a description apelin_project_create never wrote says it is none, and what builds a workspace`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: false, diagnostics: [
+            ProjectDiagnostic(code: "project.invalid", severity: .error, message: "missing template", file: "apelin-project.json", field: "/"),
+            ProjectDiagnostic(code: "project.invalid", severity: .error, message: "missing environment", file: "apelin-project.json", field: "/"),
+        ]))
+        let request = EnvironmentCheckToolRequest(context: fixture.context(), toolchainID: nil, sdkID: "iPhoneOS27.0-cccccccc")
+        let failure = await #expect(throws: EnvironmentToolFailure.self) { _ = try await fixture.backend.checkEnvironment(request) }
+        let message = failure?.message ?? ""
+        #expect(message.contains("(/: missing template; /: missing environment)"), "\(message)")
+        #expect(message.contains("not an Apelin build description") && message.contains("apelin-external-build"), "\(message)")
+
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: false, diagnostics: [
+            ProjectDiagnostic(code: "project.invalid", severity: .error, message: "unknown member", file: "apelin-project.json", field: "/configurations/Debug/linkerFlags"),
+        ]))
+        let misspelled = await #expect(throws: EnvironmentToolFailure.self) { _ = try await fixture.backend.checkEnvironment(request) }
+        #expect(misspelled?.message.contains("(/configurations/Debug/linkerFlags: unknown member)") == true)
+        #expect(misspelled?.message.contains("apelin-project.schema.json") == true)
+        #expect(misspelled?.message.contains("not an Apelin build description") == false)
+    }
+
+    @Test
     func `another project is opened, listed and read by its id, resolved from its folder`() async throws {
         let fixture = try Fixture()
         let far = fixture.projectURL.deletingLastPathComponent().appendingPathComponent("Far", isDirectory: true)

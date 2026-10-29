@@ -132,6 +132,31 @@ final class ExternalBuildTests: XCTestCase {
         }
     }
 
+    /// A workspace rewritten by hand as a description lacks what only
+    /// projectCreate writes. A switch of its SDK is answered with the check
+    /// that says so, field by field, and no binding, not refused unread.
+    func testASwitchOnAWorkspaceRewrittenAsADescriptionAnswersItsCheck() throws {
+        let imported = try workspace(script: "exit 0\n")
+        let manifest = imported.root.appendingPathComponent("apelin-project.json")
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: manifest)) as? [String: Any])
+        document["kind"] = "tweak"
+        document["buildSystem"] = nil
+        document["external"] = nil
+        try JSONSerialization.data(withJSONObject: document, options: [.sortedKeys]).write(to: manifest)
+
+        let check = try worker.projectCheck(ProjectCheckRequest(
+            projectID: imported.id,
+            environment: ProjectEnvironmentChoice(sdkID: "iPhoneOS18.2-aaaaaaaa"),
+        ))
+        XCTAssertFalse(check.passed)
+        XCTAssertNil(check.environment, "the project file did not read")
+        XCTAssertNil(check.buildSystem)
+        let invalid = check.diagnostics.filter { $0.code == "project.invalid" }
+        for missing in ["missing template", "missing environment"] {
+            XCTAssertTrue(invalid.contains { $0.field == "/" && $0.message == missing }, "\(missing): \(check.diagnostics)")
+        }
+    }
+
     func testBuildRunsTheScriptAndRegistersItsOnePackage() throws {
         let deb = try package(.roothide)
         let project = try workspace(

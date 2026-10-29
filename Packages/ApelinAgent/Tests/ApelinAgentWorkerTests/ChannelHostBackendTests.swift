@@ -136,6 +136,53 @@ struct ChannelHostBackendTests {
     }
 
     @Test
+    func `a build's findings keep their field, and a schema error says where the schema is`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.buildStart, reply: TaskHandle(taskID: TaskID("build-task"), kind: .build))
+        try fixture.host.on(.buildAttach, reply: batch("build-task", [
+            ("diagnostic", ApelinCore.JSONValue(encoding: ProjectDiagnostic(
+                code: "project.invalid",
+                severity: .error,
+                message: "unknown member",
+                file: "apelin-project.json",
+                field: "/configurations/Debug/linkerFlags",
+            ))),
+            stateEvent(.failed, "the project check failed"),
+        ]))
+        let response = try await fixture.backend.build(BuildRequest(context: fixture.context(), configuration: .debug, buildDescriptionDigest: "d"))
+        #expect(response.diagnostics.map(\.field) == ["/configurations/Debug/linkerFlags", nil])
+        let note = try #require(response.diagnostics.last)
+        #expect(note.severity == .note && note.message.contains("apelin-project.schema.json (apelin_skill_read)"))
+    }
+
+    @Test
+    func `a build refused over a project file that does not read names each field and the schema`() async throws {
+        let fixture = try Fixture()
+        // In Strict mode the host has no description to match.
+        fixture.host.on(.buildStart) { _ in
+            throw ApelinError(.denied, "approval required: the host could not compute the build description of x, so it cannot tell it matches the template")
+        }
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: false, diagnostics: [
+            ProjectDiagnostic(code: "project.invalid", severity: .error, message: "unknown member", file: "apelin-project.json", field: "/configurations/Debug/linkerFlags"),
+            ProjectDiagnostic(code: "project.invalid", severity: .error, message: "missing optimization", file: "apelin-project.json", field: "/configurations/Release"),
+        ]))
+        let request = BuildRequest(context: fixture.context(), configuration: .debug, buildDescriptionDigest: "d")
+        let refusal = await #expect(throws: ApelinError.self) { _ = try await fixture.backend.build(request) }
+        #expect(refusal?.code == .badRequest)
+        #expect(refusal?.message.contains("/configurations/Debug/linkerFlags: unknown member; /configurations/Release: missing optimization") == true)
+        #expect(refusal?.message.contains("apelin-project.schema.json") == true)
+
+        // A refusal over anything else stands as it came.
+        fixture.host.on(.buildStart) { _ in throw ApelinError(.notFound, "toolchain clt-16.4-c is not registered") }
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: false, diagnostics: [
+            ProjectDiagnostic(code: "environment.device.toolchain", severity: .error, message: "not registered", field: "/environment/toolchain"),
+        ]))
+        await #expect(throws: ApelinError(.notFound, "toolchain clt-16.4-c is not registered")) {
+            _ = try await fixture.backend.build(request)
+        }
+    }
+
+    @Test
     func `apelin_project_check_distribution counts what stops the build, and says a workspace's package is checked by its build`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.projectCheck, reply: ProjectCheckResponse(
@@ -158,6 +205,17 @@ struct ChannelHostBackendTests {
         ]))
         let described = try await fixture.backend.checkDistribution(DistributionCheckRequest(project: fixture.project))
         #expect(!described.ready && described.issues.map(\.message) == ["local identifier"] && described.note == nil)
+    }
+
+    @Test
+    func `apelin_project_check_distribution names each issue's field, and where the schema is`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.projectCheck, reply: ProjectCheckResponse(passed: false, diagnostics: [
+            ProjectDiagnostic(code: "project.invalid", severity: .error, message: "unknown member", file: "apelin-project.json", field: "/configurations/Debug/linkerFlags"),
+        ]))
+        let check = try await fixture.backend.checkDistribution(DistributionCheckRequest(project: fixture.project))
+        #expect(!check.ready && check.issues.map(\.field) == ["/configurations/Debug/linkerFlags", nil])
+        #expect(check.issues.last?.severity == .note && check.issues.last?.message.contains("apelin-project-description") == true)
     }
 
     @Test
