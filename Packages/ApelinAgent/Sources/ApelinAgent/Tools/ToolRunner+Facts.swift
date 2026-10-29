@@ -1,5 +1,6 @@
 import enum ApelinCore.ProjectDisplayName
 import enum ApelinProtocol.AgentToolName
+import enum ApelinProtocol.FeedbackRules
 import Foundation
 import KWWKAI
 
@@ -106,6 +107,15 @@ extension ToolRunner {
             facts.skillChange = try skillTools().change(saving: arguments)
         case .skillRemove:
             facts.skillChange = try skillTools().change(removing: arguments)
+        case .feedbackSend:
+            // Checked before anyone is asked; the card shows the text that
+            // is sent, which apelin-environment checks again.
+            let title = try arguments.requireString("title").trimmingCharacters(in: .whitespaces)
+            let body = try arguments.requireString("body")
+            if let problem = FeedbackRules.problem(title: title, body: body) {
+                throw ToolArgumentError("Not sent: \(problem).")
+            }
+            facts.feedback = FeedbackApproval(repository: FeedbackRules.repository, title: title, body: body)
         case .projectSetEnvironment:
             facts.pathCheck = check { _ = try root.resolveForWrite(ProjectEnvironmentEdit.fileName, findingGitPointers: false) }
         default:

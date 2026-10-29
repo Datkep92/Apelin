@@ -259,18 +259,18 @@ actor ToolRunner {
     /// Nor for a push: each one publishes, so each one is asked. Nor for a
     /// toolchain or SDK install, which changes the device for every
     /// project, nor for a call that reaches another project, nor for a
-    /// command as root.
+    /// command as root, nor for an issue filed in public as feedback.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
-             .local(.skillSave), .local(.skillRemove):
+             .local(.skillSave), .local(.skillRemove), .local(.feedbackSend):
             return false
         default:
             break
         }
         switch detail {
         case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
-             .projectRename, .rootCommand:
+             .projectRename, .rootCommand, .feedback:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -718,6 +718,17 @@ actor ToolRunner {
 
         case .projectSetEnvironment:
             return try await json(setEnvironment(arguments, context: context))
+
+        case .feedbackSend:
+            // The issue the card named.
+            guard let feedback = facts.feedback else {
+                throw ToolDeniedError(message: "the feedback to send could not be read")
+            }
+            return try await json(backend.sendFeedback(FeedbackToolRequest(
+                context: context,
+                title: feedback.title,
+                body: feedback.body,
+            )))
         }
     }
 

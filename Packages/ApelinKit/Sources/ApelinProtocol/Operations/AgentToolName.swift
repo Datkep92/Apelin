@@ -43,6 +43,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case skillRemove = "apelin_skill_remove"
     case notificationSend = "apelin_notification_send"
     case webFetch = "apelin_web_fetch"
+    case feedbackSend = "apelin_feedback_send"
     case projectCheckDistribution = "apelin_project_check_distribution"
     case templateList = "apelin_template_list"
     case projectList = "apelin_project_list"

@@ -2,7 +2,9 @@
 // repository of theirs, served by GitHub Pages and indexed there by the
 // workflow Apelin's template brings (after owngoal-dev/owngoal-packages).
 // Served by apelin-environment, which holds the github.com credential the
-// user signed in with and calls GitHub's API with it; the app's alone.
+// user signed in with and calls GitHub's API with it; the app's alone, but
+// for the feedback an agent files on Apelin's own repository
+// (`FeedbackSendRequest`).
 //
 // The repository's clone is a workspace project like any other, so its
 // conversation maintains it with the file and git tools; the link is
@@ -165,6 +167,37 @@ public struct DistributionPublishRequest: OperationRequest {
     }
 }
 
+/// Files feedback as a public issue on Apelin's own repository
+/// (`FeedbackRules.repository`, never one the request names) with the
+/// github.com sign-in, the title and body checked by `FeedbackRules` first
+/// and a footer apelin-environment writes added below the body. Not a task:
+/// one request to GitHub. The app's, and an agent's as the host allows it
+/// (AgentFeedbackRules). Without a sign-in, `denied` with reason
+/// `authenticationRequired`.
+public struct FeedbackSendRequest: OperationRequest {
+    public typealias Response = FeedbackSendResponse
+    public static let operation = AppOperation.feedbackSend
+    public var title: String
+    public var body: String
+
+    public init(title: String, body: String) {
+        self.title = title
+        self.body = body
+    }
+}
+
+public struct FeedbackSendResponse: Codable, Sendable, Equatable {
+    /// The issue's number in `FeedbackRules.repository`.
+    public var number: Int
+    /// Its page on GitHub.
+    public var url: String
+
+    public init(number: Int, url: String) {
+        self.number = number
+        self.url = url
+    }
+}
+
 public extension ApelinService {
     func distributionRepositoryList(repositories: Bool = true) async throws -> DistributionRepositoryListResponse {
         try await send(DistributionRepositoryListRequest(repositories: repositories))
@@ -187,5 +220,9 @@ public extension ApelinService {
     /// Starts publishing; follow it with `events(of:)`.
     func distributionPublish(files: [String]) async throws -> TaskHandle {
         try await send(DistributionPublishRequest(files: files))
+    }
+
+    func feedbackSend(title: String, body: String) async throws -> FeedbackSendResponse {
+        try await send(FeedbackSendRequest(title: title, body: body))
     }
 }

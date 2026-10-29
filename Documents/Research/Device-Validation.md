@@ -201,6 +201,19 @@ console now goes on after a restart only past a successful respring.
       Not tested, in the reply's language, with how to check it, and does
       not call the task done while the main behaviour is untested. Under
       Strict, declining a screen action leaves that behaviour Not tested.
+- [ ] Feedback filed by the agent (2026-10-29, AGENTS.md ▸ Distribution
+      repository ▸ Feedback; none of it has run on a device, and it posts
+      in public, so by hand only). Signed out of GitHub, ask a conversation
+      to send feedback: apelin_feedback_send answers that GitHub
+      authorization is needed and names Sign In with GitHub in Settings ▸
+      Git, and nothing is posted. Signed in, under Strict: the card names
+      owngoal-dev/Apelin and shows the whole title and body, offers no
+      "for this session", and Approve posts one issue whose footer reads
+      "Sent with Apelin <version> (<build>) · iOS <version> · <bootstrap>"
+      on a roothide and a rootless device, with the installed version;
+      the model hands back the issue's link. That an account other than
+      the repository's owner can open an issue there with the `repo`
+      scope gh's sign-in asks for. Close the test issues afterwards.
 - [ ] Waking the device from the agent (2026-10-29; none of it has run on
       a device). A wake and a lock round trip on the iOS 26 and the iOS 27
       vphones, iPhone and iPad, with no passcode: `uiAction` `press`

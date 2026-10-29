@@ -379,10 +379,7 @@ public struct DistributionService: Sendable {
     // MARK: Helpers
 
     private func api() throws -> GitHubAPI {
-        guard let credential = try credentials.credential(forHost: GitHubHost.name), !credential.token.isEmpty else {
-            throw ApelinError(.denied, "Sign in with GitHub in Settings ▸ Git first.", reason: .authenticationRequired)
-        }
-        return GitHubAPI(token: credential.token, exchange: exchange)
+        try GitHubAPI.signedIn(credentials, exchange: exchange)
     }
 
     /// The commit author Apelin's settings name, else the repository's, else

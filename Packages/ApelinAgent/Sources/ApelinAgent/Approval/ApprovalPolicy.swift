@@ -98,6 +98,9 @@ public struct InvocationFacts: Sendable, Hashable {
     public var projectRename: ProjectRenameApproval?
     /// The project apelin_project_rename renames, as the backend resolved it.
     public var renamedProject: ProjectIdentity?
+    /// For apelin_feedback_send: the issue, checked before asking, as it is
+    /// sent.
+    public var feedback: FeedbackApproval?
 
     public init(
         tool: Tool,
@@ -299,6 +302,14 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 detail: .gitPush(remote: target.remote, branch: target.branch),
             )
 
+        // A public issue under the user's GitHub account, as a push
+        // publishes: every one asks, the card showing the whole text.
+        case .feedbackSend:
+            guard let feedback = facts.feedback else {
+                return .ask(reason: "The feedback to send could not be read.", detail: .none)
+            }
+            return .ask(reason: Self.feedbackReason(feedback), detail: .feedback(feedback))
+
         // The device's git settings, for every project: each change asks,
         // and a saved token is never on the card.
         case .gitSetAuthor, .gitSaveCredential, .gitRemoveCredential:
@@ -401,6 +412,10 @@ public struct ApprovalPolicy: Sendable, Hashable {
             " (\(ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)))"
         } ?? ""
         return "Sets up Command Line Tools \(setup.version) (\(components)) on this device: Apple's package\(size) is downloaded from Apple, adapted, installed as a package through Irisin for every project and self-tested; if no registered SDK fits it, one is imported from an enabled SDK source first. Each install needs your approval."
+    }
+
+    static func feedbackReason(_ feedback: FeedbackApproval) -> String {
+        "Posts this title and body as a public issue on \(feedback.repository) under your GitHub account, where anyone can read it; Apelin adds its version, the iOS version and the bootstrap below it. Each one needs your approval."
     }
 
     static func skillReason(_ change: SkillChangeApproval) -> String {

@@ -4,15 +4,23 @@ import Foundation
 
 /// The part of GitHub's REST API a package repository needs, called with the
 /// github.com credential the user signed in with: the account, its own
-/// repositories, making one, and GitHub Pages. The token goes in the
-/// `Authorization` header to api.github.com and nowhere else; no message
-/// quotes it.
+/// repositories, making one, and GitHub Pages; and the issue feedback files.
+/// The token goes in the `Authorization` header to api.github.com and
+/// nowhere else; no message quotes it.
 struct GitHubAPI: Sendable {
     static let base = URL(string: "https://api.github.com")!
     typealias Exchange = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
 
     let token: String
     let exchange: Exchange
+
+    /// The API with the github.com sign-in, or the refusal that names it.
+    static func signedIn(_ credentials: any GitCredentialStore, exchange: @escaping Exchange) throws -> GitHubAPI {
+        guard let credential = try credentials.credential(forHost: GitHubHost.name), !credential.token.isEmpty else {
+            throw ApelinError(.denied, "Sign in with GitHub in Settings ▸ Git first.", reason: .authenticationRequired)
+        }
+        return GitHubAPI(token: credential.token, exchange: exchange)
+    }
 
     static let live: Exchange = { request in
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -50,6 +58,16 @@ struct GitHubAPI: Sendable {
             case cloneURL = "clone_url"
             case defaultBranch = "default_branch"
             case hasPages = "has_pages"
+        }
+    }
+
+    struct Issue: Decodable, Sendable {
+        let number: Int
+        let htmlURL: String
+
+        enum CodingKeys: String, CodingKey {
+            case number
+            case htmlURL = "html_url"
         }
     }
 
@@ -124,6 +142,11 @@ struct GitHubAPI: Sendable {
             break
         }
         return try await pages(fullName)
+    }
+
+    /// A new issue on `fullName`, opened by the signed-in account.
+    func createIssue(_ fullName: String, title: String, body: String) async throws -> Issue {
+        try await send("POST", "/repos/\(fullName)/issues", body: ["title": title, "body": body], as: Issue.self)
     }
 
     // MARK: Requests

@@ -41,7 +41,7 @@ import Foundation
 /// keeps them to this session's project, and to another one only as the
 /// user approved. apelin_toolchain_list, apelin_sdk_list, apelin_toolchain_setup,
 /// apelin_toolchain_self_test, apelin_sdk_import and apelin_project_set_environment's check:
-/// ChannelHostBackend+Environment.
+/// ChannelHostBackend+Environment. apelin_feedback_send → `feedbackSend`.
 public struct ChannelHostBackend: AgentHostBackend {
     public let service: ApelinService
     public let sessionID: String
@@ -589,6 +589,22 @@ public struct ChannelHostBackend: AgentHostBackend {
         try await git("git remove credential") { try await service.gitCredentialRemove(host: request.host) }
         return try await gitSettings(context: request.context)
     }
+
+    // MARK: apelin_feedback_send
+
+    /// Without a github.com sign-in, or with one GitHub refused, the model
+    /// hears where the user signs in, read from the reply's reason.
+    public func sendFeedback(_ request: FeedbackToolRequest) async throws -> FeedbackToolResponse {
+        let response: FeedbackSendResponse
+        do {
+            response = try await service.feedbackSend(title: request.title, body: request.body)
+        } catch let error as ApelinError where error.reason == .authenticationRequired {
+            throw FeedbackToolFailure(message: Self.gitHubSignInNeeded)
+        }
+        return FeedbackToolResponse(repository: FeedbackRules.repository, issue: response.number, url: response.url)
+    }
+
+    static let gitHubSignInNeeded = "Nothing was posted: GitHub authorization is needed. Ask the user to Sign In with GitHub in Settings ▸ Git, then send again."
 
     static func settings(_ response: GitSettingsResponse) -> GitSettingsToolResponse {
         GitSettingsToolResponse(

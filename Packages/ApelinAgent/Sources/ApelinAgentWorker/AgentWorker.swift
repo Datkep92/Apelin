@@ -630,6 +630,10 @@ actor EventRelay {
             payload["detail"] = .object(["skillChange": (try? ApelinCore.JSONValue(encoding: change)) ?? .null])
         case let .projectRename(rename):
             payload["detail"] = .object(["projectRename": (try? ApelinCore.JSONValue(encoding: rename)) ?? .null])
+        // The issue the host matches an agent's feedbackSend to
+        // (AgentFeedbackRules).
+        case let .feedback(feedback):
+            payload["detail"] = .object(["feedback": (try? ApelinCore.JSONValue(encoding: feedback)) ?? .null])
         }
         return .object(payload)
     }

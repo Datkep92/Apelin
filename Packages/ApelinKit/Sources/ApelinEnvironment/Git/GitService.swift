@@ -652,10 +652,9 @@ public struct GitService: Sendable {
 /// What a failed remote operation's error names beyond its code, for a
 /// caller that acts on it (the agent asks for a credential, or pulls before
 /// it pushes again). A task carries it in its final `state` as `reason`.
+/// `authenticationRequired` is ApelinProtocol's, which GitHub's API answers
+/// with too.
 extension ApelinError.Reason {
-    /// `denied`: the remote asked for a sign-in and no credential is saved
-    /// for its host, or it refused the one it was given.
-    static let authenticationRequired = Self(rawValue: "authenticationRequired")
     /// `conflict`: the remote refused a push.
     static let rejected = Self(rawValue: "rejected")
     /// `conflict`: a pull cannot fast-forward the branch, which has diverged.
