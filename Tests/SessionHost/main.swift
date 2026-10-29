@@ -9,7 +9,8 @@ import Foundation
 // caller policy, the protected-edit rules on a temporary
 // install root, the managed-package rules, the install bridge against a
 // fake irisind, the approval ledger, the deb control reader, the copies a
-// tool call's attachments travel as, and a real PTY.
+// tool call's attachments travel as, one agentOpen of a session at a time,
+// and a real PTY.
 
 extension NSLock {
     func withLock<T>(_ body: () throws -> T) rethrows -> T {
@@ -1080,6 +1081,10 @@ do {
 // MARK: - Agent notices (AgentNoticeChecks.swift)
 
 await agentNoticeChecks()
+
+// MARK: - One open of a session at a time (AgentOpenChecks.swift)
+
+await agentOpenChecks()
 
 // MARK: - shell_run as root (RootRunChecks.swift)
 
@@ -3240,6 +3245,144 @@ do {
         reread.events.map(\.seq.rawValue) == [1, 2, 3, 4] && reread.events.last?.kind == TaskEvent.stateKind,
         "the closing state survives the next load with the same numbers",
     )
+}
+
+// MARK: - Ordinary events leave the record alone; a restart reads them back
+
+do {
+    let directory = scratch.appendingPathComponent("record-writes")
+    let first = TaskRegistry(directory: directory)
+    await first.load()
+    let handle = await first.create(kind: .agent, owner: .agent, ownerKey: "record-writes")
+    let recordFile = directory.appendingPathComponent("\(handle.taskID.rawValue).json")
+    // The record is replaced whole when it is written (temporary file, then
+    // rename), so one written again has another inode.
+    func recordInode() -> ino_t {
+        var metadata = stat()
+        return stat(recordFile.path, &metadata) == 0 ? metadata.st_ino : 0
+    }
+    func storedRecord() throws -> TaskRegistry.Record {
+        try JSONCoding.decoder().decode(TaskRegistry.Record.self, from: Data(contentsOf: recordFile))
+    }
+    let created = recordInode()
+    let createdBytes = FileManager.default.contents(atPath: recordFile.path)
+
+    // A reopened conversation relays its history into its new task, as
+    // ordinary events by the thousand.
+    for index in 1 ... 2000 {
+        await first.append(handle.taskID, kind: "text", payload: .object(["text": .string("\(index)")]))
+    }
+    await first.append(handle.taskID, kind: TaskEvent.stateKind, payload: .object(["state": .string("running")]))
+    check(
+        recordInode() == created && FileManager.default.contents(atPath: recordFile.path) == createdBytes,
+        "ordinary events, and a state event that leaves the task as it was, do not write the record again",
+    )
+    await first.append(handle.taskID, kind: TaskEvent.stateKind, payload: .object(["state": .string("waitingForApproval")]))
+    let waiting = recordInode()
+    let stored = try storedRecord()
+    check(
+        waiting != created && stored.state == .waitingForApproval && stored.lastSeq == EventSeq(2002),
+        "a state event that moves the task writes the record: \(stored.state) at \(stored.lastSeq)",
+    )
+    await first.append(handle.taskID, kind: "approvalResolved", payload: .object(["approvalID": .string("a1")]))
+    await first.append(handle.taskID, kind: TaskEvent.stateKind, payload: .object(["state": .string("running")]))
+    let running = recordInode()
+    let movedBack = try storedRecord()
+    check(running != waiting && movedBack.state == .running, "and so does the one that moves it back")
+    for index in 1 ... 500 {
+        await first.append(handle.taskID, kind: "text", payload: .object(["text": .string("again \(index)")]))
+    }
+    check(recordInode() == running, "the events after it leave the record alone again")
+    let inMemory = await first.record(handle.taskID)
+    check(inMemory?.lastSeq == EventSeq(2504), "the host's own record counts every event")
+
+    // A new host on the same directory takes the number and the time from
+    // the log, which the record on disk lags behind.
+    let second = TaskRegistry(directory: directory)
+    let unfinished = await second.load()
+    check(unfinished.map(\.id) == [handle.taskID], "the running task is handed back")
+    let reloaded = await second.record(handle.taskID)
+    let lines = try String(contentsOf: directory.appendingPathComponent("\(handle.taskID.rawValue).events.jsonl"), encoding: .utf8)
+        .split(separator: "\n")
+    let lastLine = try lines.last.map { try JSONCoding.decoder().decode(TaskEvent.self, from: Data($0.utf8)) }
+    check(
+        reloaded?.lastSeq == inMemory?.lastSeq && reloaded?.state == inMemory?.state,
+        "its number and state are the ones the first host had: \(String(describing: reloaded?.lastSeq)), \(String(describing: reloaded?.state))",
+    )
+    if let reloaded, let inMemory, let lastLine {
+        check(
+            reloaded.updatedAt == lastLine.time && abs(reloaded.updatedAt.timeIntervalSince(inMemory.updatedAt)) < 1,
+            "its time is the last event's, as the log keeps it: \(reloaded.updatedAt), \(inMemory.updatedAt)",
+        )
+    } else {
+        check(false, "the task and its last event read back")
+    }
+    // agentList's time for the session is the record's.
+    let table = AgentSessionTable()
+    await table.add(AgentSessionTable.Entry(
+        sessionID: "record-writes",
+        task: handle,
+        project: ResolvedProject(id: "p-record-writes", name: "Record Writes", path: scratchPath),
+        mode: .confirm,
+        createdAt: Date.distantPast,
+    ))
+    let summary = await table.summaries(registry: second).first
+    check(
+        summary?.updatedAt == reloaded?.updatedAt && summary?.state == .running,
+        "agentList reports the time of the last event after a restart",
+    )
+    let next = await second.append(handle.taskID, kind: "text", payload: .object(["text": .string("after")]))
+    check(next?.seq == EventSeq(2505), "numbering goes on from the last event")
+    await second.finish(handle.taskID, .succeeded)
+    let final = try storedRecord()
+    check(final.state == .succeeded && final.lastSeq == EventSeq(2506), "the final state writes the record")
+    let third = TaskRegistry(directory: directory)
+    let none = await third.load()
+    let ended = await third.record(handle.taskID)
+    check(
+        none.isEmpty && ended?.state == .succeeded && ended?.lastSeq == EventSeq(2506),
+        "and a third host reads the task as finished",
+    )
+
+    // A record written long before its last events takes their time; one
+    // written after them keeps its own.
+    let lagging = scratch.appendingPathComponent("record-lags")
+    try FileManager.default.createDirectory(at: lagging, withIntermediateDirectories: true)
+    let written = Date(timeIntervalSince1970: 1_800_000_000)
+    func writeRecord(updatedAt: Date, eventsAt times: [Date]) throws -> TaskID {
+        let id = TaskID.make()
+        let record = TaskRegistry.Record(
+            id: id,
+            kind: .build,
+            state: .running,
+            createdAt: written,
+            updatedAt: updatedAt,
+            lastSeq: .start,
+            owner: .build,
+            ownerKey: "lags",
+            cancelRequested: false,
+            resume: nil,
+        )
+        try JSONCoding.encode(record).write(to: lagging.appendingPathComponent("\(id.rawValue).json"))
+        var log = Data()
+        for (index, time) in times.enumerated() {
+            log += try JSONCoding.encode(TaskEvent(seq: EventSeq(UInt64(index + 1)), kind: "log", time: time))
+            log.append(0x0A)
+        }
+        try log.write(to: lagging.appendingPathComponent("\(id.rawValue).events.jsonl"))
+        return id
+    }
+    let behind = try writeRecord(updatedAt: written, eventsAt: [written.addingTimeInterval(60), written.addingTimeInterval(120)])
+    let ahead = try writeRecord(updatedAt: written.addingTimeInterval(600), eventsAt: [written.addingTimeInterval(60)])
+    let fourth = TaskRegistry(directory: lagging)
+    await fourth.load()
+    let caughtUp = await fourth.record(behind)
+    check(
+        caughtUp?.updatedAt == written.addingTimeInterval(120) && caughtUp?.lastSeq == EventSeq(2),
+        "a record behind its log takes the last event's time and number",
+    )
+    let kept = await fourth.record(ahead)
+    check(kept?.updatedAt == written.addingTimeInterval(600), "a record's time never moves back")
 }
 
 // MARK: - A digest pushed out while still pending is not brought back

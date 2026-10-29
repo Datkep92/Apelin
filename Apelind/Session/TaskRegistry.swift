@@ -3,9 +3,10 @@ import ApelinProtocol
 import Foundation
 
 /// Every task the session host owns: its record, its numbered events, and
-/// the attaches waiting for the next one. Records and events are written to
-/// `<state>/tasks/` as they change, so they are on disk before the host
-/// reports idle and exits; the next launch reads them back. `load` hands
+/// the attaches waiting for the next one. Events are written to
+/// `<state>/tasks/` as they come and the record whenever it changes in a
+/// way the events do not tell (`append`), so both are on disk before the
+/// host reports idle and exits; the next launch reads them back. `load` hands
 /// back the tasks that were still running: the host offers each to the
 /// resumer registered for its kind (an install follows its irisind
 /// transaction again from `resume`; a build or environment task is started
@@ -58,6 +59,12 @@ actor TaskRegistry {
                 continue
             }
             var (replay, trailing) = readEvents(record.id)
+            // The record is not written again for an ordinary event
+            // (`append`), so its time is the last event's that read, and
+            // only forward.
+            if let last = replay.last, last.time > record.updatedAt {
+                record.updatedAt = last.time
+            }
             // A record already final whose final `state` line no longer
             // reads would replay with no end: an attach reports it finished
             // with no `state` to take the result from. The lines past the
@@ -68,8 +75,9 @@ actor TaskRegistry {
             if closed {
                 replay += closingEvents(record, after: replay, skipped: trailing)
             }
-            // The event log is the truth: a record written ahead of a lost
-            // line is pulled back to the last event that survived.
+            // The event log is the truth: a record written before the events
+            // after it takes the last one's number, and one written ahead of
+            // a lost line is pulled back to the last event that survived.
             record.lastSeq = replay.last?.seq ?? .start
             // So is its state: `append` writes the line before the record,
             // and a host that died between the two left a record still
@@ -88,7 +96,6 @@ actor TaskRegistry {
                state != record.state
             {
                 record.state = state
-                record.updatedAt = last.time
                 moved = true
             }
             records[record.id] = record
@@ -142,22 +149,33 @@ actor TaskRegistry {
 
     /// Appends an event and numbers it. A `state` event with a `state` field
     /// moves the task; once terminal, nothing more is appended.
+    ///
+    /// The record is written again only when the event moves the task. Its
+    /// number and time are the event's, which `load` reads back from the
+    /// log; rewriting it for every event held the registry, which every
+    /// request goes through, for as long as a reopened conversation took to
+    /// relay its history, tens of thousands of events.
     @discardableResult
     func append(_ id: TaskID, kind: String, payload: JSONValue?) -> TaskEvent? {
         guard var record = records[id], !record.state.isTerminal else { return nil }
         let event = TaskEvent(seq: record.lastSeq.next, kind: kind, payload: payload)
         record.lastSeq = event.seq
         record.updatedAt = event.time
+        var moved = false
         if kind == TaskEvent.stateKind,
            let name = payload?["state"]?.stringValue,
-           let state = TaskState(rawValue: name)
+           let state = TaskState(rawValue: name),
+           state != record.state
         {
             record.state = state
+            moved = true
         }
         records[id] = record
         events[id, default: []].append(event)
         appendEventToDisk(id, event)
-        persist(id)
+        if moved {
+            persist(id)
+        }
         wake(id)
         return event
     }
