@@ -90,6 +90,17 @@ struct EnvironmentPromptTests {
     }
 
     @Test
+    func `the installed toolchains and SDKs say the user removes them in Settings`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        try EnvironmentContextTests.register(in: home)
+        let configuration = AgentSessionConfiguration(project: home.project, provider: .githubCopilot(model: "m"), approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot)
+        let prompt = try AgentSession.systemPrompt(configuration, root: ScopedRoot(home.projectURL), skills: [])
+        #expect(prompt.contains("- Toolchains (each registered only after its installed tools passed the self-test; the user removes one in Settings ▸ Toolchains):"))
+        #expect(prompt.contains("- iPhoneOS SDKs (registered; the user removes one in Settings ▸ SDKs):"))
+    }
+
+    @Test
     func `the same environment gives the same section, whatever the order the records were written in`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }

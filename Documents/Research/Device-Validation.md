@@ -180,6 +180,18 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] The folders a removed toolchain leaves (2026-10-29, AGENTS.md ▸
+      Install bridge; none of it has run on a device). On roothide:
+      Settings ▸ Toolchains ▸ Remove leaving no
+      `usr/lib/apelin/toolchains/<id>` folder, its Show Log saying "Removed
+      the empty folders the toolchain left", and the toolchains folder and
+      every other toolchain as they were; the skeletons earlier removals
+      left (folders and `.jbroot` links only, under packages the package
+      manager no longer lists) gone once the session host starts again
+      (`Scripts/device.py kill-host`), and a tree whose package is still
+      installed untouched. On rootless, a removal with no such line. The
+      agent, asked to remove a toolchain or an SDK, sending the user to
+      Settings and deleting nothing.
 - [ ] Waking the device from the agent (2026-10-29; none of it has run on
       a device). A wake and a lock round trip on the iOS 26 and the iOS 27
       vphones, iPhone and iPad, with no passcode: `uiAction` `press`

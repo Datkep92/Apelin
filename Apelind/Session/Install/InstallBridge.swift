@@ -435,6 +435,9 @@ actor InstallBridge {
                     $0.status = .removed
                     $0.removalReceipt = receipt
                 }
+                if let line = pruneToolchainTree(of: record.packageID) {
+                    await registry.append(taskID, kind: "log", payload: .object(["line": .string(line)]))
+                }
                 let removed: JSONValue = .object([
                     "installationID": .string(installationID), "packageID": .string(record.packageID),
                     "transactionID": .string(transaction.uuidString.lowercased()),
@@ -529,6 +532,45 @@ actor InstallBridge {
                 reason: refusal,
             )
         })
+    }
+
+    // MARK: Toolchain folders
+
+    /// After a toolchain package's removal: the folders roothide's `.jbroot`
+    /// links kept from going (`ToolchainTreePruner`). Answers the line for
+    /// the removal's log; nil for another package, or nothing left behind.
+    private func pruneToolchainTree(of packageID: String) -> String? {
+        guard let id = ToolchainTreePruner.toolchainID(packageID: packageID) else { return nil }
+        let folder = "usr/lib/apelin/toolchains/" + id
+        switch ToolchainTreePruner.prune(installRoot: paths.installRoot, id: id) {
+        case .pruned: return "Removed the empty folders the toolchain left in \(folder)."
+        case .absent: return nil
+        case let .kept(reason): return "Left \(folder) in place: \(reason)."
+        }
+    }
+
+    /// At start, before anything can install: the folders left behind by
+    /// every toolchain whose package is not on the device and that no
+    /// install or removal still handles — after a removal nothing pruned (an
+    /// earlier Apelin's, or one cut short), or files taken away outside
+    /// Apelin. A tree whose package dpkg lists is dpkg's, and stays.
+    func pruneLeftoverToolchains() async {
+        // Without the package list, a tree in use cannot be told apart.
+        guard let database = try? packages.installedPackages() else { return }
+        let handled = await Set(installations.all().filter {
+            [.staged, .submitted, .removing].contains($0.status)
+        }.map(\.packageID))
+        for id in ToolchainTreePruner.toolchainIDs(installRoot: paths.installRoot) {
+            let packageID = ManagedPackagePolicy.toolchainPrefix + id
+            // dpkg may keep a removed package's stanza, as `… not-installed`.
+            if let entry = database[packageID], !entry.status.hasSuffix(" not-installed") {
+                continue
+            }
+            guard !handled.contains(packageID) else { continue }
+            if ToolchainTreePruner.prune(installRoot: paths.installRoot, id: id) == .pruned {
+                NSLog("apelind-session: removed the empty folders toolchain %@ left", id)
+            }
+        }
     }
 
     // MARK: Respring

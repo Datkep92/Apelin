@@ -8,9 +8,9 @@ import Foundation
 // restart, builds and environment tasks started again after one, the
 // caller policy, the protected-edit rules on a temporary
 // install root, the managed-package rules, the install bridge against a
-// fake irisind, the approval ledger, the deb control reader, the copies a
-// tool call's attachments travel as, one agentOpen of a session at a time,
-// and a real PTY.
+// fake irisind, the folders a removed toolchain leaves, the approval
+// ledger, the deb control reader, the copies a tool call's attachments
+// travel as, one agentOpen of a session at a time, and a real PTY.
 
 extension NSLock {
     func withLock<T>(_ body: () throws -> T) rethrows -> T {
@@ -2067,6 +2067,10 @@ do {
     let older = try await refused("local.apelin.plain", files: nil, text: "\(dylib) is owned by local.apelin.dockflip; Replaces is required")
     check(older.conflicts.isEmpty && older.message == "\(dylib) is owned by local.apelin.dockflip; Replaces is required", "without the package's files the message is irisind's (\(older.message))")
 }
+
+// MARK: - Removed toolchains leave no folders behind (ToolchainPruneChecks.swift)
+
+try await toolchainPruneChecks()
 
 // MARK: - Toolchain setup end to end
 

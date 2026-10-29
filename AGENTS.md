@@ -404,7 +404,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     `removePackage` from that caller would give as `reason`; the records
     themselves stay root's. The installed state is read from
     `var/lib/dpkg/status`, never through a package manager's binary.
-    `respring` is irisind's.
+    After a toolchain package's removal, and at start (before anything is
+    resumed) for each `usr/lib/apelin/toolchains/<id>` whose package dpkg
+    does not list and no install or removal still handles, the host takes
+    away the folders roothide's `.jbroot` links kept (`ToolchainTreePruner`):
+    only when every entry is a folder or a `.jbroot` link, the links
+    unlinked without being followed and the folders removed bottom up; a
+    file or any other link keeps the whole tree. `respring` is irisind's.
   - *Approvals* (`Session/Approval/`). The host keeps the Confirm-mode ledger:
     per project the template's build and packaging digests (recorded from
     `projectCreate`'s `descriptionDigests`) and every digest the user
@@ -546,7 +552,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (`Tests/SessionHost/`): record persistence and resume (a build restarted
   over a real channel, the refusals, the cancel, the retry bound), CallerPolicy, the
   edit rules on a temporary root, the managed-package rules, the bridge
-  against a fake irisind, the ledger, the control reader, the attachment
+  against a fake irisind, the folders a removed toolchain leaves, the
+  ledger, the control reader, the attachment
   copies, ordinary events leaving the record alone and its number and time
   read back from the log, one `agentOpen` of a session at a time, and a
   real PTY.
@@ -764,9 +771,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   installation; when the bridge refuses because the package is gone and the
   tree is gone too, only the record is dropped; a tree with no regular file
   left is gone (roothide's package removal leaves every folder with its
-  `.jbroot` link). `toolchainSelfTest` (Self-Tests ▸ Run Again) runs the
-  installed tree's self-test again as mobile against the SDK setup used —
-  removed since, the one setup would pick — and the registry keeps the
+  `.jbroot` link, which the session host then removes).
+  `toolchainSelfTest` (Self-Tests ▸ Run Again) runs the installed tree's
+  self-test again as mobile against the SDK setup used — removed since,
+  the one setup would pick — and the registry keeps the
   new results, passed or not; a failure is a warning, never an
   unregistration; it is not resumed. Proven on the Mac by
   `ToolchainTests` and the session host's end-to-end test
@@ -1184,7 +1192,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   only a registered and checked pair goes in, and the binding is not in
   the build description digest (Documents/Schemas/README.md), so the next
   build does not ask for it. Left out (2026-10-22): toolchain and SDK
-  removal (device-wide, never needed to build, Settings asks itself),
+  removal (device-wide, never needed to build, Settings asks itself; the
+  prompt says removal is the user's there, and never by deleting files),
   transfer export (its file is only of use through the app's share sheet);
   project rename came later (2026-10-24, apelin_project_rename, Project
   display names below); a distribution build is apelin_project_build
