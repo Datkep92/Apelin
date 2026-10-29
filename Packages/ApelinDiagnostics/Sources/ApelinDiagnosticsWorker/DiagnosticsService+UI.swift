@@ -20,25 +20,39 @@ extension DiagnosticsService {
     func uiAction(_ action: ApelinProtocol.UIActionRequest) async throws -> ApelinProtocol.UIActionResponse {
         let mappedAction = try Self.action(action.action)
         let lock = try await blocking {
-            let front = try requireTarget(action.targetID)
+            let front = try requireTarget(action.targetID, refusing: action.refusedBundleIDs ?? [])
             return try mapped { try diagnostics.perform(mappedAction, settled: front) }
         }
         return ApelinProtocol.UIActionResponse(locked: lock?.locked, screenOff: lock?.screenOff)
     }
 
     /// An action is bound to the verified foreground app when a target is
-    /// named; without one it goes to whatever is in front. Answers the
-    /// settled read it checked, nil without a target. It waits: call it
-    /// inside `blocking`.
+    /// named; without one it goes to whatever is in front. An app in
+    /// `refused` is never reached: named as the target, it is refused before
+    /// anything is read, and in front — on the settled read, verified or
+    /// not — it is refused too, even with no target, so the check and the
+    /// action go by the same read. Answers the settled read it checked, nil
+    /// when it read nothing. It waits: call it inside `blocking`.
     @discardableResult
-    func requireTarget(_ targetID: String?) throws -> ForegroundApp? {
-        guard let targetID else { return nil }
+    func requireTarget(_ targetID: String?, refusing refused: [String] = []) throws -> ForegroundApp? {
+        if let targetID, refused.contains(targetID) {
+            throw Self.refusal(targetID)
+        }
+        guard targetID != nil || !refused.isEmpty else { return nil }
         // Read once the app switch that brought it there, if any, is over.
         let front = diagnostics.settledForegroundApp()
+        if refused.contains(front.bundleIdentifier) {
+            throw Self.refusal(front.bundleIdentifier)
+        }
+        guard let targetID else { return front }
         guard front.verified, front.bundleIdentifier == targetID else {
             throw ApelinError(.conflict, "\(targetID) is not the verified foreground app (\(front.bundleIdentifier.isEmpty ? "unknown" : front.bundleIdentifier))")
         }
         return front
+    }
+
+    private static func refusal(_ bundleID: String) -> ApelinError {
+        ApelinError(.denied, "UI actions may not reach \(bundleID), so nothing was done: ask the user to do this there themselves")
     }
 
     static func action(_ action: ApelinProtocol.UIAction) throws -> ApelinDiagnosticsCore.UIAction {

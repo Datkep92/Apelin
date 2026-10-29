@@ -412,6 +412,59 @@ final class DiagnosticsWorkerTests: XCTestCase {
         XCTAssertEqual(tapped, ApelinProtocol.UIActionResponse(), "only a wake answers the lock state")
     }
 
+    /// An agent's actions name Apelin as refused (the host sets the list):
+    /// named as the target it is refused before anything is read, and in
+    /// front, verified or not, on the settled read the action would have
+    /// gone by, with no target too. Without the list (the app, the console)
+    /// the same tap goes through.
+    func testARefusedAppIsNeverReachedByAUIAction() async throws {
+        let icli = FakeIcli()
+        let apelin: [String: Any] = ["bundle_id": "wiki.qaq.apelin", "verified": true, "source": "runningboard"]
+        icli.front = apelin
+        var diagnostics = Diagnostics(icli: icli)
+        diagnostics.settleInterval = 0.01
+        diagnostics.settleTimeout = 0.05
+        let service = DiagnosticsService(
+            diagnostics: diagnostics,
+            host: ApelinService(transport: NoHost()),
+            home: "/nonexistent",
+            installRoot: "/",
+        )
+        let refused = ["wiki.qaq.apelin"]
+        func expectRefused(_ request: ApelinProtocol.UIActionRequest, _ what: String) async {
+            do {
+                _ = try await service.uiAction(request)
+                XCTFail("\(what): performed")
+            } catch let error as ApelinError {
+                XCTAssertEqual(error.code, .denied, what)
+            } catch {
+                XCTFail("\(what): \(error)")
+            }
+        }
+
+        let actions: [ApelinProtocol.UIAction] = [
+            .tap(x: 200, y: 4),
+            .tapElement(text: "Delete", identifier: nil),
+            .type(text: "yes"),
+            .swipe(fromX: 300, fromY: 100, toX: 20, toY: 100, durationMilliseconds: 200),
+        ]
+        for action in actions {
+            await expectRefused(.init(action: action, refusedBundleIDs: refused), "Apelin in front, \(action)")
+        }
+        icli.lock.withLock { icli.frontQueues = [] }
+        await expectRefused(.init(targetID: "wiki.qaq.apelin", action: .tap(x: 200, y: 4), refusedBundleIDs: refused), "Apelin as the target")
+        XCTAssertTrue(icli.lock.withLock { icli.frontQueues.isEmpty }, "a refused target is refused before the foreground is read")
+        icli.front = ["bundle_id": "wiki.qaq.apelin", "verified": false, "source": "springboard_query"]
+        await expectRefused(.init(action: .tap(x: 200, y: 4), refusedBundleIDs: refused), "Apelin in front, unverified")
+        XCTAssertTrue(icli.taps.isEmpty && icli.elementTaps.isEmpty, "nothing reached the screen")
+
+        icli.front = ["bundle_id": "com.apple.Preferences", "verified": true, "source": "runningboard"]
+        _ = try await service.uiAction(.init(action: .tap(x: 1, y: 2), refusedBundleIDs: refused))
+        icli.front = apelin
+        _ = try await service.uiAction(.init(action: .tap(x: 200, y: 4)))
+        XCTAssertEqual(icli.taps.map(\.0), [1, 200], "another app in front, and any app without the list")
+    }
+
     func testCrashListUsesFileNamesAsIDs() throws {
         let icli = FakeIcli()
         icli.crashes = [

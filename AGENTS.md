@@ -1053,7 +1053,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   naming the project opens with the task (asking under Confirm, as any
   call into another project does), and this one's file tools stay where
   they are; a project's chat makes one only for work that is a project of
-  its own, when the user asks or agrees. In a project's chat only, git_status, git_diff,
+  its own, when the user asks or agrees. A repository is imported as New
+  Project imports one, whatever it holds: an Empty workspace
+  (`wiki.qaq.apelin.workspace/empty`), then its conversation opened with
+  the URL and branch in the prompt, whose git_clone takes it in; the
+  prompt, apelin_project_create's and git_clone's descriptions and
+  `apelin-git-workflow` say so. No agent tool deletes a project. In a
+  project's chat only, git_status, git_diff,
   git_stage, git_unstage, git_commit (`all: true` stages every change)
   and git_init → the matching `git*` request,
   git_fetch, git_pull, git_push and git_clone → `gitFetch`, `gitPull`,
@@ -1521,8 +1527,17 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Nothing in Apelin asks for, keeps or types a passcode: not icli 0.11.0's
   `unlockDevice`, nor its `device passcode`, which the `apelin-icli` skill
   tells the agent never to run. IcliKit 0.9.0 already has the press and the
-  wake, with the same iOS code as 0.11.0, so the pin stays.
-  Screenshots go back as an unlinked temporary file's descriptor, JPEG.
+  wake, with the same iOS code as 0.11.0, so the pin stays. An agent's
+  action never reaches Apelin itself (`AgentUIActionRules`): the host sets
+  its `refusedBundleIDs` to `wiki.qaq.apelin`, whatever the agent sent, and
+  apelin-diagnostics answers `denied` for a target on that list, before
+  reading anything, and for an app on it in front — on the settled read
+  the action is then bound to, verified or not, with no target too. It
+  holds in every mode, so no approval or preset lifts it: deleting a
+  project, approving or changing a setting stays the user's. The app's and
+  the console's actions carry no list, and the screen and the tree stay
+  readable. Screenshots go back as an unlinked temporary file's descriptor,
+  JPEG.
 - **The hello** has a five-second bound per attempt, guarded by connection
   generation, retried every second; the fallback to the unprivileged backend
   comes ten seconds after the first miss (`Apelin/DaemonClient.swift`). After
