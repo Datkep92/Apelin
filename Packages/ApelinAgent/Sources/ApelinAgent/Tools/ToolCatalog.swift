@@ -110,7 +110,7 @@ public extension AgentToolName {
         case .crashSymbolicate: "Symbolicate a crash report against the project's matching dSYM and rank suspects."
         case .screenCapture: "Take a screenshot of the device or a target."
         case .screenReadTree: "Read the UI element tree of the foreground app or a target."
-        case .screenInteract: "Perform one UI action: tap, tap an element, type text, swipe, or press a button."
+        case .screenInteract: "Perform one UI action: tap, tap an element, type text, swipe, or press a button. With a target it waits up to 3 s for that app to come to the front; tap_element waits up to 3 s for its element to appear. type_text answers what the fields it changed now hold (fieldValues) and whether one holds the text (typedTextMatches): check it before typing again."
         case .memoryList: "Read saved user preferences and facts for all chats and this project, with their current revision."
         case .memorySave: "Create or update a concise durable memory. Read apelin_memory_list first and supply its revision; never overwrite a user's correction or recreate a deleted memory from older context."
         case .memoryDelete: "Delete a memory that is outdated or that the user asks to forget. Read apelin_memory_list first and supply its revision."
@@ -450,6 +450,7 @@ public extension AgentToolName {
                 "y": Schema.number("Tap or swipe start y, points."),
                 "to_x": Schema.number("Swipe end x."),
                 "to_y": Schema.number("Swipe end y."),
+                "duration_ms": Schema.integer("Swipe duration in milliseconds, 50–5000, default 300."),
                 "element_id": Schema.string("Element id from apelin_screen_read_tree."),
                 "text": Schema.string("Text to type."),
                 "button": Schema.string("home, lock, volume_up or volume_down."),

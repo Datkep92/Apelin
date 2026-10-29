@@ -15,13 +15,14 @@ extension DiagnosticsService {
         return try ApelinProtocol.ReadUITreeResponse(tree: JSONValue(encoding: read))
     }
 
-    func uiAction(_ action: ApelinProtocol.UIActionRequest) async throws -> Acknowledged {
+    /// A `type` answers what it left in the fields, read back from the tree.
+    func uiAction(_ action: ApelinProtocol.UIActionRequest) async throws -> ApelinProtocol.UIActionResponse {
         let mappedAction = try Self.action(action.action)
-        try await blocking {
+        let typed = try await blocking {
             let front = try requireTarget(action.targetID)
-            try mapped { try diagnostics.perform(mappedAction, settled: front) }
+            return try mapped { try diagnostics.perform(mappedAction, settled: front) }
         }
-        return Acknowledged()
+        return ApelinProtocol.UIActionResponse(typedTextMatches: typed?.matches, fieldValues: typed?.fieldValues)
     }
 
     /// An action is bound to the verified foreground app when a target is
@@ -31,10 +32,11 @@ extension DiagnosticsService {
     @discardableResult
     func requireTarget(_ targetID: String?) throws -> ForegroundApp? {
         guard let targetID else { return nil }
-        // Read once the app switch that brought it there, if any, is over.
-        let front = diagnostics.settledForegroundApp()
+        // Read once the app switch that brings it there, if any, is over.
+        let front = diagnostics.settledForegroundApp(expecting: targetID)
         guard front.verified, front.bundleIdentifier == targetID else {
-            throw ApelinError(.conflict, "\(targetID) is not the verified foreground app (\(front.bundleIdentifier.isEmpty ? "unknown" : front.bundleIdentifier))")
+            let seen = front.bundleIdentifier.isEmpty ? "unknown" : front.bundleIdentifier
+            throw ApelinError(.conflict, "\(targetID) is not the verified foreground app after \(Int(diagnostics.settleTimeout)) s (\(seen))")
         }
         return front
     }
@@ -50,7 +52,7 @@ extension DiagnosticsService {
                 match: identifier == nil ? .exact : .contains,
             ))
         case let .type(text):
-            return .type(text: text, delayMilliseconds: 0)
+            return .type(text: text, delayMilliseconds: ApelinDiagnosticsCore.UIAction.defaultTypeDelayMilliseconds)
         case let .swipe(fromX, fromY, toX, toY, durationMilliseconds):
             return .swipe(
                 from: UIPoint(x: fromX, y: fromY),

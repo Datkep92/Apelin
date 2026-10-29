@@ -179,7 +179,7 @@ public enum UIAction: Codable, Sendable, Equatable {
 }
 
 public struct UIActionRequest: OperationRequest {
-    public typealias Response = Acknowledged
+    public typealias Response = UIActionResponse
     public static let operation = AppOperation.uiAction
     public var targetID: String?
     public var action: UIAction
@@ -187,6 +187,21 @@ public struct UIActionRequest: OperationRequest {
     public init(targetID: String? = nil, action: UIAction) {
         self.targetID = targetID
         self.action = action
+    }
+}
+
+/// What a `type` left in the frontmost app, read back from its UI tree:
+/// the values its visible elements took on while the text went in, and
+/// whether one holds the text, so characters that did not land can be
+/// seen. Every other action, and a `type` whose tree could not be read,
+/// answers neither.
+public struct UIActionResponse: Codable, Sendable, Equatable {
+    public var typedTextMatches: Bool?
+    public var fieldValues: [String]?
+
+    public init(typedTextMatches: Bool? = nil, fieldValues: [String]? = nil) {
+        self.typedTextMatches = typedTextMatches
+        self.fieldValues = fieldValues
     }
 }
 
@@ -236,7 +251,8 @@ public extension ApelinService {
         try await send(ReadUITreeRequest(targetID: targetID))
     }
 
-    func uiAction(_ action: UIAction, targetID: String? = nil) async throws {
-        _ = try await send(UIActionRequest(targetID: targetID, action: action))
+    @discardableResult
+    func uiAction(_ action: UIAction, targetID: String? = nil) async throws -> UIActionResponse {
+        try await send(UIActionRequest(targetID: targetID, action: action))
     }
 }

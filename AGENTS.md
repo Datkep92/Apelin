@@ -1454,7 +1454,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `com.apple.system-task-ports.read` are gone; `imageCheck` still decodes
   and is refused with `badRequest` before the task is accepted
   (`Documents/Console/scripts/i3-image-check-refused.json`). `uiAction` with a
-  `targetID` runs only while that app is the verified foreground app;
+  `targetID` waits up to 3 s for that app, not just any app, to settle as
+  the verified foreground app, and runs only then; `tapElement` waits up to
+  3 s for its element (icli's `waitForElement`) and taps once; `type` goes
+  at icli's own 30 ms a character and answers `typedTextMatches` and
+  `fieldValues`, the values the visible elements took on while it went in
+  (icli names no text-field role), so lost characters show;
   `press` is not available (icli has no button press). Screenshots go back
   as an unlinked temporary file's descriptor, JPEG.
 - **The hello** has a five-second bound per attempt, guarded by connection

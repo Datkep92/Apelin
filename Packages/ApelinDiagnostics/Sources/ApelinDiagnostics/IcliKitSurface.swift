@@ -111,6 +111,35 @@
             }
         }
 
+        public func waitForElement(
+            text: String?,
+            identifier: String?,
+            role: String?,
+            match: String,
+            index: Int,
+            appear: Bool,
+            timeout: Double,
+            interval: Double,
+        ) throws -> [String: Any] {
+            try mapped {
+                let selector = try ElementSelector(
+                    text: text,
+                    identifier: identifier,
+                    role: role,
+                    match: match,
+                    index: index,
+                )
+                do {
+                    return try IcliKit.waitForElement(selector, appear: appear, timeout: timeout, interval: interval)
+                } catch let IcliError.failed(message) where message == Self.elementWaitTimedOut {
+                    return ["found": !appear]
+                }
+            }
+        }
+
+        /// What icli 0.9.0's `waitForElement` throws when its time runs out.
+        private static let elementWaitTimedOut = "element wait timed out"
+
         public func swipe(x1: Double, y1: Double, x2: Double, y2: Double, seconds: Double) throws -> [String: Any] {
             try mapped { try IcliKit.swipe(x1: x1, y1: y1, x2: x2, y2: y2, seconds: seconds) }
         }

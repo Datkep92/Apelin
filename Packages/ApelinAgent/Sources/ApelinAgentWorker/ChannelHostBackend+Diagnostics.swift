@@ -136,9 +136,23 @@ public extension ChannelHostBackend {
         return UIElementNode(id: "screen", role: "application", label: pid > 0 ? "pid \(pid)" : nil, children: children)
     }
 
-    func uiAction(_ request: ApelinAgent.UIActionRequest) async throws -> UIActionResponse {
-        try await service.uiAction(Self.action(request.action), targetID: request.targetID)
-        return UIActionResponse(performed: true)
+    func uiAction(_ request: ApelinAgent.UIActionRequest) async throws -> ApelinAgent.UIActionResponse {
+        let response = try await service.uiAction(Self.action(request.action), targetID: request.targetID)
+        return ApelinAgent.UIActionResponse(
+            performed: true,
+            message: Self.readBackMessage(response),
+            typedTextMatches: response.typedTextMatches,
+            fieldValues: response.fieldValues,
+        )
+    }
+
+    /// What to do when the text read back is not the text typed.
+    internal static func readBackMessage(_ response: ApelinProtocol.UIActionResponse) -> String {
+        guard response.typedTextMatches == false else { return "" }
+        if response.fieldValues?.isEmpty ?? true {
+            return "No field changed: the text did not go in. Tap the field to focus it, then type again."
+        }
+        return "The fields that changed do not hold the typed text; fieldValues is what they hold now. Correct it before going on."
     }
 
     internal static func action(_ action: ApelinAgent.UIAction) throws -> ApelinProtocol.UIAction {
@@ -156,8 +170,8 @@ public extension ChannelHostBackend {
             }
             return .tapElement(text: nil, identifier: id)
         case let .typeText(text): return .type(text: text)
-        case let .swipe(fromX, fromY, toX, toY):
-            return .swipe(fromX: fromX, fromY: fromY, toX: toX, toY: toY, durationMilliseconds: 300)
+        case let .swipe(fromX, fromY, toX, toY, durationMilliseconds):
+            return .swipe(fromX: fromX, fromY: fromY, toX: toX, toY: toY, durationMilliseconds: durationMilliseconds)
         case let .pressButton(button): return .press(button: button)
         }
     }

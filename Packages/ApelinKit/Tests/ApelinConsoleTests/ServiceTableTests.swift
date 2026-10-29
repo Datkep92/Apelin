@@ -120,7 +120,7 @@ final class ServiceTableTests: XCTestCase {
         case .readUITree:
             return Row(reply: ReadUITreeResponse(tree: .object([:]))) { _ = try await $0.readUITree() }
         case .uiAction:
-            return Row(reply: ack) { try await $0.uiAction(.tap(x: 1, y: 2)) }
+            return Row(reply: UIActionResponse()) { _ = try await $0.uiAction(.tap(x: 1, y: 2)) }
         case .agentOpen:
             return Row(reply: AgentOpenResponse(sessionID: "s", task: TaskHandle(taskID: id, kind: .agent))) {
                 _ = try await $0.agentOpen(AgentOpenRequest(projectName: "Hello"))

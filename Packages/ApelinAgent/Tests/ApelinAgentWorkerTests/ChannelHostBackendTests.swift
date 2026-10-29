@@ -326,6 +326,31 @@ struct ChannelHostBackendTests {
     }
 
     @Test
+    func `a swipe keeps its duration, and typed text answers what the fields hold`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.uiAction, reply: ApelinProtocol.UIActionResponse())
+        _ = try await fixture.backend.uiAction(ApelinAgent.UIActionRequest(
+            context: fixture.context(),
+            targetID: nil,
+            action: .swipe(fromX: 1, fromY: 2, toX: 3, toY: 4, durationMilliseconds: 1200),
+        ))
+        #expect(fixture.host.requests(ApelinProtocol.UIActionRequest.self).map(\.action) == [
+            .swipe(fromX: 1, fromY: 2, toX: 3, toY: 4, durationMilliseconds: 1200),
+        ])
+
+        fixture.host.on(.uiAction, reply: ApelinProtocol.UIActionResponse(typedTextMatches: false, fieldValues: ["Hello wrd"]))
+        let typed = try await fixture.backend.uiAction(ApelinAgent.UIActionRequest(context: fixture.context(), targetID: nil, action: .typeText("Hello world")))
+        #expect(typed.typedTextMatches == false)
+        #expect(typed.fieldValues == ["Hello wrd"])
+        #expect(typed.message.contains("fieldValues is what they hold now"))
+
+        let untouched = ChannelHostBackend.readBackMessage(ApelinProtocol.UIActionResponse(typedTextMatches: false, fieldValues: []))
+        #expect(untouched.hasPrefix("No field changed"))
+        #expect(ChannelHostBackend.readBackMessage(ApelinProtocol.UIActionResponse(typedTextMatches: true, fieldValues: ["Hello world"])).isEmpty)
+        #expect(ChannelHostBackend.readBackMessage(ApelinProtocol.UIActionResponse()).isEmpty, "a tap says nothing")
+    }
+
+    @Test
     func `shell_run is agentRunCode: a shell line becomes an sh script, the evidence is passed on`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.agentRunCode, reply: AgentRunCodeResponse(exitCode: 0, stdout: "ok", stderr: "", durationMilliseconds: 5))

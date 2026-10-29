@@ -71,6 +71,15 @@ final class OperationTableTests: XCTestCase {
         XCTAssertNil(plain.imageCheck, "the image list is not read unless asked")
     }
 
+    /// A tap answers nothing, as `Acknowledged` did; a `type` answers what
+    /// the fields hold.
+    func testAUIActionAnswersOnlyWhatATypeLeft() throws {
+        XCTAssertEqual(try JSONCoding.decode(UIActionResponse.self, from: Data("{}".utf8)), UIActionResponse())
+        let typed = UIActionResponse(typedTextMatches: false, fieldValues: ["Hello wrd"])
+        XCTAssertEqual(try JSONCoding.decode(UIActionResponse.self, from: JSONCoding.encode(typed)), typed)
+        XCTAssertEqual(try String(decoding: JSONCoding.encode(UIActionResponse()), as: UTF8.self), "{}")
+    }
+
     /// Full is a new mode; old stored and wire values still decode, and a
     /// shell_run request carries `asRoot` and the approve request
     /// `ownerVerified` through the wire.
