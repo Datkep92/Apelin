@@ -237,7 +237,8 @@ final class SessionHost: @unchecked Sendable {
     }
 
     private func shutdown() {
-        // Records are written as they change; nothing is left to flush.
+        // Every event is on disk as it comes, and every record change the
+        // events do not tell (TaskRegistry); nothing is left to flush.
         Task {
             await terminals.stopAll()
             await toolHosts.stopAll()

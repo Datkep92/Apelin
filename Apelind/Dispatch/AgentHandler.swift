@@ -155,6 +155,29 @@ enum AgentHandler: DomainHandler {
         }
     }
 
+    /// Opens the session in its turn (`AgentOpenTurns`): an open of a
+    /// session that is already being opened waits for that one to answer,
+    /// then makes every check of its own, so it answers the task the first
+    /// one registered instead of registering another. The session is the
+    /// one the app names to open again, else a new one; an agent's open is
+    /// always of a new one (`AgentConversationRules.childOpen`).
+    private static func open(_ request: HostRequest, host: SessionHost) async -> HostReply {
+        let asked: AgentOpenRequest
+        do {
+            asked = try request.decode(AgentOpenRequest.self)
+        } catch {
+            return request.fail(error)
+        }
+        let sessionID = (request.caller == .app ? asked.sessionID : nil) ?? UUID().uuidString.lowercased()
+        guard UUID(uuidString: sessionID) != nil else {
+            return request.fail(ApelinError(.badRequest, "a session ID must be a UUID"))
+        }
+        let reply = await AgentOpenTurns.shared.run(for: sessionID) {
+            await open(request, asked, sessionID: sessionID, host: host)
+        }
+        return reply ?? request.fail(ApelinError(.cancelled, "the chat was not opened: the request was cancelled"))
+    }
+
     /// Resolves the project, registers the session's task, starts its worker
     /// and hands it the request with the project filled in by the host. An
     /// agent's open is rewritten first (`AgentConversationRules.childOpen`),
@@ -162,13 +185,17 @@ enum AgentHandler: DomainHandler {
     /// spends the user's approval of exactly that open —, takes one of that
     /// project's places for agent-opened sessions, and is announced on the
     /// opener's own task as `conversationOpened`.
-    private static func open(_ request: HostRequest, host: SessionHost) async -> HostReply {
+    private static func open(
+        _ request: HostRequest,
+        _ asked: AgentOpenRequest,
+        sessionID: String,
+        host: SessionHost,
+    ) async -> HostReply {
         let opener: AgentSessionTable.Entry?
         let open: AgentOpenRequest
         let project: ResolvedProject
         do {
             opener = try await callerSession(request, host: host)
-            let asked = try request.decode(AgentOpenRequest.self)
             if let opener {
                 let target = asked.projectID == nil && asked.projectName == nil
                     ? opener.project
@@ -202,10 +229,9 @@ enum AgentHandler: DomainHandler {
             return request.fail(error)
         }
 
-        let sessionID = open.sessionID ?? UUID().uuidString.lowercased()
-        guard UUID(uuidString: sessionID) != nil else {
-            return request.fail(ApelinError(.badRequest, "a session ID must be a UUID"))
-        }
+        // No other open of this session runs until this one has answered
+        // (`AgentOpenTurns`), so none registers it between this lookup and
+        // the add below, however long the worker takes to open it.
         let existing = await AgentSessionTable.shared.entry(sessionID)
         // A session an agent opened, opened again after the host restarted.
         let saved = existing == nil && opener == nil && open.sessionID != nil
