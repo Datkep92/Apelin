@@ -150,7 +150,7 @@ enum EnvironmentPrompt {
         guard !toolchains.isEmpty else {
             return ["- Toolchains: none installed. Building needs one: the user sets it up in Settings ▸ Toolchains."]
         }
-        var lines = ["- Toolchains (each registered only after its installed tools passed the self-test):"]
+        var lines = ["- Toolchains (each registered only after its installed tools passed the self-test; the user removes one in Settings ▸ Toolchains):"]
         for record in toolchains {
             var facts = ["Command Line Tools \(record.version)", languages(record)]
             if let host = record.compatibility?.minimumHost {
@@ -190,7 +190,7 @@ enum EnvironmentPrompt {
         guard !sdks.isEmpty else {
             return ["- SDKs: none registered. Building needs one: the user imports it in Settings ▸ SDKs."]
         }
-        var lines = ["- iPhoneOS SDKs (registered):"]
+        var lines = ["- iPhoneOS SDKs (registered; the user removes one in Settings ▸ SDKs):"]
         let prepared = environment.toolchain?.record
         for record in sdks {
             var marks: [String] = []

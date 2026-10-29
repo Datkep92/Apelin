@@ -227,6 +227,22 @@ struct SkillAndPromptTests {
         #expect(section.contains("never for routine progress, instead of your reply, or to say you are done"))
     }
 
+    /// On a device, asked to clean up toolchains, the agent deleted their
+    /// files through icli and a script the user ran, and left their folders
+    /// behind; nothing had told it removal is the user's, in Settings.
+    @Test
+    func `the prompt leaves removing a toolchain or SDK to the user in Settings`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
+                                       skills: [], mcpServers: [])
+        let working = try #require(prompt.range(of: "# Working")?.upperBound)
+        let device = try #require(prompt.range(of: "# This device")?.lowerBound)
+        let section = prompt[working ..< device]
+        #expect(section.contains("Toolchains and SDKs are removed only by the user, in Settings ▸ Toolchains or Settings ▸ SDKs"))
+        #expect(section.contains("never delete their files or records with shell_run, icli or a script"))
+    }
+
     @Test
     func `apelin_skill_read needs no approval in Confirm mode`() throws {
         let home = try TemporaryHome()

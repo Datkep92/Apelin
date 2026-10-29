@@ -8,9 +8,9 @@ import Foundation
 // restart, builds and environment tasks started again after one, the
 // caller policy, the protected-edit rules on a temporary
 // install root, the managed-package rules, the install bridge against a
-// fake irisind, the approval ledger, the deb control reader, the copies a
-// tool call's attachments travel as, one agentOpen of a session at a time,
-// and a real PTY.
+// fake irisind, the folders a removed toolchain leaves, the approval
+// ledger, the deb control reader, the copies a tool call's attachments
+// travel as, one agentOpen of a session at a time, and a real PTY.
 
 extension NSLock {
     func withLock<T>(_ body: () throws -> T) rethrows -> T {
@@ -1633,6 +1633,10 @@ do {
     let again = try await waitForEnd(registry, crashedAgain)
     check(again.state == .succeeded && irisin.lock.withLock { irisin.duplicates } == duplicatesBefore + 1, "a staged install is submitted again under its own ID and answered dup")
 }
+
+// MARK: - Removed toolchains leave no folders behind (ToolchainPruneChecks.swift)
+
+try await toolchainPruneChecks()
 
 // MARK: - Toolchain setup end to end
 

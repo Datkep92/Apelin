@@ -184,7 +184,9 @@ final class SessionHost: @unchecked Sendable {
             // Resume what the previous host left running, before anything
             // new can start (the workers are configured first: a resumed
             // build's events need somewhere to go); a task nobody can resume
-            // ends `interrupted`.
+            // ends `interrupted`. The folders removed toolchains left go
+            // first, while nothing can install into them yet.
+            await install.pruneLeftoverToolchains()
             for record in await registry.load() {
                 if let resumer = resumers[record.kind], await resumer(record) {
                     continue

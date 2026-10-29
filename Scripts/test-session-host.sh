@@ -30,6 +30,7 @@ sources=(
     "$root/Apelind/Session/Install/InstallService.swift"
     "$root/Apelind/Session/Install/InstallationStore.swift"
     "$root/Apelind/Session/Install/ManagedPackagePolicy.swift"
+    "$root/Apelind/Session/Install/ToolchainTreePruner.swift"
     "$root/Apelind/Session/Files/AtomicReplace.swift"
     "$root/Apelind/Session/Files/FileScopes.swift"
     "$root/Apelind/Session/Files/ProtectedEditPolicy.swift"
@@ -51,6 +52,7 @@ sources=(
     "$root/Tests/SessionHost/AgentOpenChecks.swift"
     "$root/Tests/SessionHost/RootRunChecks.swift"
     "$root/Tests/SessionHost/ToolchainEndToEnd.swift"
+    "$root/Tests/SessionHost/ToolchainPruneChecks.swift"
     "$root/Tests/SessionHost/main.swift"
 )
 
