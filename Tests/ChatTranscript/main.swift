@@ -951,3 +951,5 @@ checkTranscriptFold()
 checkToolCallDetail()
 
 checkTraceStep()
+
+checkDroppedMessages()

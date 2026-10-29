@@ -950,10 +950,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `steer`, `queued` {id, text, attachments} (a message sent while a run
   goes, handed to the run as a steer and recorded as its `prompt` of the
   same id only when the run's loop takes it, after the tool call in
-  progress or before the run would end), `queueDropped` {ids} (queued
-  messages a run that was stopped, failed or had just ended never took,
-  cleared from kwwk's steering queue too so no later run reads them; the
-  app puts their text back in an empty composer), `messageStarted`, `toolCallPreparing` (the model began writing a
+  progress or before the run would end; one a run that failed or had just
+  ended never took starts the next run, whose kwwk `continue` takes it),
+  `queueDropped` {ids} (queued messages a stopped run never took, cleared
+  from kwwk's steering queue too so no later run reads them; the app puts
+  them back in the composer, text and files, ahead of what was typed
+  since, and says "N Messages Not Sent" once the reader sees the
+  conversation: `DroppedMessages`), `messageStarted`, `toolCallPreparing` (the model began writing a
   call, which `toolCall` follows once its arguments are whole), `text` and `thinking` (streamed text coalesced
   to ≥ 512 bytes or 250 ms), `received` {tokens} (the output tokens the
   run has received so far: what streams of a message — text, thinking and

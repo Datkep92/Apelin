@@ -1,8 +1,8 @@
 #!/bin/bash
 # Compile the app's event-to-transcript reducer, how it reads past a reopened
 # session's replay, how it adopts the conversations agents open, how far it
-# follows a turn and how the trace sheet lists a summary's steps, against the
-# harness modules.
+# follows a turn, how the trace sheet lists a summary's steps and how dropped
+# messages go back to the composer, against the harness modules.
 # Usage: test-chat-transcript.sh <ApelinKit modules directory>
 set -euo pipefail
 
@@ -23,11 +23,13 @@ sources=(
     "$root/Apelin/Interface/Chats/ChatTranscriptCache.swift"
     "$root/Apelin/Interface/Chats/ChatStore.swift"
     "$root/Apelin/Interface/Chats/ChatAdoption.swift"
+    "$root/Apelin/Interface/Chats/DroppedMessages.swift"
     "$root/Apelin/Interface/Chats/TurnFollowing.swift"
     "$root/Tests/ChatTranscript/TranscriptFold.swift"
     "$root/Tests/ChatTranscript/ToolCallDetailCheck.swift"
     "$root/Tests/ChatTranscript/TraceStepCheck.swift"
     "$root/Tests/ChatTranscript/ReplayEndCheck.swift"
+    "$root/Tests/ChatTranscript/DroppedMessagesCheck.swift"
     "$root/Tests/ChatTranscript/main.swift"
 )
 

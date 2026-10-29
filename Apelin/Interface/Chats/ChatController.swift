@@ -56,6 +56,9 @@ final class ChatController: UIViewController {
     private var isSwitchingChat = false
     /// The keyboard waits for the page to be on screen (`beginTyping`).
     private var typesOnAppear = false
+    /// Conversations whose queued messages went back to the composer, said
+    /// once the reader sees them (`sayUnsent`).
+    private var unsent: [UUID: (messages: Int, attachmentsLeftOut: Int)] = [:]
     private var needsInitialScroll = false
     /// Whether the reader was at the latest message when the page last
     /// changed width — the sidebar opening or closing. The rows wrap again
@@ -138,6 +141,12 @@ final class ChatController: UIViewController {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(withdrawNotifications),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil,
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sayUnsent),
             name: UIApplication.didBecomeActiveNotification,
             object: nil,
         )
@@ -288,6 +297,7 @@ final class ChatController: UIViewController {
             typesOnAppear = false
             composer.beginEditing()
         }
+        sayUnsent()
     }
 
     override func viewWillLayoutSubviews() {
@@ -382,6 +392,7 @@ final class ChatController: UIViewController {
         updateLatestMessageButton()
         // the opening pass, now that the rows are in (`viewDidLayoutSubviews`)
         view.setNeedsLayout()
+        sayUnsent()
     }
 
     /// Back in front with this conversation on screen: its banners have
@@ -648,6 +659,28 @@ extension ChatController {
     func restoreDraft(for id: UUID) {
         guard chat?.id == id, let draft = runtime.records[id]?.draft else { return }
         composer.restore(draft: draft)
+    }
+
+    /// A stopped run's queued messages went back to `id`'s composer: the
+    /// reader is told when they next see the conversation, now if they do.
+    func unsentReturned(_ returned: DroppedMessages.Returned, to id: UUID) {
+        let earlier = unsent[id] ?? (0, 0)
+        unsent[id] = (earlier.messages + returned.messages, earlier.attachmentsLeftOut + returned.attachmentsLeftOut)
+        sayUnsent()
+    }
+
+    /// Says what went back to the composer of the conversation on screen,
+    /// spoken too: nothing else marks it.
+    @objc private func sayUnsent() {
+        guard let chat, view.window != nil, UIApplication.shared.applicationState == .active,
+              let returned = unsent.removeValue(forKey: chat.id)
+        else { return }
+        let title = String(localized: "\(returned.messages) Messages Not Sent")
+        let message = returned.attachmentsLeftOut > 0
+            ? String(localized: "\(returned.attachmentsLeftOut) attachments could not be put back")
+            : String(localized: "Back in the input box")
+        SPIndicator.present(title: title, message: message, preset: .error, haptic: .warning)
+        UIAccessibility.post(notification: .announcement, argument: [title, message].joined(separator: ", "))
     }
 
     /// The keyboard up in the composer, now if the page is on screen, else

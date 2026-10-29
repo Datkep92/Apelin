@@ -46,7 +46,7 @@ public actor AgentSession {
     private var aborted = false
     private let workspace: ScopedRoot
     private var submitted: Set<UUID> = []
-    /// Messages sent while a run was going, oldest first, each until the
+    /// Messages sent while a run was going, oldest first, each until a
     /// run's loop takes it: `injected` is the text the loop is handed.
     /// `told`: what the model had been told before this message's delta,
     /// put back if the run never takes it.
@@ -590,7 +590,8 @@ public actor AgentSession {
         compaction = nil
     }
 
-    /// Stops the run. Waiting approvals resolve as denied.
+    /// Stops the run. Waiting approvals resolve as denied, and the messages
+    /// queued for it are dropped (`queuedMessagesDropped`).
     public func abort() async {
         aborted = true
         titleTask?.cancel()
@@ -784,7 +785,9 @@ public actor AgentSession {
         }
     }
 
-    private func runEnded() async {
+    /// `carried`: the queued messages this run was started to take
+    /// (`carryOver`).
+    private func runEnded(carrying carried: [UUID] = []) async {
         runEnding = true
         let lastFinishedWithError: Bool = if case let .assistant(message)? = agent.state.messages.last {
             message.stopReason == .error
@@ -793,13 +796,39 @@ public actor AgentSession {
         }
         let reason: FinishReason = aborted ? .aborted : (lastFinishedWithError ? .failed : .completed)
         // A loop that ended on an error, or just before a message was
-        // queued, never drained it: the next run would read it first.
-        agent.clearSteeringQueue()
-        await dropQueued()
+        // queued, never drained it: the next run takes it. Not after a
+        // stop, nor when this run was started for it and took none: what
+        // is dropped, the app puts back in the composer.
+        let waiting = queued.map(\.id)
+        let next = aborted || waiting == carried ? [] : waiting
+        if next.isEmpty {
+            // otherwise the next run would read them first
+            agent.clearSteeringQueue()
+            await dropQueued()
+        }
         await runner.turnEnded()
         await record(.finished(reason: reason))
-        runTask = nil
+        // a stop meanwhile dropped them
+        runTask = next.isEmpty || aborted ? nil : carryOver(next)
         runEnding = false
+    }
+
+    /// Starts a run with the queued messages `ids` a run ended without
+    /// taking: kwwk's `continue` takes its steering queue as the run's
+    /// prompts, and each is recorded as the user's message as it is taken.
+    private func carryOver(_ ids: [UUID]) -> Task<Void, Never> {
+        if snapshotStale {
+            takeSnapshot()
+        }
+        let agent = agent
+        return Task { [weak self] in
+            do {
+                try await agent.continue()
+            } catch {
+                await self?.recordRunError(error)
+            }
+            await self?.runEnded(carrying: ids)
+        }
     }
 
     /// An assistant message's text blocks, joined with nothing between them.

@@ -17,6 +17,9 @@ final class ChatRuntime {
     var onSaveRecovered: (() -> Void)?
     /// A conversation's draft was put back from outside the composer.
     var onDraftRestored: ((UUID) -> Void)?
+    /// Queued messages a stopped run never took went back to a
+    /// conversation's composer, which the reader has yet to be told.
+    var onUnsentReturned: ((UUID, DroppedMessages.Returned) -> Void)?
     private(set) var isLoaded = false
     /// The saved conversations have been checked against the host's live
     /// sessions once: what says working is working.
@@ -555,20 +558,17 @@ final class ChatRuntime {
         }
     }
 
-    /// What a stopped run never took goes back to the composer, when
-    /// nothing else is typed there.
+    /// What a stopped run never took goes back to the composer, ahead of
+    /// what was typed since (`DroppedMessages`).
     private func restoreDropped(_ messages: Set<UUID>, in id: UUID) {
-        let texts = (records[id]?.events ?? []).filter { $0.kind == "queued" }.compactMap { event -> String? in
-            guard let message = event.payload?["id"]?.stringValue.flatMap(UUID.init(uuidString:)),
-                  messages.contains(message)
-            else { return nil }
-            return event.payload?["text"]?.stringValue
-        }
-        guard !texts.isEmpty, let draft = records[id]?.draft,
-              draft.text.isEmpty, draft.attachments.isEmpty
+        guard let events = records[id]?.events, let draft = records[id]?.draft,
+              let returned = DroppedMessages.returning(messages, from: events, to: draft, attachment: {
+                  attachment($0, in: id)
+              })
         else { return }
-        records[id]?.draft = ComposerDraft(text: texts.joined(separator: "\n\n"))
+        records[id]?.draft = returned.draft
         onDraftRestored?(id)
+        onUnsentReturned?(id, returned)
     }
 
     private func changed(_ id: UUID) {
