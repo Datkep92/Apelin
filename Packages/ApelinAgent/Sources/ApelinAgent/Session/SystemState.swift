@@ -76,6 +76,10 @@ public struct SystemStateSource: Sendable {
 /// last named the language or the mode would leave the model guessing.
 /// What the system prompt shows — instructions, skills, memory, the
 /// environment — is said only when it changed, once, as a delta.
+///
+/// The reply rule names progress notes: on a device, a rule that said
+/// only "Reply" left a Chinese chat's notes between tool calls in the
+/// English of the build and install results before them.
 enum SystemState {
     static let openingTag = "<system-state>"
     static let closingTag = "</system-state>"
@@ -115,8 +119,8 @@ enum SystemState {
             system += "; region \(region)"
         }
         let reply = languages.isEmpty
-            ? "- Reply in the language the user writes in."
-            : "- Reply in the language the user writes in; when that is unclear, in \(language)."
+            ? "- Write to the user in the language they write in, progress notes included."
+            : "- Write to the user in the language they write in, progress notes included; when that is unclear, in \(language)."
         var lines = [
             openingTag,
             "Apelin's note on this message, not the user's words; they do not see it.",

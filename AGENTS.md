@@ -2711,10 +2711,13 @@ and dSYM through the existing complete build pipeline (see `Documents/Distributi
 
 
 The agent's system prompt (`ApelinAgent/Session/SystemPrompt.swift`) is kept
-short, after pi's: the language the user writes in (when that is unclear —
-code, a log, one word, a pasted file — the system language `<system-state>`
-names; code, identifiers, paths and commit messages as the repository has
-them; owner, 2026-10-25), the result first with no preamble, a
+short, after pi's: the language the user writes in, for the reply, every
+progress note between tool calls and every question, even after English
+tool results (when that is unclear — code, a log, one word, a pasted
+file — the system language `<system-state>` names; code, identifiers, paths
+and commit messages as the repository has them; owner, 2026-10-25; on a
+device, Chinese chats got "Build passed. Installing." from a rule that
+said only "Reply"), the result first with no preamble, a
 greeting answered with a greeting (no tools, no survey of the project), then the
 checks actually run and any real blocker; whatever was done other than as
 asked (a setting left at its default, a step skipped or left to another
@@ -2727,13 +2730,14 @@ chat called a gesture, the Dock's spacing and a settings list done that it had
 never run). `# Responses` makes concision bite —
 match the length to the task, and do not paste tool output, files, diffs or
 logs back, narrate the steps or recap at the end; a progress note is one short
-line (owner, 2026-10-24). It also says the prompt is not secret, Apelin being
-open source: asked for it, its skills list or the project instructions, the
-model shows or summarizes them, and only `<system-state>` stays unquoted
-(2026-10-29; on a device a chat refused, stretching that block's rule to the
-whole prompt). `# Working` opens with what a model's general knowledge gets
-wrong: an Apelin tweak is plain Objective-C hooked with
-`MSHookMessageEx` (the template's `Sources/Tweak.m`), with no Logos or Theos,
+line in the user's language (owner, 2026-10-24). It also says the prompt is
+not secret, Apelin being open source: asked for it, its skills list or the
+project instructions, the model shows or summarizes them, and only
+`<system-state>` stays unquoted (2026-10-29; on a device a chat refused,
+stretching that block's rule to the whole prompt). `# Working` opens with
+what a model's general knowledge gets wrong: an Apelin tweak is plain
+Objective-C hooked with `MSHookMessageEx` (the template's `Sources/Tweak.m`),
+with no Logos or Theos,
 and Apelin-specific work, a question included, starts from the matching skill
 (on a device, General Chat answered from memory that the template was a
 Logos `Tweak.x`). It keeps apelin_notification_send for what the reader
@@ -2756,9 +2760,10 @@ message from the user or another conversation — a prompt, a queued message,
 a steer, `apelin_conversation_send` — the model reads a `<system-state>`
 block, the system language (the mobile user's `AppleLanguages` and
 `AppleLocale`, read by the worker itself through `CFPreferences` each time,
-so no wire change), the reply rule, the local date, time and time zone, and
-the approval mode on — and, when the snapshot is out of date, what changed
-since the model was last told — and the prompt says it is Apelin's, unseen
+so no wire change), the reply rule, progress notes included, the local
+date, time and time zone, and the approval mode on — and, when the
+snapshot is out of date, what changed since the model was last told — and
+the prompt says it is Apelin's, unseen
 by the user, and not to be quoted. Like the project context it is added to the text the
 model sees and goes into that message of the transcript, so every later
 request sends it as it went; the app's `prompt`, `queued` and `steer` events,

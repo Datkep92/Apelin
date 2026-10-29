@@ -614,6 +614,16 @@ console now goes on after a restart only past a successful respring.
       the next request writes the cache once and its block lists nothing.
       DeepSeek counts hits in 64-token blocks and may take a request or two
       to warm.
+- [ ] Progress notes in the user's language (2026-10-29, AGENTS.md ▸ the
+      system prompt; none has run on a device). The audit of 40 device
+      chats found Chinese chats writing "Build passed. Installing." between
+      tool calls, after English build and install results. On the iOS 26
+      and iOS 27 vphones, in a tweak project's chat, ask in Chinese to
+      build, install and confirm it loaded: every line between the tool
+      calls, the questions and the reply are Chinese, while code, paths
+      and package ids stay as they are. Each user message's
+      `<system-state>` in the transcript (fetched as for Prompt caching)
+      says "progress notes included".
 - [ ] The Compacted row and the native compaction fallback (2026-10-28,
       AGENTS.md ▸ Agent sessions and ▸ the chat's More menu; none has run
       on a device). Compact… on a long chat: once the card closes, a
