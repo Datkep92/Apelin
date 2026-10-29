@@ -325,6 +325,17 @@ console now goes on after a restart only past a successful respring.
       builds, shows a switch in Settings and stores its value; then a
       class-dump of the device's Preferences framework against the header's
       `PSCellType` values and every method it declares.
+- [ ] Screen actions that wait and read back (2026-10-29, none of it has
+      run on a device). apelin_screen_interact's type_text into a text
+      field at icli's 30 ms a character, "Hello world" arriving whole and
+      `typedTextMatches` true with the field's value in `fieldValues`;
+      the same into a search field, a text view and a secure field (what
+      its value reads as), and with the field not focused (`fieldValues`
+      empty); a slower keyboard or an IME, where 30 ms may not be enough
+      and the read-back is what shows it. An action with `target_id`
+      sent right after another app was opened, waiting for that app
+      rather than refused; tap_element on a menu item while the menu is
+      still animating in, tapped once; a swipe with `duration_ms` 1200.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

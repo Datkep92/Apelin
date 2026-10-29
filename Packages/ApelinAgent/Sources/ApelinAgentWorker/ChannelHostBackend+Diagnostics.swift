@@ -138,7 +138,15 @@ public extension ChannelHostBackend {
 
     func uiAction(_ request: ApelinAgent.UIActionRequest) async throws -> ApelinAgent.UIActionResponse {
         let response = try await service.uiAction(Self.action(request.action), targetID: request.targetID)
-        return ApelinAgent.UIActionResponse(performed: true, message: Self.afterWake(response))
+        // A wake answers the lock state, a type what it read back; no
+        // action answers both.
+        let message = [Self.afterWake(response), Self.readBackMessage(response)].filter { !$0.isEmpty }
+        return ApelinAgent.UIActionResponse(
+            performed: true,
+            message: message.joined(separator: " "),
+            typedTextMatches: response.typedTextMatches,
+            fieldValues: response.fieldValues,
+        )
     }
 
     /// What a wake left, in words the model acts on; empty after any other
@@ -156,6 +164,15 @@ public extension ChannelHostBackend {
         return ""
     }
 
+    /// What to do when the text read back is not the text typed.
+    internal static func readBackMessage(_ response: ApelinProtocol.UIActionResponse) -> String {
+        guard response.typedTextMatches == false else { return "" }
+        if response.fieldValues?.isEmpty ?? true {
+            return "No field changed: the text did not go in. Tap the field to focus it, then type again."
+        }
+        return "The fields that changed do not hold the typed text; fieldValues is what they hold now. Correct it before going on."
+    }
+
     internal static func action(_ action: ApelinAgent.UIAction) throws -> ApelinProtocol.UIAction {
         switch action {
         case let .tap(x, y): return .tap(x: x, y: y)
@@ -171,8 +188,8 @@ public extension ChannelHostBackend {
             }
             return .tapElement(text: nil, identifier: id)
         case let .typeText(text): return .type(text: text)
-        case let .swipe(fromX, fromY, toX, toY):
-            return .swipe(fromX: fromX, fromY: fromY, toX: toX, toY: toY, durationMilliseconds: 300)
+        case let .swipe(fromX, fromY, toX, toY, durationMilliseconds):
+            return .swipe(fromX: fromX, fromY: fromY, toX: toX, toY: toY, durationMilliseconds: durationMilliseconds)
         case let .pressButton(button): return .press(button: button)
         }
     }

@@ -15,15 +15,21 @@ extension DiagnosticsService {
         return try ApelinProtocol.ReadUITreeResponse(tree: JSONValue(encoding: read))
     }
 
-    /// A wake answers the lock state it left; every other action, an empty
+    /// A wake answers the lock state it left, and a `type` what it left in
+    /// the fields, read back from the tree; every other action, an empty
     /// reply.
     func uiAction(_ action: ApelinProtocol.UIActionRequest) async throws -> ApelinProtocol.UIActionResponse {
         let mappedAction = try Self.action(action.action)
-        let lock = try await blocking {
+        let outcome = try await blocking {
             let front = try requireTarget(action.targetID, refusing: action.refusedBundleIDs ?? [])
             return try mapped { try diagnostics.perform(mappedAction, settled: front) }
         }
-        return ApelinProtocol.UIActionResponse(locked: lock?.locked, screenOff: lock?.screenOff)
+        return ApelinProtocol.UIActionResponse(
+            locked: outcome?.lock?.locked,
+            screenOff: outcome?.lock?.screenOff,
+            typedTextMatches: outcome?.typed?.matches,
+            fieldValues: outcome?.typed?.fieldValues,
+        )
     }
 
     /// An action is bound to the verified foreground app when a target is
@@ -39,14 +45,16 @@ extension DiagnosticsService {
             throw Self.refusal(targetID)
         }
         guard targetID != nil || !refused.isEmpty else { return nil }
-        // Read once the app switch that brought it there, if any, is over.
-        let front = diagnostics.settledForegroundApp()
+        // Read once the app switch that brings it there, if any, is over:
+        // with a target, once that app is the one in front.
+        let front = diagnostics.settledForegroundApp(expecting: targetID)
         if refused.contains(front.bundleIdentifier) {
             throw Self.refusal(front.bundleIdentifier)
         }
         guard let targetID else { return front }
         guard front.verified, front.bundleIdentifier == targetID else {
-            throw ApelinError(.conflict, "\(targetID) is not the verified foreground app (\(front.bundleIdentifier.isEmpty ? "unknown" : front.bundleIdentifier))")
+            let seen = front.bundleIdentifier.isEmpty ? "unknown" : front.bundleIdentifier
+            throw ApelinError(.conflict, "\(targetID) is not the verified foreground app after \(Int(diagnostics.settleTimeout)) s (\(seen))")
         }
         return front
     }
@@ -66,7 +74,7 @@ extension DiagnosticsService {
                 match: identifier == nil ? .exact : .contains,
             ))
         case let .type(text):
-            return .type(text: text, delayMilliseconds: 0)
+            return .type(text: text, delayMilliseconds: ApelinDiagnosticsCore.UIAction.defaultTypeDelayMilliseconds)
         case let .swipe(fromX, fromY, toX, toY, durationMilliseconds):
             return .swipe(
                 from: UIPoint(x: fromX, y: fromY),

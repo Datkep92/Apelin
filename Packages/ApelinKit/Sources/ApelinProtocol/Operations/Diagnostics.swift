@@ -180,15 +180,28 @@ public enum UIAction: Codable, Sendable, Equatable {
     case press(button: String)
 }
 
-/// A wake says what it left — whether the device is still locked and its
-/// screen still off — and every other action answers neither.
+/// What an action left. A wake says whether the device is still locked and
+/// its screen still off. A `type` says what it left in the frontmost app,
+/// read back from its UI tree: the values its visible elements took on
+/// while the text went in, and whether one holds the text, so characters
+/// that did not land can be seen. Every other action, and a `type` whose
+/// tree could not be read, answers none of them.
 public struct UIActionResponse: Codable, Sendable, Equatable {
     public var locked: Bool?
     public var screenOff: Bool?
+    public var typedTextMatches: Bool?
+    public var fieldValues: [String]?
 
-    public init(locked: Bool? = nil, screenOff: Bool? = nil) {
+    public init(
+        locked: Bool? = nil,
+        screenOff: Bool? = nil,
+        typedTextMatches: Bool? = nil,
+        fieldValues: [String]? = nil,
+    ) {
         self.locked = locked
         self.screenOff = screenOff
+        self.typedTextMatches = typedTextMatches
+        self.fieldValues = fieldValues
     }
 }
 

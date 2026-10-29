@@ -14,6 +14,8 @@ private final class FakeIcli: IcliSurface, @unchecked Sendable {
     var batches: [[[String: Any]]] = []
     var crashes: [String] = []
     var front: [String: Any] = ["bundle_id": "com.apple.springboard", "verified": true, "source": "runningboard"]
+    /// Answers for `frontmostApp` before `front`, one per call.
+    var fronts: [[String: Any]] = []
     var taps: [(Double, Double)] = []
     var elementTaps: [(String?, String?)] = []
     var lockAnswer: [String: Any] = ["locked": false, "screen_off": false]
@@ -76,6 +78,19 @@ private final class FakeIcli: IcliSurface, @unchecked Sendable {
         elementTaps.append((text, identifier)); return [:]
     }
 
+    func waitForElement(
+        text _: String?,
+        identifier _: String?,
+        role _: String?,
+        match _: String,
+        index _: Int,
+        appear: Bool,
+        timeout _: Double,
+        interval _: Double,
+    ) throws -> [String: Any] {
+        ["found": appear]
+    }
+
     func swipe(x1 _: Double, y1 _: Double, x2 _: Double, y2 _: Double, seconds _: Double) throws -> [String: Any] {
         [:]
     }
@@ -93,7 +108,7 @@ private final class FakeIcli: IcliSurface, @unchecked Sendable {
         let queue = String(cString: __dispatch_queue_get_label(nil))
         return lock.withLock {
             frontQueues.append(queue)
-            return front
+            return fronts.isEmpty ? front : fronts.removeFirst()
         }
     }
 
@@ -341,7 +356,10 @@ final class DiagnosticsWorkerTests: XCTestCase {
 
     func testUIActionsAreTheClosedListAndBoundToTheForegroundApp() throws {
         let icli = FakeIcli()
-        let service = DiagnosticsService(diagnostics: Diagnostics(icli: icli), host: ApelinService(transport: NoHost()), home: "/nonexistent", installRoot: "/")
+        var diagnostics = Diagnostics(icli: icli)
+        diagnostics.settleTimeout = 0.05
+        diagnostics.settleInterval = 0.01
+        let service = DiagnosticsService(diagnostics: diagnostics, host: ApelinService(transport: NoHost()), home: "/nonexistent", installRoot: "/")
         XCTAssertEqual(try DiagnosticsService.action(.tap(x: 1, y: 2)), .tap(UIPoint(x: 1, y: 2)))
         XCTAssertEqual(try DiagnosticsService.action(.tapElement(text: "OK", identifier: nil)), .tapElement(UIElementSelector(text: "OK", match: .exact)))
         XCTAssertEqual(try DiagnosticsService.action(.press(button: "wake")), .press(.wake))
@@ -353,7 +371,43 @@ final class DiagnosticsWorkerTests: XCTestCase {
             }
         }
         XCTAssertNoThrow(try service.requireTarget("com.apple.springboard"))
-        XCTAssertThrowsError(try service.requireTarget("com.apple.Preferences"))
+        XCTAssertThrowsError(try service.requireTarget("com.apple.Preferences")) { error in
+            XCTAssertEqual(
+                error as? ApelinError,
+                ApelinError(.conflict, "com.apple.Preferences is not the verified foreground app after 0 s (com.apple.springboard)"),
+            )
+        }
+    }
+
+    /// Characters sent with no gap were dropped: "Hello world" arrived as
+    /// "Hello wrd". A `type` goes at icli's own pace.
+    func testTextIsTypedAtIclisPace() throws {
+        XCTAssertEqual(try DiagnosticsService.action(.type(text: "hi")), .type(text: "hi", delayMilliseconds: 30))
+    }
+
+    /// Two reads of the app a switch is leaving do not refuse an action
+    /// bound to the app it is switching to: the target is waited for.
+    func testATargetIsWaitedForWhileTheAppItLeavesIsStillInFront() throws {
+        let icli = FakeIcli()
+        let apelin: [String: Any] = ["bundle_id": "wiki.qaq.apelin", "verified": true, "source": "runningboard"]
+        icli.fronts = [apelin, apelin]
+        icli.front = ["bundle_id": "wiki.qaq.fila", "verified": true, "source": "runningboard"]
+        var diagnostics = Diagnostics(icli: icli)
+        diagnostics.settleInterval = 0.01
+        let service = DiagnosticsService(diagnostics: diagnostics, host: ApelinService(transport: NoHost()), home: "/nonexistent", installRoot: "/")
+        XCTAssertEqual(try service.requireTarget("wiki.qaq.fila")?.bundleIdentifier, "wiki.qaq.fila")
+    }
+
+    /// A `type` answers what the tree holds once the text has gone in; the
+    /// fake's tree never changes, so no field holds it.
+    func testATypeAnswersWhatTheFieldsHold() async throws {
+        var diagnostics = Diagnostics(icli: FakeIcli())
+        diagnostics.settleInterval = 0.01
+        let service = DiagnosticsService(diagnostics: diagnostics, host: ApelinService(transport: NoHost()), home: "/nonexistent", installRoot: "/")
+        let typed = try await service.uiAction(.init(action: .type(text: "Hello world")))
+        XCTAssertEqual(typed, ApelinProtocol.UIActionResponse(typedTextMatches: false, fieldValues: []))
+        let tapped = try await service.uiAction(.init(action: .tap(x: 1, y: 2)))
+        XCTAssertEqual(tapped, ApelinProtocol.UIActionResponse())
     }
 
     /// A targeted UI read or element tap settles the foreground once, and

@@ -210,6 +210,9 @@ public enum UIAction: Codable, Hashable, Sendable {
     public static let maximumTextBytes = 4 * 1024
     public static let swipeSecondsRange: ClosedRange<Double> = 0.05 ... 5
     public static let typeDelayRange: ClosedRange<Double> = 0 ... 500
+    /// icli's own pause between characters. Sent with none, a field dropped
+    /// some of them ("Hello world" arrived as "Hello wrd").
+    public static let defaultTypeDelayMilliseconds: Double = 30
     /// Points; larger than any screen, smaller than anything absurd.
     public static let coordinateRange: ClosedRange<Double> = 0 ... 10000
 
@@ -283,6 +286,61 @@ public struct LockState: Codable, Hashable, Sendable {
     /// but a wake need.
     public var allowsInput: Bool {
         !locked && !screenOff
+    }
+}
+
+/// What an action left: a wake, the lock state (`lock`); a `type`, what it
+/// left in the fields (`typed`). Every other action leaves neither, and
+/// `Diagnostics.perform` answers nil for it.
+public struct UIActionOutcome: Codable, Hashable, Sendable {
+    public var lock: LockState?
+    public var typed: TypedText?
+
+    public init(lock: LockState? = nil, typed: TypedText? = nil) {
+        self.lock = lock
+        self.typed = typed
+    }
+}
+
+/// What a `type` left in the frontmost app, read back from its UI tree.
+/// icli names no role for a text field, so the field is found by what
+/// changed: the values the visible elements hold that they did not hold
+/// before the text went in.
+public struct TypedText: Codable, Hashable, Sendable {
+    /// Whether one of the values that changed holds the typed text.
+    public var matches: Bool
+    /// The values that changed, in tree order, at most `maximumValues`,
+    /// each cut to `maximumValueCharacters`.
+    public var fieldValues: [String]
+
+    public static let maximumValues = 8
+    public static let maximumValueCharacters = 2000
+
+    public init(matches: Bool, fieldValues: [String]) {
+        self.matches = matches
+        self.fieldValues = fieldValues
+    }
+
+    /// Compares two reads of every visible element's value. A value counts
+    /// as changed when the earlier read held it fewer times, so a field
+    /// that moved in the tree is not taken for one that changed.
+    public init(typed text: String, before: [String], after: [String]) {
+        var held = [String: Int]()
+        for value in before where !value.isEmpty {
+            held[value, default: 0] += 1
+        }
+        var changed = [String]()
+        for value in after where !value.isEmpty {
+            if let count = held[value], count > 0 {
+                held[value] = count - 1
+            } else {
+                changed.append(value)
+            }
+        }
+        self.init(
+            matches: changed.contains { $0.contains(text) },
+            fieldValues: changed.prefix(Self.maximumValues).map { String($0.prefix(Self.maximumValueCharacters)) },
+        )
     }
 }
 

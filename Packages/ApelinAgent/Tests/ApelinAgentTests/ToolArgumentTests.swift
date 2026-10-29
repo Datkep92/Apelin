@@ -46,4 +46,12 @@ struct ToolArgumentTests {
             }
         }
     }
+
+    @Test
+    func `a swipe takes the duration it is given, 300 ms when none`() throws {
+        let swipe = try ToolRunner.uiAction(["action": "swipe", "x": 10, "y": 20, "to_x": 10, "to_y": 400])
+        #expect(swipe == .swipe(fromX: 10, fromY: 20, toX: 10, toY: 400, durationMilliseconds: 300))
+        let slow = try ToolRunner.uiAction(["action": "swipe", "x": 10, "y": 20, "to_x": 10, "to_y": 400, "duration_ms": 1200])
+        #expect(slow == .swipe(fromX: 10, fromY: 20, toX: 10, toY: 400, durationMilliseconds: 1200))
+    }
 }

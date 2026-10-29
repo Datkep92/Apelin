@@ -116,7 +116,7 @@ public extension AgentToolName {
         case .crashSymbolicate: "Symbolicate a crash report against the project's matching dSYM and rank suspects."
         case .screenCapture: "Take a screenshot of the device or a target."
         case .screenReadTree: "Read the UI element tree of the foreground app or a target."
-        case .screenInteract: "Perform one UI action: tap, tap an element, type text, swipe, or press a button. While the device is locked or its screen is off only press_button wake runs, and it says what it left: a device with a passcode stays on its lock screen, so ask the user to unlock it, and never ask for or type the passcode. Never in Apelin itself (wiki.qaq.apelin): the host refuses an action aimed at it or made while it is in front, in every mode; what is done in Apelin, such as deleting a project, the user does there."
+        case .screenInteract: "Perform one UI action: tap, tap an element, type text, swipe, or press a button. With a target it waits up to 3 s for that app to come to the front; tap_element waits up to 3 s for its element to appear. type_text answers what the fields it changed now hold (fieldValues) and whether one holds the text (typedTextMatches): check it before typing again. While the device is locked or its screen is off only press_button wake runs, and it says what it left: a device with a passcode stays on its lock screen, so ask the user to unlock it, and never ask for or type the passcode. Never in Apelin itself (wiki.qaq.apelin): the host refuses an action aimed at it or made while it is in front, in every mode; what is done in Apelin, such as deleting a project, the user does there."
         case .memoryList: "Read saved user preferences and facts for all chats and this project (or the project named, or every project), with their current revision."
         case .memorySave: "Create or update a concise durable memory, in this project or the one named. Read apelin_memory_list first and supply its revision; never overwrite a user's correction or recreate a deleted memory from older context."
         case .memoryDelete: "Delete a memory that is outdated or that the user asks to forget, in this project or the one named. Read apelin_memory_list first and supply its revision."
@@ -485,6 +485,7 @@ public extension AgentToolName {
                 "y": Schema.number("Tap or swipe start y, points."),
                 "to_x": Schema.number("Swipe end x."),
                 "to_y": Schema.number("Swipe end y."),
+                "duration_ms": Schema.integer("Swipe duration in milliseconds, 50–5000, default 300."),
                 "element_id": Schema.string("Element id from apelin_screen_read_tree."),
                 "text": Schema.string("Text to type."),
                 "button": .object([

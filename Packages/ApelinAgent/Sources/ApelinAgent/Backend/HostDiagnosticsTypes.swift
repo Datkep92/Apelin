@@ -296,8 +296,11 @@ public enum UIAction: Sendable, Hashable, Codable {
     case tap(x: Double, y: Double)
     case tapElement(id: String)
     case typeText(String)
-    case swipe(fromX: Double, fromY: Double, toX: Double, toY: Double)
+    case swipe(fromX: Double, fromY: Double, toX: Double, toY: Double, durationMilliseconds: Int)
     case pressButton(String)
+
+    /// A swipe's duration when the call names none.
+    public static let defaultSwipeMilliseconds = 300
 }
 
 public struct UIActionRequest: Sendable, Hashable, Codable {
@@ -314,8 +317,21 @@ public struct UIActionRequest: Sendable, Hashable, Codable {
 public struct UIActionResponse: Sendable, Hashable, Codable {
     public var performed: Bool
     public var message: String
-    public init(performed: Bool, message: String = "") {
+    /// A type_text's read-back: whether a value that changed while the text
+    /// went in holds it, and those values. Absent for other actions, and
+    /// when the UI tree could not be read.
+    public var typedTextMatches: Bool?
+    public var fieldValues: [String]?
+
+    public init(
+        performed: Bool,
+        message: String = "",
+        typedTextMatches: Bool? = nil,
+        fieldValues: [String]? = nil,
+    ) {
         self.performed = performed
         self.message = message
+        self.typedTextMatches = typedTextMatches
+        self.fieldValues = fieldValues
     }
 }
