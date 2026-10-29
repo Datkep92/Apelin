@@ -329,6 +329,45 @@ precondition(ToolCallBanner.lineChange(in: "Unable to patch Tweak.x") == nil)
 precondition(ToolCallBanner.lineChange(in: "Patched Tweak.x (1 replacement)") == nil)
 print("ok: a running summary's line is its newest call, with a file edit's name and counts")
 
+/// kwwk gives up a reply the connection dropped halfway and asks for it
+/// again: what it showed goes, the running summary says it is reconnecting
+/// under the id it had, and the reply that follows is drawn once.
+let askedID = UUID()
+let cutOff = [
+    event(1, "prompt", ["id": .string(askedID.uuidString), "text": .string("Explain the hook")]),
+    event(2, "messageStarted"), event(3, "thinking", ["text": .string("It chains")]),
+    event(4, "text", ["text": .string("The hook ch")]),
+    event(5, "messageDiscarded"), event(6, "reconnecting"),
+]
+let answeringRows = ChatTranscript(events: Array(cutOff.prefix(2))) { _ in nil }.messages
+let cutOffRows = ChatTranscript(events: cutOff) { _ in nil }.messages
+precondition(cutOffRows.map(\.role) == [.user, .thinking(seconds: nil, tools: 0)], "the partial reply goes: \(cutOffRows)")
+precondition(cutOffRows.last?.id == answeringRows.last?.id, "the summary keeps its id")
+precondition(cutOffRows.last?.text.isEmpty == true, "and the given-up thought goes with it")
+precondition(cutOffRows.last?.isReconnecting == true && cutOffRows.last?.activityTitle == "Reconnecting…")
+let cutOffRetried = cutOff + [
+    event(7, "messageStarted"), event(8, "text", ["text": .string("The hook chains to the original.")]),
+    event(9, "message", ["text": .string("The hook chains to the original.")]), event(10, "finished"),
+]
+let retriedRunning = ChatTranscript(events: Array(cutOffRetried.prefix(7))) { _ in nil }.messages.last
+precondition(retriedRunning?.id == answeringRows.last?.id && retriedRunning?.activityTitle == "Thinking…", "a new attempt ends it")
+let retriedReplies = ChatTranscript(events: cutOffRetried) { _ in nil }.messages.filter { $0.role == .assistant }
+precondition(retriedReplies.map(\.text) == ["The hook chains to the original."], "the reply is drawn once: \(retriedReplies.map(\.text))")
+let callThenRetry = [
+    event(1, "prompt", ["text": .string("Build it")]), event(2, "messageStarted"),
+    event(3, "toolCall", ["id": .string("t1"), "tool": .string("apelin_project_build"), "arguments": .string("{}")]),
+    event(4, "toolResult", ["id": .string("t1"), "output": .string("Built")]),
+    event(5, "reconnecting"),
+]
+precondition(ChatTranscript(events: callThenRetry) { _ in nil }.messages.last?.activityTitle == "Reconnecting…")
+precondition(ChatTranscript(events: callThenRetry + [event(6, "finished")]) { _ in nil }.messages.allSatisfy { !$0.isReconnecting },
+             "nor once the run ends")
+let beforeDiscard = ChatTranscript(events: Array(callThenRetry.prefix(4))) { _ in nil }.messages
+let notStreaming = Array(callThenRetry.prefix(4)) + [event(5, "messageDiscarded")]
+precondition(ChatTranscript(events: notStreaming) { _ in nil }.messages == beforeDiscard,
+             "a discard takes back only a message still streaming")
+print("ok: a reply given up halfway is taken back, and a request made again reads Reconnecting…")
+
 /// A running turn that has shown a reply and then gone quiet for
 /// `quietInterval` gets a running summary under the reply, under the id its
 /// next thought takes, so that thought takes its place with no gap.

@@ -25,6 +25,9 @@ public struct AgentSessionConfiguration: Sendable {
     /// The device's language and clock, which each message's
     /// `<system-state>` names.
     public var systemState: SystemStateSource
+    /// Whether the device has a route, which a model request the network
+    /// failed waits for (`NetworkRecovery`).
+    public var network: NetworkPath
 
     public init(
         id: String = UUID().uuidString,
@@ -39,6 +42,7 @@ public struct AgentSessionConfiguration: Sendable {
         maxTurns: Int? = nil,
         installRoot: String? = nil,
         systemState: SystemStateSource = .device,
+        network: NetworkPath = .system,
     ) {
         self.id = id
         self.project = project
@@ -52,5 +56,6 @@ public struct AgentSessionConfiguration: Sendable {
         self.maxTurns = maxTurns
         self.installRoot = installRoot
         self.systemState = systemState
+        self.network = network
     }
 }

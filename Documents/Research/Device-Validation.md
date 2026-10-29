@@ -180,6 +180,18 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] A turn the network failed (2026-10-29, AGENTS.md ▸ Agent sessions
+      ▸ `NetworkRecovery`; none of it has run on a device). Send a message
+      that runs a few tools and turn on Airplane Mode while it runs, for
+      about a minute: the running summary reads "Reconnecting…" (正在重新连接…)
+      and VoiceOver reads it as the title; once Airplane Mode is off the
+      turn goes on by itself, with no error row and no 继续, and the trace
+      lists each call once. Turned on mid-reply, the partial text goes and
+      the reply comes back once, never under it. With Airplane Mode left on
+      past about three minutes the turn still ends with the provider's
+      error. Stop during "Reconnecting…" ends the turn at once, as
+      stopped. An "An SSL error has occurred" seen again after this is a
+      handshake that failed three times; note the network it was on.
 - [ ] shell_run's argv on the toolchain's PATH (2026-10-29, AGENTS.md ▸
       Agent sessions ▸ `agentRunCode`; none of it has run on a device). In
       a project with a toolchain set up, `argv` `["clang", "-c", "x.c"]`,
