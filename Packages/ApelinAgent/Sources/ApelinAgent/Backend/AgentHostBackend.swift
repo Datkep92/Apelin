@@ -21,6 +21,9 @@ public protocol AgentHostBackend: Sendable {
     func install(_ request: InstallRequest) async throws -> InstallResponse
     /// Remove a managed project package by its installation record.
     func removePackage(_ request: RemovePackageRequest) async throws -> RemovePackageResponse
+    /// The packages Apelin installed that are still on the device, every
+    /// project's, each with the installation a removal acts on.
+    func installations(_ request: InstallationListToolRequest) async throws -> InstallationListToolResponse
     /// Restart SpringBoard.
     func respring(_ request: RespringRequest) async throws -> RespringResponse
     /// Check a build is loaded in its target: marker log, loaded images,
@@ -110,9 +113,13 @@ public protocol AgentHostBackend: Sendable {
     func checkEnvironment(_ request: EnvironmentCheckToolRequest) async throws -> EnvironmentCheckToolResponse
 }
 
-/// A backend without the device's toolchains, SDKs or other projects (a
-/// test double, a live test): those tools say so.
+/// A backend without the device's toolchains, SDKs, installations or other
+/// projects (a test double, a live test): those tools say so.
 public extension AgentHostBackend {
+    func installations(_: InstallationListToolRequest) async throws -> InstallationListToolResponse {
+        throw ToolDeniedError(message: "installed packages are not available here")
+    }
+
     func resolveProject(_ reference: String) async throws -> ProjectIdentity {
         throw ToolDeniedError(message: "no project \(reference) is reachable here")
     }

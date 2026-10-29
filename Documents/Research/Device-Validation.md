@@ -192,6 +192,15 @@ console now goes on after a restart only past a successful respring.
       picture landing in the transcript's album each time, and a
       provider without vision (DeepSeek) answering from the summary line
       alone, without an error.
+- [ ] Installations from any conversation (2026-10-29, none of it has run
+      on a device). `installationList` in `project-build-install` and
+      `i3-chain`; apelin_package_list in General Chat and in another
+      project's chat naming the i3 chain tweak's installation and project;
+      apelin_package_remove with only `package_id` there, the Strict card
+      naming the package, version and project, then the package gone; a
+      stale installation id refused before asking, with what Apelin can
+      remove instead; a toolchain listed as not the agent's and its
+      removal refused.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

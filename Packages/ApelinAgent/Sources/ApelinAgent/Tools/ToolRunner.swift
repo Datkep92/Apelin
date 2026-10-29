@@ -1,6 +1,7 @@
 import struct ApelinCore.MemoryStore
 import enum ApelinCore.MemoryStoreError
 import enum ApelinProtocol.AgentToolName
+import struct ApelinProtocol.ApelinError
 import enum ApelinProtocol.BuildBootstrap
 import Foundation
 import KWWKAgent
@@ -429,9 +430,28 @@ actor ToolRunner {
             )))
 
         case .packageRemove:
-            return try await json(backend.removePackage(RemovePackageRequest(
-                context: context,
-                installationID: arguments.requireString("installation_id"),
+            // The installation the card named, by its id or found for the package.
+            guard let installationID = facts.installationID else {
+                throw ToolDeniedError(message: "the package to remove could not be identified")
+            }
+            do {
+                return try await json(backend.removePackage(RemovePackageRequest(
+                    context: context,
+                    installationID: installationID,
+                )))
+            } catch let refusal as ApelinError where [.badRequest, .notFound, .conflict].contains(refusal.code) {
+                let instead = await removableInstead()
+                throw ToolDeniedError(message: refusal.message + instead)
+            }
+
+        case .packageList:
+            var projectID: String?
+            if let reference = arguments.argNonEmptyString("project") {
+                projectID = try await backend.resolveProject(reference).id
+            }
+            return try await json(backend.installations(InstallationListToolRequest(
+                packageID: arguments.argNonEmptyString("package_id"),
+                projectID: projectID,
             )))
 
         case .deviceRespring:

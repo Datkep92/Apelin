@@ -371,7 +371,9 @@ error, or on `ok: false` where the exact refusal is the worker's to choose.
   (build and packaging match the template, a made-up digest is `changed`),
   a `buildStart` cancelled with `buildCancel` and read back with
   `buildAttach`, a followed build, `installPackage`, the install task
-  replayed with `buildAttach`, `removePackage`. Delete the project after.
+  replayed with `buildAttach`, `installationList` naming that installation,
+  `removePackage`, and `installationList` again without it. Delete the
+  project after.
 - `files.json` — makes the `Hello` tweak project if it is missing, which
   takes the tweak extension and a registered toolchain and SDK.
   `fileRead` of `apelin-project.json` by descriptor; a path out of the
@@ -456,7 +458,8 @@ error, or on `ok: false` where the exact refusal is the worker's to choose.
   written into `Projects/I2GitCheck/` (the console writes no files): status,
   stage, staged diff, commit, clean tree.
 - `i3-chain.json` — the milestone 1 chain: create the `I3 Chain Tweak`
-  project, check, build, install through irisind, then `confirmLoaded` in
+  project, check, build, install through irisind (`installationList` of
+  the project names the installation), then `confirmLoaded` in
   SpringBoard with `trigger: respring` (marker evidence; the image list is
   not read): expects the marker (`evidence.0`) confirmed and the image
   (`evidence.1`) `notRead`; then removes the package it installed.

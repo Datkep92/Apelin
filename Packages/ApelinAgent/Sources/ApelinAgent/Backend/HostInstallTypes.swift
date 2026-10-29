@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - install / apelin_package_remove / respring
+// MARK: - install / apelin_package_remove / apelin_package_list / respring
 
 public struct InstallRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext
@@ -70,6 +70,72 @@ public struct RemovePackageResponse: Sendable, Hashable, Codable {
         self.transactionID = transactionID
         self.succeeded = succeeded
         self.message = message
+    }
+}
+
+// MARK: - apelin_package_list
+
+public struct InstallationListToolRequest: Sendable, Hashable, Codable {
+    /// Only this package.
+    public var packageID: String?
+    /// Only what this project's builds installed.
+    public var projectID: String?
+
+    public init(packageID: String? = nil, projectID: String? = nil) {
+        self.packageID = packageID
+        self.projectID = projectID
+    }
+}
+
+public struct InstallationListToolResponse: Sendable, Hashable, Codable {
+    /// Newest first: per package still installed, the installation a
+    /// removal acts on.
+    public var installations: [ListedInstallation]
+    /// More installations than the list holds.
+    public var truncated: Bool
+
+    public init(installations: [ListedInstallation], truncated: Bool = false) {
+        self.installations = installations
+        self.truncated = truncated
+    }
+}
+
+public struct ListedInstallation: Sendable, Hashable, Codable {
+    /// What apelin_package_remove takes.
+    public var installationID: String
+    public var packageID: String
+    public var version: String
+    /// The project whose build it was, and its folder while it is under
+    /// `Projects/`.
+    public var projectID: String?
+    public var project: String?
+    public var buildID: String?
+    public var installedAt: Date
+    /// Whether apelin_package_remove can remove it; it still asks in Strict mode.
+    public var removable: Bool
+    /// Why not, when it cannot.
+    public var reason: String?
+
+    public init(
+        installationID: String,
+        packageID: String,
+        version: String,
+        projectID: String? = nil,
+        project: String? = nil,
+        buildID: String? = nil,
+        installedAt: Date,
+        removable: Bool,
+        reason: String? = nil,
+    ) {
+        self.installationID = installationID
+        self.packageID = packageID
+        self.version = version
+        self.projectID = projectID
+        self.project = project
+        self.buildID = buildID
+        self.installedAt = installedAt
+        self.removable = removable
+        self.reason = reason
     }
 }
 

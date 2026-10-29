@@ -35,6 +35,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
 
     case installPackage
     case removePackage
+    case installationList
     case respring
     case approvalDigestState
 
@@ -118,7 +119,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .environmentAttach, .environmentCancel: .environment
         case .extensionList, .projectCreate, .projectCheck, .projectRename: .project
         case .buildStart, .buildAttach, .buildCancel: .build
-        case .installPackage, .removePackage, .respring, .approvalDigestState: .install
+        case .installPackage, .removePackage, .installationList, .respring, .approvalDigestState: .install
         case .fileRead, .protectedEditOpen, .protectedEditCommit: .files
         case .ptyOpen, .ptyAttach, .ptyResize, .ptyClose: .terminal
         case .logStream, .crashList, .crashOpen, .crashSymbolicate: .logs
@@ -164,6 +165,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .buildCancel: BuildCancelRequest.self
         case .installPackage: InstallPackageRequest.self
         case .removePackage: RemovePackageRequest.self
+        case .installationList: InstallationListRequest.self
         case .respring: RespringRequest.self
         case .approvalDigestState: ApprovalDigestStateRequest.self
         case .fileRead: FileReadRequest.self

@@ -192,6 +192,23 @@ struct ChannelHostBackendTests {
     }
 
     @Test
+    func `the installation list is installationList, each project named by its folder`() async throws {
+        let fixture = try Fixture(manifest: #"{"projectID":"6f1c5b0e-0000-4000-8000-000000000001"}"#)
+        defer { try? FileManager.default.removeItem(at: fixture.dataFolder) }
+        let installedAt = Date(timeIntervalSince1970: 1_790_000_000)
+        fixture.host.on(.installationList, reply: InstallationListResponse(installations: [
+            InstallationSummary(installationID: "inst-2", packageID: "wiki.qaq.hello", version: "0.0.2", projectID: fixture.project.id, buildID: "B-2", installedAt: installedAt, removable: true),
+            InstallationSummary(installationID: "inst-1", packageID: "local.apelin.gone", version: "1", projectID: "deleted-project", installedAt: installedAt, removable: false, reason: "local.apelin.gone is now version 2"),
+        ]))
+        let listed = try await fixture.backend.installations(InstallationListToolRequest(packageID: "wiki.qaq.hello"))
+        let sent = try #require(fixture.host.requests(InstallationListRequest.self).first)
+        #expect(sent.packageID == "wiki.qaq.hello" && sent.projectID == nil)
+        #expect(listed.installations.map(\.project) == ["Hello", nil], "a project still under Projects/ is named by its folder")
+        #expect(listed.installations.last?.reason == "local.apelin.gone is now version 2" && listed.installations.last?.removable == false)
+        #expect(listed.installations.first?.buildID == "B-2" && !listed.truncated)
+    }
+
+    @Test
     func `respring is the host's closed operation`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.respring, reply: Acknowledged())

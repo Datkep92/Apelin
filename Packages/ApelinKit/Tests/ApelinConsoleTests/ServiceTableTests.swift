@@ -74,6 +74,10 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: handle) { _ = try await $0.installPackage(artifactID: "a", digest: String(repeating: "0", count: 64)) }
         case .removePackage:
             return Row(reply: handle) { _ = try await $0.removePackage(installationID: "i") }
+        case .installationList:
+            return Row(reply: InstallationListResponse(installations: [])) {
+                _ = try await $0.installationList(packageID: "local.apelin.hello")
+            }
         case .respring:
             return Row(reply: ack) { try await $0.respring() }
         case .approvalDigestState:

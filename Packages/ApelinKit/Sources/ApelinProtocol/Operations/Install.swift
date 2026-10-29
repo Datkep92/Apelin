@@ -3,7 +3,8 @@ import Foundation
 
 // Install: the session host copies the approved artifact to private staging,
 // checks its digest and hands it to irisind by descriptor; removal only of
-// packages this bridge installed; respring through irisind.
+// packages this bridge installed, which `installationList` lists; respring
+// through irisind.
 // Served by the session host (Apelind/Dispatch/InstallHandler.swift).
 //
 // An install is a task of kind `install`, read with `buildAttach`. Its events:
@@ -70,6 +71,69 @@ public struct RemovePackageRequest: OperationRequest {
     public var installationID: String
     public init(installationID: String) {
         self.installationID = installationID
+    }
+}
+
+/// The packages this bridge installed that are still on the device: per
+/// package, its newest installation record — the one a removal acts on,
+/// any older one being superseded —, newest first. The records are root's;
+/// this is how a conversation finds an installation it did not make.
+public struct InstallationListRequest: OperationRequest {
+    public typealias Response = InstallationListResponse
+    public static let operation = AppOperation.installationList
+    /// Only this package.
+    public var packageID: String?
+    /// Only what this project's builds installed.
+    public var projectID: String?
+
+    public init(packageID: String? = nil, projectID: String? = nil) {
+        self.packageID = packageID
+        self.projectID = projectID
+    }
+}
+
+public struct InstallationSummary: Codable, Sendable, Equatable {
+    public var installationID: String
+    public var packageID: String
+    public var version: String
+    /// The project and build whose artifact it was; nil for a file the app
+    /// installed and for a toolchain.
+    public var projectID: String?
+    public var buildID: String?
+    /// When irisind reported the install finished.
+    public var installedAt: Date
+    /// Whether `removePackage` from this caller would act on it. An agent's
+    /// removal still asks under Confirm.
+    public var removable: Bool
+    /// Why it would not, in the words of that refusal.
+    public var reason: String?
+
+    public init(
+        installationID: String,
+        packageID: String,
+        version: String,
+        projectID: String? = nil,
+        buildID: String? = nil,
+        installedAt: Date,
+        removable: Bool,
+        reason: String? = nil,
+    ) {
+        self.installationID = installationID
+        self.packageID = packageID
+        self.version = version
+        self.projectID = projectID
+        self.buildID = buildID
+        self.installedAt = installedAt
+        self.removable = removable
+        self.reason = reason
+    }
+}
+
+public struct InstallationListResponse: Codable, Sendable, Equatable {
+    public var installations: [InstallationSummary]
+
+    public init(installations: [InstallationSummary]) {
+        self.installations = installations
     }
 }
 
@@ -140,6 +204,10 @@ public extension ApelinService {
 
     func removePackage(installationID: String) async throws -> TaskHandle {
         try await send(RemovePackageRequest(installationID: installationID))
+    }
+
+    func installationList(packageID: String? = nil, projectID: String? = nil) async throws -> InstallationListResponse {
+        try await send(InstallationListRequest(packageID: packageID, projectID: projectID))
     }
 
     func respring() async throws {

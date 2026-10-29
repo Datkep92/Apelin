@@ -49,7 +49,9 @@ extension ToolRunner {
                 facts.description = try? await digests.state(of: .packaging, for: project)
             }
         case .packageRemove:
-            facts.installationID = try arguments.requireString("installation_id")
+            let removal = try await removalToAsk(arguments)
+            facts.installationID = removal.installationID
+            facts.removedPackage = removal.listed
         case .gitPush:
             // The branch the card names is the one pushed: an omitted one is
             // read now and sent explicitly.
@@ -229,6 +231,63 @@ extension ToolRunner {
             throw ToolArgumentError("no enabled source offers iPhoneOS \(version)\(source.map { " in \($0)" } ?? "")\(problems); apelin_sdk_list names what they offer")
         }
         return SDKImportApproval(source: offer.source, url: offer.sourceURL, branch: offer.branch, version: offer.version)
+    }
+
+    /// The installation a removal takes, found before asking: the one
+    /// installation_id names, or the one Apelin can remove of the package
+    /// package_id names. One the list shows as not removable, or does not
+    /// show at all, is refused here, with why, so the user is never asked
+    /// about a removal the host would refuse. Its row in apelin_package_list
+    /// is what the card names; without the whole list the host decides.
+    private func removalToAsk(_ arguments: JSONValue) async throws -> (installationID: String, listed: ListedInstallation?) {
+        switch (arguments.argNonEmptyString("installation_id"), arguments.argNonEmptyString("package_id")) {
+        case (nil, nil):
+            throw ToolArgumentError("Give installation_id, from apelin_package_install or apelin_package_list, or package_id.")
+        case (.some, .some):
+            throw ToolArgumentError("Give installation_id or package_id, not both.")
+        case let (installationID?, nil):
+            guard let all = try? await backend.installations(InstallationListToolRequest()) else {
+                return (installationID, nil)
+            }
+            guard let listed = all.installations.first(where: { $0.installationID == installationID }) else {
+                if all.truncated {
+                    return (installationID, nil)
+                }
+                throw ToolDeniedError(message: "Apelin has no installation \(installationID) it can remove: the package is gone, a later install replaced it, or the id is not one apelin_package_install or apelin_package_list gave." + Self.removable(in: all.installations))
+            }
+            guard listed.removable else {
+                throw ToolDeniedError(message: Self.notRemovable(listed))
+            }
+            return (installationID, listed)
+        case let (nil, packageID?):
+            let rows = try await backend.installations(InstallationListToolRequest(packageID: packageID)).installations
+            guard let row = rows.first(where: \.removable) else {
+                throw ToolDeniedError(message: rows.first.map(Self.notRemovable)
+                    ?? "Apelin has no installation of \(packageID) on this device: it did not install it, or the package is gone. A package installed some other way is the user's to remove with their package manager; apelin_package_list lists what Apelin installed.")
+            }
+            return (row.installationID, row)
+        }
+    }
+
+    private static func notRemovable(_ listed: ListedInstallation) -> String {
+        "Apelin cannot remove \(listed.packageID) \(listed.version) (installation \(listed.installationID)): \(listed.reason ?? "it is not removable now.")"
+    }
+
+    /// For a host's refusal of an installation id, stale or mistaken: the
+    /// ones apelin_package_remove can take instead.
+    func removableInstead() async -> String {
+        guard let listed = try? await backend.installations(InstallationListToolRequest()).installations else { return "" }
+        return Self.removable(in: listed)
+    }
+
+    private static func removable(in listed: [ListedInstallation]) -> String {
+        let removable = listed.filter(\.removable)
+        guard !removable.isEmpty else { return " Apelin has no installation it can remove on this device." }
+        let shown = removable.prefix(10).map { row in
+            "\(row.installationID) (\(row.packageID) \(row.version)\(row.project.map { ", project \($0)" } ?? ""))"
+        }
+        let more = removable.count > shown.count ? "; more in apelin_package_list" : ""
+        return " Apelin can remove: \(shown.joined(separator: "; "))\(more)."
     }
 
     /// A context for reads made while gathering facts, before any approval.

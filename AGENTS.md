@@ -207,8 +207,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolchainSelfTest`, `toolchainSetDefault`; `sdkList`,
   `sdkImport`, `sdkRemove`; `environmentAttach`, `environmentCancel`;
   `extensionList`, `projectCreate`, `projectCheck`, `projectRename`; `buildStart`,
-  `buildAttach`, `buildCancel`; `installPackage`, `removePackage`, `respring`,
-  `approvalDigestState`;
+  `buildAttach`, `buildCancel`; `installPackage`, `removePackage`,
+  `installationList`, `respring`, `approvalDigestState`;
   `fileRead`, `protectedEditOpen`, `protectedEditCommit`; `ptyOpen`,
   `ptyAttach`, `ptyResize`, `ptyClose`; `logStream`, `crashList`,
   `crashOpen`, `crashSymbolicate`; `confirmLoaded`, `confirmLoadedAttach`, `captureScreen`,
@@ -285,7 +285,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolchainSelfTest`, `sdkList`, `sdkImport`, a setup or import narrowed
   by `AgentEnvironmentRules`, and `environmentAttach` for the tasks its own
   session started — its git tasks too; never a removal or a cancel;
-  `projectRename`, narrowed by `AgentProjectRenameRules`), the environment worker `installPackage`, `removePackage`
+  `projectRename`, narrowed by `AgentProjectRenameRules`; `installationList`,
+  every project's), the environment worker `installPackage`, `removePackage`
   and `buildAttach` (its local toolchain package, through the same bridge),
   the diagnostics worker `crashOpen` and `respring`, and nothing else call
   anything. Workers: `apelin-environment` (toolchain, SDKs, git, transfer
@@ -376,10 +377,19 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     artifact digest, package, version, the lowercase-UUID transaction ID it
     chose, then irisind's receipt) and submits the staged copy by
     descriptor. `removePackage{installationID}` acts only on a record whose
-    install succeeded and whose package is still installed at that version;
+    install succeeded and whose package is still installed at that version,
+    with no newer record of the package (whose ID the refusal names);
     bootstrap core, Irisin, Apelin and essential or required packages are
     refused both ways, and so is installing over a package Apelin did not
-    install (`ManagedPackagePolicy`). The installed state is read from
+    install (`ManagedPackagePolicy`). The agent removes only what a build
+    installed, never a toolchain's record or a file's; apelin-environment
+    only its toolchains'.
+    `installationList{packageID?, projectID?}` is the read side, the app's
+    and the agent's: per package still installed, its newest record
+    (installation ID, package, version, project and build; a removal under
+    way counts), newest first, with `removable` and the refusal
+    `removePackage` from that caller would give as `reason`; the records
+    themselves stay root's. The installed state is read from
     `var/lib/dpkg/status`, never through a package manager's binary.
     `respring` is irisind's.
   - *Approvals* (`Session/Approval/`). The host keeps the Confirm-mode ledger:
@@ -989,7 +999,15 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   other binary now says. Every system tool is one
   host request
   (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches), apelin_package_install →
-  `installPackage`, apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded → a
+  `installPackage`, apelin_package_remove → `removePackage` (an installation
+  ID, or a package ID the worker turns into its one removable installation
+  before asking: the card names its package, version and project, and
+  `detail.packageRemoval` the installation, as before; an ID
+  `installationList` shows as not removable, or does not show, is refused
+  before asking, and a host refusal answers what can be removed instead),
+  apelin_package_list → `installationList` (in any chat, every project's,
+  a read preset, the folder of each project added),
+  apelin_device_respring, apelin_package_confirm_loaded → a
   `confirmLoaded` task with the session's project read to its end (with
   `respring: true` it carries `trigger: respring` and is gated as apelin_device_respring;
   it never asks for `imageCheck`), apelin_log_read → a `logStream` of
