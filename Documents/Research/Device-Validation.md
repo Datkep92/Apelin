@@ -180,6 +180,14 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] Every project's memory from one chat (2026-10-29, none of it has
+      run on a device; needs a model provider). In General Chat, asked to
+      tidy every project's memories: one apelin_memory_list with
+      all_projects naming each record's project, a record of a deleted
+      project marked missing, then saves and deletes naming each project,
+      with no conversation opened and no card in Strict; Settings ▸ Agent ▸
+      Memories showing each change under its project. A General Chat save
+      of a project fact without a project refused, then made with one.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

@@ -305,6 +305,50 @@ struct PromptCacheTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func `a memory the agent keeps for another project is not this chat's, so one of its title made here meanwhile is still told`() async throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let provider = await registerFauxProvider()
+        defer { provider.unregister() }
+        let requests = Requests()
+        let store = MemoryStore(root: home.dataRoot.url)
+        let weather = try ProjectIdentity(id: "6f1c5b0e-0000-4000-8000-00000000beef", name: ProjectName("Weather"))
+        let backend = MockBackend()
+        await backend.addProject(weather)
+        provider.setResponses([
+            .factory { _, _, _, _ in
+                // the user, in Settings, for this project
+                try store.save(MemoryRecord(title: "Build", body: "Runs make.", projectID: home.project.id), revision: store.read().revision)
+                return try fauxAssistantMessage(blocks: [
+                    fauxToolCall(name: "apelin_memory_save", arguments: ["reason": "Note it there", "revision": .string(store.read().revision), "title": "Build", "body": "Runs cmake.", "project": "Weather"], id: "save"),
+                ], stopReason: .toolUse)
+            },
+            .message(fauxAssistantMessage("Saved.")),
+            .factory { context, options, _, _ in
+                await requests.add(context, options)
+                return fauxAssistantMessage("Next.")
+            },
+        ])
+        let session = try await AgentSession(
+            configuration: AgentSessionConfiguration(
+                project: home.project, provider: .registered(provider.getModel()),
+                approval: ApprovalPolicy(mode: .confirm), dataRoot: home.dataRoot,
+            ),
+            backend: backend, digests: MockDigestLedger(), credentials: DeliveredCredentialSource(),
+        )
+        try await session.prompt("Note Weather's build.")
+        await session.waitForIdle()
+        try await session.prompt("Go on.")
+        await session.waitForIdle()
+        await session.close()
+
+        let sent = await requests.all
+        let last = try #require(sent.last?.messages.compactMap(Self.text).last.flatMap(Self.block))
+        #expect(Self.changes(last) == ["  - memory added (this project): Build: Runs make."], "\(last)")
+        #expect(try store.read().records.map(\.projectID) == [home.project.id, weather.id], "the agent's save went to Weather")
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func `a change a dropped message carried is told again, and a compaction takes the prompt afresh`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }

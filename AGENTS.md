@@ -2775,8 +2775,17 @@ single-line; bodies are nonempty. The library holds at most 64 records and
 32,768 content bytes.
 
 `apelin_memory_list`, `apelin_memory_save` and `apelin_memory_delete` are local agent tools and run
-without an approval prompt. They can see all-chat records and the current
-project's records only. A session's system prompt carries the records it saw
+without an approval prompt. They see all-chat records and the current
+project's; a call that names another project with `project` (its projectID
+or folder, resolved as the conversation tools resolve it) sees that one's
+instead, and `apelin_memory_list{all_projects}` lists every record with its
+project's folder and name, `missing` when no project has its id, so General
+Chat tidies every project's memory without opening a conversation for each.
+A missing project's id still reaches its records, to change or delete, never
+to add one, and General Chat, which has no project, keeps a project record
+only for the project it names. What the session's prompt and deltas show
+stays its own project's, so one project's records never enter another's
+context. A session's system prompt carries the records it saw
 when it opened and never the revision, which every write changes, another
 project's included; a record added, changed or removed later, in Settings or
 by another chat, is a delta in the session's next message (`PromptState`),

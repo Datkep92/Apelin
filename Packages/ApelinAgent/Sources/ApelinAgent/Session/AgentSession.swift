@@ -704,7 +704,13 @@ public actor AgentSession {
         case let .toolExecutionEnd(id, name, result, isError):
             if let call = ownCalls.removeValue(forKey: id), !isError {
                 // the tool's result told the model; no delta repeats it
-                told = PromptState.absorbing(call.tool, arguments: call.arguments, into: told, now: currentState())
+                told = PromptState.absorbing(
+                    call.tool,
+                    arguments: call.arguments,
+                    into: told,
+                    now: currentState(),
+                    project: configuration.project,
+                )
             }
             await record(.toolCallFinished(ToolResultRecord(
                 id: id,

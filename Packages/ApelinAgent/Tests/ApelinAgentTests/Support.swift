@@ -138,9 +138,17 @@ actor MockBackend: AgentHostBackend {
     /// Other projects resolve_project finds, by name or id.
     var otherProjects: [String: ProjectIdentity] = [:]
 
+    /// What apelin_project_list answers: none, as a backend without other
+    /// projects answers, unless a test lists some.
+    var listedProjects = ProjectListToolResponse(projects: [], truncated: false)
+
     func addProject(_ identity: ProjectIdentity) {
         otherProjects[identity.id] = identity
         otherProjects[identity.name.rawValue] = identity
+    }
+
+    func setListedProjects(_ listing: ProjectListToolResponse) {
+        listedProjects = listing
     }
 
     func setFindings(_ findings: [EnvironmentDiagnostic], forSDK sdkID: String) {
@@ -378,6 +386,10 @@ actor MockBackend: AgentHostBackend {
     func resolveProject(_ reference: String) throws -> ProjectIdentity {
         guard let found = otherProjects[reference] else { throw ToolDeniedError(message: "no project \(reference)") }
         return found
+    }
+
+    func projects() -> ProjectListToolResponse {
+        listedProjects
     }
 
     func renameProject(_ request: ProjectRenameToolRequest) -> ProjectRenameToolResponse {

@@ -171,6 +171,7 @@ struct PromptState: Equatable {
         arguments: JSONValue,
         into told: PromptState,
         now: PromptState,
+        project: ProjectIdentity,
     ) -> PromptState {
         var told = told
         switch tool {
@@ -180,7 +181,16 @@ struct PromptState: Equatable {
             let id = arguments.argString("id").flatMap { $0.isEmpty ? nil : $0 }
             let title = arguments.argString("title")?.trimmingCharacters(in: .whitespacesAndNewlines)
             let known = Set((told.memory ?? []).map(\.id))
-            let saved = memory.filter { $0.id == id || (id == nil && $0.title == title && !known.contains($0.id)) }
+            // A new record kept for another project is not one this chat
+            // sees: one of its title here was made by someone else.
+            let named = arguments.argNonEmptyString("project")?.trimmingCharacters(in: .whitespaces)
+            let elsewhere = named.map { $0 != project.id && $0 != project.name.rawValue } ?? false
+            let global = arguments.argString("scope") == "global"
+            let made = { (record: MemoryRecord) in
+                id == nil && record.title == title && !known.contains(record.id)
+                    && (global ? record.projectID == nil : !elsewhere && record.projectID != nil)
+            }
+            let saved = memory.filter { $0.id == id || made($0) }
             var records = told.memory ?? []
             for record in saved {
                 if let index = records.firstIndex(where: { $0.id == record.id }) {
