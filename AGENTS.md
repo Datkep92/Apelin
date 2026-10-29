@@ -1454,9 +1454,18 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `com.apple.system-task-ports.read` are gone; `imageCheck` still decodes
   and is refused with `badRequest` before the task is accepted
   (`Documents/Console/scripts/i3-image-check-refused.json`). `uiAction` with a
-  `targetID` runs only while that app is the verified foreground app;
-  `press` is not available (icli has no button press). Screenshots go back
-  as an unlinked temporary file's descriptor, JPEG.
+  `targetID` runs only while that app is the verified foreground app.
+  `press` is `wake`, `home` or `lock` (IcliKit's `pressButton`, `lock` its
+  `power`; 2026-10-29). While the device is locked or its screen is off,
+  the UI tree and every action but a wake answer `conflict`, saying which
+  and that a wake comes first. A wake runs on either and answers what it
+  left (`locked`, `screenOff`): a device without a passcode is past its
+  lock screen, one with a passcode stays on it for the user to unlock.
+  Nothing in Apelin asks for, keeps or types a passcode: not icli 0.11.0's
+  `unlockDevice`, nor its `device passcode`, which the `apelin-icli` skill
+  tells the agent never to run. IcliKit 0.9.0 already has the press and the
+  wake, with the same iOS code as 0.11.0, so the pin stays.
+  Screenshots go back as an unlinked temporary file's descriptor, JPEG.
 - **The hello** has a five-second bound per attempt, guarded by connection
   generation, retried every second; the fallback to the unprivileged backend
   comes ten seconds after the first miss (`Apelin/DaemonClient.swift`). After

@@ -37,6 +37,10 @@ public protocol IcliSurface: Sendable {
     ) throws -> [String: Any]
     func swipe(x1: Double, y1: Double, x2: Double, y2: Double, seconds: Double) throws -> [String: Any]
     func typeText(_ text: String, delayMS: Double) throws -> [String: Any]
+    /// icli's `pressButton`, by icli's name (`home`, `power`, `wake`). It
+    /// checks no lock state itself; a wake answers `locked` and `screen_off`
+    /// as they are after it.
+    func pressButton(_ name: String) throws -> [String: Any]
     func frontmostApp() -> [String: Any]
     func lockState() -> [String: Any]
     func runningApps() throws -> [String: Any]

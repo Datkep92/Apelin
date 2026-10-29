@@ -8,6 +8,8 @@ final class FakeIcli: IcliSurface, @unchecked Sendable {
     private let lock = NSLock()
     private(set) var calls = [String]()
     var lockStateResponse: [String: Any]?
+    /// What a wake answers: icli's lock state after it.
+    var wakeResponse: [String: Any] = [:]
     var screenshotResponse: [String: Any] = [:]
     var crashText: [String: Any] = [:]
     /// Answers for `frontmostApp`, one per call, the last one repeated;
@@ -74,6 +76,11 @@ final class FakeIcli: IcliSurface, @unchecked Sendable {
 
     func typeText(_ text: String, delayMS _: Double) throws -> [String: Any] {
         answer("typeText", text)
+    }
+
+    func pressButton(_ name: String) throws -> [String: Any] {
+        _ = answer("pressButton", name)
+        return name == "wake" ? wakeResponse : ["button": name]
     }
 
     func frontmostApp() -> [String: Any] {
@@ -231,11 +238,15 @@ final class DiagnosticsTests: XCTestCase {
         try diagnostics.perform(.tapElement(UIElementSelector(identifier: "hello.ok", match: .exact)))
         try diagnostics.perform(.swipe(from: UIPoint(x: 1, y: 2), to: UIPoint(x: 3, y: 4), seconds: 0.3))
         try diagnostics.perform(.type(text: "hi", delayMilliseconds: 30))
+        XCTAssertNil(try diagnostics.perform(.press(.home)), "only a wake answers the lock state")
+        try diagnostics.perform(.press(.lock))
         XCTAssertEqual(icli.calls.filter { !$0.hasPrefix("lockState") && $0 != "frontmostApp" }, [
             "tap 10.0,20.0",
             "tapElement hello.ok exact 0",
             "swipe 1.0,2.0->3.0,4.0 0.3",
             "typeText hi",
+            "pressButton home",
+            "pressButton power",
         ])
 
         for bad in [
@@ -290,11 +301,48 @@ final class DiagnosticsTests: XCTestCase {
     func testALockedDeviceTakesNoInput() throws {
         let icli = try FakeIcli()
         icli.lockStateResponse = ["locked": true, "screen_off": false]
-        XCTAssertThrowsError(try Diagnostics(icli: icli).perform(.tap(UIPoint(x: 1, y: 1)))) { error in
-            XCTAssertEqual(error as? DiagnosticsError, .locked)
+        for action in [UIAction.tap(UIPoint(x: 1, y: 1)), .press(.home), .press(.lock)] {
+            XCTAssertThrowsError(try Diagnostics(icli: icli).perform(action), "\(action)") { error in
+                XCTAssertEqual(error as? DiagnosticsError, .locked(screenOff: false))
+            }
         }
         XCTAssertThrowsError(try Diagnostics(icli: icli).uiTree())
-        XCTAssertFalse(icli.calls.contains { $0.hasPrefix("tap") || $0.hasPrefix("uiElements") })
+        XCTAssertFalse(icli.calls.contains { $0.hasPrefix("tap") || $0.hasPrefix("uiElements") || $0.hasPrefix("pressButton") })
+    }
+
+    /// The refusal says which it is, a dark screen or a lit lock screen, and
+    /// that a wake is the way on.
+    func testTheRefusalTellsADarkScreenFromALockedOne() throws {
+        let icli = try FakeIcli()
+        icli.lockStateResponse = ["locked": true, "screen_off": true]
+        XCTAssertThrowsError(try Diagnostics(icli: icli).uiTree()) { error in
+            XCTAssertEqual(error as? DiagnosticsError, .locked(screenOff: true))
+        }
+        icli.lockStateResponse = ["locked": false, "screen_off": true]
+        XCTAssertThrowsError(try Diagnostics(icli: icli).perform(.press(.home))) { error in
+            XCTAssertEqual(error as? DiagnosticsError, .locked(screenOff: true), "a dark screen, locked or not")
+        }
+        let dark = DiagnosticsError.locked(screenOff: true).localizedDescription
+        let locked = DiagnosticsError.locked(screenOff: false).localizedDescription
+        XCTAssertTrue(dark.hasPrefix("The screen is off."), dark)
+        XCTAssertTrue(locked.hasPrefix("The device is locked."), locked)
+        for message in [dark, locked] {
+            XCTAssertTrue(message.contains("wake button"), message)
+            XCTAssertTrue(message.contains("passcode") && message.contains("the user unlocks it"), message)
+        }
+    }
+
+    /// A wake runs on a dark or locked screen, where nothing else does, and
+    /// answers the state it left: a device with a passcode stays locked.
+    func testAWakeRunsOnALockedDeviceAndAnswersWhatItLeft() throws {
+        let icli = try FakeIcli()
+        icli.lockStateResponse = ["locked": true, "screen_off": true]
+        icli.wakeResponse = ["button": "wake", "locked": true, "screen_off": false]
+        let diagnostics = Diagnostics(icli: icli)
+        XCTAssertEqual(try diagnostics.perform(.press(.wake)), LockState(locked: true, screenOff: false))
+        icli.wakeResponse = ["button": "wake", "locked": false, "screen_off": false]
+        XCTAssertEqual(try diagnostics.perform(.press(.wake)), LockState(locked: false, screenOff: false))
+        XCTAssertEqual(icli.calls, ["pressButton wake", "pressButton wake"])
     }
 
     // MARK: Apps, respring

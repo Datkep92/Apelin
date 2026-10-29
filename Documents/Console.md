@@ -384,7 +384,9 @@ error, or on `ok: false` where the exact refusal is the worker's to choose.
   `succeeded`, `crashList`, and
   `crashOpen` and `crashSymbolicate` of the newest report (allowed to fail
   on a device with none); an unknown report is refused.
-- `diagnostics.json` — `captureScreen`, `readUITree`, one `uiAction` tap in
+- `diagnostics.json` — a `uiAction` wake, which presses nothing on a
+  device already awake and leaves `screenOff` false, `captureScreen`,
+  `readUITree`, one `uiAction` tap in
   the status bar at (200, 4) — not its corner, where iPadOS 26 puts a
   window's close control —, and a `confirmLoaded` for a build that does not
   exist (allowed to fail).

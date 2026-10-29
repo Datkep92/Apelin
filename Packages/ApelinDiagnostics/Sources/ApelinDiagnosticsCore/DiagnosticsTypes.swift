@@ -180,6 +180,23 @@ public struct UIElementSelector: Codable, Hashable, Sendable {
     }
 }
 
+/// What a press can name: two buttons and icli's wake.
+public enum HardwareButton: String, Codable, Hashable, Sendable, CaseIterable {
+    /// Lights a dark screen and takes a device without a passcode past its
+    /// lock screen; on a device already awake it presses nothing. The one
+    /// action that runs while the device is locked or its screen is off.
+    case wake
+    /// The home button: the front app goes to the home screen.
+    case home
+    /// The side button: the screen goes off and the device locks.
+    case lock
+
+    /// icli's name for it.
+    public var icliName: String {
+        self == .lock ? "power" : rawValue
+    }
+}
+
 /// The closed list of UI actions. Each case carries typed parameters; there
 /// is no case that takes a command.
 public enum UIAction: Codable, Hashable, Sendable {
@@ -188,6 +205,7 @@ public enum UIAction: Codable, Hashable, Sendable {
     case swipe(from: UIPoint, to: UIPoint, seconds: Double)
     /// Typed one grapheme at a time into the focused field.
     case type(text: String, delayMilliseconds: Double)
+    case press(HardwareButton)
 
     public static let maximumTextBytes = 4 * 1024
     public static let swipeSecondsRange: ClosedRange<Double> = 0.05 ... 5
@@ -244,7 +262,27 @@ public enum UIAction: Codable, Hashable, Sendable {
                     String(format: "delay must be %g–%g ms", range.lowerBound, range.upperBound),
                 )
             }
+        case .press:
+            break
         }
+    }
+}
+
+/// Whether the device is locked and whether its screen is off, as icli's
+/// `lockState()` and its wake read them.
+public struct LockState: Codable, Hashable, Sendable {
+    public var locked: Bool
+    public var screenOff: Bool
+
+    public init(locked: Bool, screenOff: Bool) {
+        self.locked = locked
+        self.screenOff = screenOff
+    }
+
+    /// A lit screen past the lock screen: what the UI tree and every action
+    /// but a wake need.
+    public var allowsInput: Bool {
+        !locked && !screenOff
     }
 }
 

@@ -55,8 +55,8 @@ extension ToolRunner {
             )
         case "press_button":
             let button = try arguments.requireString("button")
-            guard ["home", "lock", "volume_up", "volume_down"].contains(button) else {
-                throw ToolArgumentError("unknown button \(button)")
+            guard ["wake", "home", "lock"].contains(button) else {
+                throw ToolArgumentError("unknown button \(button); the buttons are wake, home and lock")
             }
             return .pressButton(button)
         case let other: throw ToolArgumentError("unknown action \(other)")

@@ -314,7 +314,7 @@ struct ChannelHostBackendTests {
                 .object(["identifier": .string(""), "label": .string("Cancel"), "role": .string("button")]),
             ]),
         ])))
-        fixture.host.on(.uiAction, reply: Acknowledged())
+        fixture.host.on(.uiAction, reply: ApelinProtocol.UIActionResponse())
         let tree = try await fixture.backend.readUITree(ApelinAgent.ReadUITreeRequest(context: fixture.context(), targetID: nil, maxDepth: 4))
         #expect(tree.root.children.map(\.id) == ["ok-button", "text:Cancel"])
         #expect(tree.root.children.first?.frame == [1, 2, 3, 4])
@@ -323,6 +323,27 @@ struct ChannelHostBackendTests {
         _ = try await fixture.backend.uiAction(ApelinAgent.UIActionRequest(context: fixture.context(), targetID: nil, action: .tapElement(id: "ok-button")))
         let actions = fixture.host.requests(ApelinProtocol.UIActionRequest.self).map(\.action)
         #expect(actions == [.tapElement(text: "Cancel", identifier: nil), .tapElement(text: nil, identifier: "ok-button")])
+    }
+
+    @Test
+    func `a wake says what it left, and a device still locked is the user's to unlock`() async throws {
+        let fixture = try Fixture()
+        let press = ApelinAgent.UIActionRequest(context: fixture.context(), targetID: nil, action: .pressButton("wake"))
+        fixture.host.on(.uiAction, reply: ApelinProtocol.UIActionResponse(locked: true, screenOff: false))
+        let locked = try await fixture.backend.uiAction(press)
+        #expect(locked.performed)
+        #expect(locked.message.contains("still locked"))
+        #expect(locked.message.contains("ask the user to unlock the device"))
+        #expect(locked.message.contains("never ask for or type the passcode"))
+        #expect(fixture.host.requests(ApelinProtocol.UIActionRequest.self).map(\.action) == [.press(button: "wake")])
+
+        fixture.host.on(.uiAction, reply: ApelinProtocol.UIActionResponse(locked: false, screenOff: false))
+        #expect(try await fixture.backend.uiAction(press).message == "The screen is on and the device is unlocked.")
+        fixture.host.on(.uiAction, reply: ApelinProtocol.UIActionResponse(locked: true, screenOff: true))
+        #expect(try await fixture.backend.uiAction(press).message.hasPrefix("The screen is still off."))
+        fixture.host.on(.uiAction, reply: ApelinProtocol.UIActionResponse())
+        let tap = ApelinAgent.UIActionRequest(context: fixture.context(), targetID: nil, action: .tap(x: 1, y: 2))
+        #expect(try await fixture.backend.uiAction(tap).message == "", "only a wake answers the lock state")
     }
 
     @Test

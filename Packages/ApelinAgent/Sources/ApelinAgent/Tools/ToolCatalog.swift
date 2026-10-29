@@ -110,7 +110,7 @@ public extension AgentToolName {
         case .crashSymbolicate: "Symbolicate a crash report against the project's matching dSYM and rank suspects."
         case .screenCapture: "Take a screenshot of the device or a target."
         case .screenReadTree: "Read the UI element tree of the foreground app or a target."
-        case .screenInteract: "Perform one UI action: tap, tap an element, type text, swipe, or press a button."
+        case .screenInteract: "Perform one UI action: tap, tap an element, type text, swipe, or press a button. While the device is locked or its screen is off only press_button wake runs, and it says what it left: a device with a passcode stays on its lock screen, so ask the user to unlock it, and never ask for or type the passcode."
         case .memoryList: "Read saved user preferences and facts for all chats and this project, with their current revision."
         case .memorySave: "Create or update a concise durable memory. Read apelin_memory_list first and supply its revision; never overwrite a user's correction or recreate a deleted memory from older context."
         case .memoryDelete: "Delete a memory that is outdated or that the user asks to forget. Read apelin_memory_list first and supply its revision."
@@ -452,7 +452,11 @@ public extension AgentToolName {
                 "to_y": Schema.number("Swipe end y."),
                 "element_id": Schema.string("Element id from apelin_screen_read_tree."),
                 "text": Schema.string("Text to type."),
-                "button": Schema.string("home, lock, volume_up or volume_down."),
+                "button": .object([
+                    "type": "string",
+                    "enum": ["wake", "home", "lock"],
+                    "description": "wake turns the screen on and takes a device without a passcode past its lock screen; on a device already awake it presses nothing, so wake the device with it, never with home. home sends the front app to the home screen. lock is the side button: the screen goes off and the device locks, so press it only when locking is what you are testing, and wake the device after. A press acts on the whole device: leave target_id out.",
+                ]),
             ], required: ["action"])
         }
     }

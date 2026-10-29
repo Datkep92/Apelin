@@ -136,9 +136,24 @@ public extension ChannelHostBackend {
         return UIElementNode(id: "screen", role: "application", label: pid > 0 ? "pid \(pid)" : nil, children: children)
     }
 
-    func uiAction(_ request: ApelinAgent.UIActionRequest) async throws -> UIActionResponse {
-        try await service.uiAction(Self.action(request.action), targetID: request.targetID)
-        return UIActionResponse(performed: true)
+    func uiAction(_ request: ApelinAgent.UIActionRequest) async throws -> ApelinAgent.UIActionResponse {
+        let response = try await service.uiAction(Self.action(request.action), targetID: request.targetID)
+        return ApelinAgent.UIActionResponse(performed: true, message: Self.afterWake(response))
+    }
+
+    /// What a wake left, in words the model acts on; empty after any other
+    /// action, which answers neither.
+    internal static func afterWake(_ response: ApelinProtocol.UIActionResponse) -> String {
+        if response.screenOff == true {
+            return "The screen is still off. Press wake once more; if it stays off, ask the user to wake the device."
+        }
+        if response.locked == true {
+            return "The screen is on, but the device is still locked: a device with a passcode stays on its lock screen after a wake. For anything past the lock screen, ask the user to unlock the device, and never ask for or type the passcode."
+        }
+        if response.locked == false {
+            return "The screen is on and the device is unlocked."
+        }
+        return ""
     }
 
     internal static func action(_ action: ApelinAgent.UIAction) throws -> ApelinProtocol.UIAction {

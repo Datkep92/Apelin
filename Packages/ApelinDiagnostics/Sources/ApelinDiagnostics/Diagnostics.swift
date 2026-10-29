@@ -317,11 +317,20 @@ public struct Diagnostics: LogEvidenceSource, LiveLogSource {
     /// target (`foregroundApp().verified`); this does not re-decide that.
     /// `settled` is as for `uiTree`: an element tap waits for the foreground
     /// to settle only when the caller has not.
+    ///
+    /// A wake is the way back from a locked device or a dark screen, so it
+    /// alone needs neither, and it answers the lock state it left: a device
+    /// with a passcode stays on its lock screen until the user unlocks it.
+    /// Every other action answers nil.
+    @discardableResult
     public func perform(
         _ action: UIAction,
         settled: ForegroundApp? = nil,
-    ) throws {
+    ) throws -> LockState? {
         try action.validate()
+        if action == .press(.wake) {
+            return try Self.decodeLock(icli.pressButton(HardwareButton.wake.icliName))
+        }
         try requireUnlocked()
         switch action {
         case let .tap(point):
@@ -339,14 +348,24 @@ public struct Diagnostics: LogEvidenceSource, LiveLogSource {
             _ = try icli.swipe(x1: from.x, y1: from.y, x2: to.x, y2: to.y, seconds: seconds)
         case let .type(text, delay):
             _ = try icli.typeText(text, delayMS: delay)
+        case let .press(button):
+            // Home and the side button; the wake went above.
+            _ = try icli.pressButton(button.icliName)
         }
+        return nil
     }
 
     private func requireUnlocked() throws {
-        let lock = icli.lockState()
-        if lock["locked"] as? Bool == true || lock["screen_off"] as? Bool == true {
-            throw DiagnosticsError.locked
+        let lock = Self.decodeLock(icli.lockState())
+        guard lock.allowsInput else {
+            throw DiagnosticsError.locked(screenOff: lock.screenOff)
         }
+    }
+
+    /// icli's `locked` and `screen_off`, from `lockState()` or a wake; a
+    /// field it leaves out reads as false.
+    static func decodeLock(_ raw: [String: Any]) -> LockState {
+        LockState(locked: raw["locked"] as? Bool ?? false, screenOff: raw["screen_off"] as? Bool ?? false)
     }
 
     // MARK: Apps

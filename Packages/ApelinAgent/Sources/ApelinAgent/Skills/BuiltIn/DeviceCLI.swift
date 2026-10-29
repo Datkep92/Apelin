@@ -43,6 +43,22 @@ extension BuiltInSkills {
           `screen info` first, since coordinates are points in the
           orientation shown
 
+        ## A dark or locked screen
+        While the device is locked or its screen is off, the UI tree and
+        every screen action but a wake refuse, and say which it is.
+        `apelin_screen_interact` with `press_button` `wake` turns the screen
+        on and takes a device without a passcode past its lock screen; on a
+        device already awake it presses nothing, so wake the device with
+        it, never with home, and use it rather than `icli button`. Its
+        answer says whether the device is still locked; `icli screen info`
+        reads the same `locked` and `screen_off` at any time, locked or not.
+        A device with a passcode stays on its lock screen after a wake: for
+        anything past it, ask the user to unlock the device. Never ask for,
+        read or type a passcode, and never run `icli device passcode`.
+        `lock` presses the side button, which turns the screen off and
+        locks the device: press it only when locking is what you are
+        testing, and wake the device after.
+
         ## Probing with JavaScript
         When no command answers a question about the device — whether a
         class or a private method exists, what an object returns, what a
