@@ -320,7 +320,8 @@ struct AccountDeskTests {
         #expect(listed.map(\.id) == [canonical, added], "the provider's own is first")
         #expect(listed[0].profileID == nil && listed[0].name == nil)
         #expect(listed[1].profileID == added && listed[1].name == "Work")
-        #expect(listed.allSatisfy(\.signedIn))
+        let allSignedIn = listed.allSatisfy { $0.signedIn }
+        #expect(allSignedIn)
 
         let configuration = try await desk.apiConfiguration(for: .anthropic, profileID: added)
         #expect(configuration.values["apiKey"] == "sk-ant-second")
@@ -348,8 +349,8 @@ struct AccountDeskTests {
         #expect(strays.map(\.id) == [canonical])
 
         try await desk.signOut(.anthropic, profileID: added)
-        #expect(try await store.credentials(for: added) == nil)
-        #expect(try await store.credentials(for: canonical) != nil)
+        #expect(await store.credentials(for: added) == nil)
+        #expect(await store.credentials(for: canonical) != nil)
     }
 
     @Test
@@ -369,10 +370,10 @@ struct AccountDeskTests {
         try await desk.respond(AgentSignInRespondRequest(taskID: task, fields: [.apiKey: "sk-ant-SECRET"]))
         try await recorder.waitFor { $0.state != nil }
         #expect(recorder.state == .succeeded)
-        let saved = try #require(try await store.credentials(for: added))
+        let saved = try #require(await store.credentials(for: added))
         #expect(saved.access == "sk-ant-SECRET")
         #expect(saved.extras[AccountDesk.profileNameExtra] == .string("Work key"), "one line, trimmed")
-        #expect(try await store.credentials(for: canonical) == nil, "the provider's own is untouched")
+        #expect(await store.credentials(for: canonical) == nil, "the provider's own is untouched")
         #expect(!recorder.transcript.contains("SECRET"))
         let account = await desk.list().accounts.first { $0.provider == .anthropic && $0.profileID != nil }
         #expect(account?.name == "Work key")
