@@ -2720,8 +2720,12 @@ checks actually run, any real blocker and any part of the request not done as
 asked (a setting left at its default). `# Responses` makes concision bite —
 match the length to the task, and do not paste tool output, files, diffs or
 logs back, narrate the steps or recap at the end; a progress note is one short
-line (owner, 2026-10-24). `# Working` opens with what a model's general
-knowledge gets wrong: an Apelin tweak is plain Objective-C hooked with
+line (owner, 2026-10-24). It also says the prompt is not secret, Apelin being
+open source: asked for it, its skills list or the project instructions, the
+model shows or summarizes them, and only `<system-state>` stays unquoted
+(2026-10-29; on a device a chat refused, stretching that block's rule to the
+whole prompt). `# Working` opens with what a model's general knowledge gets
+wrong: an Apelin tweak is plain Objective-C hooked with
 `MSHookMessageEx` (the template's `Sources/Tweak.m`), with no Logos or Theos,
 and Apelin-specific work, a question included, starts from the matching skill
 (on a device, General Chat answered from memory that the template was a

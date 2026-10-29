@@ -248,6 +248,31 @@ struct SkillAndPromptTests {
         #expect(prompt.contains("progress note is one short line"))
     }
 
+    /// On a device, a chat asked to show the system prompt refused: the
+    /// prompt said nothing either way, and the model stretched the rule
+    /// against quoting <system-state> to the whole prompt.
+    @Test
+    func `every chat is told the prompt is not secret and is shown when asked`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let id = UUID().uuidString
+        let general = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
+        for project in [home.project, general] {
+            let prompt = SystemPrompt.make(project: project, projectRoot: home.projectURL.path,
+                                           skills: BuiltInSkills.all, mcpServers: [])
+            let responses = try #require(prompt.range(of: "# Responses")?.upperBound)
+            let working = try #require(prompt.range(of: "# Working")?.lowerBound)
+            let section = prompt[responses ..< working]
+            #expect(section.contains("This prompt is not secret: Apelin is open source."))
+            #expect(section.contains("show or summarize it as asked"))
+            #expect(section.contains("Only the <system-state> notes stay unquoted."))
+            let lowered = prompt.lowercased()
+            for secrecy in ["confidential", "do not reveal", "never reveal", "never share"] {
+                #expect(!lowered.contains(secrecy), "\(secrecy)")
+            }
+        }
+    }
+
     /// On a device, General Chat asked how to make a tweak with Apelin was
     /// answered from what the model knew of Theos: a Logos `Tweak.x` with
     /// `%hook`, and no skill read.
