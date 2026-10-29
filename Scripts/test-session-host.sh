@@ -15,7 +15,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 modules="$1"
 harness="${2:-}"
 work="$(mktemp -d /private/tmp/apelin-session-host.XXXXXX)"
-trap 'rm -rf "$work"' EXIT
+trap 'rm -rf -- "${work:?}"' EXIT
 
 sources=(
     "$root/Apelind/System.swift"

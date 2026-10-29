@@ -66,6 +66,10 @@ extension BuiltInSkills {
         - Spell paths `@PREFIX@/…` (bootstrap) and `@ROOTFS@/…` (system), the
           only tokens substituted, as the apelin-bootstrap-paths skill says; `sh -n`
           must pass.
+        - Start with `set -e`. A path a script removes, moves or overwrites
+          is written out in full (`@PREFIX@/Library/…`); one that has a
+          variable in it spells it `${name:?}`, so the script stops when the
+          variable is empty instead of running `rm -rf` on `/` as root.
         - A daemon your package ships is loaded by its postinst: boot the
           label out of `system/`, `user/501/` and `gui/501/` (roothide's
           launchctl can put a bootstrap daemon in the per-user domain), then

@@ -11,7 +11,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 modules="$1"
 work="$(mktemp -d -t apelin-chat-transcript)"
-trap 'rm -rf "$work"' EXIT
+trap 'rm -rf -- "${work:?}"' EXIT
 
 sources=(
     "$root/Apelin/Interface/Chats/ChatSummary.swift"

@@ -100,7 +100,10 @@ extension BuiltInSkills {
         - a build script or Makefile: the variables Apelin sets when it runs
           (`$APELIN_PROJECT_ROOT`, `$SDKROOT`, `$APELIN_TOOLCHAIN_BIN`, and
           for a workspace build `$APELIN_PREFIX` and `$APELIN_PACKAGE_DIR`),
-          or paths relative to the project.
+          or paths relative to the project. Each is checked before it is
+          used (`${APELIN_PACKAGE_DIR:?}`), since a run that did not set it
+          leaves it empty; `$APELIN_PREFIX` is empty on roothide by design,
+          so nothing is removed under it alone.
         - a note (`AGENTS.md`, memory, a skill): the place in words or a
           variable ("the project root", "the registered iOS 17 SDK",
           `$SDKROOT`), never its path.

@@ -64,6 +64,7 @@ STALE_STRINGS_CHECK := $(ROOT_DIR)/Scripts/check-stale-strings.py
 FORMAT_STRINGS_CHECK := $(ROOT_DIR)/Scripts/check-format-strings.py
 TRANSLATIONS_CHECK := $(ROOT_DIR)/Scripts/check-translations.py
 CATALOG_KEYS_CHECK := $(ROOT_DIR)/Scripts/check-catalog-keys.py
+SHELL_DELETES_CHECK := $(ROOT_DIR)/Scripts/check-shell-deletes.py
 SYMBOL_CHECK        := $(ROOT_DIR)/Scripts/check-symbol-availability.py
 RPATH_CHECK         := $(ROOT_DIR)/Scripts/check-rpath-dependencies.py
 # The device harness: console scripts and suites on a vphone or a device,
@@ -247,7 +248,7 @@ check:
 	@test -d "$(PROJECT)" || { echo "error: Apelin.xcodeproj is missing" >&2; exit 66; }
 	@for script in "$(DEB_PACKAGER)" "$(DEVICE_INSTALLER)" "$(VERSION_APPLIER)" "$(XCODEBUILD_WRAPPER)" \
 		"$(LICENSE_COLLECTOR)" "$(ACCESSIBILITY_CHECK)" "$(STALE_STRINGS_CHECK)" "$(FORMAT_STRINGS_CHECK)" "$(TRANSLATIONS_CHECK)" \
-		"$(CATALOG_KEYS_CHECK)" \
+		"$(CATALOG_KEYS_CHECK)" "$(SHELL_DELETES_CHECK)" \
 		"$(SYMBOL_CHECK)" "$(RPATH_CHECK)" "$(SCHEMA_FIXTURES_CHECK)" "$(TEMPLATES_CHECK)" \
 		"$(EXTENSIONS_PACKAGER)" "$(AGENT_TOOLS_BUILDER)" "$(DEVICE_TOOL)"; do \
 		test -x "$$script" || { echo "error: $${script#$(ROOT_DIR)/} is not executable" >&2; exit 66; }; \
@@ -388,6 +389,9 @@ check:
 	@"$(FORMAT_STRINGS_CHECK)" "$(ROOT_DIR)/Apelin" "$(ROOT_DIR)/Widgets"
 	@"$(TRANSLATIONS_CHECK)" "$(ROOT_DIR)/Apelin" "$(ROOT_DIR)/Widgets"
 	@"$(SYMBOL_CHECK)" "$(IOS_DEPLOYMENT_FLOOR)" $(SOURCE_ROOTS)
+	@# An empty variable in a removed path removes from /, the bootstrap's
+	@# root on roothide: every recursive rm checks its variables with :?.
+	@"$(SHELL_DELETES_CHECK)" "$(ROOT_DIR)"
 
 # The Mac half of "where things get tested": what can run without a device.
 # RoothideRoot against libroothide's own name rule, ExecutableWatch against a
@@ -414,7 +418,7 @@ check:
 harness:
 	@python3 -I -B "$(ROOT_DIR)/Tests/ToolchainAudit/test_inventory.py"
 	@harness_dir="$$(mktemp -d /private/tmp/apelin-harness.XXXXXX)"; \
-	trap 'rm -rf "$$harness_dir"' EXIT; \
+	trap 'rm -rf -- "$${harness_dir:?}"' EXIT; \
 	xcrun --sdk macosx swiftc -swift-version 5 \
 		"$(ROOT_DIR)/Shared/RoothideRoot.swift" \
 		"$(ROOT_DIR)/Tests/RoothideRoot/main.swift" \
@@ -637,5 +641,7 @@ device-run:
 	@$(DEVICE_TOOL_ENV) "$(DEVICE_TOOL)" run $(SCRIPT)
 
 clean:
-	rm -rf "$(DERIVED_DATA)"
-	rm -rf "$(ROOT_DIR)/build/Packages"
+	@test -n "$(DERIVED_DATA)" && test -n "$(ROOT_DIR)" \
+		|| { echo "error: DERIVED_DATA and ROOT_DIR must name folders; refusing to remove anything" >&2; exit 64; }
+	rm -rf -- "$(DERIVED_DATA)"
+	rm -rf -- "$(ROOT_DIR)/build/Packages"

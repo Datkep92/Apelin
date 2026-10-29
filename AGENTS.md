@@ -48,6 +48,17 @@ the same executable in session mode; the workers are its children.
   install root.
 - **Every path is canonicalised before a decision is made about it.**
   `realpath(3)` first, then compare components; reject an embedded NUL first.
+- **A recursive `rm` never runs on an unchecked variable.** An empty one
+  makes the path `/`, which on roothide is the bootstrap's root, and a
+  maintainer script runs as root. Apelin's scripts, the
+  `update-repository.sh` it writes into a user's package repository and the
+  scripts the agent's skills hand out spell each variable in a recursive
+  `rm` `${name:?}` (`$${name:?}` in a Makefile), so the shell stops before
+  the command runs; `make check` runs `Scripts/check-shell-deletes.py`. The
+  agent is told the same in the prompt's `# Working`, and the
+  apelin-external-build skill's script starts by checking every variable
+  Apelin sets (`$APELIN_PREFIX` set and empty on roothide), which
+  `EmptyVariableGuardTests` runs with them missing, empty and set.
 - **Start `ExecutableWatch` once, early in `didFinishLaunching`.** When the
   opened executable loses its last hard link, offer Later or Quit with wording
   covering both update and removal. Keep the registration-time check and the
