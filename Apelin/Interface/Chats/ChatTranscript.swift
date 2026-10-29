@@ -583,6 +583,7 @@ struct ChatTranscript {
         case .gitSetAuthor: return String(localized: "Set the commit author")
         case .gitSaveCredential: return String(localized: "Save a Git credential")
         case .gitRemoveCredential: return String(localized: "Remove a Git credential")
+        case .gitCreateRepository: return String(localized: "Create a GitHub repository")
         case .conversationCreate: return String(localized: "Create a chat")
         case .conversationSend: return String(localized: "Send to a chat")
         case .conversationList: return String(localized: "List chats")

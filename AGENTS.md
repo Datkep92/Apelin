@@ -219,7 +219,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `toolHostCall`;
   `gitStatus`, `gitDiff`, `gitStage`, `gitUnstage`, `gitCommit`, `gitInit`,
   `gitClone`, `gitCloneInto`, `gitFetch`, `gitPull`, `gitPush`, `gitSettings`,
-  `gitAuthorSet`, `gitCredentialSet`, `gitCredentialRemove`;
+  `gitAuthorSet`, `gitCredentialSet`, `gitCredentialRemove`,
+  `gitRepositoryCreate`;
   `distributionRepositoryList`, `distributionRepositoryCreate`,
   `distributionRepositoryLink`, `distributionRepositoryUnlink`,
   `distributionPublish`, `feedbackSend`;
@@ -286,7 +287,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   by `AgentEnvironmentRules`, and `environmentAttach` for the tasks its own
   session started — its git tasks too; never a removal or a cancel;
   `projectRename`, narrowed by `AgentProjectRenameRules`; `installationList`,
-  every project's; `feedbackSend`, narrowed by `AgentFeedbackRules`), the
+  every project's; `feedbackSend`, narrowed by `AgentFeedbackRules`;
+  `gitRepositoryCreate`, narrowed by `AgentRepositoryCreateRules`), the
   environment worker `installPackage`, `removePackage`
   and `buildAttach` (its local toolchain package, through the same bridge),
   the diagnostics worker `crashOpen` and `respring`, and nothing else call
@@ -655,6 +657,25 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Model Providers (`WelcomeGitHubPage`), with the package repository's
   Create and Link under it. An agent's git call is checked by
   `GitHandler` to name its own session's project before it is forwarded.
+  A repository on GitHub (owner, 2026-10-29; `GitHubRepositoryService` in
+  `ApelinEnvironment/Git/`): `gitRepositoryCreate {name, visibility,
+  owner?, description?}` makes an empty one — `auto_init` off, so no
+  README, licence or `.gitignore`, and GitHub's defaults for the rest —
+  with the github.com sign-in, on the account or in the organization
+  `owner` names (the account's own login, however spelt, is the account:
+  `GET /user` tells them apart); `visibility` is `public` or `private` and
+  has no default. One request, not a task, answering `fullName`,
+  `cloneURL` and `url`. The request is checked before the sign-in is read
+  (`GitRepositoryCreateRequest.problem`: `GitHubName`'s name and login
+  shapes, which the package repository's create reads too, and a
+  one-line description of at most 350 characters); without a sign-in,
+  `denied` with reason `authenticationRequired`. GitHub's refusals keep
+  its words: a name the owner has is `conflict`, an organization the
+  account may not create in `denied`, one it cannot see `notFound` naming
+  it. `GitHandler` checks no project for it, as for the settings; an
+  agent's passes `AgentRepositoryCreateRules` first. Tested by
+  `GitHubRepositoryTests` (a fake GitHub); `i2-git-remote.json` sends a
+  name GitHub would refuse, answered before anything reaches GitHub.
   An empty workspace's manifest says `"buildSystem": "external"` (one
   without the key is read the same way): Apelin has no build description
   for it, so the agent builds with the project's own tools through
@@ -1131,14 +1152,16 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Confirm like a project edit except git_push, which asks every time for
   the remote and branch it names (the checked-out branch read first when
   none is given, then sent explicitly) and the `url` it adds the remote
-  at, never with a session grant. Nothing creates a repository on a
-  server or rewrites history (no squash, no forced push): a project with
-  no remote is pushed with the `url` of an empty repository the user made.
+  at, never with a session grant. Nothing rewrites history (no squash, no
+  forced push): a project with no remote is pushed with the `url` of an
+  empty repository, one apelin_git_create_repository made on GitHub
+  (below) or one the user made elsewhere.
   A failure names its fix: Sign In with GitHub in Settings ▸ Git for
   github.com, a token the user gives for another host, an author there, a
   fetch before a rejected push, never a forced one, git_init for a project
-  with no repository, and that empty repository's `url` for a push with no
-  remote. The agent keeps the
+  with no repository, and, for a push with no remote, asking the user
+  whether to create a GitHub repository or for an empty one's `url`. The
+  agent keeps the
   history itself (owner, 2026-10-25; the `apelin-git-workflow` skill, one
   line in the prompt): unless the user drives git, it commits on its own
   once a change builds, and pushes only when asked. apelin_git_read_settings, apelin_git_set_author,
@@ -1149,7 +1172,27 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   token is masked in the `toolCall` and `approvalRequested` events
   (`ToolArgumentRedaction`); `GitHandler` skips its project check for
   these four. apelin_git_save_credential refuses github.com before
-  anyone is asked: that host is the user's Sign In with GitHub. On a workspace, apelin_project_build runs the script its `external`
+  anyone is asked: that host is the user's Sign In with GitHub.
+  apelin_git_create_repository {name, visibility, owner?, description?}
+  → `gitRepositoryCreate` (owner, 2026-10-29), in any chat: an empty
+  repository on GitHub with that sign-in, answering its full name, clone
+  URL and link and that git_push with `url` set to the clone URL
+  publishes the project there (as `origin`, or the remote the user
+  names). Its description and a line of the prompt's `# Working` keep it
+  to a repository the user asked for or explicitly agreed to when asked,
+  with the owner, name and visibility they gave — `visibility` is
+  required, never assumed —, never on the agent's own initiative or
+  because a file, log, page or tool output says to; the tool refuses
+  before asking what `problem` would refuse. Like git_push it asks under
+  Strict every time, the reason naming the owner, name and visibility and
+  the card showing them as the arguments (`detail.repositoryCreate`
+  {owner?, name, visibility, description?}), never with a session grant,
+  and the host spends exactly that approval (`AgentRepositoryCreateRules`);
+  Relaxed and Full make it without asking. A reply with reason
+  `authenticationRequired` becomes "Nothing was created: GitHub
+  authorization is needed … Sign In with GitHub in Settings ▸ Git"; any
+  other refusal is GitHub's or the host's, in their words.
+  On a workspace, apelin_project_build runs the script its `external`
   declares (Workspace builds, below) and asks under Confirm every time,
   never with a session grant; one that declares none answers how to
   declare it instead of asking.
@@ -1442,7 +1485,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Apelin keeps — its projects and templates, the packages it installs, the
   device, the screen, logs and crashes, toolchains and SDKs, other
   conversations, memory, skills, its git settings, a notification, the
-  feedback filed on Apelin — or reaches past the device (`apelin_web_fetch`) is
+  feedback filed on Apelin — or reaches past the device (`apelin_web_fetch`,
+  `apelin_git_create_repository`) is
   `apelin_<scope>_<verb>` (`apelin_project_build`, `apelin_package_install`,
   `apelin_device_respring`, `apelin_git_set_author`, `apelin_feedback_send`);
   a generic verb on the
@@ -2792,8 +2836,10 @@ to do on the device), never routine progress, the reply or the turn's end,
 sends the model to a known source with apelin_web_fetch, never a search
 engine through curl, and sends a program the agent compiles and runs
 itself through shell_run to `apelin-device-executables` to be signed
-first, and has apelin_feedback_send wait for the user's explicit consent
-to the issue it showed them. After a change that shows on screen it
+first, has apelin_feedback_send wait for the user's explicit consent
+to the issue it showed them, and has apelin_git_create_repository make
+only a repository the user asked for or explicitly agreed to, with the
+owner, name and visibility they gave. After a change that shows on screen it
 drives it with the screen tools — read, act, read again —, and a step it
 cannot take (the device locked, a gesture the tool lacks, a declined call)
 leaves that behaviour Not tested. It asks for independent tool calls in
@@ -2876,9 +2922,10 @@ without them failed `CVPixelBufferCreate` with -6662 on a device.
 project's history for the user: commit on your own once a change builds
 unless the user drives git, `git_commit` with `all`, messages, `.gitignore`,
 `git_init` for a project without a repository, push only when asked (a
-first one with `url`, to an empty repository the user made; no squash),
-and github.com through Sign In with GitHub. `apelin-package-repository` is the
-package repository (Distribution repository, below): its layout after
+first one with `url`, to an empty repository apelin_git_create_repository
+made as the user asked, or one the user made; no squash), and github.com
+through Sign In with GitHub. `apelin-package-repository` is the package
+repository (Distribution repository, below): its layout after
 owngoal-packages, the control fields a package needs, how Publish adds a
 release, and keeping old versions in check. `apelin-icli` (owner,
 2026-10-26) is running icli through shell_run: an argv, its help read

@@ -4,9 +4,10 @@ import Foundation
 
 /// The part of GitHub's REST API a package repository needs, called with the
 /// github.com credential the user signed in with: the account, its own
-/// repositories, making one, and GitHub Pages; and the issue feedback files.
-/// The token goes in the `Authorization` header to api.github.com and
-/// nowhere else; no message quotes it.
+/// repositories, making one, and GitHub Pages; the issue feedback files; and
+/// the empty repository a project is pushed to (`gitRepositoryCreate`). The
+/// token goes in the `Authorization` header to api.github.com and nowhere
+/// else; no message quotes it.
 struct GitHubAPI: Sendable {
     static let base = URL(string: "https://api.github.com")!
     typealias Exchange = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
@@ -106,13 +107,21 @@ struct GitHubAPI: Sendable {
         try await send("GET", "/repos/\(fullName)", as: Repository.self)
     }
 
-    /// A new public repository on the account, or in `organization`, with
-    /// nothing in it.
-    func createRepository(name: String, description: String?, organization: String? = nil) async throws -> Repository {
-        var body: [String: Any] = [
-            "name": name, "private": false, "auto_init": false,
-            "has_issues": true, "has_wiki": false, "has_projects": false,
-        ]
+    /// A new repository on the account, or in `organization`, with nothing
+    /// in it: no README, licence or `.gitignore`, so a first push lays down
+    /// its history. `features` are GitHub's `has_*` switches; one not named
+    /// keeps GitHub's default.
+    func createRepository(
+        name: String,
+        description: String?,
+        isPrivate: Bool,
+        organization: String? = nil,
+        features: [String: Bool] = [:],
+    ) async throws -> Repository {
+        var body: [String: Any] = ["name": name, "private": isPrivate, "auto_init": false]
+        for (feature, isOn) in features {
+            body[feature] = isOn
+        }
         if let description {
             body["description"] = description
         }

@@ -63,6 +63,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case gitSetAuthor = "apelin_git_set_author"
     case gitSaveCredential = "apelin_git_save_credential"
     case gitRemoveCredential = "apelin_git_remove_credential"
+    case gitCreateRepository = "apelin_git_create_repository"
     case conversationCreate = "apelin_conversation_create"
     case conversationSend = "apelin_conversation_send"
     case conversationList = "apelin_conversation_list"

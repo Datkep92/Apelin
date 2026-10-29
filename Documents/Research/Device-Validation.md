@@ -180,6 +180,25 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] A GitHub repository made by the agent (2026-10-29, AGENTS.md ▸ The
+      environment worker ▸ Git and Agent sessions; none of it has run on a
+      device, and it makes repositories on a real account, so by hand
+      only). `make device-run SCRIPT=i2-git-remote` refuses a bad name
+      (`badRequest`) before anything reaches GitHub. Signed out of GitHub,
+      ask a project's conversation to open a private repository for it:
+      apelin_git_create_repository answers that GitHub authorization is
+      needed and names Sign In with GitHub in Settings ▸ Git, and nothing
+      is made. Signed in: asked for "a repository" without a visibility,
+      the agent asks public or private before calling the tool; under
+      Strict the card names the owner, name and visibility, offers no "for
+      this session", and Approve makes one empty private repository on the
+      account, which the model links; the model then calls git_push with
+      that clone URL, which asks again, and the push lands as `origin` and
+      the branch's upstream. Again with an organization the account may
+      create in, and one it may not (GitHub's refusal in its words), and a
+      name the account already has (`conflict`). In Relaxed, no card, and
+      still no repository the user did not ask for. Delete the test
+      repositories afterwards.
 - [ ] The folders a removed toolchain leaves (2026-10-29, AGENTS.md ▸
       Install bridge; none of it has run on a device). On roothide:
       Settings ▸ Toolchains ▸ Remove leaving no

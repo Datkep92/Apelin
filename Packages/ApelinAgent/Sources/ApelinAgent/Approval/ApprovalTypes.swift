@@ -1,3 +1,4 @@
+import enum ApelinProtocol.GitRepositoryVisibility
 import Foundation
 
 /// The approval modes (§7).
@@ -31,8 +32,8 @@ public struct ApprovalRequest: Sendable, Hashable, Codable {
     public var reason: String
     public var detail: ApprovalDetail
     /// Whether "for this session" may be offered. Never for package removal,
-    /// a push, an issue filed as feedback, or a request bound to a
-    /// description digest (the host's ledger keeps those).
+    /// a push, a repository made on GitHub, an issue filed as feedback, or a
+    /// request bound to a description digest (the host's ledger keeps those).
     public var allowsSessionScope: Bool
 
     public init(
@@ -101,6 +102,26 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// A public issue on Apelin's own repository: the whole title and body.
     /// The host lets through only the issue it names, once.
     case feedback(FeedbackApproval)
+    /// A repository made on GitHub under the user's account: its owner,
+    /// name and visibility. The host lets through only the repository it
+    /// names, once.
+    case repositoryCreate(RepositoryCreateApproval)
+}
+
+/// What an apelin_git_create_repository card names, and the host matches
+/// its request to (AgentRepositoryCreateRules): the request as the tool
+/// sends it. A nil owner is the signed-in account.
+public struct RepositoryCreateApproval: Sendable, Hashable, Codable {
+    public var owner: String?
+    public var name: String
+    public var visibility: GitRepositoryVisibility
+    public var description: String?
+    public init(owner: String?, name: String, visibility: GitRepositoryVisibility, description: String?) {
+        self.owner = owner
+        self.name = name
+        self.visibility = visibility
+        self.description = description
+    }
 }
 
 /// What an apelin_feedback_send card names, and the host matches its issue

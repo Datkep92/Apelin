@@ -56,7 +56,7 @@ enum GitFailure {
         }
         if reason == ApelinError.Reason.noSuchRemote.rawValue {
             guard operation == "git push" else { return nil }
-            return "The project has no such remote yet, and Apelin cannot create a repository on a server: ask the user for the HTTPS address of an empty repository they made for it (on github.com, with no README, licence or .gitignore), then git_push with url."
+            return "The project has no such remote yet: ask the user whether to create a GitHub repository for it with apelin_git_create_repository, and with which owner, name and visibility, or for the HTTPS address of an empty repository they made (no README, licence or .gitignore); then git_push with url."
         }
         if reason == ApelinError.Reason.remoteURLDiffers.rawValue {
             // The message says where the remote points and what to do instead.

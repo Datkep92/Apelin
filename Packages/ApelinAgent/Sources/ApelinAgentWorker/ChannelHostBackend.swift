@@ -41,7 +41,8 @@ import Foundation
 /// keeps them to this session's project, and to another one only as the
 /// user approved. apelin_toolchain_list, apelin_sdk_list, apelin_toolchain_setup,
 /// apelin_toolchain_self_test, apelin_sdk_import and apelin_project_set_environment's check:
-/// ChannelHostBackend+Environment. apelin_feedback_send → `feedbackSend`.
+/// ChannelHostBackend+Environment. apelin_feedback_send → `feedbackSend`;
+/// apelin_git_create_repository → `gitRepositoryCreate`.
 public struct ChannelHostBackend: AgentHostBackend {
     public let service: ApelinService
     public let sessionID: String
@@ -589,6 +590,33 @@ public struct ChannelHostBackend: AgentHostBackend {
         try await git("git remove credential") { try await service.gitCredentialRemove(host: request.host) }
         return try await gitSettings(context: request.context)
     }
+
+    // MARK: apelin_git_create_repository
+
+    /// Without a github.com sign-in, or with one GitHub refused, the model
+    /// hears where the user signs in, read from the reply's reason; any
+    /// other refusal is GitHub's or the host's, in their words.
+    public func createRepository(_ request: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse {
+        let response: GitRepositoryCreateResponse
+        do {
+            response = try await service.gitRepositoryCreate(GitRepositoryCreateRequest(
+                name: request.name,
+                visibility: request.visibility,
+                owner: request.owner,
+                description: request.description,
+            ))
+        } catch let error as ApelinError where error.reason == .authenticationRequired {
+            throw GitToolFailure(message: Self.repositorySignInNeeded)
+        }
+        return RepositoryCreateToolResponse(
+            fullName: response.fullName,
+            cloneURL: response.cloneURL,
+            url: response.url,
+            next: "It is empty. To publish the project there, git_push with url \(response.cloneURL): it adds the remote as origin (or as the remote you name, when the user wants another), and asks the user in Strict mode as every push does.",
+        )
+    }
+
+    static let repositorySignInNeeded = "Nothing was created: GitHub authorization is needed. Ask the user to Sign In with GitHub in Settings ▸ Git, then try again."
 
     // MARK: apelin_feedback_send
 

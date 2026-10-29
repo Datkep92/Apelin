@@ -77,6 +77,9 @@ public protocol AgentHostBackend: Sendable {
     /// Saves a host's credential; the answer never carries the token.
     func gitSaveCredential(_ request: GitCredentialToolRequest) async throws -> GitSettingsToolResponse
     func gitRemoveCredential(_ request: GitCredentialRemoveToolRequest) async throws -> GitSettingsToolResponse
+    /// An empty repository on GitHub with the user's sign-in; the host
+    /// checks it was approved.
+    func createRepository(_ request: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse
     /// Another conversation in the session's project, opened with a first
     /// message; answers without waiting for it.
     func conversationCreate(_ request: ConversationCreateToolRequest) async throws -> ConversationCreateToolResponse
@@ -161,6 +164,10 @@ public extension AgentHostBackend {
 
     func sendFeedback(_: FeedbackToolRequest) async throws -> FeedbackToolResponse {
         throw ToolDeniedError(message: "sending feedback is not available here")
+    }
+
+    func createRepository(_: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse {
+        throw ToolDeniedError(message: "creating repositories is not available here")
     }
 }
 

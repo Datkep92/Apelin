@@ -101,6 +101,9 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For apelin_feedback_send: the issue, checked before asking, as it is
     /// sent.
     public var feedback: FeedbackApproval?
+    /// For apelin_git_create_repository: the repository, checked before
+    /// asking, as it is requested.
+    public var repositoryCreate: RepositoryCreateApproval?
 
     public init(
         tool: Tool,
@@ -310,6 +313,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
             }
             return .ask(reason: Self.feedbackReason(feedback), detail: .feedback(feedback))
 
+        // A repository on GitHub under the user's account, which outlives
+        // the conversation: every one asks, the card naming its owner, name
+        // and visibility.
+        case .gitCreateRepository:
+            guard let repository = facts.repositoryCreate else {
+                return .ask(reason: "The repository to create could not be read.", detail: .none)
+            }
+            return .ask(reason: Self.repositoryReason(repository), detail: .repositoryCreate(repository))
+
         // The device's git settings, for every project: each change asks,
         // and a saved token is never on the card.
         case .gitSetAuthor, .gitSaveCredential, .gitRemoveCredential:
@@ -416,6 +428,13 @@ public struct ApprovalPolicy: Sendable, Hashable {
 
     static func feedbackReason(_ feedback: FeedbackApproval) -> String {
         "Posts this title and body as a public issue on \(feedback.repository) under your GitHub account, where anyone can read it; Apelin adds its version, the iOS version and the bootstrap below it. Each one needs your approval."
+    }
+
+    static func repositoryReason(_ repository: RepositoryCreateApproval) -> String {
+        let place = repository.owner.map { "\($0)/\(repository.name) on GitHub" }
+            ?? "\(repository.name) on your GitHub account"
+        let who = repository.visibility == .public ? "anyone can see it" : "only people given access can see it"
+        return "Creates the empty \(repository.visibility.rawValue) repository \(place), where \(who). Each repository needs your approval."
     }
 
     static func skillReason(_ change: SkillChangeApproval) -> String {

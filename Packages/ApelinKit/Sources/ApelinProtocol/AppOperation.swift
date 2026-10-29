@@ -99,6 +99,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case gitAuthorSet
     case gitCredentialSet
     case gitCredentialRemove
+    case gitRepositoryCreate
 
     case distributionRepositoryList
     case distributionRepositoryCreate
@@ -133,7 +134,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .toolHostOpen, .toolHostClose, .toolHostCall: .toolHost
         case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitClone, .gitCloneInto, .gitFetch,
              .gitPull,
-             .gitPush, .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove:
+             .gitPush, .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove, .gitRepositoryCreate:
             .git
         case .transferExport, .transferInspect, .transferImport: .transfer
         case .distributionRepositoryList, .distributionRepositoryCreate, .distributionRepositoryLink,
@@ -223,6 +224,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .gitAuthorSet: GitAuthorSetRequest.self
         case .gitCredentialSet: GitCredentialSetRequest.self
         case .gitCredentialRemove: GitCredentialRemoveRequest.self
+        case .gitRepositoryCreate: GitRepositoryCreateRequest.self
         case .distributionRepositoryList: DistributionRepositoryListRequest.self
         case .distributionRepositoryCreate: DistributionRepositoryCreateRequest.self
         case .distributionRepositoryLink: DistributionRepositoryLinkRequest.self

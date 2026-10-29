@@ -234,6 +234,13 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: ack) { try await $0.gitCredentialSet(GitCredentialSetRequest(host: "example.com", username: "u", token: "t")) }
         case .gitCredentialRemove:
             return Row(reply: ack) { try await $0.gitCredentialRemove(host: "example.com") }
+        case .gitRepositoryCreate:
+            let created = GitRepositoryCreateResponse(
+                fullName: "u/r",
+                cloneURL: "https://github.com/u/r.git",
+                url: "https://github.com/u/r",
+            )
+            return Row(reply: created) { _ = try await $0.gitRepositoryCreate(GitRepositoryCreateRequest(name: "r", visibility: .private)) }
         }
     }
 

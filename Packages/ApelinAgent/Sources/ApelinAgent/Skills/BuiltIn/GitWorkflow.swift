@@ -59,10 +59,13 @@ extension BuiltInSkills {
         - Push only when asked: `git_status` and `git_diff` first, then
           `git_push` to the branch it is on; never forced. A rejected push is
           `git_fetch` and `git_pull`, then the push again.
-        - A project with no remote yet: Apelin cannot create a repository on
-          a server. Ask the user to make an empty one (no README, licence or
-          `.gitignore`) and give you its HTTPS address, then `git_push` with
-          `url`, which adds it as the remote first.
+        - A project with no remote yet: when the user asks for a repository
+          on GitHub, or agrees when you ask, `apelin_git_create_repository`
+          makes an empty one with the owner, name and visibility (public or
+          private) they gave; never pick those for them. For another host,
+          ask the user to make an empty one (no README, licence or
+          `.gitignore`) and give you its HTTPS address. Then `git_push` with
+          that `url`, which adds it as the remote first.
         - Nothing squashes or rewrites commits: say so, and never work
           around it.
         - github.com signs in through Settings ▸ Git ▸ Sign In with GitHub:
