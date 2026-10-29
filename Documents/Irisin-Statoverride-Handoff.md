@@ -16,7 +16,7 @@ Installation stopped: Unknown statoverride account
 
 ## 已确认的证据
 
-- 复现设备：vphone Kiwi，SSH 地址在本次排查时为 `192.168.64.11`。不要将这些观察直接套用到用户的另一台 iPhone。
+- 复现设备：vphone Kiwi。不要将这些观察直接套用到用户的另一台 iPhone。
 - Apelin 的工具链已完成打包，失败发生在 Irisin 的安装准备阶段，不是下载或打包失败。
 - 设备全局权限覆盖表 `/Library/dpkg/statoverride` 原有以下两条记录：
 
@@ -32,7 +32,7 @@ Installation stopped: Unknown statoverride account
 
 ## 代码入口
 
-Irisin 仓库：`/Users/82flex/Projects/Irisin`
+Irisin 仓库：本地的 Irisin checkout
 
 文件：`Packages/IrisinKit/Sources/IrisinInstaller/Database/PackageOverrides.swift`
 
