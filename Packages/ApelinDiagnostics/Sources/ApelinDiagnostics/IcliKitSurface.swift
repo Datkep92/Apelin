@@ -119,6 +119,10 @@
             try mapped { try IcliKit.typeText(text, delayMS: delayMS) }
         }
 
+        public func pressButton(_ name: String) throws -> [String: Any] {
+            try mapped { try IcliKit.pressButton(name) }
+        }
+
         public func frontmostApp() -> [String: Any] {
             IcliLaunch.frontmostApp()
         }
@@ -140,7 +144,7 @@
                 return try body()
             } catch let error as IcliError {
                 switch error {
-                case .locked: throw DiagnosticsError.locked
+                case .locked: throw DiagnosticsError.locked(screenOff: Diagnostics.decodeLock(lockState()).screenOff)
                 case let .unavailable(message): throw DiagnosticsError.unavailable(message)
                 default: throw DiagnosticsError.failed(error.message)
                 }

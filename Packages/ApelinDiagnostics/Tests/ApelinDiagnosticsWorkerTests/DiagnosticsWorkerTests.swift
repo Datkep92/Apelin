@@ -16,6 +16,10 @@ private final class FakeIcli: IcliSurface, @unchecked Sendable {
     var front: [String: Any] = ["bundle_id": "com.apple.springboard", "verified": true, "source": "runningboard"]
     var taps: [(Double, Double)] = []
     var elementTaps: [(String?, String?)] = []
+    var lockAnswer: [String: Any] = ["locked": false, "screen_off": false]
+    /// What a wake answers; every press, by icli's name.
+    var wakeAnswer: [String: Any] = ["button": "wake", "locked": false, "screen_off": false]
+    var presses: [String] = []
     /// The dispatch queue each `frontmostApp` call ran on.
     var frontQueues: [String] = []
 
@@ -80,6 +84,11 @@ private final class FakeIcli: IcliSurface, @unchecked Sendable {
         [:]
     }
 
+    func pressButton(_ name: String) throws -> [String: Any] {
+        presses.append(name)
+        return name == "wake" ? wakeAnswer : ["button": name]
+    }
+
     func frontmostApp() -> [String: Any] {
         let queue = String(cString: __dispatch_queue_get_label(nil))
         return lock.withLock {
@@ -89,7 +98,7 @@ private final class FakeIcli: IcliSurface, @unchecked Sendable {
     }
 
     func lockState() -> [String: Any] {
-        ["locked": false, "screen_off": false]
+        lockAnswer
     }
 
     func runningApps() throws -> [String: Any] {
@@ -335,7 +344,14 @@ final class DiagnosticsWorkerTests: XCTestCase {
         let service = DiagnosticsService(diagnostics: Diagnostics(icli: icli), host: ApelinService(transport: NoHost()), home: "/nonexistent", installRoot: "/")
         XCTAssertEqual(try DiagnosticsService.action(.tap(x: 1, y: 2)), .tap(UIPoint(x: 1, y: 2)))
         XCTAssertEqual(try DiagnosticsService.action(.tapElement(text: "OK", identifier: nil)), .tapElement(UIElementSelector(text: "OK", match: .exact)))
-        XCTAssertThrowsError(try DiagnosticsService.action(.press(button: "home")))
+        XCTAssertEqual(try DiagnosticsService.action(.press(button: "wake")), .press(.wake))
+        XCTAssertEqual(try DiagnosticsService.action(.press(button: "home")), .press(.home))
+        XCTAssertEqual(try DiagnosticsService.action(.press(button: "lock")), .press(.lock))
+        for unknown in ["power", "volume_up", "Home", ""] {
+            XCTAssertThrowsError(try DiagnosticsService.action(.press(button: unknown)), unknown) { error in
+                XCTAssertEqual((error as? ApelinError)?.code, .badRequest)
+            }
+        }
         XCTAssertNoThrow(try service.requireTarget("com.apple.springboard"))
         XCTAssertThrowsError(try service.requireTarget("com.apple.Preferences"))
     }
@@ -368,6 +384,32 @@ final class DiagnosticsWorkerTests: XCTestCase {
             XCTAssertEqual(queues.count, 2, "\(name): one settle is two matching reads")
             XCTAssertFalse(queues.contains { $0.contains("cooperative") }, "\(name): \(queues)")
         }
+    }
+
+    /// On a dark screen only a wake goes through, and its answer says what
+    /// it left; the refusal of anything else says it is the screen.
+    func testAWakeAnswersTheLockStateAndIsAllADarkScreenTakes() async throws {
+        let icli = FakeIcli()
+        icli.lockAnswer = ["locked": true, "screen_off": true]
+        icli.wakeAnswer = ["button": "wake", "locked": true, "screen_off": false]
+        let service = DiagnosticsService(diagnostics: Diagnostics(icli: icli), host: ApelinService(transport: NoHost()), home: "/nonexistent", installRoot: "/")
+        let woken = try await service.uiAction(.init(action: .press(button: "wake")))
+        XCTAssertEqual(woken, ApelinProtocol.UIActionResponse(locked: true, screenOff: false))
+        for action in [ApelinProtocol.UIAction.press(button: "home"), .tap(x: 1, y: 2)] {
+            do {
+                _ = try await service.uiAction(.init(action: action))
+                XCTFail("\(action) ran on a dark screen")
+            } catch let error as ApelinError {
+                XCTAssertEqual(error.code, .conflict)
+                XCTAssertTrue(error.message.hasPrefix("The screen is off."), error.message)
+            }
+        }
+        XCTAssertEqual(icli.presses, ["wake"])
+        XCTAssertTrue(icli.taps.isEmpty)
+
+        icli.lockAnswer = ["locked": false, "screen_off": false]
+        let tapped = try await service.uiAction(.init(action: .tap(x: 1, y: 2)))
+        XCTAssertEqual(tapped, ApelinProtocol.UIActionResponse(), "only a wake answers the lock state")
     }
 
     func testCrashListUsesFileNamesAsIDs() throws {

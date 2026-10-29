@@ -57,6 +57,10 @@ struct UnavailableIcli: IcliSurface {
         throw missing()
     }
 
+    func pressButton(_: String) throws -> [String: Any] {
+        throw missing()
+    }
+
     func frontmostApp() -> [String: Any] {
         [:]
     }

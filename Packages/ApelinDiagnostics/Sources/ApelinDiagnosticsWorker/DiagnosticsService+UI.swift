@@ -15,13 +15,15 @@ extension DiagnosticsService {
         return try ApelinProtocol.ReadUITreeResponse(tree: JSONValue(encoding: read))
     }
 
-    func uiAction(_ action: ApelinProtocol.UIActionRequest) async throws -> Acknowledged {
+    /// A wake answers the lock state it left; every other action, an empty
+    /// reply.
+    func uiAction(_ action: ApelinProtocol.UIActionRequest) async throws -> ApelinProtocol.UIActionResponse {
         let mappedAction = try Self.action(action.action)
-        try await blocking {
+        let lock = try await blocking {
             let front = try requireTarget(action.targetID)
-            try mapped { try diagnostics.perform(mappedAction, settled: front) }
+            return try mapped { try diagnostics.perform(mappedAction, settled: front) }
         }
-        return Acknowledged()
+        return ApelinProtocol.UIActionResponse(locked: lock?.locked, screenOff: lock?.screenOff)
     }
 
     /// An action is bound to the verified foreground app when a target is
@@ -58,7 +60,11 @@ extension DiagnosticsService {
                 seconds: Double(durationMilliseconds) / 1000,
             )
         case let .press(button):
-            throw ApelinError(.unavailable, "Pressing the \(button) button is not supported.")
+            guard let pressed = HardwareButton(rawValue: button) else {
+                let names = HardwareButton.allCases.map(\.rawValue).joined(separator: ", ")
+                throw ApelinError(.badRequest, "There is no \(button) button to press; the buttons are \(names).")
+            }
+            return .press(pressed)
         }
     }
 }

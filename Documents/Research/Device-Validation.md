@@ -180,6 +180,23 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] Waking the device from the agent (2026-10-29; none of it has run on
+      a device). A wake and a lock round trip on the iOS 26 and the iOS 27
+      vphones, iPhone and iPad, with no passcode: `uiAction` `press`
+      `lock` from an unlocked screen turning it off and locking it, then
+      `readUITree` and a `home` press refused as "The screen is off.", a
+      wake lighting the screen past the lock screen (`locked` and
+      `screenOff` false), a lit lock screen refused as "The device is
+      locked.", and `home` from an app reaching the home screen. The
+      `diagnostics` script's wake on an awake device answering `screenOff`
+      false and changing nothing. apelin-diagnostics carries fewer
+      entitlements than the icli CLI: that its wake (SpringBoardServices'
+      undim, then a HID home press) lights the screen as `icli button
+      wake` does. On an iPhone with a passcode: a wake leaving the lit lock
+      screen with `locked` true, and the agent asking the user to unlock it
+      rather than for the passcode; whether a screenshot of that lock
+      screen comes back. The agent waking the device by itself to check a
+      lock-screen tweak.
 - [ ] The trace sheet as a list (2026-10-28, none of it has run on a
       device). A summary's Trace opening an inset grouped list, one row
       per step in order — "Thoughts", each call's title, an approval's

@@ -34,4 +34,16 @@ struct ToolArgumentTests {
             try CommandClassifier.classify(["command": "ls", "script": "ls", "interpreter": "sh"])
         }
     }
+
+    @Test
+    func `press_button takes wake, home and lock, and nothing it cannot press`() throws {
+        for button in ["wake", "home", "lock"] {
+            #expect(try ToolRunner.uiAction(["action": "press_button", "button": .string(button)]) == .pressButton(button))
+        }
+        for button in ["volume_up", "volume_down", "power", ""] {
+            #expect(throws: ToolArgumentError.self) {
+                try ToolRunner.uiAction(["action": "press_button", "button": .string(button)])
+            }
+        }
+    }
 }

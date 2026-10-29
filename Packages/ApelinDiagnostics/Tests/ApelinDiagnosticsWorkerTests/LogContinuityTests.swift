@@ -163,6 +163,10 @@ private final class TimelineIcli: IcliSurface, @unchecked Sendable {
         throw unused()
     }
 
+    func pressButton(_: String) throws -> [String: Any] {
+        throw unused()
+    }
+
     func frontmostApp() -> [String: Any] {
         [:]
     }
