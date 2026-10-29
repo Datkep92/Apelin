@@ -180,8 +180,11 @@ struct SkillAndPromptTests {
     /// On a device, a VideoToolbox converter the agent built in shell_run
     /// failed `CVPixelBufferCreate` with -6662 until the user had it signed
     /// with the template's entitlements; unsigned, such a program exits 137.
+    /// From wiki.qaq.apelin.dev.cli 0.1.1 both cli templates carry the app
+    /// template's GPU classes (owner, 2026-10-29), so the skill's file is
+    /// theirs key for key.
     @Test(.timeLimit(.minutes(1)))
-    func `the apelin-device-executables skill carries the cli template's entitlements with the app template's GPU classes`() async throws {
+    func `the apelin-device-executables skill carries the cli templates' entitlements, the app template's GPU classes among them`() async throws {
         let home = try TemporaryHome()
         defer { home.remove() }
         let skill = try #require(BuiltInSkills.all.first { $0.name == "apelin-device-executables" })
@@ -191,16 +194,18 @@ struct SkillAndPromptTests {
         }
         let entitlements = try plist(Data(file.utf8))
         let templates = Self.repository.appendingPathComponent("Extensions/Development", isDirectory: true)
-        let tool = try plist(Data(contentsOf: templates.appendingPathComponent(
-            "wiki.qaq.apelin.dev.cli/templates/c/Packaging/Tool.entitlements",
-        )))
         let app = try plist(Data(contentsOf: templates.appendingPathComponent(
             "wiki.qaq.apelin.dev.app/templates/uikit-objc/Packaging/App.entitlements",
         )))
         let gpuKeys = ["com.apple.security.iokit-user-client-class", "com.apple.security.exception.iokit-user-client-class"]
-        #expect(Set(entitlements.keys) == Set(tool.keys).union(gpuKeys))
-        for (key, value) in tool {
-            #expect(entitlements[key] as? NSObject == value as? NSObject, "\(key) is not the cli template's")
+        for template in ["c", "objc"] {
+            let tool = try plist(Data(contentsOf: templates.appendingPathComponent(
+                "wiki.qaq.apelin.dev.cli/templates/\(template)/Packaging/Tool.entitlements",
+            )))
+            #expect(Set(entitlements.keys) == Set(tool.keys), "the keys are not the \(template) template's")
+            for (key, value) in tool {
+                #expect(entitlements[key] as? NSObject == value as? NSObject, "\(key) is not the \(template) template's")
+            }
         }
         for key in gpuKeys {
             let classes = try #require(entitlements[key] as? [String], "\(key) is missing")
@@ -211,6 +216,7 @@ struct SkillAndPromptTests {
         #expect(skill.body.contains("exit 137"))
         #expect(skill.body.contains("-6662"))
         #expect(skill.body.contains("\"-STool.entitlements\""))
+        #expect(skill.body.contains("version 0.1.1 of the command-line tool extension"))
         let runner = try runner(home)
         let served = try await text(runner.run(.local(.skillRead), toolCallID: UUID().uuidString,
                                                arguments: ["name": "apelin-device-executables", "file": "Tool.entitlements"],

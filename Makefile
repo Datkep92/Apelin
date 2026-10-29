@@ -72,6 +72,12 @@ ENTITLEMENTS        := $(ROOT_DIR)/Packaging/Apelin.entitlements
 DAEMON_ENTITLEMENTS := $(ROOT_DIR)/Packaging/Apelind.entitlements
 # The widget extension's (Widgets/Extension): sandboxed, the App Group alone.
 WIDGET_ENTITLEMENTS := $(ROOT_DIR)/Packaging/ApelinWidgets.entitlements
+# The development templates whose product is an executable signed with its
+# own entitlements, an app or a command-line tool: both carry the app's GPU
+# list. A tweak or a preference bundle is a library and runs with the
+# entitlements of the process that loads it.
+TEMPLATE_ENTITLEMENTS := $(wildcard $(ROOT_DIR)/Extensions/Development/wiki.qaq.apelin.dev.app/templates/*/Packaging/*.entitlements) \
+	$(wildcard $(ROOT_DIR)/Extensions/Development/wiki.qaq.apelin.dev.cli/templates/*/Packaging/*.entitlements)
 # The one App Group the app and the widget extension share; the snapshot's
 # store names it too (Widgets/Shared/ChatWidgetSnapshot.swift).
 APP_GROUP           := group.wiki.qaq.apelin
@@ -293,7 +299,7 @@ check:
 		! /usr/libexec/PlistBuddy -c 'Print :wiki.qaq.apelin.client' "$$entitlements" >/dev/null 2>&1 \
 			|| { echo "error: $${entitlements#$(ROOT_DIR)/} carries the client entitlement; workers reach the session host by socketpair only" >&2; exit 65; }; \
 	done
-	@"$(ROOT_DIR)/Scripts/check-gpu-entitlements.py" "$(ENTITLEMENTS)"
+	@"$(ROOT_DIR)/Scripts/check-gpu-entitlements.py" "$(ENTITLEMENTS)" $(TEMPLATE_ENTITLEMENTS)
 	@"$(ROOT_DIR)/Scripts/check-launchd-paths.py" "$(LAUNCH_DAEMON)" --substituted-by "$(DEB_PACKAGER)"
 	@# On demand (owner, 2026-10-16): launchd starts apelind for a message to
 	@# its Mach service, and apelind exits itself once idle. RunAtLoad or

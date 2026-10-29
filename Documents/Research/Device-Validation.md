@@ -666,11 +666,27 @@ console now goes on after a restart only past a successful respring.
       `CVPixelBufferCreate` for a 64×64 BGRA buffer with
       `kCVPixelBufferIOSurfacePropertiesKey` an empty dictionary and
       prints the status. Expected: unsigned, exit 137; signed `ldid
-      -S<cli template's Tool.entitlements>`, -6662; signed with the
-      skill's `Tool.entitlements`, 0. Then, in a Strict chat, ask for an
-      mp4 made into a GIF: the agent reads the skill, writes the file
-      into the project, signs before the first run (a card for ldid and
-      one for the run) and does not rewrite its decoder over -6662.
+      -S<a 0.1.0 cli project's Tool.entitlements>` (its four keys, no GPU
+      list), -6662; signed with the skill's `Tool.entitlements`, 0. Then,
+      in a Strict chat, ask for an mp4 made into a GIF: the agent reads
+      the skill, writes the file into the project, signs before the first
+      run (a card for ldid and one for the run) and does not rewrite its
+      decoder over -6662.
+- [ ] The cli templates' GPU list (2026-10-29, AGENTS.md ▸ Live chat and
+      project UI ▸ the templates, `wiki.qaq.apelin.dev.cli` 0.1.1; none
+      has run on a device). With the 0.1.1 extension installed, on the
+      iOS 26.4 and iOS 27.0.1 iPhone vphones (roothide) and a rootless
+      device: a new project from the C template, `CoreFoundation` and
+      `CoreVideo` added to its product's `frameworks`, whose `main` calls
+      `CVPixelBufferCreate` for a 64×64 BGRA buffer with
+      `kCVPixelBufferIOSurfacePropertiesKey` an empty dictionary and
+      prints the status; built, installed and run from the terminal, it
+      prints 0, and `ldid -e` on the installed tool lists
+      `IOSurfaceRootUserClient` under both keys. The same source in a
+      project made from 0.1.0, before the upgrade, prints -6662 until both
+      lists are copied into its `Packaging/Tool.entitlements`. In a Strict
+      chat, another new cli project's first build, its description
+      untouched, asks nothing.
 - [ ] Restarting an app installed again (2026-10-29, AGENTS.md ▸ Agent
       sessions ▸ apelin_package_install; none has run on a device). In an
       app project's conversation, with the app open from its last install:

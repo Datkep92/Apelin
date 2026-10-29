@@ -195,7 +195,12 @@ final class MacPipelineTests: XCTestCase {
         let product = try XCTUnwrap(result.products.products.first)
         let image = try MachOImage(contentsOfFile: product.executable)
         for slice in image.slices {
-            XCTAssertEqual(try image.entitlementsDictionary(of: slice)?["com.apple.private.security.no-sandbox"] as? Bool, true)
+            let entitlements = try image.entitlementsDictionary(of: slice)
+            XCTAssertEqual(entitlements?["com.apple.private.security.no-sandbox"] as? Bool, true)
+            // the GPU list the template carries from 0.1.1, under both keys
+            for key in ["com.apple.security.iokit-user-client-class", "com.apple.security.exception.iokit-user-client-class"] {
+                XCTAssertTrue((entitlements?[key] as? [String])?.contains("IOSurfaceRootUserClient") == true, key)
+            }
         }
         XCTAssertNil(result.record.loadCheck)
         let contents = try DebArchiveReader.contents(of: .path(result.record.path), contentsLimit: 0)

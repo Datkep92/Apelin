@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "wiki.qaq.apelin.dev.cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "kind": "cli",
   "displayName": "Command-Line Tool Development",
   "summary": "C and Objective-C command-line tools installed into the bootstrap's /usr/bin.",
@@ -44,7 +44,7 @@
         { "path": "Sources/main.c", "format": "c" },
         { "path": "Packaging/Tool.entitlements", "format": "plist-xml" }
       ],
-      "digest": "sha256:23825ef79a216000b34fce4e6cffdfdad64fe625f91c2237a3853e2551cadcbe"
+      "digest": "sha256:8346da3d9a0681055789e16493b86bc5c3c12cf4729e602fd8a525dfa1404d13"
     },
     {
       "id": "objc",
@@ -65,7 +65,7 @@
         { "path": "Sources/main.m", "format": "objc" },
         { "path": "Packaging/Tool.entitlements", "format": "plist-xml" }
       ],
-      "digest": "sha256:0c137ce0b301347fa84bf472e9f451f9c788f65c59f529c71e639c56de6cc8ec"
+      "digest": "sha256:27f6658ef5fa8ba25fae4714531e99d139cadb513ba6a38a0f72ce8bb4952fc0"
     }
   ],
   "provenance": [
@@ -77,6 +77,7 @@
       "paths": ["template/packaging/PROGRAM.entitlements", "template/packaging/DEBIAN/control", "template/scripts/package-deb.sh"],
       "adaptations": [
         "Kept: the four entitlements with their reasons (platform-application, no-sandbox, the two storage classes roothide needs, container-required explicitly false), the /usr/bin install path and a control file without extra dependencies.",
+        "Added: the IOKit user-client list of the uikit-objc and uikit-swift templates (from platformize-app-ios) under both spellings of the key, so a tool that calls VideoToolbox, Core Video, Core Image or Metal can allocate IOSurfaces and reach the GPU.",
         "Changed: platformize-bin-ios ports an upstream program; here the program itself is new, a small C tool written for Apelin with sysexits exit codes so the acceptance check can test output and exit status.",
         "Dropped: the libroot launcher in /usr/bin that re-execs the real binary from /usr/libexec (a ported tool needs the bootstrap PATH and certificate paths; this one does not), the upstream follow/patch machinery and the Mac build scripts."
       ]

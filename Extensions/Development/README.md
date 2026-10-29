@@ -34,7 +34,9 @@ manifest; nothing is retyped in the control files.
   version and build id, and the entitlements an app outside a container
   needs (with the GPU user-client list and why).
 - **c / objc** — a tool with `--version`, `--help`, a greeting and sysexits
-  exit codes, so acceptance checks output and status.
+  exit codes, so acceptance checks output and status, and from 0.1.1 the
+  app templates' GPU user-client list in its entitlements, so a tool that
+  calls VideoToolbox, Core Video or Metal gets its IOSurfaces.
 - **objc-bundle** — a `PSListController` subclass loading `Root.plist` with a
   switch and a text field stored in the package's own domain, posting
   `<package id>/changed`, and the PreferenceLoader entry.

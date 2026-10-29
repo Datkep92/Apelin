@@ -40,26 +40,31 @@ extension BuiltInSkills {
         with VideoToolbox kept getting -6662 (`kCVReturnAllocationFailed`)
         from `CVPixelBufferCreate` because no IOSurface could be made;
         rewriting the decoder did not help, and signing it with these
-        classes did. `Tool.entitlements` names them under both spellings of
-        the key, `com.apple.security.iokit-user-client-class` and
-        `com.apple.security.exception.iokit-user-client-class`, beside the
-        cli template's own keys. So when a media or GPU call fails in a
-        program you signed some other way, sign it again with this file and
-        run it again before changing the code.
+        classes did. `Tool.entitlements` carries the cli template's keys,
+        these classes among them under both spellings of the key,
+        `com.apple.security.iokit-user-client-class` and
+        `com.apple.security.exception.iokit-user-client-class`. So when a
+        media or GPU call fails in a program you signed some other way, sign
+        it again with this file and run it again before changing the code.
 
         A cli project's tool is signed with the file its product's
-        `entitlements` names, which the template writes without these
-        classes. One that uses these frameworks needs both lists added to
-        that file; that changes the build description, so Strict mode asks
-        before its next build.
+        `entitlements` names. The template writes both lists into it from
+        version 0.1.1 of the command-line tool extension (the `version`
+        under `template` in `apelin-project.json`). A project keeps the file
+        it was made with, so one made from 0.1.0 has neither; if it uses
+        these frameworks, copy both lists into that file from this skill's.
+        That changes the build description, so Strict mode asks before its
+        next build.
         """,
         files: ["Tool.entitlements": toolEntitlements],
     )
 
-    /// The cli template's `Packaging/Tool.entitlements` with the app
-    /// template's IOKit user-client lists, which `Scripts/check-gpu-entitlements.py`
-    /// holds for the app itself. A test holds both halves to those templates;
-    /// change them there first.
+    /// Every key of the cli templates' `Packaging/Tool.entitlements`, the
+    /// app template's IOKit user-client lists among them since
+    /// wiki.qaq.apelin.dev.cli 0.1.1; `Scripts/check-gpu-entitlements.py`
+    /// holds those lists for the app itself and its app and cli templates.
+    /// A test holds the keys to the cli templates and the lists to the app
+    /// template; change them there first.
     static let toolEntitlements = """
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -67,13 +72,13 @@ extension BuiltInSkills {
         For a program you compile and run yourself on this device. Sign it
         after every link: ldid -STool.entitlements <program>
 
-        platform-application, no-sandbox, the storage pair and
-        container-required = false are the cli template's own: a tool run
+        Every key is the cli template's. platform-application, no-sandbox,
+        the storage pair and container-required = false let a tool run
         from a shell outside any container, with HOME the real home of
         whoever ran it. The IOKit user-client classes are the app
-        template's: a bootstrap withholds the GPU's and IOSurface's user
-        clients from an ad-hoc signed binary until they are named. Both
-        spellings of the key carry the same list.
+        template's list: a bootstrap withholds the GPU's and IOSurface's
+        user clients from an ad-hoc signed binary until they are named.
+        Both spellings of the key carry the same list.
     -->
     <plist version="1.0">
     <dict>
