@@ -1,3 +1,4 @@
+import struct ApelinCore.MemorySnapshot
 import struct ApelinCore.MemoryStore
 import enum ApelinCore.MemoryStoreError
 import enum ApelinProtocol.AgentToolName
@@ -285,8 +286,15 @@ actor ToolRunner {
         switch name {
         case .memoryList, .memorySave, .memoryDelete:
             guard let memory else { throw ToolDeniedError(message: "Memory storage is unavailable.") }
-            let tools = MemoryTools(store: memory, projectID: project.id)
             do {
+                if name == .memoryList, arguments.argBool("all_projects") == true {
+                    guard arguments.argNonEmptyString("project") == nil else {
+                        throw ToolArgumentError("Name one project with project, or every project with all_projects, not both.")
+                    }
+                    let snapshot = try memory.read()
+                    return try await json(MemoryTools.listEveryProject(snapshot, projects: memoryProjects(snapshot)))
+                }
+                let tools = try await memoryTools(memory, naming: arguments.argNonEmptyString("project"))
                 switch name {
                 case .memoryList: return try json(tools.list())
                 case .memorySave: return try json(tools.save(arguments))
@@ -747,6 +755,49 @@ actor ToolRunner {
     func skillTools() throws -> SkillTools {
         guard let skills else { throw ToolDeniedError(message: "Skills are unavailable.") }
         return SkillTools(directory: skills)
+    }
+
+    /// The memory a call reaches: this session's project's, or the
+    /// project it names, by projectID or folder as apelin_project_list
+    /// answers them. A projectID no project has now still reaches the
+    /// records kept for it, to change or delete, but takes no new one.
+    private func memoryTools(_ store: MemoryStore, naming reference: String?) async throws -> MemoryTools {
+        guard let reference else {
+            let refusal = project.isTemporary
+                ? "General Chat has no project of its own: name it with project (its projectID or folder name, as apelin_project_list answers them), or use scope global."
+                : nil
+            return MemoryTools(store: store, projectID: project.id, newRecordRefusal: refusal)
+        }
+        let target: ProjectIdentity
+        do {
+            target = try await backend.resolveProject(reference)
+        } catch {
+            guard (try? store.read())?.records.contains(where: { $0.projectID == reference }) == true else { throw error }
+            return MemoryTools(
+                store: store,
+                projectID: reference,
+                newRecordRefusal: "No project has the id \(reference) now: its memories can be changed or deleted, not added to.",
+            )
+        }
+        guard !target.isTemporary else { throw ToolDeniedError(message: "a temporary chat keeps no memories of its own") }
+        return MemoryTools(store: store, projectID: target.id)
+    }
+
+    /// The projects the records of `snapshot` are kept for, by projectID,
+    /// as apelin_project_list names them; one that is not there is gone.
+    private func memoryProjects(_ snapshot: MemorySnapshot) async throws -> [String: MemoryListing.Project] {
+        let listing = try await backend.projects()
+        var projects: [String: MemoryListing.Project] = [:]
+        for listed in listing.projects {
+            projects[listed.projectID] = MemoryListing.Project(folder: listed.folder, displayName: listed.displayName)
+        }
+        // a list cut short is no proof that a project is gone
+        guard listing.truncated else { return projects }
+        for id in Set(snapshot.records.compactMap(\.projectID)) where projects[id] == nil {
+            guard let found = try? await backend.resolveProject(id), found.id == id else { continue }
+            projects[id] = MemoryListing.Project(folder: found.name.rawValue, displayName: nil)
+        }
+        return projects
     }
 
     /// Runs `body` until it answers or the call is cancelled: a stop does
