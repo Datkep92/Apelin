@@ -980,7 +980,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   repository changes through the git operations. Every system tool is one
   host request
   (`ChannelHostBackend`): apelin_project_build → `buildStart` read to its end (the artifact's `buildID` is what apelin_package_confirm_loaded matches), apelin_package_install →
-  `installPackage`, apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded → a
+  `installPackage` (an app project's success adds `relaunchHint`,
+  `AppRelaunch`: a copy already running keeps the previous build, which
+  nothing stops, until icli's `app kill --force` — refused without the
+  flag — and `app launch` restart it through shell_run as mobile, naming
+  the app product's `CFBundleIdentifier`), apelin_package_remove, apelin_device_respring, apelin_package_confirm_loaded → a
   `confirmLoaded` task with the session's project read to its end (with
   `respring: true` it carries `trigger: respring` and is gated as apelin_device_respring;
   it never asks for `imageCheck`), apelin_log_read → a `logStream` of
@@ -2586,7 +2590,8 @@ through `apelin_package_install`, a dependency through the user in Irisin — an
 shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
 `irisin-cli` (root-only, and the daemon takes an external client only at euid
 0) do not work for the agent. `apelin-packaging-and-install` and `apelin-crash-triage` cover
-install/respring/confirm and reading a crash. `apelin-external-build` is the workspace
+install/respring/confirm (an app installed again restarted with icli's
+`app kill --force`, then `app launch`) and reading a crash. `apelin-external-build` is the workspace
 build: the declaration, what the script gets and must write, and how its
 package is installed. `apelin-git-workflow` (owner, 2026-10-25) is keeping the
 project's history for the user: commit on your own once a change builds

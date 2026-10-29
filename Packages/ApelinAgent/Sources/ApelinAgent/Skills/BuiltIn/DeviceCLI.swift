@@ -30,9 +30,12 @@ extension BuiltInSkills {
         mode says so and keeps the records later steps read. icli is for the
         rest, for example:
         - apps: `app list`, `app info <bundle id>`, `app running`,
-          `app frontmost`, `app launch <bundle id>`, `app kill <bundle id>`,
-          `url open <url>`; `app network get <bundle id>` when an app says it
-          is offline (its Wi-Fi and cellular data policy)
+          `app frontmost`, `app launch <bundle id>`,
+          `app kill --force <bundle id>` (icli refuses a kill without
+          `--force`; an app installed again runs its previous build until it
+          is killed and launched), `url open <url>`; `app network get
+          <bundle id>` when an app says it is offline (its Wi-Fi and cellular
+          data policy)
         - state: `device info`, `env` (layout, bootstrap root), `proc list`,
           `svc list`, `svc print <label>`, `pkg list`, `pkg info <id>`,
           `pkg tweaks`

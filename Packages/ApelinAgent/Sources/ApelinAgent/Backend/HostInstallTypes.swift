@@ -31,6 +31,10 @@ public struct InstallResponse: Sendable, Hashable, Codable {
     public var version: String
     public var succeeded: Bool
     public var message: String
+    /// For an app project, that a copy already running keeps the previous
+    /// build and how to restart it (`AppRelaunch`); the agent adds it, the
+    /// host never does.
+    public var relaunchHint: String?
 
     public init(
         transactionID: String,
@@ -39,6 +43,7 @@ public struct InstallResponse: Sendable, Hashable, Codable {
         version: String,
         succeeded: Bool,
         message: String = "",
+        relaunchHint: String? = nil,
     ) {
         self.transactionID = transactionID
         self.installationID = installationID
@@ -46,6 +51,7 @@ public struct InstallResponse: Sendable, Hashable, Codable {
         self.version = version
         self.succeeded = succeeded
         self.message = message
+        self.relaunchHint = relaunchHint
     }
 }
 
