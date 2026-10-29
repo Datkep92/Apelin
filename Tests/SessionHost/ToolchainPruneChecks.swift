@@ -133,6 +133,7 @@ func toolchainPruneChecks() async throws {
             artifacts: ArtifactRegistry(file: state.appendingPathComponent("artifacts.json")),
             installations: installations,
             packages: packages,
+            fileLists: FakeFileLists(),
             approvals: ApprovalLedger(directory: state.appendingPathComponent("approvals")),
         )
     }
