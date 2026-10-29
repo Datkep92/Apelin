@@ -195,6 +195,72 @@ final class MacPipelineTests: XCTestCase {
         XCTAssertTrue(contents.entries.contains { $0.path.hasPrefix("/var/jb/usr/bin/") && $0.mode == 0o755 }, "\(contents.entries.map(\.path))")
     }
 
+    /// A preference bundle whose pane is built in code beside its Root.plist
+    /// one: the extension's Preferences declarations name the cell types,
+    /// the specifier factories and properties and the list edits such a
+    /// pane calls, and its stub links them, for both bootstraps.
+    func testPreferenceBundleWithAPaneBuiltInCode() throws {
+        let registry = try requireTools()
+        let scratch = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let (home, store) = try makeHome(in: scratch)
+        let catalog = ExtensionCatalog(directory: Repository.extensions)
+        let created = try store.create(templateID: "wiki.qaq.apelin.dev.preferences/objc-bundle", name: "Coded Pane", values: [:], catalog: catalog, registry: registry)
+        try Data(Self.codedPane.utf8).write(to: created.root.appendingPathComponent("Sources/CodedListController.m"))
+
+        for bootstrap in [Bootstrap.roothide, .rootless] {
+            let installRoot = bootstrap == .rootless ? "/var/jb" : "/var/containers/Bundle/Application/.jbroot-0123456789ABCDEF"
+            let inputs = try BuildInputs.resolve(buildID: "coded-\(bootstrap.rawValue)", projectID: created.projectID, configuration: .debug, store: store, catalog: catalog, registry: registry, installRoot: installRoot, home: home.path, bootstrap: bootstrap)
+            let reporter = Collector()
+            do {
+                _ = try BuildService.build(inputs: inputs, store: store, reporter: reporter, cancellation: BuildCancellation())
+            } catch {
+                XCTFail("\(bootstrap): \(error)\n\(reporter.lines.suffix(30).joined(separator: "\n"))")
+                continue
+            }
+            XCTAssertEqual(reporter.diagnostics, [], "\(bootstrap)")
+        }
+    }
+
+    private static let codedPane = """
+    #import <Preferences/PSListController.h>
+
+    @interface CodedListController : PSListController
+    @end
+
+    @implementation CodedListController
+    - (NSArray *)specifiers {
+        if (_specifiers == nil) {
+            PSSpecifier *toggle = [PSSpecifier preferenceSpecifierNamed:@"Enabled"
+                                                                 target:self
+                                                                    set:@selector(setPreferenceValue:specifier:)
+                                                                    get:@selector(readPreferenceValue:)
+                                                                 detail:Nil
+                                                                   cell:PSSwitchCell
+                                                                   edit:Nil];
+            [toggle setProperty:@"enabled" forKey:@"key"];
+            [toggle setProperty:@YES forKey:@"default"];
+            [toggle removePropertyForKey:@"footerText"];
+            toggle.identifier = @"enabled";
+            if (toggle.cellType == PSSwitchCell && toggle.target == self) {
+                toggle.name = @"Enabled";
+            }
+            _specifiers = [@[[PSSpecifier groupSpecifierWithName:@"General"], toggle, [PSSpecifier emptyGroupSpecifier]] mutableCopy];
+        }
+        return _specifiers;
+    }
+
+    - (void)viewDidLoad {
+        [super viewDidLoad];
+        PSSpecifier *row = [self specifierForID:@"enabled"];
+        [self reloadSpecifier:row];
+        [self removeSpecifier:row animated:NO];
+        [self insertSpecifier:row atIndex:1 animated:YES];
+        [self addSpecifier:[PSSpecifier groupSpecifierWithName:@"More"]];
+    }
+    @end
+    """
+
     /// The artifact's digests describe the bytes it holds: a file the
     /// packaging description names that changes after the check — here a
     /// script step rewrites it mid-build — fails the build instead of

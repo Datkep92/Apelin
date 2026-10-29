@@ -33,6 +33,14 @@ extension BuiltInSkills {
           private: it is reached through the preferences extension's support
           component (apelin-project-description), which supplies the declarations and
           a link stub — do not expect SDK headers for it.
+        - **The declarations** are one header,
+          `<install root>/usr/share/apelin/development/wiki.qaq.apelin.dev.preferences/support/include/Preferences/PSListController.h`
+          (the install root # Environment names), which
+          `#import <Preferences/PSListController.h>` finds. Read it with
+          file_read before calling the framework from code: it is what the
+          compiler knows of `PSListController` and `PSSpecifier`. A method
+          it lacks is declared in a category in the project's own source;
+          never edit the support folder.
         - **Root.plist** is `items`, an array of specifiers, each a `cell`
           plus its keys:
           - `PSGroupCell` — a section header with `label` and optional

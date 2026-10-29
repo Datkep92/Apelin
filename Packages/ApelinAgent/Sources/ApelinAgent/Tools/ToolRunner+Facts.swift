@@ -15,10 +15,10 @@ extension ToolRunner {
             facts.pathCheck = check { _ = try root.resolveForWrite(path, findingGitPointers: false) }
         case .fileRead:
             let path = try arguments.requireString("path")
-            facts.pathCheck = check { _ = try root.resolveExisting(path) }
+            facts.pathCheck = check { _ = try readRoot(for: path).resolveExisting(path) }
         case .fileList, .fileGrep, .fileFind:
             let path = arguments.argString("path") ?? "."
-            facts.pathCheck = check { _ = try root.resolveExisting(path) }
+            facts.pathCheck = check { _ = try readRoot(for: path).resolveExisting(path) }
         case .shellRun:
             facts.command = try CommandClassifier.classify(arguments)
             facts.runsAsRoot = arguments.argBool("root") ?? false

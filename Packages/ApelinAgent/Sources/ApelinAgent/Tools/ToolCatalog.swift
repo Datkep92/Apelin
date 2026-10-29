@@ -8,7 +8,8 @@ import KWWKAI
 
 /// How much a tool can do, which decides how the approval gate treats it.
 public enum ToolRisk: String, Sendable, Hashable, Codable {
-    /// Reads inside the project, a registered SDK, or a bounded host view.
+    /// Reads inside the project, Apelin's development extensions, a
+    /// registered SDK, or a bounded host view.
     case readOnly
     /// Writes project content or the agent's bounded memory library, or
     /// tells the user something through a bounded notice.
@@ -92,10 +93,10 @@ public extension AgentToolName {
         case .fileWrite: "Create a file or replace its whole content, inside the project."
         case .fileEdit: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set."
         case .fileCreate: "Create a new project file; fails if it already exists."
-        case .fileRead: "Read a project file, optionally a range of lines."
-        case .fileList: "List a project folder."
-        case .fileGrep: "Search project files with a regular expression."
-        case .fileFind: "Find project files whose names match a glob."
+        case .fileRead: "Read a project file, optionally a range of lines. Also reads, never writes, Apelin's development extensions and the registered SDKs by absolute path."
+        case .fileList: "List a project folder, or by absolute path a folder of Apelin's development extensions or the registered SDKs."
+        case .fileGrep: "Search project files with a regular expression, or by absolute path those of Apelin's development extensions or the registered SDKs."
+        case .fileFind: "Find project files whose names match a glob, or by absolute path those of Apelin's development extensions or the registered SDKs."
         case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, only for a step that truly needs uid 0, such as irisin-cli install for a dependency (apelin-package-dependencies skill); it asks every time unless the mode is Full, and what it writes is root's."
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
         case .sdkReadHeader: "Read one header of a framework in the registered SDK."
@@ -332,19 +333,19 @@ public extension AgentToolName {
             ], required: ["path", "content"])
         case .fileRead:
             Schema.object([
-                "path": Schema.string("Path relative to the project root."),
+                "path": Schema.string("Path relative to the project root, or an absolute path inside the development extensions or SDKs folder # Environment names."),
                 "offset": Schema.integer("First line to return, 1-based."),
                 "limit": Schema.integer("Number of lines to return."),
             ], required: ["path"])
         case .fileList:
             Schema.object([
-                "path": Schema.string("Folder relative to the project root; omit for the root."),
+                "path": Schema.string("Folder relative to the project root, or an absolute path inside the development extensions or SDKs folder # Environment names; omit for the root."),
                 "depth": Schema.integer("How many levels to descend, 1 to 4. Default 1."),
             ], required: [])
         case .fileGrep:
             Schema.object([
                 "pattern": Schema.string("Regular expression (ICU syntax)."),
-                "path": Schema.string("Folder or file to search, relative to the project root."),
+                "path": Schema.string("Folder or file to search, relative to the project root, or an absolute path inside the development extensions or SDKs folder # Environment names."),
                 "glob": Schema.string("Only files whose name matches this glob, e.g. *.m"),
                 "ignore_case": Schema.boolean("Case-insensitive match."),
                 "max_results": Schema.integer("Maximum matching lines. Default 100."),
@@ -352,7 +353,7 @@ public extension AgentToolName {
         case .fileFind:
             Schema.object([
                 "pattern": Schema.string("Glob matched against file names, e.g. *.plist"),
-                "path": Schema.string("Folder to search, relative to the project root."),
+                "path": Schema.string("Folder to search, relative to the project root, or an absolute path inside the development extensions or SDKs folder # Environment names."),
                 "max_results": Schema.integer("Maximum paths. Default 200."),
             ], required: ["pattern"])
         case .shellRun:

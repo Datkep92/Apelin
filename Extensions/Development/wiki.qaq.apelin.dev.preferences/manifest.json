@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "wiki.qaq.apelin.dev.preferences",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "kind": "preferences",
   "displayName": "Preference Bundle Development",
   "summary": "Build Settings panes with a preference bundle, a specifier plist and a PreferenceLoader entry.",
@@ -93,7 +93,7 @@
       "scope": "support:preferences",
       "origin": "written",
       "adaptations": [
-        "PSListController.h is written for Apelin, growing platformize-tweak-ios's one-class declaration (template/src/prefs/TWListController.h, MIT, OwnGoal Studio) to the ivar and methods the template uses. The .tbd stub is hand-written."
+        "PSListController.h is written for Apelin, growing platformize-tweak-ios's one-class declaration (template/src/prefs/TWListController.h, MIT, OwnGoal Studio) to the ivar and methods the template uses, then the cell types, the specifier factories and properties, and the specifier list edits a pane built in code calls. The .tbd stub is hand-written."
       ]
     }
   ],
