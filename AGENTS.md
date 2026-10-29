@@ -1337,7 +1337,16 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   saves to that configuration. The screen's `+` offers the same for the
   providers that keep several (Anthropic and OpenAI-compatible, in kwwk's
   order, once the listing has arrived), so a second key needs no saved one
-  first. `agentSignIn{provider, method?, profileID?,
+  first. A name given there is kept in a device preference
+  (`PendingConfigurations`, a name and the id beside it, never a secret)
+  until the keychain has that id: a configuration named but not yet given a
+  key still has a row, under the provider it is a configuration of, saying
+  it still needs a credential — tapped to return to its sign-in page and
+  swiped to take the name away. Once the listing carries the id the entry
+  is forgotten, its own name having come back with the credential, and
+  signing out an added configuration puts it back, since a sign-out is a
+  key given up rather than the configuration itself.
+  `agentSignIn{provider, method?, profileID?,
   profileName?}` writes there: a name given now stays with the
   configuration, one absent keeps the name it already had, and an id that
   is no configuration of `provider` is refused `badRequest` before the task

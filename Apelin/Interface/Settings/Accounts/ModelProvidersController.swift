@@ -8,7 +8,9 @@ import UIKit
 /// it is signed in as under its name and a `...` menu (Edit Configuration or Sign In Again, Sign
 /// Out); then the rest, those signed in to with an account apart from those
 /// that take a typed key. A search field narrows the list by name, and `+`
-/// adds another configuration of a provider that keeps several.
+/// adds another configuration of a provider that keeps several; one named but
+/// not yet given a key has a row too, under the provider it is a configuration
+/// of, and swiping it takes the name away.
 final class ModelProvidersController: TableController, UISearchResultsUpdating {
     private enum Group: Hashable {
         case signedIn
@@ -150,6 +152,9 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             do {
                 let list = try await ApelinService.app.agentAccountList()
                 guard !Task.isCancelled, let self else { return }
+                // A configuration the listing now carries names itself, out of
+                // the credential this page had not saved yet.
+                PendingConfigurations.prune(listed: Set(list.accounts.map(\.id)))
                 accounts = list.accounts
                 failure = nil
             } catch {
@@ -175,12 +180,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         } else if let failure, accounts.isEmpty {
             sections = [(.status, [.status(.unavailable(ProviderLoginController.unavailableText(failure)))])]
         } else {
-            let shown = query.isEmpty
-                ? accounts
-                : accounts.filter {
-                    $0.title.localizedStandardContains(query)
-                        || $0.provider.displayName.localizedStandardContains(query)
-                }
+            let shown = (accounts + waiting(in: accounts)).filter(matches)
             let groups: [(Group, [AgentAccount])] = [
                 (.signedIn, shown.filter(\.signedIn)),
                 (.accounts, shown.filter { !$0.signedIn && $0.method != .apiKey }),
@@ -193,6 +193,34 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         }
         dataSource.update(sections)
         addButton.isEnabled = !addableProviders.isEmpty
+    }
+
+    /// A configuration named through `+` that the listing has not caught up
+    /// with: it has no row of its own until its key is saved, so one is made
+    /// from the name the reader gave it and the provider's own entry for how
+    /// it signs in.
+    private func waiting(in listed: [AgentAccount]) -> [AgentAccount] {
+        let ids = Set(listed.map(\.id))
+        return PendingConfigurations.waiting().compactMap { pending in
+            guard !ids.contains(pending.id),
+                  let provider = AgentProfileID.kind(of: pending.id),
+                  let signIn = listed.first(where: { $0.provider == provider })
+            else { return nil }
+            return AgentAccount(
+                provider: provider,
+                id: pending.id,
+                method: signIn.method,
+                alternativeMethods: signIn.alternativeMethods,
+                signedIn: false,
+                name: pending.name,
+            )
+        }
+    }
+
+    private func matches(_ account: AgentAccount) -> Bool {
+        query.isEmpty
+            || account.title.localizedStandardContains(query)
+            || account.provider.displayName.localizedStandardContains(query)
     }
 
     // MARK: - Table
@@ -229,18 +257,22 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     }
 
     /// The provider's mark and name on one line; signed in, who as under the
-    /// name and a `…` menu at the end.
+    /// name and a `...` menu at the end, one waiting for its key the provider
+    /// it is a configuration of.
     private func accountCell(_ account: AgentAccount) -> UITableViewCell {
         let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
         var content: UIListContentConfiguration
         if account.signedIn {
             content = .subtitleCell()
             content.secondaryText = Self.signedInLine(account)
-            content.secondaryTextProperties.color = .secondaryLabel
-            content.secondaryTextProperties.numberOfLines = 1
-            content.textToSecondaryTextVerticalPadding = 2
+            Self.subtitleStyle(&content)
             cell.accessoryView = menuButton(account)
             cell.selectionStyle = .none
+        } else if account.name != nil {
+            content = .subtitleCell()
+            content.secondaryText = Self.waitingLine(account)
+            Self.subtitleStyle(&content)
+            cell.accessoryType = .disclosureIndicator
         } else {
             content = .cell()
             cell.accessoryType = .disclosureIndicator
@@ -267,6 +299,19 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             parts.append(expiresAt < Date() ? String(localized: "Expired \(date)") : String(localized: "Until \(date)"))
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// What a configuration named but not given a key yet says under its name:
+    /// which provider it is a configuration of, and what it is missing.
+    private static func waitingLine(_ account: AgentAccount) -> String {
+        [account.provider.displayName, String(localized: "Add Credential")].joined(separator: " · ")
+    }
+
+    /// How every subtitle under a name reads, whichever sentence it holds.
+    private static func subtitleStyle(_ content: inout UIListContentConfiguration) {
+        content.secondaryTextProperties.color = .secondaryLabel
+        content.secondaryTextProperties.numberOfLines = 1
+        content.textToSecondaryTextVerticalPadding = 2
     }
 
     /// `…` with no circle, its menu read each time it opens.
@@ -325,6 +370,26 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         account(at: indexPath).map { !$0.signedIn } ?? false
     }
 
+    /// A configuration still waiting for its key has nothing to sign out of, so
+    /// a swipe takes the name away instead: the walk back to `+` is the long
+    /// way round to the same thing.
+    override func tableView(
+        _: UITableView,
+        trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
+    ) -> UISwipeActionsConfiguration? {
+        guard let account = account(at: indexPath), PendingConfigurations.contains(account.id) else { return nil }
+        let remove = UIContextualAction(
+            style: .destructive,
+            title: String(localized: "Remove"),
+        ) { [weak self] _, _, completion in
+            PendingConfigurations.remove(account.id)
+            self?.load()
+            completion(true)
+        }
+        remove.image = UIImage(systemName: "trash")
+        return UISwipeActionsConfiguration(actions: [remove])
+    }
+
     override func tableView(
         _: UITableView,
         contextMenuConfigurationForRowAt indexPath: IndexPath,
@@ -369,6 +434,14 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             do {
                 try await ApelinService.app.agentSignOut(provider: account.provider, profileID: account.profileID)
                 EnabledModels.remove(for: account)
+                // What the alert promised is a later sign-in, so an added
+                // configuration keeps its name and stays as a row waiting for
+                // the next key; the provider's own row has no name to keep.
+                if account.profileID != nil, let name = account.name {
+                    PendingConfigurations.save(name, for: account.id)
+                } else {
+                    PendingConfigurations.remove(account.id)
+                }
                 self?.load()
             } catch {
                 self?.presentNotice(title: "Unable to Sign Out", message: error.readableMessage)
@@ -376,8 +449,9 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         }
     }
 
-    /// A name for one more configuration of `provider`, then its sign-in:
-    /// the name is the configuration's, and the key it saves makes it.
+    /// A name for one more configuration of `provider`, then its sign-in: the
+    /// name is kept here until the key is saved, so the page can be left and
+    /// the row returned to rather than named again.
     private func addConfiguration(_ provider: AgentProvider) {
         // How the provider signs in is apelin-agent's answer, taken from the
         // entry it lists for the provider itself.
@@ -397,6 +471,12 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 presentNotice(title: "Invalid Name", message: "Up to 120 characters.")
                 return
             }
+            // Saved before the page opens: the row is there to come back to
+            // whether or not the key is ever typed in — and the list is read
+            // again now, rather than trusted to the page's dismissal, which
+            // the page under a form sheet is not told of.
+            PendingConfigurations.save(name, for: id)
+            load()
             signIn(AgentAccount(
                 provider: provider,
                 id: id,
