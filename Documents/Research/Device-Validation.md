@@ -225,6 +225,14 @@ console now goes on after a restart only past a successful respring.
       `https://<owner>.github.io/<name>/` added in Sileo and Irisin; Link of
       an existing repository; a release build's Publish to Package
       Repository showing the package in the source within ten minutes.
+- [ ] Apelin's own files out of git, and a first push (2026-10-29; the Mac
+      only so far: `GitRemoteServiceTests`, `GitBackendTests`,
+      `GitToolTests`). On a device: a new project's `.git/info/exclude`; a
+      chat that sent an image, in a project made before, whose `git_status`
+      shows no `Attachments/`; `git_status` on a project with no repository
+      naming git_init; `i2-git-remote`'s two new refusals; and, with a
+      GitHub account, the agent asking for an empty repository's address
+      and `git_push` with `url` adding origin and pushing to it.
 - [ ] The climbing token count (2026-10-25; needs a model provider, which
       the iOS 27 vphone had none of): at the summary row's right
       edge, rising over five seconds while a turn thinks and catching up in

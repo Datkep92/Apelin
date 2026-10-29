@@ -116,6 +116,12 @@ final class ExtensionAndProjectTests: XCTestCase {
                     "ref: refs/heads/main\n",
                     template.id,
                 )
+                // and keeps Apelin's own files out of it
+                XCTAssertEqual(
+                    try String(contentsOf: created.root.appendingPathComponent(".git/info/exclude"), encoding: .utf8),
+                    "/Attachments/\n/.apelin-metadata-*\n.*.apelin-*\n",
+                    template.id,
+                )
             }
         }
     }
