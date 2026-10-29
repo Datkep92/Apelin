@@ -492,7 +492,8 @@ final class ChatRuntime {
                     }
                     let wasWorking = records[id]?.summary.isWorking
                     let current = transcript(id)
-                    records[id]?.summary.isWorking = current.isWorking || current.isCompacting
+                    let isWorking = current.isWorking || current.isCompacting
+                    records[id]?.summary.isWorking = isWorking
                     if let last = batch.events.last {
                         records[id]?.summary.updated = last.time
                     }
@@ -502,6 +503,9 @@ final class ChatRuntime {
                         changed(id)
                     }
                     if batch.finished {
+                        if let end = records[id]?.missedEnd(of: batch, isWorking: isWorking) {
+                            await takeMissedEnd(at: end, of: task, from: batch, in: id)
+                        }
                         return
                     }
                 } catch let error as ApelinError where error.code == .notFound {
@@ -515,6 +519,19 @@ final class ChatRuntime {
                 }
             }
         }
+    }
+
+    /// The end of `task` the conversation read past (`ChatRecord.missedEnd`),
+    /// read again from just before it unless `batch` carries it, and taken.
+    private func takeMissedEnd(at end: EventSeq, of task: TaskHandle, from batch: TaskEventBatch, in id: UUID) async {
+        var event = batch.events.last { $0.seq == end }
+        if event == nil {
+            event = try? await ApelinService.app.attach(task, afterSeq: EventSeq(end.rawValue - 1), waitMilliseconds: 0)
+                .events.first
+        }
+        guard records[id]?.task == task else { return }
+        records[id]?.takeMissedEnd(event, at: end)
+        changed(id)
     }
 
     /// Sent messages whose echo arrived leave `sending`, in the same
