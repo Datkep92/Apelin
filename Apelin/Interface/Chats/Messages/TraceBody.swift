@@ -1,17 +1,18 @@
 import Litext
 import UIKit
 
-/// The text a trace row shows under its title: a thought's text, or a call
-/// by `ToolCallDetail` with each name set apart from its value. A long
-/// call (a whole file written) is decoded and laid out once for each text,
-/// size and width, not again for every pass that asks for its height; the
-/// row's layout asks the same measure its height came from.
+/// The text a step's page in the trace shows (`TraceStepController`): a
+/// thought's text, a call by `ToolCallDetail` with each name set apart from
+/// its value, or what an approval asked. A long call (a whole file written)
+/// is decoded and laid out once for each text, size and width, not again on
+/// every layout pass of the page.
 @MainActor
 enum TraceBody {
     struct Key: Hashable {
-        /// The thought's text, or the call's detail.
+        /// The thought's text, the call's detail, or the approval's card text.
         let source: String
-        /// A call's title, whose repeat as `reason` is left out; nil for a thought.
+        /// A call's title, whose repeat as `reason` is left out; nil for
+        /// plain text, a thought's or an approval's.
         let callTitle: String?
         let size: UIContentSizeCategory
     }
@@ -25,17 +26,22 @@ enum TraceBody {
     private static var heights: [Measure: CGFloat] = [:]
     private static let sizing = TextLabelView()
     /// Past this many texts, or four times as many heights, the caches
-    /// start again: a trace sheet holds a few dozen steps, and a long one's
-    /// text is the size of the file it wrote.
+    /// start again: a step that streams is a new text each time it grows,
+    /// and a long one's text is the size of the file it wrote.
     private static let capacity = 64
 
-    /// A trace row's key, or nil for a row with nothing under its title.
+    /// A step's key, or nil for a step with nothing to show.
     static func key(for message: ChatMessage) -> Key? {
         let size = UIApplication.shared.preferredContentSizeCategory
-        if case .thinking = message.role {
+        switch message.role {
+        case .thinking:
             return message.text.isEmpty ? nil : Key(source: message.text, callTitle: nil, size: size)
+        case .approval:
+            let detail = message.approvalDetail
+            return detail.isEmpty ? nil : Key(source: detail, callTitle: nil, size: size)
+        default:
+            return message.detail.isEmpty ? nil : Key(source: message.detail, callTitle: message.text, size: size)
         }
-        return message.detail.isEmpty ? nil : Key(source: message.detail, callTitle: message.text, size: size)
     }
 
     static func text(for key: Key) -> NSAttributedString {

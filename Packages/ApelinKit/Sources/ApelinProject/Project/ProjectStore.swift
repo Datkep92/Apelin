@@ -63,7 +63,8 @@ public struct ProjectStore: Sendable {
     /// `buildSystem: external` says so to a reader: whatever builds it is
     /// the workspace's own (a repository's Makefile, a script), never
     /// apelin-build. A workspace written before the key existed has
-    /// `kind: workspace` and no `buildSystem`, and is read the same way.
+    /// `kind: workspace` and no `buildSystem`, and is read the same way. It
+    /// starts as an untouched repository on `main` (`EmptyRepository`).
     public func createEmpty(name: String, automaticallyName: Bool = false) throws -> ProjectCreateResponse {
         if let problem = ProjectName.validate(name) {
             throw ApelinError(.badRequest, problem.reason)
@@ -84,6 +85,7 @@ public struct ProjectStore: Sendable {
         ]
         try JSONCoding.encode(document)
             .write(to: staging.appendingPathComponent(Self.projectFileName), options: .atomic)
+        try EmptyRepository.make(in: staging)
         guard renamex_np(staging.path, destination.path, UInt32(RENAME_EXCL)) == 0 else {
             throw ApelinError(.conflict, "A project with this name already exists. Choose another name.")
         }
@@ -107,7 +109,8 @@ public struct ProjectStore: Sendable {
     /// `projectCreate`: the template's files, substituted with typed and
     /// escaped values, written into a sibling staging folder on the same
     /// file system, the generated project validated and digested there,
-    /// then renamed into `Projects/<name>/`, which must not exist. A failure
+    /// then given an untouched repository on `main` (`EmptyRepository`) and
+    /// renamed into `Projects/<name>/`, which must not exist. A failure
     /// removes only the staging folder. No template script runs.
     public func create(
         templateID qualifiedID: String,
@@ -254,6 +257,7 @@ public struct ProjectStore: Sendable {
                 throw TemplateError("generated apelin-project.json: \(error)")
             }
             let digests = try ApprovalDigests.compute(document, root: staging)
+            try EmptyRepository.make(in: staging)
             guard renamex_np(staging.path, destination.path, UInt32(RENAME_EXCL)) == 0 else {
                 if errno == EEXIST {
                     throw ApelinError(.conflict, "A project named \(name) already exists. Choose another name.")

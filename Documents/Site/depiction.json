@@ -1,7 +1,7 @@
 {
   "class": "DepictionTabView",
   "minVersion": "0.4",
-  "headerImage": "https://owngoal-dev.github.io/Apelin/icon.png",
+  "headerImage": "https://raw.githubusercontent.com/owngoal-dev/Apelin/main/Documents/screenshots.jpg",
   "tabs": [
     {
       "class": "DepictionStackView",

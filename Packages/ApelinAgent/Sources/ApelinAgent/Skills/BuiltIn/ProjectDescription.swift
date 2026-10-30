@@ -2,7 +2,7 @@ import enum ApelinProject.ProjectValidation
 
 extension BuiltInSkills {
     static let projectDescription = SkillDocument(
-        name: "project-description",
+        name: "apelin-project-description",
         description: "Every member of apelin-project.json, the build description Apelin's build reads: products, flags, steps, package, layout, tweak filter, the macros the build defines, and what asks the user.",
         body: """
         # The project description
@@ -22,6 +22,12 @@ extension BuiltInSkills {
           registered toolchain and SDK. Change them only with
           apelin_project_set_environment; never type a digest.
         - `displayName` and `autoName`: the name Apelin shows.
+
+        Only apelin_project_create writes `template` and `environment`, so a
+        description written from scratch lacks them: it does not build, and
+        no toolchain or SDK can be bound to it. Never rewrite a workspace
+        (`"kind": "workspace"`) as one: it builds with a script of its own
+        (the apelin-external-build skill).
 
         ## What it builds
         - `kind`: `tweak` (a `dylib` product and `package.tweakFilter`),
@@ -77,9 +83,19 @@ extension BuiltInSkills {
 
         ## package
         `{id, name, version, description, author, section, layout, …}`:
-        - `id`: the Debian package name. `version`: a Debian version.
+        - `id`: the Debian package name; a new project's is a
+          `local.apelin.` placeholder to settle with the user before its
+          first install (the apelin-packaging-and-install skill's Package
+          identity). `version`: a Debian version.
           `section`: Tweaks, Utilities, Development, System, Applications or
           Addons. Optional: `maintainer`, `longDescription` (a list of lines).
+        - `icon`: the image a package manager shows beside the package, its
+          control `Icon`: an `https://` URL in printable ASCII, at most 2048
+          bytes. Every template writes its extension's icon on Apelin's
+          Pages, such as
+          `https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.dev.tweak.png`.
+          Keep it, or put in an https image the user gives as their own. It
+          is not an app's own icon, which its Info.plist names.
         - Relations: `depends`, `recommends`, `suggests`, `conflicts`,
           `breaks`, `replaces` and `provides`, each item like `"name (>=
           1.0)"`, alternatives joined by ` | `; `dependsByBootstrap`
@@ -92,17 +108,19 @@ extension BuiltInSkills {
           maps them for rootless and roothide. Never write `/var/jb` or a
           jbroot path. `mode` is `0644` or `0755`; `substitutePrefix: true`
           fills `@PREFIX@` and `@ROOTFS@` in a file, such as a launch daemon
-          plist (the bootstrap-paths skill).
+          plist (the apelin-bootstrap-paths skill).
         - `tweakFilter` (tweak only): `{dylib: <product id>, bundles?,
           executables?, classes?}`. The packager writes the filter plist
           beside the dylib, which must be laid out under
           `/Library/MobileSubstrate/DynamicLibraries/`; do not ship one
-          yourself.
+          yourself. A new tweak's `bundles` come from the template's
+          `filterBundles`, an array of bundle IDs in apelin_project_create's
+          `values`, such as `["com.apple.Preferences"]`.
         - `maintainerScripts`: `{preinst?, postinst?, prerm?, postrm?}`, each
           a project file. Only `@PREFIX@` and `@ROOTFS@` are substituted;
           `sh -n` must pass. They run as root and the install card shows
           them in full: add one only when the task needs it, written as the
-          packaging-and-install skill says.
+          apelin-packaging-and-install skill says.
 
         ## What the build defines
         On every C and Objective-C compile: `APELIN_BUILD_ID`,

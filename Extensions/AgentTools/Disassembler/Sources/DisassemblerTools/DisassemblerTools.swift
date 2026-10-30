@@ -295,8 +295,7 @@ public enum DisassemblerTools {
         // Not adrp: its operand is a page, and the symbol nearest a page
         // boundary says nothing about what the pair addresses.
         let branches = ["b", "bl", "cbz", "cbnz", "tbz", "tbnz", "adr", "call"]
-        guard branches.contains(mnemonic) || mnemonic.hasPrefix("b.") || (mnemonic.hasPrefix("j") && mnemonic.count <= 4) else { return nil }
-        guard let range = instruction.operandString.range(of: "0x", options: .backwards) else { return nil }
+        guard branches.contains(mnemonic) || mnemonic.hasPrefix("b.") || (mnemonic.hasPrefix("j") && mnemonic.count <= 4), let range = instruction.operandString.range(of: "0x", options: .backwards) else { return nil }
         let digits = instruction.operandString[range.upperBound...].prefix { $0.isHexDigit }
         return UInt64(digits, radix: 16)
     }

@@ -1,3 +1,4 @@
+import struct ApelinToolCore.ToolManifestPolicy
 import Foundation
 import KWWKAgent
 import KWWKAI
@@ -22,6 +23,20 @@ public struct AgentSessionConfiguration: Sendable {
     /// the system prompt names with the bootstrap; nil where there is none
     /// (the Mac tests).
     public var installRoot: String?
+    /// The device's language and clock, which each message's
+    /// `<system-state>` names.
+    public var systemState: SystemStateSource
+    /// Whether the device has a route, which a model request the network
+    /// failed waits for (`NetworkRecovery`).
+    public var network: NetworkPath
+    /// The session host started since this conversation last ran, as the
+    /// host decides (`AgentOpenRequest.hostRestarted`): when it has history,
+    /// the next message's `<system-state>` says its paths may be stale.
+    public var hostRestarted: Bool
+    /// Whom the agent tool extensions under the install root must belong
+    /// to for their tools to be offered: root, as the package manager
+    /// installs them and the host requires; the tests' own user.
+    public var toolExtensionPolicy: ToolManifestPolicy
 
     public init(
         id: String = UUID().uuidString,
@@ -35,6 +50,10 @@ public struct AgentSessionConfiguration: Sendable {
         serviceTier: ServiceTier? = nil,
         maxTurns: Int? = nil,
         installRoot: String? = nil,
+        systemState: SystemStateSource = .device,
+        network: NetworkPath = .system,
+        hostRestarted: Bool = false,
+        toolExtensionPolicy: ToolManifestPolicy = ToolManifestPolicy(),
     ) {
         self.id = id
         self.project = project
@@ -47,5 +66,9 @@ public struct AgentSessionConfiguration: Sendable {
         self.serviceTier = serviceTier
         self.maxTurns = maxTurns
         self.installRoot = installRoot
+        self.systemState = systemState
+        self.network = network
+        self.hostRestarted = hostRestarted
+        self.toolExtensionPolicy = toolExtensionPolicy
     }
 }

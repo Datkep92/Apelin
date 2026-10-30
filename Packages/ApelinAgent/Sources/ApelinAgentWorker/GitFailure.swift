@@ -49,9 +49,25 @@ enum GitFailure {
         reason: String?,
         host: String?,
     ) -> String? {
+        // A reason the host named comes before any guess from the words,
+        // which a project's name or a URL could set off.
+        if reason == ApelinError.Reason.notARepository.rawValue {
+            return "This project has no repository yet: make one with git_init, then commit with git_commit and all: true."
+        }
+        if reason == ApelinError.Reason.noSuchRemote.rawValue {
+            guard operation == "git push" else { return nil }
+            return "The project has no such remote yet: ask the user whether to create a GitHub repository for it with apelin_git_create_repository, and with which owner, name and visibility, or for the HTTPS address of an empty repository they made (no README, licence or .gitignore); then git_push with url."
+        }
+        if reason == ApelinError.Reason.remoteURLDiffers.rawValue {
+            // The message says where the remote points and what to do instead.
+            return nil
+        }
         if isAuthentication(message, reason: reason) {
+            if host == "github.com" {
+                return "The remote wants a credential Apelin does not have for github.com, or refused the saved one: ask the user to sign in with Sign In with GitHub in Settings ▸ Git, then try again."
+            }
             let place = host.map { "for \($0) " } ?? ""
-            return "The remote wants a credential Apelin does not have, or refused the saved one: ask the user to add a token \(place)in Settings ▸ Git, then try again."
+            return "The remote wants a credential Apelin does not have, or refused the saved one: ask the user for a token \(place)to save with apelin_git_save_credential, then try again."
         }
         if operation == "git commit", message.lowercased().contains("author") {
             return "Ask the user to set the commit author in Settings ▸ Git."

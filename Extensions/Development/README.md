@@ -20,6 +20,13 @@ run time (`requirements.runtimeDependencies` and its support components'),
 so a template that builds also runs. The packager derives `Depends` from the
 manifest; nothing is retyped in the control files.
 
+Every template's `package.icon` is its extension's own icon on Apelin's
+Pages, `https://owngoal-dev.github.io/Apelin/icons/<id>.png` (from app and
+tweak 0.1.1, cli and preferences 0.1.2), so a package built from it shows
+that icon in a package manager until the user names their own;
+`check-templates.py` fails a template whose icon is another or not a file
+in `Documents/Site`.
+
 ## What each template proves
 
 - **objc-hook** — a dylib filtered to `com.apple.springboard` that calls
@@ -34,7 +41,9 @@ manifest; nothing is retyped in the control files.
   version and build id, and the entitlements an app outside a container
   needs (with the GPU user-client list and why).
 - **c / objc** — a tool with `--version`, `--help`, a greeting and sysexits
-  exit codes, so acceptance checks output and status.
+  exit codes, so acceptance checks output and status, and from 0.1.1 the
+  app templates' GPU user-client list in its entitlements, so a tool that
+  calls VideoToolbox, Core Video or Metal gets its IOSurfaces.
 - **objc-bundle** — a `PSListController` subclass loading `Root.plist` with a
   switch and a text field stored in the package's own domain, posting
   `<package id>/changed`, and the PreferenceLoader entry.

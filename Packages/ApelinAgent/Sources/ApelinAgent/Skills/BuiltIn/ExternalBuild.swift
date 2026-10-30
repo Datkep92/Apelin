@@ -1,6 +1,6 @@
 extension BuiltInSkills {
     static let externalBuild = SkillDocument(
-        name: "external-build",
+        name: "apelin-external-build",
         description: "Building and installing a workspace (an imported repository) with its own tools: the build script Apelin runs, what it gets, the one package it writes, and how that package is installed.",
         body: """
         # Building a workspace
@@ -45,7 +45,28 @@ extension BuiltInSkills {
         Apple `xcrun`, and usually no `make` or `python3`. A Mac build script
         is read and rewritten for what is here, never run as it is. The
         script runs in the bootstrap's shell, whose paths on roothide are not
-        the compilers' (the bootstrap-paths skill): give clang relative paths.
+        the compilers' (the apelin-bootstrap-paths skill): give clang relative paths.
+
+        ## Its first lines
+        Every path the script removes, moves or writes is built from these
+        variables, and an empty one turns it into `/`, which on roothide is
+        the bootstrap's root. So the script stops before anything else when
+        one is missing (a shell_run of it sets none of them):
+        ```sh
+        #!/bin/sh
+        set -eu
+        : "${APELIN_PACKAGE_DIR:?run this through apelin_project_build}"
+        : "${APELIN_PROJECT_ROOT:?}" "${APELIN_BOOTSTRAP:?}" "${APELIN_ARCHITECTURE:?}"
+        : "${APELIN_BUILD_ID:?}" "${TMPDIR:?}"
+        : "${APELIN_PREFIX?}" # set, and empty on roothide
+        stage="$(mktemp -d "${TMPDIR:?}stage.XXXXXX")"
+        trap 'rm -rf -- "${stage:?}"' EXIT
+        ```
+        Every later `rm`, `mv` or `cp` over a path with a variable in it
+        spells it `${name:?}` too. Remove only inside `$stage` or
+        `$APELIN_PACKAGE_DIR`, never under `$APELIN_PREFIX` alone (empty on
+        roothide) or a path you built from a command's output without
+        checking it.
 
         ## What the script does
         1. Compile with the toolchain: `arm64e` for roothide; `arm64` and
@@ -53,10 +74,12 @@ extension BuiltInSkills {
            relative to the project root. Define what a project build would
            (`-DAPELIN_BOOTSTRAP_ROOTHIDE=1` or `-DAPELIN_BOOTSTRAP_ROOTLESS=1`
            from `APELIN_BOOTSTRAP`, `-DAPELIN_PACKAGE_ID=…`) when the code
-           tests them, as the bootstrap-paths helper does.
+           tests them, as the apelin-bootstrap-paths helper does.
         2. Sign every Mach-O with `ldid -S` (`-S<entitlements.plist>` when it
-           needs entitlements); unsigned code does not load, and the
-           installer signs nothing for you.
+           needs entitlements: a command-line tool takes the
+           apelin-device-executables skill's `Tool.entitlements`, whose IOKit
+           classes the GPU and media frameworks need); unsigned code does not
+           load, and the installer signs nothing for you.
         3. Lay the package out in a staging folder under the build's
            `TMPDIR`: a tweak's dylib at
            `$APELIN_PREFIX/Library/MobileSubstrate/DynamicLibraries/<Name>.dylib`
@@ -81,7 +104,7 @@ extension BuiltInSkills {
         `apelin_project_build` runs the script (in Strict mode it asks the user every time)
         and answers the package's artifact ID and digest; `apelin_package_install`,
         `apelin_package_confirm_loaded` and `apelin_package_remove` work as the
-        packaging-and-install skill describes. The first install asks the
+        apelin-packaging-and-install skill describes. The first install asks the
         user; it asks again only when the control file (but `Version`), a
         maintainer script or an installed path changes. A package someone
         installed on this device without Apelin is never replaced: never

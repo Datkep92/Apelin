@@ -19,6 +19,17 @@ struct EnvironmentTaskProgress {
         case transferExport
         /// Reading one and bringing in what it holds.
         case transferImport(TransferKind)
+        /// The package repository: made on GitHub, linked, published to.
+        case distributionCreate
+        case distributionLink
+        case distributionPublish
+
+        var includesDownload: Bool {
+            switch self {
+            case .toolchainSetup, .sdkImport, .transferImport(.toolchain), .distributionLink, .distributionPublish: true
+            default: false
+            }
+        }
 
         /// In the order the worker goes through them (`ToolchainStage`,
         /// `SDKManager`). An SDK import skips what its source does not
@@ -41,6 +52,12 @@ struct EnvironmentTaskProgress {
                 ["reading", "inspecting", "registering"]
             case .transferImport(.project):
                 ["reading", "placing"]
+            case .distributionCreate:
+                ["creating", "preparing", "pushing", "publishing"]
+            case .distributionLink:
+                ["fetching", "preparing", "pushing", "publishing"]
+            case .distributionPublish:
+                ["fetching", "preparing", "pushing"]
             }
         }
     }
@@ -68,6 +85,8 @@ struct EnvironmentTaskProgress {
     private(set) var total: Int64?
     private(set) var detail: String?
     private(set) var bytesPerSecond: Double?
+    private(set) var downloadedBytes: Int64?
+    private(set) var downloadTotalBytes: Int64?
     private(set) var state: TaskState = .running
     /// Why it failed, as the worker put it.
     private(set) var message: String?
@@ -93,20 +112,21 @@ struct EnvironmentTaskProgress {
     }
 
     var stages: [String] {
-        guard reached.contains("sdk") else { return work.stages }
         switch work {
-        case .toolchainSetup: return ["sdk"] + work.stages
+        case .toolchainSetup: ["sdk"] + work.stages
         // a toolchain brought in a file fetches its self-test's SDK after reading it
-        case .transferImport(.toolchain): return ["reading", "sdk"] + work.stages.dropFirst()
-        default: return work.stages
+        case .transferImport(.toolchain): ["reading", "sdk"] + work.stages.dropFirst()
+        default: work.stages
         }
     }
 
-    /// The stages a list shows: one the task went past without running,
-    /// because its source did not need it, is left out rather than called
-    /// skipped.
+    /// Keep skipped steps in place so progress never rearranges the list.
     var shownStages: [String] {
-        stages.filter { state(of: $0) != .skipped }
+        stages
+    }
+
+    var isDownloading: Bool {
+        stage == "downloading" || stage == "fetching" || stage == "sdk" && phase == "fetching"
     }
 
     /// Whether `completed` and `total` are bytes.
@@ -153,6 +173,10 @@ struct EnvironmentTaskProgress {
             total = payload?["total"]?.doubleValue.map { Int64($0) }
             detail = payload?["detail"]?.stringValue
             sample(at: event.time)
+            if isDownloading {
+                downloadedBytes = completed
+                downloadTotalBytes = total
+            }
         case "warning":
             if let message = payload?["message"]?.stringValue {
                 warnings.append(message)
@@ -234,6 +258,10 @@ extension EnvironmentTaskProgress {
         case "verifying": String(localized: "Checking File")
         case "reading": String(localized: "Reading File")
         case "placing": String(localized: "Adding Project")
+        case "creating": String(localized: "Creating Repository")
+        case "preparing": String(localized: "Adding Files")
+        case "pushing": String(localized: "Pushing")
+        case "publishing": String(localized: "Turning On GitHub Pages")
         default: stage.capitalized
         }
     }
@@ -241,6 +269,31 @@ extension EnvironmentTaskProgress {
     /// The same words while the stage is under way: "Downloading…".
     static func activeTitle(of stage: String) -> String {
         String(localized: "\(title(of: stage))…")
+    }
+
+    /// Keep transport wrappers in the full log, not in the user's explanation.
+    static func readableDetail(_ message: String) -> String {
+        var text = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        while !text.isEmpty {
+            if let colon = text.firstIndex(of: ":"),
+               ApelinError.Code(rawValue: String(text[..<colon])) != nil
+            {
+                text = String(text[text.index(after: colon)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let prefix = ["install bridge:", "[!!]"].first(where: { text.hasPrefix($0) }) {
+                text = String(text.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                break
+            }
+        }
+        if text.contains("Unknown statoverride account") {
+            return String(localized: "Installation stopped because a package permission record refers to an unknown user or group.")
+        }
+        guard let first = text.first else { return String(localized: "Something went wrong. Try again.") }
+        let productNames = ["iOS", "iPadOS", "macOS", "tvOS", "watchOS", "visionOS", "iPhone", "iPad"]
+        if productNames.contains(where: { text == $0 || text.hasPrefix($0 + " ") }) {
+            return text
+        }
+        return first.isLowercase ? first.uppercased() + text.dropFirst() : text
     }
 
     /// Why the task did not succeed, in the worker's words when it gave

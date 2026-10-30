@@ -12,8 +12,9 @@ struct SkillReader {
     let userDirectory: URL
 
     func read(_ arguments: JSONValue) throws -> String {
-        let name = try arguments.requireString("name")
+        let asked = try arguments.requireString("name")
         let skills = SkillCatalog.load(userDirectory: userDirectory).skills
+        let name = skills.contains { $0.name == asked } ? asked : BuiltInSkills.legacyNames[asked] ?? asked
         guard let skill = skills.first(where: { $0.name == name }) else {
             throw ToolArgumentError("No skill named \(name). Skills: \(skills.map(\.name).joined(separator: ", ")).")
         }

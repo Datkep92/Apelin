@@ -20,8 +20,8 @@ public struct SDKStore: Sendable {
             return []
         }
         return names.sorted().compactMap { name -> SDKRecord? in
-            guard name.hasSuffix(".json"), !name.hasPrefix(".") else { return nil }
-            guard let record = try? JSONFile.read(SDKRecord.self, at: layout.sdkRegistry.appendingPathComponent(name)) ?? nil,
+            guard name.hasSuffix(".json"), !name.hasPrefix("."),
+                  let record = try? JSONFile.read(SDKRecord.self, at: layout.sdkRegistry.appendingPathComponent(name)) ?? nil,
                   record.id + ".json" == name
             else { return nil }
             var isDirectory: ObjCBool = false

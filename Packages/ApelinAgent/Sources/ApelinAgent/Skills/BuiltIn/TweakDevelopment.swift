@@ -1,6 +1,6 @@
 extension BuiltInSkills {
     static let tweakDevelopment = SkillDocument(
-        name: "tweak-development",
+        name: "apelin-tweak-development",
         description: "Writing and changing a tweak in an Apelin project: layout, hooks, filters, the on-device toolchain and SDK, and the edit-build loop.",
         body: """
         # Tweak development on the device
@@ -15,7 +15,7 @@ extension BuiltInSkills {
           link flags, frameworks, the deployment target (16.0) and build steps.
           Changing it, or a build script it names, makes the next `apelin_project_build` ask the
           user once (Strict mode); editing sources never does. Change it only
-          when the task needs it, and say why. The project-description skill
+          when the task needs it, and say why. The apelin-project-description skill
           lists every member; read it before you edit the file.
         - Sources are Objective-C by default; write hooks the way the
           project's template does (its hook API comes from the injection
@@ -30,15 +30,18 @@ extension BuiltInSkills {
           user asks for an icon; without it Apelin shows its kind's default.
           It is Apelin's alone and never goes into the package.
         - A path in code, a maintainer script or a plist is spelled as the
-          bootstrap-paths skill says; logging is the tweak-runtime skill's.
+          apelin-bootstrap-paths skill says; logging is the apelin-tweak-runtime skill's.
 
         ## Finding the API you hook
         - `apelin_sdk_analyze_framework` lists a framework's exported symbols and
-          Objective-C classes from the SDK's `.tbd`; pass `private: true` for
-          `PrivateFrameworks`, and `symbol_filter` to narrow.
-        - `apelin_sdk_read_header` reads a public header. Private frameworks usually
-          have no headers in the SDK: declare the interface you need in a local
-          header, only the selectors you call.
+          Objective-C classes from the SDK's `.tbd`; `symbol_filter` narrows
+          them. Both SDK tools look in `Frameworks`, then `PrivateFrameworks`,
+          so `private` can be left out.
+        - `apelin_sdk_read_header` reads a public header; with `symbol` in place
+          of `header` it finds the header that declares a class, protocol, type
+          or function. Private frameworks usually have no headers in the SDK:
+          declare the interface you need in a local header, only the selectors
+          you call.
         - Check availability: the build uses `-Werror=unguarded-availability-new`.
           Guard newer API with `@available(iOS 17.0, *)`.
 
@@ -103,11 +106,11 @@ extension BuiltInSkills {
           first constant string or imported call (the build refuses one).
           Leave a symbol to load time with `-Wl,-U,_symbol`, one per symbol.
         - A roothide-aware repository's `jbroot(…)` and a rootless one's
-          `ROOT_PATH_NS(…)` become the bootstrap-paths skill's
+          `ROOT_PATH_NS(…)` become the apelin-bootstrap-paths skill's
           `ApelinBootstrapPath(…)`.
         - An imported repository stays a workspace: its Theos Makefile is
           replaced by a build script of its own that compiles the rewritten
-          sources with the toolchain (the external-build skill), reading
+          sources with the toolchain (the apelin-external-build skill), reading
           `TWEAK_NAME`, `_FILES`, `_FRAMEWORKS`, `_LIBRARIES`, `_CFLAGS`, the
           filter plist and `control` for what to build and package. Keep the
           package id, version and author the repository already has.
@@ -118,7 +121,14 @@ extension BuiltInSkills {
            `file_write`/`file_create` for new files.
         3. `apelin_project_build`. Fix every error diagnostic by file and line, rebuild.
            Treat warnings as work unless they are in the template.
-        4. Install and confirm as the packaging-and-install skill describes.
+        4. Install and confirm as the apelin-packaging-and-install skill describes.
+        5. Check the behaviour itself, not only that it loaded: bring up what
+           you changed, read it with `apelin_screen_read_tree`, drive it with
+           `apelin_screen_interact`, and read it again after each action;
+           behaviour that does not show in the UI tree is checked in what it
+           logs (`apelin_log_read`), or in a screenshot only once the user
+           has agreed to that one (the prompt's rule, in every mode). Report
+           what you could not drive or see as Not tested.
         Keep each step its own call: build, install, respring and
         apelin_package_confirm_loaded are approved one by one.
         """,

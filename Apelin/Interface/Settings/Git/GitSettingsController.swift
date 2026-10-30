@@ -3,15 +3,20 @@ import SPIndicator
 import Then
 import UIKit
 
-/// Settings ▸ Git: the author the agent's commits carry, saved from the bar,
-/// and one HTTPS credential per host for clones, fetches and pushes. A
-/// credential is listed by its host and username only; its token went to
-/// apelin-environment's keychain item and never comes back. A trailing swipe
-/// removes one, after a confirmation; the last row adds one
-/// (`GitCredentialController`).
+/// Settings ▸ Git: the author the agent's commits carry, saved from the bar;
+/// the GitHub account, signed in with a code as gh does
+/// (`GitHubLoginController`), whose token goes to apelin-environment's
+/// keychain and never comes back; the package repository it publishes to
+/// (`DistributionRepositoryFlow`) and its card (`RepositoryCardController`); and the credentials of other hosts an
+/// agent saved, each removed with a trailing swipe after a confirmation.
 final class GitSettingsController: TableController {
     private enum Section: Hashable {
         case author
+        case gitHub
+        /// No package repository yet; its footer says what one is.
+        case publishing
+        /// The linked one; its footer says what to do with the address.
+        case published
         case credentials
     }
 
@@ -20,8 +25,17 @@ final class GitSettingsController: TableController {
         case email
         case loading
         case unavailable(String)
+        case gitHubAccount(String)
+        case gitHubSignIn
+        case repository(DistributionRepository)
+        /// The card a camera scans to add the source in Irisin.
+        case repositoryCard(DistributionRepository)
+        /// Apelin's current template over the files it maintains.
+        case updateRepository(DistributionRepository)
+        /// Publishing needs the GitHub account first.
+        case createRepository
+        case linkRepository
         case credential(GitCredentialSummary)
-        case add
     }
 
     private lazy var dataSource = TableDataSource<Section, Row, Row>(
@@ -33,6 +47,7 @@ final class GitSettingsController: TableController {
 
     /// What apelin-environment last answered; nil until it has.
     private var settings: GitSettingsResponse?
+    private var linked: DistributionRepository?
     private var failure: Error?
     private var loader: Task<Void, Never>?
     private var isSaving = false
@@ -41,11 +56,16 @@ final class GitSettingsController: TableController {
     private let emailField = UITextField()
     private lazy var nameCell = Self.cell(containing: nameField)
     private lazy var emailCell = Self.cell(containing: emailField)
+    private lazy var flow = DistributionRepositoryFlow(presenter: self) { [weak self] in self?.load() }
 
     private lazy var saveItem = UIBarButtonItem(
         title: String(localized: "Save"),
         primaryAction: UIAction { [weak self] _ in self?.saveAuthor() },
     )
+
+    private var gitHubAccount: GitCredentialSummary? {
+        settings?.credentials.first { $0.host == GitHubDeviceFlow.host }
+    }
 
     init() {
         super.init(style: .insetGrouped)
@@ -86,13 +106,23 @@ final class GitSettingsController: TableController {
         dataSource.headerTitle = { section in
             switch section {
             case .author: String(localized: "Author")
-            case .credentials: String(localized: "HTTPS Credentials")
+            case .gitHub: String(localized: "GitHub")
+            case .publishing, .published: String(localized: "Publishing")
+            case .credentials: String(localized: "Other Hosts")
             }
         }
         dataSource.footerTitle = { section in
             switch section {
-            case .author: String(localized: "Commits in your projects carry this name and email.")
-            case .credentials: String(localized: "A token is used as the HTTPS password. It is kept only in this device's keychain and never synced.")
+            case .author:
+                String(localized: "Commits in your projects carry this name and email.")
+            case .gitHub:
+                String(localized: "Clones, pulls and pushes to github.com use this account. Its token is kept only in this device’s keychain and never synced.")
+            case .publishing:
+                String(localized: "A package repository is an APT source on GitHub Pages: “Distribute…” publishes a project’s release builds to it.")
+            case .published:
+                String(localized: "Add this address in Irisin. Tap to copy it.")
+            case .credentials:
+                String(localized: "Credentials an agent saved for other hosts.")
             }
         }
         updateControls()
@@ -112,9 +142,12 @@ final class GitSettingsController: TableController {
         loader = Task { [weak self] in
             do {
                 let answer = try await ApelinService.app.gitSettings()
+                // the link needs no network; a failure leaves it unknown
+                let link = try? await ApelinService.app.distributionRepositoryList(repositories: false).linked
                 guard !Task.isCancelled, let self else { return }
                 showAuthor(of: answer)
                 settings = answer
+                linked = link
                 failure = nil
             } catch {
                 guard !Task.isCancelled, let self else { return }
@@ -137,15 +170,29 @@ final class GitSettingsController: TableController {
         }
     }
 
-    private func updateRows() {
-        let credentials: [Row] = if let settings {
-            settings.credentials.map(Row.credential) + [.add]
-        } else if let failure {
-            [.unavailable(failure.readableMessage)]
-        } else {
-            [.loading]
+    private var isPreparingCreation = false
+
+    private func updateRows(changedItems: Set<Row> = []) {
+        guard let settings else {
+            let state: Row = failure.map { .unavailable($0.readableMessage) } ?? .loading
+            dataSource.update([(.author, [.name, .email]), (.gitHub, [state])])
+            return
         }
-        dataSource.update([(.author, [.name, .email]), (.credentials, credentials)])
+        let signedIn = gitHubAccount != nil
+        var sections: [(Section, [Row])] = [
+            (.author, [.name, .email]),
+            (.gitHub, [gitHubAccount.map { .gitHubAccount($0.username) } ?? .gitHubSignIn]),
+        ]
+        if let linked {
+            sections.append((.published, [.repository(linked), .repositoryCard(linked), .updateRepository(linked)]))
+        } else if signedIn {
+            sections.append((.publishing, [.createRepository, .linkRepository]))
+        }
+        let others = settings.credentials.filter { $0.host != GitHubDeviceFlow.host }
+        if !others.isEmpty {
+            sections.append((.credentials, others.map(Row.credential)))
+        }
+        dataSource.update(sections, changedItems: changedItems)
     }
 
     // MARK: - The author
@@ -194,10 +241,21 @@ final class GitSettingsController: TableController {
         }
     }
 
-    // MARK: - Credentials
+    // MARK: - GitHub and other hosts
 
-    private func addCredential() {
-        navigationController?.pushViewController(GitCredentialController(), animated: true)
+    private func signInToGitHub() {
+        navigationController?.pushViewController(GitHubLoginController(), animated: true)
+    }
+
+    private func confirmSignOut() {
+        presentConfirmation(
+            title: "Sign Out of GitHub?",
+            message: "Clones, pulls and pushes to github.com stop working until you sign in again. The package repository stays linked.",
+            confirmTitle: "Sign Out",
+            destructive: true,
+        ) { [weak self] in
+            self?.remove(host: GitHubDeviceFlow.host)
+        }
     }
 
     private func confirmRemoval(_ credential: GitCredentialSummary) {
@@ -207,20 +265,29 @@ final class GitSettingsController: TableController {
             confirmTitle: "Remove",
             destructive: true,
         ) { [weak self] in
-            self?.remove(credential)
+            self?.remove(host: credential.host)
         }
     }
 
-    private func remove(_ credential: GitCredentialSummary) {
+    private func remove(host: String) {
         Task { [weak self] in
             do {
-                try await ApelinService.app.gitCredentialRemove(host: credential.host)
+                try await ApelinService.app.gitCredentialRemove(host: host)
                 SPIndicator.present(title: String(localized: "Removed"), preset: .done, haptic: .success)
             } catch {
                 self?.presentNotice(title: "Unable to Remove Credential", message: error.readableMessage)
             }
             self?.load()
         }
+    }
+
+    private func showCard(of repository: DistributionRepository) {
+        navigationController?.pushViewController(RepositoryCardController(repository: repository), animated: true)
+    }
+
+    private func open(_ repository: DistributionRepository) {
+        guard let url = URL(string: repository.url) else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - Table
@@ -266,67 +333,168 @@ final class GitSettingsController: TableController {
             return WaitingCell().then { $0.show(String(localized: "Loading…")) }
         case let .unavailable(message):
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            var content = UIListContentConfiguration.subtitleCell()
+            var content = UIListContentConfiguration.stackedValueCell()
             content.text = String(localized: "Git Settings Unavailable")
             content.secondaryText = message
             content.secondaryTextProperties.color = .secondaryLabel
-            content.textToSecondaryTextVerticalPadding = 4
+
             cell.contentConfiguration = content
             cell.selectionStyle = .none
+            return cell
+        case let .gitHubAccount(login):
+            return valueCell(String(localized: "Signed In"), login)
+        case let .repository(repository):
+            let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
+            var content = UIListContentConfiguration.stackedValueCell()
+            content.text = repository.fullName
+            content.secondaryText = repository.sourceURL
+            content.secondaryTextProperties.color = .secondaryLabel
+
+            cell.contentConfiguration = content
+            cell.accessibilityHint = String(localized: "Copies the source address.")
+            cell.accessibilityCustomActions = [
+                UIAccessibilityCustomAction(name: String(localized: "Open on GitHub")) { [weak self] _ in
+                    self?.open(repository); return true
+                },
+                UIAccessibilityCustomAction(name: String(localized: "Unlink")) { [weak self] _ in
+                    self?.flow.confirmUnlink(repository); return true
+                },
+            ]
             return cell
         case let .credential(credential):
-            let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
-            var content = UIListContentConfiguration.valueCell()
-            content.text = credential.host
-            content.secondaryText = credential.username
-            content.textProperties.numberOfLines = 1
-            content.secondaryTextProperties.numberOfLines = 1
-            cell.contentConfiguration = content
-            cell.selectionStyle = .none
-            return cell
-        case .add:
+            return valueCell(credential.host, credential.username)
+        case .gitHubSignIn, .createRepository, .linkRepository, .repositoryCard, .updateRepository:
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
             var content = cell.defaultContentConfiguration()
-            content.text = String(localized: "Add Credential…")
+            content.text = switch row {
+            case .gitHubSignIn: String(localized: "Sign In…")
+            case .createRepository: String(localized: "Create Repository…")
+            case .repositoryCard: String(localized: "Repository Card…")
+            case .updateRepository: String(localized: "Update Repository…")
+            default: String(localized: "Link Repository…")
+            }
             content.textProperties.color = .tintColor
             cell.contentConfiguration = content
             cell.accessibilityTraits.insert(.button)
+            if case .createRepository = row, isPreparingCreation {
+                let spinner = UIActivityIndicatorView(style: .medium)
+                spinner.startAnimating()
+                cell.accessoryView = spinner
+                cell.accessibilityTraits.insert(.notEnabled)
+                cell.accessibilityValue = String(localized: "Loading…")
+            }
             return cell
         }
     }
 
+    private func valueCell(_ text: String, _ value: String) -> UITableViewCell {
+        let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
+        var content = UIListContentConfiguration.valueCell()
+        content.text = text
+        content.secondaryText = value
+        content.textProperties.numberOfLines = 1
+        content.secondaryTextProperties.numberOfLines = 1
+        cell.contentConfiguration = content
+        cell.selectionStyle = .none
+        return cell
+    }
+
     override func tableView(_: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
-        dataSource.value(at: indexPath) == .add
+        switch dataSource.value(at: indexPath) {
+        case .createRepository?: !isPreparingCreation
+        case .gitHubSignIn?, .repository?, .repositoryCard?, .updateRepository?, .linkRepository?: true
+        default: false
+        }
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        if dataSource.value(at: indexPath) == .add {
-            addCredential()
+        switch dataSource.value(at: indexPath) {
+        case .gitHubSignIn?:
+            signInToGitHub()
+        case let .repository(repository)?:
+            UIPasteboard.general.string = repository.sourceURL
+            SPIndicator.present(title: String(localized: "Copied"), preset: .done, haptic: .success)
+        case let .repositoryCard(repository)?:
+            showCard(of: repository)
+        case let .updateRepository(repository)?:
+            flow.confirmUpdate(repository)
+        case .createRepository?:
+            flow.create { [weak self] loading in
+                self?.isPreparingCreation = loading
+                self?.updateRows(changedItems: [.createRepository])
+            }
+        case .linkRepository?:
+            flow.pick()
+        default:
+            break
         }
     }
 
+    override func tableView(
+        _: UITableView,
+        contextMenuConfigurationForRowAt indexPath: IndexPath,
+        point _: CGPoint,
+    ) -> UIContextMenuConfiguration? {
+        guard case let .repository(repository)? = dataSource.value(at: indexPath) else { return nil }
+        return UIContextMenuConfiguration(actionProvider: { [weak self] _ in
+            UIMenu(children: [
+                UIAction(title: String(localized: "Copy Source Address"), image: UIImage(systemName: "doc.on.doc")) { _ in
+                    UIPasteboard.general.string = repository.sourceURL
+                },
+                UIAction(title: String(localized: "Open on GitHub"), image: UIImage(systemName: "safari")) { _ in
+                    self?.open(repository)
+                },
+                UIAction(title: String(localized: "Repository Card…"), image: UIImage(systemName: "qrcode")) { _ in
+                    self?.showCard(of: repository)
+                },
+                UIAction(title: String(localized: "Update Repository…"), image: UIImage(systemName: "arrow.triangle.2.circlepath")) { _ in
+                    self?.flow.confirmUpdate(repository)
+                },
+                UIAction(
+                    title: String(localized: "Unlink"),
+                    image: UIImage(systemName: "link"),
+                    attributes: .destructive,
+                ) { _ in
+                    self?.flow.confirmUnlink(repository)
+                },
+            ])
+        })
+    }
+
     override func tableView(_: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
-        if case .credential = dataSource.value(at: indexPath) {
-            return .delete
+        switch dataSource.value(at: indexPath) {
+        case .credential?, .gitHubAccount?, .repository?: .delete
+        default: .none
         }
-        return .none
     }
 
     override func tableView(
         _: UITableView,
         trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
     ) -> UISwipeActionsConfiguration? {
-        guard case let .credential(credential)? = dataSource.value(at: indexPath) else { return nil }
-        let remove = UIContextualAction(
-            style: .destructive,
-            title: String(localized: "Remove"),
-        ) { [weak self] _, _, completion in
-            // the row goes when the host says it has
-            completion(false)
-            self?.confirmRemoval(credential)
+        let action: UIContextualAction
+        switch dataSource.value(at: indexPath) {
+        case let .credential(credential)?:
+            action = UIContextualAction(style: .destructive, title: String(localized: "Remove")) { [weak self] _, _, completion in
+                // the row goes when the host says it has
+                completion(false)
+                self?.confirmRemoval(credential)
+            }
+            action.image = UIImage(systemName: "trash")
+        case .gitHubAccount?:
+            action = UIContextualAction(style: .destructive, title: String(localized: "Sign Out")) { [weak self] _, _, completion in
+                completion(false)
+                self?.confirmSignOut()
+            }
+        case let .repository(repository)?:
+            action = UIContextualAction(style: .destructive, title: String(localized: "Unlink")) { [weak self] _, _, completion in
+                completion(false)
+                self?.flow.confirmUnlink(repository)
+            }
+        default:
+            return nil
         }
-        remove.image = UIImage(systemName: "trash")
-        return UISwipeActionsConfiguration(actions: [remove])
+        return UISwipeActionsConfiguration(actions: [action])
     }
 }

@@ -53,6 +53,10 @@
         {"mobile": "if [ -f \"$DATA/Settings/git.json.harness\" ]; then mv \"$DATA/Settings/git.json.harness\" \"$DATA/Settings/git.json\"; else rm -f \"$DATA/Settings/git.json\"; fi"}
       ]
     },
+    "distribution": {
+      "before": [{"mobile": "cp \"$DATA/Settings/distribution.json\" \"$DATA/Settings/distribution.json.harness\" 2>/dev/null || true"}],
+      "after": [{"mobile": "if [ -f \"$DATA/Settings/distribution.json.harness\" ]; then mv \"$DATA/Settings/distribution.json.harness\" \"$DATA/Settings/distribution.json\"; fi"}]
+    },
     "i2-git-commit": {
       "needs": ["project:I2GitCheck"],
       "before": [{"mobile": "echo 'a note from the device harness' > \"$DATA/Projects/I2GitCheck/i2-note.txt\""}],
@@ -144,16 +148,16 @@
     },
     "transfer": {
       "needs": ["sdk"],
-      "after": [{"mobile": "rm -rf \"$DATA/Exports\""}]
+      "after": [{"mobile": "rm -rf \"${DATA:?}/Exports\""}]
     },
     "transfer-project": {
       "needs": ["project:I3 Chain Tweak"],
       "before": [{"removeProject": "Transfer Copy"}],
-      "after": [{"removeProject": "Transfer Copy"}, {"mobile": "rm -rf \"$DATA/Exports\""}]
+      "after": [{"removeProject": "Transfer Copy"}, {"mobile": "rm -rf \"${DATA:?}/Exports\""}]
     },
     "transfer-toolchain": {
       "needs": ["installed-toolchain"],
-      "after": [{"mobile": "rm -rf \"$DATA/Exports\""}],
+      "after": [{"mobile": "rm -rf \"${DATA:?}/Exports\""}],
       "timeout": 3600,
       "manual": "writes an .apetc of the whole toolchain, a GB or more, which takes minutes and that much free space in the data folder; run it by name on a device that has it"
     }
@@ -164,7 +168,7 @@
     ],
     "tools": ["tool-host", "i6-tool-attachments"],
     "accounts": ["accounts"],
-    "git": ["i2-git", "i2-git-commit", "i2-git-remote"],
+    "git": ["i2-git", "i2-git-commit", "i2-git-remote", "distribution"],
     "environment": ["i2-sdk-import", "environment", "r1-resume-sdk-import"],
     "chain": ["t1-toolchain-setup", "i3-chain", "project-build-install"],
     "resume": ["resume", "r1-resume-build", "r1-resume-sdk-import"],
@@ -173,7 +177,7 @@
     "regression": [
       "hello", "terminal", "logs", "diagnostics", "i3-image-check-refused", "i1-smoke",
       "i5-log-continuity", "tool-host", "i6-tool-attachments", "i2-git", "i2-git-commit", "i2-git-remote",
-      "i2-sdk-import", "environment", "transfer", "t1-toolchain-setup", "files", "i3-chain", "project-build-install",
+      "distribution", "i2-sdk-import", "environment", "transfer", "t1-toolchain-setup", "files", "i3-chain", "project-build-install",
       "transfer-project", "resume", "r1-resume-build", "r1-resume-sdk-import", "t2-toolchain-remove", "r2-resume-toolchain",
       "accounts"
     ]

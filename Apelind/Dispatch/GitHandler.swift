@@ -1,18 +1,21 @@
 import ApelinCore
 import ApelinProtocol
 
-/// The git service on a project, served by apelin-environment (libgit2).
+/// The git service on a project, served by apelin-environment (libgit2),
+/// and an empty repository made on GitHub with the github.com sign-in.
 enum GitHandler: DomainHandler {
     static func handle(_ request: HostRequest, host: SessionHost) async -> HostReply {
-        if case let .worker(.agent, instance) = request.caller, !deviceSettings.contains(request.operation),
+        if case let .worker(.agent, instance) = request.caller, !unscoped.contains(request.operation),
            let refusal = await agentScopeRefusal(request, sessionID: instance)
         {
             return request.fail(refusal)
         }
         switch request.operation {
-        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit,
+        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit,
              .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove:
             return await host.forward(request, to: .environment)
+        case .gitRepositoryCreate:
+            return await createRepository(request, host: host)
         case .gitClone:
             return await host.startTask(request, kind: .environment, role: .environment, resumable: true)
         case .gitCloneInto, .gitFetch, .gitPull, .gitPush:
@@ -24,10 +27,11 @@ enum GitHandler: DomainHandler {
         }
     }
 
-    /// The device's author and credentials, which name no project. An
-    /// agent changes them only through the user's approval of each call.
-    private static let deviceSettings: Set<AppOperation> = [
-        .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove,
+    /// What names no project: the device's author and credentials, which an
+    /// agent changes only through the user's approval of each call, and a
+    /// repository made on GitHub, which AgentRepositoryCreateRules decides.
+    private static let unscoped: Set<AppOperation> = [
+        .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove, .gitRepositoryCreate,
     ]
 
     /// An agent's git call acts on its own session's project and no other:
@@ -44,5 +48,21 @@ enum GitHandler: DomainHandler {
             return ApelinError(.denied, "an agent's git call acts only on its own project")
         }
         return nil
+    }
+
+    /// An agent's is checked here before it is forwarded.
+    private static func createRepository(_ request: HostRequest, host: SessionHost) async -> HostReply {
+        if case let .worker(.agent, instance) = request.caller {
+            let create: GitRepositoryCreateRequest
+            do {
+                create = try request.decode(GitRepositoryCreateRequest.self)
+            } catch {
+                return request.fail(error)
+            }
+            if let refusal = await AgentRepositoryCreateRules.authorize(create, session: instance, registry: host.registry) {
+                return request.fail(refusal)
+            }
+        }
+        return await host.forward(request, to: .environment)
     }
 }

@@ -47,7 +47,12 @@ final class BuildWorkerTests: XCTestCase {
         let created = try worker.projectCreate(request)
         XCTAssertNil(created.baseline)
         XCTAssertEqual(try worker.store.root(of: created.projectID).name, request.name)
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: created.path), ["apelin-project.json"])
+        // its description and the empty repository on main it starts with
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: created.path).sorted(), [".git", "apelin-project.json"])
+        XCTAssertEqual(
+            try String(contentsOfFile: created.path + "/.git/HEAD", encoding: .utf8),
+            "ref: refs/heads/main\n",
+        )
         XCTAssertThrowsError(try worker.projectCreate(request))
         XCTAssertThrowsError(try worker.projectCreate(ProjectCreateRequest(templateID: template.id, name: "../outside")))
     }

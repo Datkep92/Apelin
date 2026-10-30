@@ -21,6 +21,9 @@ public protocol AgentHostBackend: Sendable {
     func install(_ request: InstallRequest) async throws -> InstallResponse
     /// Remove a managed project package by its installation record.
     func removePackage(_ request: RemovePackageRequest) async throws -> RemovePackageResponse
+    /// The packages Apelin installed that are still on the device, every
+    /// project's, each with the installation a removal acts on.
+    func installations(_ request: InstallationListToolRequest) async throws -> InstallationListToolResponse
     /// Restart SpringBoard.
     func respring(_ request: RespringRequest) async throws -> RespringResponse
     /// Check a build is loaded in its target: marker log, loaded images,
@@ -58,6 +61,8 @@ public protocol AgentHostBackend: Sendable {
     func gitUnstage(_ request: GitPathsToolRequest) async throws -> GitPathsToolResponse
     /// A local commit; the author is the host's setting, never the agent's.
     func gitCommit(_ request: GitCommitToolRequest) async throws -> GitCommitToolResponse
+    /// A repository on main for a project that has none.
+    func gitInit(_ request: GitInitToolRequest) async throws -> GitInitToolResponse
     /// The remote's branches into remote-tracking refs, read to the end.
     func gitFetch(_ request: GitRemoteToolRequest) async throws -> GitTaskToolResponse
     /// Fetch, then fast-forward only, read to the end.
@@ -72,6 +77,9 @@ public protocol AgentHostBackend: Sendable {
     /// Saves a host's credential; the answer never carries the token.
     func gitSaveCredential(_ request: GitCredentialToolRequest) async throws -> GitSettingsToolResponse
     func gitRemoveCredential(_ request: GitCredentialRemoveToolRequest) async throws -> GitSettingsToolResponse
+    /// An empty repository on GitHub with the user's sign-in; the host
+    /// checks it was approved.
+    func createRepository(_ request: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse
     /// Another conversation in the session's project, opened with a first
     /// message; answers without waiting for it.
     func conversationCreate(_ request: ConversationCreateToolRequest) async throws -> ConversationCreateToolResponse
@@ -93,6 +101,9 @@ public protocol AgentHostBackend: Sendable {
     /// A project's displayName, by `projectRename`; the host checks the
     /// session may rename it.
     func renameProject(_ request: ProjectRenameToolRequest) async throws -> ProjectRenameToolResponse
+    /// Another project deleted for good, by `projectDelete`; the host
+    /// checks the session may delete it and closes its conversations first.
+    func deleteProject(_ request: ProjectDeleteToolRequest) async throws -> ProjectDeleteToolResponse
     /// The device's toolchains, and the releases Apple's catalog offers.
     func toolchains(context: HostCallContext) async throws -> ToolchainListToolResponse
     /// The device's SDKs, and the ones the enabled sources offer.
@@ -106,11 +117,30 @@ public protocol AgentHostBackend: Sendable {
     /// The session's project checked as if bound to these components:
     /// the binding with the registry's digests and its findings.
     func checkEnvironment(_ request: EnvironmentCheckToolRequest) async throws -> EnvironmentCheckToolResponse
+    /// A public issue on Apelin's own repository with the user's GitHub
+    /// sign-in; the host checks it was approved.
+    func sendFeedback(_ request: FeedbackToolRequest) async throws -> FeedbackToolResponse
+    /// An installed agent tool extension, started by the host as mobile
+    /// after its own check of the manifest: the tool session its calls name.
+    func openToolExtension(id: String) async throws -> String
+    /// One call in that session; `notFound` once the extension has exited.
+    func callToolExtension(_ request: ToolExtensionCallRequest) async throws -> ToolExtensionCallResponse
+    func closeToolExtension(sessionID: String) async throws
+    /// The linked package repository, the GitHub sign-in and each build's
+    /// package record, read before apelin_package_publish asks.
+    func packagePublication(_ request: PackagePublicationRequest) async throws -> PackagePublication
+    /// Builds' packages published to the linked package repository as they
+    /// were built, read to the end; the host checks they were approved.
+    func publishPackages(_ request: PackagePublishToolRequest) async throws -> PackagePublishToolResponse
 }
 
-/// A backend without the device's toolchains, SDKs or other projects (a
-/// test double, a live test): those tools say so.
+/// A backend without the device's toolchains, SDKs, installations or other
+/// projects (a test double, a live test): those tools say so.
 public extension AgentHostBackend {
+    func installations(_: InstallationListToolRequest) async throws -> InstallationListToolResponse {
+        throw ToolDeniedError(message: "installed packages are not available here")
+    }
+
     func resolveProject(_ reference: String) async throws -> ProjectIdentity {
         throw ToolDeniedError(message: "no project \(reference) is reachable here")
     }
@@ -121,6 +151,10 @@ public extension AgentHostBackend {
 
     func renameProject(_: ProjectRenameToolRequest) async throws -> ProjectRenameToolResponse {
         throw ToolDeniedError(message: "renaming projects is not available here")
+    }
+
+    func deleteProject(_: ProjectDeleteToolRequest) async throws -> ProjectDeleteToolResponse {
+        throw ToolDeniedError(message: "deleting projects is not available here")
     }
 
     func toolchains(context _: HostCallContext) async throws -> ToolchainListToolResponse {
@@ -145,6 +179,32 @@ public extension AgentHostBackend {
 
     func checkEnvironment(_: EnvironmentCheckToolRequest) async throws -> EnvironmentCheckToolResponse {
         throw ToolDeniedError(message: "project checks are not available here")
+    }
+
+    func sendFeedback(_: FeedbackToolRequest) async throws -> FeedbackToolResponse {
+        throw ToolDeniedError(message: "sending feedback is not available here")
+    }
+
+    func createRepository(_: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse {
+        throw ToolDeniedError(message: "creating repositories is not available here")
+    }
+
+    func openToolExtension(id _: String) async throws -> String {
+        throw ToolDeniedError(message: "agent tool extensions are not available here")
+    }
+
+    func callToolExtension(_: ToolExtensionCallRequest) async throws -> ToolExtensionCallResponse {
+        throw ToolDeniedError(message: "agent tool extensions are not available here")
+    }
+
+    func closeToolExtension(sessionID _: String) async throws {}
+
+    func packagePublication(_: PackagePublicationRequest) async throws -> PackagePublication {
+        throw ToolDeniedError(message: "publishing packages is not available here")
+    }
+
+    func publishPackages(_: PackagePublishToolRequest) async throws -> PackagePublishToolResponse {
+        throw ToolDeniedError(message: "publishing packages is not available here")
     }
 }
 

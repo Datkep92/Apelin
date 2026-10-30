@@ -44,6 +44,10 @@ final class WelcomeFlow {
         push(WelcomeProvidersPage(flow: self))
     }
 
+    func showGitHub() {
+        push(WelcomeGitHubPage(flow: self))
+    }
+
     func showProject() {
         push(WelcomeProjectPage(flow: self))
     }

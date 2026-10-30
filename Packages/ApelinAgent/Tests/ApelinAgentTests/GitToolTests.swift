@@ -8,7 +8,7 @@ import Testing
 @Suite("git tools")
 struct GitToolTests {
     static let gitTools: [AgentToolName] = [
-        .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitFetch, .gitPull, .gitPush, .gitClone,
+        .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitFetch, .gitPull, .gitPush, .gitClone,
     ]
 
     private func runner(_ home: TemporaryHome, backend: MockBackend, projectID: String? = nil) throws -> ToolRunner {
@@ -29,11 +29,12 @@ struct GitToolTests {
     @Test
     func `the catalog names the git tools with their risks`() {
         #expect(Self.gitTools.map(\.rawValue) == [
-            "git_status", "git_diff", "git_stage", "git_unstage", "git_commit", "git_fetch", "git_pull", "git_push", "git_clone",
+            "git_status", "git_diff", "git_stage", "git_unstage", "git_commit", "git_init", "git_fetch", "git_pull",
+            "git_push", "git_clone",
         ])
         #expect(AgentToolName.gitStatus.risk == .readOnly)
         #expect(AgentToolName.gitDiff.risk == .readOnly)
-        for tool in [AgentToolName.gitStage, .gitUnstage, .gitCommit, .gitFetch, .gitPull, .gitClone] {
+        for tool in [AgentToolName.gitStage, .gitUnstage, .gitCommit, .gitInit, .gitFetch, .gitPull, .gitClone] {
             #expect(tool.risk == .writeProject, "\(tool.rawValue)")
         }
         #expect(AgentToolName.gitPush.risk == .system)
@@ -61,8 +62,9 @@ struct GitToolTests {
                 }
             }
         }
-        #expect(Set(properties(.gitCommit).keys) == ["message", "reason"])
-        #expect(Set(properties(.gitPush).keys) == ["remote", "branch", "reason"])
+        #expect(Set(properties(.gitCommit).keys) == ["message", "all", "reason"])
+        #expect(Set(properties(.gitInit).keys) == ["reason"])
+        #expect(Set(properties(.gitPush).keys) == ["remote", "branch", "url", "reason"])
         #expect(Set(properties(.gitClone).keys) == ["url", "branch", "reason"])
         #expect(Set(properties(.gitDiff).keys) == ["path", "staged", "reason"])
         #expect(required(.gitStage) == ["paths", "reason"])
@@ -97,7 +99,7 @@ struct GitToolTests {
         let policy = ApprovalPolicy(mode: .confirm)
         #expect(policy.evaluate(InvocationFacts(tool: .local(.gitStatus)), root: root) == .allow(.preset("git_status")))
         #expect(policy.evaluate(InvocationFacts(tool: .local(.gitDiff)), root: root) == .allow(.preset("git_diff")))
-        for tool in [AgentToolName.gitStage, .gitUnstage, .gitCommit, .gitFetch, .gitPull, .gitClone] {
+        for tool in [AgentToolName.gitStage, .gitUnstage, .gitCommit, .gitInit, .gitFetch, .gitPull, .gitClone] {
             #expect(policy.evaluate(InvocationFacts(tool: .local(tool)), root: root) == .allow(.notRequired), "\(tool.rawValue)")
         }
         let relaxed = ApprovalPolicy(mode: .relaxed)
@@ -138,11 +140,28 @@ struct GitToolTests {
         #expect(second.count == 1)
 
         let pushes = await harness.backend.calls.compactMap { call -> String? in
-            guard case let .gitPush(remote, branch, evidence) = call else { return nil }
+            guard case let .gitPush(remote, branch, _, evidence) = call else { return nil }
             guard case .user = evidence else { return "not user" }
             return "\(remote ?? "nil") \(branch ?? "nil")"
         }
         #expect(pushes == ["nil develop", "nil develop"])
+    }
+
+    @Test
+    func `a push to a new remote names its address on the card and sends it`() async throws {
+        let harness = try DigestApprovalTests.Harness()
+        defer { harness.home.remove() }
+        let url = "https://github.com/owner/clock.git"
+        let (_, asked) = try await harness.run(.gitPush, ["url": .string(url)])
+        let request = try #require(asked.first)
+        #expect(asked.count == 1)
+        #expect(request.reason.contains("origin at \(url)"))
+        #expect(!request.allowsSessionScope)
+        let pushes = await harness.backend.calls.compactMap { call -> String? in
+            guard case let .gitPush(remote, branch, url, _) = call else { return nil }
+            return "\(remote ?? "nil") \(branch ?? "nil") \(url ?? "nil")"
+        }
+        #expect(pushes == ["nil main \(url)"])
     }
 
     @Test
@@ -173,6 +192,8 @@ struct GitToolTests {
             (.gitStage, ["paths": ["Sources/Tweak.m"]]),
             (.gitUnstage, ["paths": ["Sources/Tweak.m"]]),
             (.gitCommit, ["message": "Hook the clock"]),
+            (.gitInit, [:]),
+            (.gitCommit, ["message": "Save everything", "all": true]),
             (.gitFetch, ["remote": "upstream"]),
             (.gitPull, [:]),
             (.gitClone, ["url": "https://example.com/hello.git", "branch": "main"]),
@@ -187,6 +208,8 @@ struct GitToolTests {
             .gitStage(["Sources/Tweak.m"]),
             .gitUnstage(["Sources/Tweak.m"]),
             .gitCommit("Hook the clock"),
+            .gitInit,
+            .gitCommit("Save everything", all: true),
             .gitFetch(remote: "upstream"),
             .gitPull(remote: nil),
             .gitClone(url: "https://example.com/hello.git", branch: "main"),
@@ -216,7 +239,7 @@ struct GitToolTests {
         } catch let error as ToolDeniedError {
             #expect(error.message.contains("\"external\""))
             #expect(error.message.contains("APELIN_PACKAGE_DIR"))
-            #expect(error.message.contains("external-build skill"))
+            #expect(error.message.contains("apelin-external-build skill"))
         }
         #expect(await harness.backend.calls.isEmpty)
         #expect(await harness.events.events.isEmpty, "nothing is asked")
@@ -244,8 +267,8 @@ struct GitToolTests {
     func `the prompt carries the git rule, and the workspace section only for a workspace`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
-        func prompt(_ buildSystem: ProjectBuildSystem, mode: ApprovalMode = .relaxed) -> String {
-            SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: mode, skills: [], mcpServers: [], buildSystem: buildSystem)
+        func prompt(_ buildSystem: ProjectBuildSystem) -> String {
+            SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [], mcpServers: [], buildSystem: buildSystem)
         }
         let tweak = prompt(.apelin)
         #expect(tweak.contains("only through the git_* tools"))
@@ -260,7 +283,7 @@ struct GitToolTests {
         #expect(workspace.contains("git_clone"))
         #expect(workspace.contains("Settings ▸ Git"))
 
-        #expect(prompt(.apelin, mode: .confirm).contains("git_push"))
+        #expect(prompt(.apelin).contains("git_push"))
     }
 
     // MARK: Settings
@@ -278,19 +301,31 @@ struct GitToolTests {
     func `saving a credential asks each time, names the host, and keeps the token off the card`() async throws {
         let harness = try DigestApprovalTests.Harness()
         defer { harness.home.remove() }
-        let arguments: JSONValue = ["host": "github.com", "username": "octocat", "token": "ghp_secret"]
+        let arguments: JSONValue = ["host": "git.example.com", "username": "octocat", "token": "ghp_secret"]
         let (_, first) = try await harness.run(.gitSaveCredential, arguments, answering: .approve(.session))
         let request = try #require(first.first)
         #expect(!request.allowsSessionScope)
         guard case let .gitSettings(summary) = request.detail else {
             Issue.record("the card should say what changes"); return
         }
-        #expect(summary.contains("github.com") && summary.contains("octocat"))
+        #expect(summary.contains("git.example.com") && summary.contains("octocat"))
         #expect(!summary.contains("ghp_secret") && !request.reason.contains("ghp_secret"))
         let (_, second) = try await harness.run(.gitSaveCredential, arguments)
         #expect(second.count == 1)
-        let saved = await harness.backend.calls.filter { $0 == .gitSaveCredential(host: "github.com", username: "octocat", token: "ghp_secret") }
+        let saved = await harness.backend.calls.filter { $0 == .gitSaveCredential(host: "git.example.com", username: "octocat", token: "ghp_secret") }
         #expect(saved.count == 2)
+    }
+
+    @Test
+    func `github.com takes no token from the conversation, before anyone is asked`() async throws {
+        let harness = try DigestApprovalTests.Harness()
+        defer { harness.home.remove() }
+        for host in ["github.com", " GitHub.com "] {
+            await #expect(throws: ToolArgumentError.self) {
+                _ = try await harness.run(.gitSaveCredential, ["host": .string(host), "username": "octocat", "token": "ghp_secret"])
+            }
+        }
+        #expect(await harness.backend.calls.isEmpty)
     }
 
     @Test

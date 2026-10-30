@@ -134,8 +134,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard !saving else { return }
-        guard let model = dataSource.itemIdentifier(for: indexPath) else { return }
+        guard !saving, let model = dataSource.itemIdentifier(for: indexPath) else { return }
         if !selected.insert(model).inserted {
             selected.remove(model)
         }
@@ -146,8 +145,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         _: UITableView,
         trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
     ) -> UISwipeActionsConfiguration? {
-        guard usesAPIKey, !saving else { return nil }
-        guard let model = dataSource.itemIdentifier(for: indexPath) else { return nil }
+        guard usesAPIKey, !saving, let model = dataSource.itemIdentifier(for: indexPath) else { return nil }
         let delete = UIContextualAction(
             style: .destructive,
             title: String(localized: "Delete"),

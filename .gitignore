@@ -12,3 +12,5 @@ __pycache__/
 # SwiftPM scratch inside each standalone package and extension
 Packages/*/.build/
 Extensions/**/.build/
+# The banner tool's pnpm dependencies
+Documents/Banner/Tool/node_modules/

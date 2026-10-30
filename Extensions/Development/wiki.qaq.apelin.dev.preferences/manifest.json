@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "wiki.qaq.apelin.dev.preferences",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "kind": "preferences",
   "displayName": "Preference Bundle Development",
   "summary": "Build Settings panes with a preference bundle, a specifier plist and a PreferenceLoader entry.",
@@ -73,7 +73,7 @@
         { "path": "Resources/Info.plist", "format": "plist-xml" },
         { "path": "Packaging/entry.plist", "format": "plist-xml" }
       ],
-      "digest": "sha256:ca557897201e3458059432baa9dfb5135e3f8b8e0b987976eb56130c8eeb6f1e"
+      "digest": "sha256:270cb2d23cf6dfb3dfabec33475b9af12b256e55ddba26e828570fed4c8d45d2"
     }
   ],
   "provenance": [
@@ -86,14 +86,15 @@
       "adaptations": [
         "Kept: a PSListController subclass as principal class loading Root.plist, a switch stored in the package's own domain with a PostNotification, the PreferenceLoader entry with PSLinkCell/isController, the generated bundle Info.plist keys, preferenceloader as the package dependency, and the layout (Library/PreferenceBundles, Library/PreferenceLoader/Preferences).",
         "Changed: plists are XML rather than OpenStep text; the controller caches in the framework's _specifiers ivar instead of a static, so a second instance reloads correctly; reading and writing values is left to Preferences' own defaults/key handling instead of overriding it with NSUserDefaults; a text field row is added to show a value round-trip.",
-        "Changed: the private framework comes from this extension's own declarations and link stub instead of requiring a Theos SDK with PrivateFrameworks."
+        "Changed: the private framework comes from this extension's own declarations and link stub instead of requiring a Theos SDK with PrivateFrameworks.",
+        "Added: package.icon, this extension's icon on Apelin's Pages, written as the control's Icon so a package manager shows it beside the package."
       ]
     },
     {
       "scope": "support:preferences",
       "origin": "written",
       "adaptations": [
-        "PSListController.h is written for Apelin, growing platformize-tweak-ios's one-class declaration (template/src/prefs/TWListController.h, MIT, OwnGoal Studio) to the ivar and methods the template uses. The .tbd stub is hand-written."
+        "PSListController.h is written for Apelin, growing platformize-tweak-ios's one-class declaration (template/src/prefs/TWListController.h, MIT, OwnGoal Studio) to the ivar and methods the template uses, then the cell types, the specifier factories and properties, and the specifier list edits a pane built in code calls. The .tbd stub is hand-written."
       ]
     }
   ],

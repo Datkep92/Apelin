@@ -23,7 +23,7 @@ struct NoticePoster: @unchecked Sendable {
         let selector = NSSelectorFromString("initWithBundleIdentifier:")
         guard let method = class_getInstanceMethod(UNUserNotificationCenter.self, selector),
               let allocated = (UNUserNotificationCenter.self as AnyObject)
-              .perform(NSSelectorFromString("alloc"))?.takeUnretainedValue()
+                  .perform(NSSelectorFromString("alloc"))?.takeUnretainedValue()
         else { return nil }
         typealias Initializer = @convention(c) (AnyObject, Selector, NSString) -> Unmanaged<AnyObject>?
         let initialize = unsafeBitCast(method_getImplementation(method), to: Initializer.self)

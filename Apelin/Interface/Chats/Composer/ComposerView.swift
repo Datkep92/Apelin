@@ -287,6 +287,13 @@ class ComposerView: ComposerSectionView {
         inputEditor.set(text: draft.text)
     }
 
+    /// The keyboard up on the text, as a tap on it would bring it; not
+    /// while an approval covers the input.
+    func beginEditing() {
+        guard !approvalSection.isPresentingRequest else { return }
+        inputEditor.textView.becomeFirstResponder()
+    }
+
     func insertAttachment(_ attachment: ComposerAttachment) {
         currentDraft.attachments.append(attachment)
         attachmentsBar.show(currentDraft.attachments)

@@ -211,8 +211,8 @@ public enum AgentWorker {
 
     /// The kwwk provider configuration for an open request. The first four
     /// keep their own cases (and need a model named, as they always have);
-    /// every other provider is kwwk's stored provider of its store id, with
-    /// kwwk's default model when none is named.
+    /// every other provider uses its credential store id and the default
+    /// model chosen by ProviderRegistration when none is named.
     static func provider(_ open: AgentOpenRequest) throws -> ProviderConfiguration {
         let model = open.model.flatMap { $0.isEmpty ? nil : $0 }
         let provider = open.provider ?? .githubCopilot
@@ -229,7 +229,7 @@ public enum AgentWorker {
             guard let model else { throw ApelinError(.badRequest, "name the model for \(provider.rawValue)") }
             return .openAICompatible(model: model)
         case .openAICodex, .cursor, .devin, .kiro, .qoder, .qoderCN, .workBuddy, .workBuddyAI, .kimiCoding, .xai,
-             .zai, .zaiCodingCN, .openRouter, .openAI, .google:
+             .zai, .zaiCodingCN, .openRouter, .openAI, .google, .deepSeek:
             return .stored(storeID: provider.storeID, model: model)
         }
     }
@@ -261,6 +261,10 @@ actor WorkerState {
     /// What the session runs with now, which a conversation it opens starts with.
     let modelChoice = SessionModelChoice()
     private var session: AgentSession?
+    /// An open is under way. It takes the place before its first
+    /// suspension, so an open the host sends meanwhile is refused rather
+    /// than served by a second session writing the same log.
+    private var opening = false
     private var taskID: TaskID?
     private var context: WorkerContext?
     private var relay: Task<Void, Never>?
@@ -268,7 +272,9 @@ actor WorkerState {
     private var finished = false
 
     func open(_ open: AgentOpenRequest, taskID: TaskID, context: WorkerContext) async throws {
-        guard session == nil else { throw ApelinError(.conflict, "this process already serves a session") }
+        guard session == nil, !opening else {
+            throw ApelinError(.conflict, "this process already serves or is opening a session")
+        }
         guard let sessionID = context.assignment.sessionID, SessionEventLog.isValidSessionID(sessionID) else {
             throw ApelinError(.badRequest, "an agent session needs a session id from the host")
         }
@@ -285,6 +291,9 @@ actor WorkerState {
         let dataRoot = ApelinDataRoot(home: home)
         let projectURL = dataRoot.workspace(for: identity.name, temporaryID: open.temporaryID)
 
+        opening = true
+        // one that fails leaves the place free for the host to try again
+        defer { opening = false }
         // Credentials the owner dropped in the inbox are taken first.
         let keychain = KeychainCredentialSource(accessGroup: AgentWorker.keychainAccessGroup)
         let imported = await CredentialInbox(home: context.assignment.home).importAll(into: keychain)
@@ -308,6 +317,7 @@ actor WorkerState {
                     thinking: .init(rawValue: open.reasoningEffort?.rawValue ?? "off") ?? .off,
                     serviceTier: AgentWorker.serviceTier(open.serviceTier),
                     installRoot: context.assignment.installRoot,
+                    hostRestarted: open.hostRestarted == true,
                 ),
                 backend: ChannelHostBackend(
                     service: context.host,
@@ -538,6 +548,10 @@ actor EventRelay {
             return [("steer", .object(["text": .string(text)]))]
         case .messageStarted:
             return [("messageStarted", nil)]
+        case .messageDiscarded:
+            return [("messageDiscarded", nil)]
+        case .reconnecting:
+            return [("reconnecting", nil)]
         case .toolCallPreparing:
             return [("toolCallPreparing", nil)]
         case let .textDelta(text):
@@ -648,6 +662,22 @@ actor EventRelay {
             payload["detail"] = .object(["skillChange": (try? ApelinCore.JSONValue(encoding: change)) ?? .null])
         case let .projectRename(rename):
             payload["detail"] = .object(["projectRename": (try? ApelinCore.JSONValue(encoding: rename)) ?? .null])
+        // The issue the host matches an agent's feedbackSend to
+        // (AgentFeedbackRules).
+        case let .feedback(feedback):
+            payload["detail"] = .object(["feedback": (try? ApelinCore.JSONValue(encoding: feedback)) ?? .null])
+        // The repository the host matches an agent's gitRepositoryCreate to
+        // (AgentRepositoryCreateRules).
+        case let .repositoryCreate(repository):
+            payload["detail"] = .object(["repositoryCreate": (try? ApelinCore.JSONValue(encoding: repository)) ?? .null])
+        // The project the host matches an agent's projectDelete to
+        // (AgentProjectDeleteRules).
+        case let .projectDelete(deletion):
+            payload["detail"] = .object(["projectDelete": (try? ApelinCore.JSONValue(encoding: deletion)) ?? .null])
+        // The repository, files and digests the host matches an agent's
+        // distributionPublish to (AgentPublishRules).
+        case let .packagePublish(publication):
+            payload["detail"] = .object(["packagePublish": (try? ApelinCore.JSONValue(encoding: publication)) ?? .null])
         }
         return .object(payload)
     }

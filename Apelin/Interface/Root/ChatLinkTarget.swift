@@ -7,8 +7,9 @@ import SPIndicator
 enum ChatLinkTarget {
     enum Destination {
         case chat(ChatSummary)
-        /// A project with no conversation yet: a new one in it.
-        case newChat(project: String)
+        /// A project with no conversation yet: a new one in it. Or a new
+        /// General Chat (no project) with `draft` in its composer.
+        case newChat(project: String?, draft: String? = nil)
     }
 
     /// The conversation or project `link` names, or nil when it names
@@ -21,6 +22,8 @@ enum ChatLinkTarget {
             await conversation(id, in: runtime).map(Destination.chat)
         case let .project(id):
             await project(id, in: runtime)
+        case let .chat(prompt):
+            .newChat(project: nil, draft: prompt)
         }
     }
 
@@ -29,7 +32,7 @@ enum ChatLinkTarget {
         let title = switch link {
         case .conversation: String(localized: "Conversation Not Found")
         case .project: String(localized: "Project Not Found")
-        case .app, .unknown: String(localized: "Link Not Recognized")
+        case .app, .chat, .unknown: String(localized: "Link Not Recognized")
         }
         SPIndicator.present(title: title, preset: .error, haptic: .error)
     }
@@ -69,9 +72,9 @@ enum ChatLinkTarget {
               let project = projects.first(where: { $0.projectID.map { sameID($0, id) } ?? false })
               ?? projects.first(where: { $0.name == id })
         else { return nil }
-        let latest = runtime.records.values.map(\.summary)
-            .filter { $0.projectName == project.name }
-            .max { $0.updated < $1.updated }
+        let latest = SidebarOrder.newest(
+            runtime.records.values.map(\.summary).filter { $0.projectName == project.name },
+        )
         return latest.map(Destination.chat) ?? .newChat(project: project.name)
     }
 

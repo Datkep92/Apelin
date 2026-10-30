@@ -9,6 +9,10 @@ struct ChatMessage: Identifiable, Hashable {
         case thinking(seconds: Int?, tools: Int)
         case tool
         case approval(ApprovalDecision?)
+        /// Where the reader's Compact… compacted the conversation; the
+        /// row's text is the summary it goes on from, empty for a session
+        /// that did not keep it.
+        case compaction
 
         var isActivity: Bool {
             switch self {
@@ -57,22 +61,34 @@ struct ChatMessage: Identifiable, Hashable {
     var awaitsResult = false
     /// On a running summary, the calls in its trace still waiting for a result.
     var runningTools = 0
-    /// On a running summary, the output tokens the run has received so far
-    /// (the session's `received`); nil before the first count, and for a
-    /// session older than the count.
+    /// On the running summary, a model request that failed is being made
+    /// again (the session's `reconnecting`) and nothing has come of it yet.
+    var isReconnecting = false
+    /// On the turn's latest summary while the run goes, the output tokens
+    /// the run has received so far (the session's `received`); nil before
+    /// the first count, once the run has ended, and for a session older
+    /// than the count.
     var receivedTokens: Int?
-    /// An approval of a command that runs as root (`RootApprovalText`):
+    /// The summary's count belongs to a reply the run is writing after it:
+    /// the figure settles in half a second, not five (`TokenClimb`).
+    var receivedSettles = false
+    /// An approval of a command that runs as root (`ApprovalCardText`):
     /// the card says so, and Approve checks the device owner first.
     var runsAsRoot = false
+    var approvalSections: [ApprovalCardText.Section] = []
 
     var activityTitle: String {
         guard case let .thinking(seconds, tools) = role else { return text }
         // An unfinished summary counts only the calls still running; between
-        // them the model is at work again, so it reads "Thinking…".
+        // them the model is at work again, so it reads "Thinking…", or
+        // "Reconnecting…" while a failed request is made again.
         guard let seconds else {
+            if isReconnecting {
+                return String(localized: "Reconnecting…")
+            }
             guard runningTools > 0 else { return String(localized: "Thinking…") }
             return runningTools == 1
-                ? String(localized: "Executing 1 tool…")
+                ? String(localized: "Executing tool…")
                 : String(localized: "Executing \(runningTools) tools…")
         }
         if seconds <= 0 {

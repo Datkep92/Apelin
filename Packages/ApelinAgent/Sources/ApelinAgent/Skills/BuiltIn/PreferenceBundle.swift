@@ -1,6 +1,6 @@
 extension BuiltInSkills {
     static let preferenceBundle = SkillDocument(
-        name: "preference-bundle",
+        name: "apelin-preference-bundle",
         description: "A Settings pane for a tweak: the PSListController subclass, Root.plist specifiers, the PreferenceLoader entry, the preferences domain it stores to, and how the tweak reads the same setting.",
         body: """
         # A preference bundle
@@ -31,8 +31,16 @@ extension BuiltInSkills {
           values through `readPreferenceValue:`/`setPreferenceValue:`; do not
           override them with NSUserDefaults. The `Preferences` framework is
           private: it is reached through the preferences extension's support
-          component (project-description), which supplies the declarations and
+          component (apelin-project-description), which supplies the declarations and
           a link stub — do not expect SDK headers for it.
+        - **The declarations** are one header,
+          `<install root>/usr/share/apelin/development/wiki.qaq.apelin.dev.preferences/support/include/Preferences/PSListController.h`
+          (the install root # Environment names), which
+          `#import <Preferences/PSListController.h>` finds. Read it with
+          file_read before calling the framework from code: it is what the
+          compiler knows of `PSListController` and `PSSpecifier`. A method
+          it lacks is declared in a category in the project's own source;
+          never edit the support folder.
         - **Root.plist** is `items`, an array of specifiers, each a `cell`
           plus its keys:
           - `PSGroupCell` — a section header with `label` and optional
@@ -56,7 +64,7 @@ extension BuiltInSkills {
         ## How the tweak reads it
         The pane writes the value into the package's preferences domain and
         posts `<package id>/changed`. The tweak reads that domain and listens
-        for that name, as the tweak-runtime skill describes. Keep the row's
+        for that name, as the apelin-tweak-runtime skill describes. Keep the row's
         `defaults`, the tweak's domain and the notification name the same
         string — the package id — on both sides.
 

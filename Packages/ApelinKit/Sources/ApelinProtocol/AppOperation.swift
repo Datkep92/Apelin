@@ -15,6 +15,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case toolchainSetup
     case toolchainRemove
     case toolchainSelfTest
+    case toolchainSetDefault
 
     case sdkList
     case sdkImport
@@ -27,6 +28,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case projectCreate
     case projectCheck
     case projectRename
+    case projectDelete
 
     case buildStart
     case buildAttach
@@ -34,6 +36,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
 
     case installPackage
     case removePackage
+    case installationList
     case respring
     case approvalDigestState
 
@@ -87,6 +90,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case gitStage
     case gitUnstage
     case gitCommit
+    case gitInit
     case gitClone
     case gitCloneInto
     case gitFetch
@@ -96,7 +100,16 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case gitAuthorSet
     case gitCredentialSet
     case gitCredentialRemove
+    case gitRepositoryCreate
 
+    case distributionRepositoryList
+    case distributionRepositoryCreate
+    case distributionRepositoryLink
+    case distributionRepositoryUnlink
+    case distributionPublish
+    case feedbackSend
+    case feedbackStarState
+    case feedbackStar
     case transferExport
     case transferInspect
     case transferImport
@@ -106,12 +119,12 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     public var domain: OperationDomain {
         switch self {
         case .hello: .hello
-        case .toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainRemove, .toolchainSelfTest: .toolchain
+        case .toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainRemove, .toolchainSelfTest, .toolchainSetDefault: .toolchain
         case .sdkList, .sdkImport, .sdkRemove: .sdk
         case .environmentAttach, .environmentCancel: .environment
-        case .extensionList, .projectCreate, .projectCheck, .projectRename: .project
+        case .extensionList, .projectCreate, .projectCheck, .projectRename, .projectDelete: .project
         case .buildStart, .buildAttach, .buildCancel: .build
-        case .installPackage, .removePackage, .respring, .approvalDigestState: .install
+        case .installPackage, .removePackage, .installationList, .respring, .approvalDigestState: .install
         case .fileRead, .protectedEditOpen, .protectedEditCommit: .files
         case .ptyOpen, .ptyAttach, .ptyResize, .ptyClose: .terminal
         case .logStream, .crashList, .crashOpen, .crashSymbolicate: .logs
@@ -122,10 +135,14 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
              .agentModelActivate, .agentSignIn, .agentSignInRespond, .agentSignInCancel, .agentSignOut:
             .agent
         case .toolHostOpen, .toolHostClose, .toolHostCall: .toolHost
-        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitClone, .gitCloneInto, .gitFetch, .gitPull,
-             .gitPush, .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove:
+        case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitClone, .gitCloneInto, .gitFetch,
+             .gitPull,
+             .gitPush, .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove, .gitRepositoryCreate:
             .git
         case .transferExport, .transferInspect, .transferImport: .transfer
+        case .distributionRepositoryList, .distributionRepositoryCreate, .distributionRepositoryLink,
+             .distributionRepositoryUnlink, .distributionPublish, .feedbackSend, .feedbackStarState, .feedbackStar:
+            .distribution
         }
     }
 
@@ -138,6 +155,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .toolchainSetup: ToolchainSetupRequest.self
         case .toolchainRemove: ToolchainRemoveRequest.self
         case .toolchainSelfTest: ToolchainSelfTestRequest.self
+        case .toolchainSetDefault: ToolchainSetDefaultRequest.self
         case .sdkList: SDKListRequest.self
         case .sdkImport: SDKImportRequest.self
         case .sdkRemove: SDKRemoveRequest.self
@@ -147,11 +165,13 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .projectCreate: ProjectCreateRequest.self
         case .projectCheck: ProjectCheckRequest.self
         case .projectRename: ProjectRenameRequest.self
+        case .projectDelete: ProjectDeleteRequest.self
         case .buildStart: BuildStartRequest.self
         case .buildAttach: BuildAttachRequest.self
         case .buildCancel: BuildCancelRequest.self
         case .installPackage: InstallPackageRequest.self
         case .removePackage: RemovePackageRequest.self
+        case .installationList: InstallationListRequest.self
         case .respring: RespringRequest.self
         case .approvalDigestState: ApprovalDigestStateRequest.self
         case .fileRead: FileReadRequest.self
@@ -198,6 +218,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .gitStage: GitStageRequest.self
         case .gitUnstage: GitUnstageRequest.self
         case .gitCommit: GitCommitRequest.self
+        case .gitInit: GitInitRequest.self
         case .gitClone: GitCloneRequest.self
         case .gitCloneInto: GitCloneIntoRequest.self
         case .gitFetch: GitFetchRequest.self
@@ -207,6 +228,15 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .gitAuthorSet: GitAuthorSetRequest.self
         case .gitCredentialSet: GitCredentialSetRequest.self
         case .gitCredentialRemove: GitCredentialRemoveRequest.self
+        case .gitRepositoryCreate: GitRepositoryCreateRequest.self
+        case .distributionRepositoryList: DistributionRepositoryListRequest.self
+        case .distributionRepositoryCreate: DistributionRepositoryCreateRequest.self
+        case .distributionRepositoryLink: DistributionRepositoryLinkRequest.self
+        case .distributionRepositoryUnlink: DistributionRepositoryUnlinkRequest.self
+        case .distributionPublish: DistributionPublishRequest.self
+        case .feedbackSend: FeedbackSendRequest.self
+        case .feedbackStarState: FeedbackStarStateRequest.self
+        case .feedbackStar: FeedbackStarRequest.self
         case .transferExport: TransferExportRequest.self
         case .transferInspect: TransferInspectRequest.self
         case .transferImport: TransferImportRequest.self
@@ -231,6 +261,7 @@ public enum OperationDomain: String, Codable, CaseIterable, Sendable {
     case toolHost
     case git
     case transfer
+    case distribution
 }
 
 /// A request on the wire. Each operation has exactly one request type, and

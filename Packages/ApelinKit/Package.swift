@@ -130,9 +130,10 @@ let package = Package(
         .testTarget(
             name: "ApelinEnvironmentTests",
             dependencies: [
-                "ApelinEnvironment", "ApelinGit", "ApelinProtocol",
+                "ApelinEnvironment", "ApelinGit", "ApelinProject", "ApelinProtocol",
                 .product(name: "ArchiveKit", package: "libarchive.xcframework"),
                 .product(name: "ApelinDebArchive", package: "ApelinFormats"),
+                .product(name: "ApelinDebian", package: "ApelinFormats"),
             ],
         ),
         .testTarget(name: "ApelinBuildTests", dependencies: [

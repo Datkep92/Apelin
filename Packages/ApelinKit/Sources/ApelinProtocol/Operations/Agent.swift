@@ -167,6 +167,8 @@ public enum AgentProvider: String, Codable, Sendable {
     case openAI
     /// Google AI Studio's Gemini API with an API key (`google-api-key`).
     case google
+    /// DeepSeek's API with its own API key (`deepseek-api-key`).
+    case deepSeek
 }
 
 extension AgentProvider: CaseIterable {}
@@ -214,6 +216,13 @@ public struct AgentOpenRequest: OperationRequest {
     /// the host keeps it as the session's title and puts it on
     /// `conversationOpened`.
     public var title: String?
+    /// Written by the host, never the caller's (it drops what a caller
+    /// sends): the app is continuing a conversation no message has reached
+    /// since this session host started, so the device may have rebooted and
+    /// roothide may have renamed the bootstrap's root since it last ran. The
+    /// worker says so in the next message's `<system-state>` when the
+    /// conversation has history.
+    public var hostRestarted: Bool?
 
     public init(
         projectID: String? = nil,
@@ -229,6 +238,7 @@ public struct AgentOpenRequest: OperationRequest {
         prompt: String? = nil,
         closeWhenFinished: Bool? = nil,
         title: String? = nil,
+        hostRestarted: Bool? = nil,
     ) {
         self.projectID = projectID
         self.projectName = projectName
@@ -243,6 +253,7 @@ public struct AgentOpenRequest: OperationRequest {
         self.prompt = prompt
         self.closeWhenFinished = closeWhenFinished
         self.title = title
+        self.hostRestarted = hostRestarted
     }
 }
 
@@ -354,8 +365,8 @@ public struct AgentAbortRequest: OperationRequest {
 /// The app's alone, between runs: refused `conflict` while a run goes or
 /// another compaction does. The answer comes once it has started; the
 /// session's task says how it went, `compactionStarted` then
-/// `compactionFinished` {outcome, messagesCompacted?, message?}, and
-/// `agentAbort` stops it.
+/// `compactionFinished` {outcome, messagesCompacted?, message?, summary?},
+/// and `agentAbort` stops it.
 public struct AgentCompactRequest: OperationRequest {
     public typealias Response = Acknowledged
     public static let operation = AppOperation.agentCompact
@@ -381,11 +392,17 @@ public struct AgentCompactionResult: Codable, Sendable, Hashable {
     public var messagesCompacted: Int?
     /// Why it failed, in the provider's words where it gave any.
     public var message: String?
+    /// When compacted, the summary the conversation now goes on from, as
+    /// the reader sees it: kwwk's recap without its markup. Bounded by the
+    /// recap's own budget, about 1,800 tokens. Absent from events recorded
+    /// before it was kept.
+    public var summary: String?
 
-    public init(outcome: Outcome, messagesCompacted: Int? = nil, message: String? = nil) {
+    public init(outcome: Outcome, messagesCompacted: Int? = nil, message: String? = nil, summary: String? = nil) {
         self.outcome = outcome
         self.messagesCompacted = messagesCompacted
         self.message = message
+        self.summary = summary
     }
 }
 
@@ -435,7 +452,8 @@ public struct AgentListRequest: OperationRequest {
     public typealias Response = AgentListResponse
     public static let operation = AppOperation.agentList
     /// Only this project's sessions, named by its `projectID` or its folder;
-    /// absent, every project's for the app and the caller's own for an agent.
+    /// absent, every project's for the app, the caller's own for an agent in
+    /// a project, and every project's it may reach for one in General Chat.
     public var projectID: String?
     public var projectName: String?
 
@@ -446,9 +464,16 @@ public struct AgentListRequest: OperationRequest {
 }
 
 public struct AgentListResponse: Codable, Sendable, Equatable {
+    /// For an agent, the sessions that have not run since the session host
+    /// started too, each by its newest task, which has ended.
     public var sessions: [AgentSessionSummary]
-    public init(sessions: [AgentSessionSummary] = []) {
+    /// How many projects an agent in General Chat may not list without the
+    /// user's approval (Strict), left out of a list that named none; absent
+    /// when none was.
+    public var unreachedProjects: Int?
+    public init(sessions: [AgentSessionSummary] = [], unreachedProjects: Int? = nil) {
         self.sessions = sessions
+        self.unreachedProjects = unreachedProjects
     }
 }
 

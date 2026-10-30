@@ -65,7 +65,26 @@ let notified = ChatTranscript(events: [
 ]) { _ in nil }.messages
 precondition(notified.count == 1 && notified[0].trace.map(\.text) == ["Send a notification"],
              "a notice shows only as its call, named in the trace: \(notified.flatMap(\.trace).map(\.text))")
-print("ok: empty thoughts, subsecond reasoning, standalone tools and ended turns")
+/// A file the agent shows is an assistant row of its result's attachments,
+/// shown as any attachment is: a PDF as a document card.
+let shownFiles = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("Let me see the notes")]),
+    event(2, "toolCall", ["id": .string("s1"), "tool": .string("file_show"), "arguments": .string("{\"paths\":[\"Docs/notes.pdf\"]}")]),
+    event(3, "toolResult", ["id": .string("s1"), "output": .string("Shown to the user in this conversation: Docs/notes.pdf."), "attachments": .array([
+        .object(["path": .string("Attachments/0f1e"), "name": .string("notes.pdf"), "mimeType": .string("application/pdf")]),
+    ])]),
+    event(4, "toolCall", ["id": .string("s2"), "tool": .string("file_show"), "arguments": .string("{\"paths\":[\"a.png\",\"b.log\"]}")]),
+    event(5, "toolCall", ["id": .string("s3"), "tool": .string("file_show"), "arguments": .string("{}")]),
+    event(6, "message", ["text": .string("There they are.")]),
+    event(7, "finished"),
+]) { item in
+    ComposerAttachment(name: item.name, data: Data(item.path.utf8), isImage: item.mimeType.hasPrefix("image/"))
+}.messages
+precondition(shownFiles.contains { $0.role == .assistant && $0.attachments.map(\.name) == ["notes.pdf"] && !$0.attachments[0].isImage },
+             "a shown PDF is a document attachment of the reply: \(shownFiles.map(\.attachments))")
+precondition(shownFiles.flatMap(\.trace).filter { $0.role == .tool }.map(\.text) == ["Show Docs/notes.pdf", "Show 2 files", "Show a file"],
+             "\(shownFiles.flatMap(\.trace).map(\.text))")
+print("ok: empty thoughts, subsecond reasoning, standalone tools, shown files and ended turns")
 
 /// The approval card shows what the decision is bound to: why the gate
 /// asked, a changed description's diff, then the arguments read by name
@@ -91,39 +110,129 @@ precondition(
 )
 print("ok: an approval card carries the reason and the description diff before the arguments")
 
-/// A command that runs as root marks its card (`runsAsRoot`) and shows the
-/// exact command by name, so the reader reads it before Face ID.
-let rootApproval = ChatTranscript(events: [
-    event(1, "prompt", ["text": .string("Install the dependency")]),
+/// A publication's card shows what it is bound to, the repository and each
+/// package with its digest, rather than the build IDs the call named.
+let publishApproval = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("Publish both")]),
     event(2, "approvalRequested", [
-        "approvalID": .string("r1"), "tool": .string("shell_run"),
-        "arguments": .string("{\"argv\":[\"irisin-cli\",\"install\",\"--yes\",\"mobilesubstrate\"],\"root\":true}"),
-        "reason": .string("Runs as root, with full control of this device."),
-        "detail": .object(["rootCommand": .object([
-            "argv": .object(["_0": .array([.string("irisin-cli"), .string("install")])]),
+        "approvalID": .string("p1"), "tool": .string("apelin_package_publish"),
+        "arguments": .string("{\"build_ids\":[\"b-hide\",\"b-less\"]}"),
+        "reason": .string("Publishes these 2 packages to your package repository someone/packages on GitHub."),
+        "detail": .object(["packagePublish": .object([
+            "repository": .string("someone/packages"),
+            "packages": .array([
+                .object(["packageID": .string("com.example.clock"), "version": .string("1.0"),
+                         "architecture": .string("iphoneos-arm64e"), "digest": .string("sha256:aa")]),
+                .object(["packageID": .string("com.example.clock"), "version": .string("1.0"),
+                         "architecture": .string("iphoneos-arm64"), "digest": .string("sha256:bb")]),
+            ]),
         ])]),
     ]),
 ]) { _ in nil }.messages.first { $0.role.needsApproval }
-precondition(rootApproval?.runsAsRoot == true, "a root command's card is marked")
+precondition(publishApproval?.approvalTitle == "Publish to the package repository")
+let publishDetail = publishApproval?.approvalDetail ?? ""
 precondition(
-    (rootApproval?.approvalDetail ?? "").contains("irisin-cli") && (rootApproval?.approvalDetail ?? "").contains("mobilesubstrate"),
-    "the card shows the exact root command: \(rootApproval?.approvalDetail ?? "")",
+    publishDetail.contains("repository\nsomeone/packages")
+        && publishDetail.contains("com.example.clock 1.0 (iphoneos-arm64e)\nsha256:aa")
+        && publishDetail.contains("com.example.clock 1.0 (iphoneos-arm64)\nsha256:bb")
+        && !publishDetail.contains("b-hide"),
+    "the card names the repository and each package's digest, not the build IDs: \(publishDetail)",
 )
-let plainShell = ChatTranscript(events: [
-    event(1, "prompt", ["text": .string("x")]),
-    event(2, "approvalRequested", [
-        "approvalID": .string("s1"), "tool": .string("shell_run"), "arguments": .string("{\"argv\":[\"make\"]}"),
-        "detail": .object(["command": .object(["argv": .object(["_0": .array([.string("make")])])])]),
+print("ok: a publication's card names the repository and every package's digest")
+
+/// A command that runs as root marks its card (`runsAsRoot`). The card says
+/// the root sentence once (the red line; the gate's own sentence is left
+/// out), why the agent made the call first, then the command as the line the
+/// reader would type, with no `root` row: what they read before Face ID.
+let rootGateReason = "Runs as root, with full control of this device. Each command that runs as root needs your approval."
+let rootApproval = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("Install the dependency")]),
+    event(2, "toolCall", ["id": .string("c1"), "tool": .string("shell_run"),
+                          "arguments": .string("{\"argv\":[\"id\",\"-u\"],\"reason\":\"以 root 身份运行 id -u 查看 uid\",\"root\":true}")]),
+    event(3, "approvalRequested", [
+        "approvalID": .string("r1"), "toolCallID": .string("c1"), "tool": .string("shell_run"),
+        "arguments": .string("{\"argv\":[\"id\",\"-u\"],\"root\":true}"),
+        "reason": .string(rootGateReason),
+        "detail": .object(["rootCommand": .object([
+            "argv": .object(["_0": .array([.string("id"), .string("-u")])]),
+        ])]),
     ]),
 ]) { _ in nil }.messages.first { $0.role.needsApproval }
+let rootDetail = rootApproval?.approvalDetail ?? ""
+precondition(rootApproval?.runsAsRoot == true, "a root command's card is marked")
+precondition(!rootDetail.contains("Runs as root"), "the root sentence is said once, by the red line: \(rootDetail)")
+precondition(rootDetail.hasPrefix("以 root 身份运行 id -u 查看 uid"), "the agent's reason comes first: \(rootDetail)")
+precondition(rootDetail.contains("argv\nid -u"), "the command reads as its command line: \(rootDetail)")
+precondition(!rootDetail.contains("[\"id\""), "not as a JSON array: \(rootDetail)")
+precondition(!rootDetail.contains("root\ntrue"), "and no root row, the red line says it: \(rootDetail)")
+
+/// An ordinary command's card keeps the gate's sentence, and gets the
+/// agent's reason and the command line too.
+let shellGateReason = "This command is not in your approved presets. Review it before running."
+let plainShell = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("x")]),
+    event(2, "toolCall", ["id": .string("c2"), "tool": .string("shell_run"),
+                          "arguments": .string("{\"argv\":[\"make\",\"-C\",\"My Tweak\"],\"reason\":\"Build the tweak\"}")]),
+    event(3, "approvalRequested", [
+        "approvalID": .string("s1"), "toolCallID": .string("c2"), "tool": .string("shell_run"),
+        "arguments": .string("{\"argv\":[\"make\",\"-C\",\"My Tweak\"]}"),
+        "reason": .string(shellGateReason),
+        "detail": .object(["command": .object(["argv": .object(["_0": .array([
+            .string("make"), .string("-C"), .string("My Tweak"),
+        ])])])]),
+    ]),
+]) { _ in nil }.messages.first { $0.role.needsApproval }
+let shellDetail = plainShell?.approvalDetail ?? ""
 precondition(plainShell?.runsAsRoot == false, "an ordinary command's card is not marked as root")
+let shellPositions = ["Build the tweak", shellGateReason, "make -C 'My Tweak'"].compactMap { shellDetail.range(of: $0)?.lowerBound }
+precondition(
+    shellPositions.count == 3 && shellPositions == shellPositions.sorted(),
+    "the agent's reason, the gate's, then the command line: \(shellDetail)",
+)
+
+/// The card shows the command and directory the approval is bound to, the
+/// request's `detail.rootCommand` and `workingDirectory`, even where the
+/// call's arguments say otherwise.
+let mismatched = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("x")]),
+    event(2, "approvalRequested", [
+        "approvalID": .string("m1"), "tool": .string("shell_run"), "workingDirectory": .string("Sources"),
+        "arguments": .string("{\"argv\":[\"id\",\"-u\"],\"cwd\":\".\",\"root\":true}"),
+        "detail": .object(["rootCommand": .object(["argv": .object(["_0": .array([
+            .string("rm"), .string("-rf"), .string("/var/mobile"),
+        ])])])]),
+    ]),
+]) { _ in nil }.messages.first { $0.role.needsApproval }
+let mismatchedDetail = mismatched?.approvalDetail ?? ""
+precondition(
+    mismatchedDetail.contains("argv\nrm -rf /var/mobile") && !mismatchedDetail.contains("id -u"),
+    "the bound command is shown, not the arguments' own: \(mismatchedDetail)",
+)
+precondition(mismatchedDetail.contains("cwd\nSources"), "in the bound directory: \(mismatchedDetail)")
+
+/// The command line is display only and never ambiguous: each distinct argv
+/// reads differently, whatever its words hold.
+let argvs: [[String]] = [
+    ["id", "-u"], ["id -u"], ["id", "", "-u"], ["id", " -u"], ["a'b"], ["a\\'b"], ["*"], ["\\*"],
+    ["a\tb"], ["a b"], ["a\nb"], ["a\u{200B}b"], ["ab"], ["a\u{00A0}b"], ["~"], ["$HOME"], ["'$HOME'"],
+    [""], ["", ""], ["x=1", "id"], ["x=1 id"],
+]
+let lines = argvs.map(CommandLineText.quoted)
+precondition(Set(lines).count == argvs.count, "two argvs read the same: \(lines)")
+precondition(CommandLineText.quoted(["id", "-u"]) == "id -u")
+precondition(CommandLineText.quoted(["make", "-C", "My Tweak"]) == "make -C 'My Tweak'")
+precondition(CommandLineText.quoted([""]) == "''", "an empty word is shown")
+precondition(CommandLineText.quoted(["it's"]) == #"'it'\''s'"#)
+precondition(CommandLineText.quoted(["*.m"]) == "'*.m'", "a glob is quoted")
+precondition(CommandLineText.quoted(["a\u{200B}b"]) == "$'a\\u200Bb'", "a character that does not show is escaped")
+precondition(CommandLineText.quoted(["a\nb"]) == #"$'a\nb'"#)
 print("ok: a root command's card is marked and shows the command")
 
 let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("apelin-chat-store-\(UUID())")
 try FileManager.default.createDirectory(at: storageURL, withIntermediateDirectories: true)
 defer { try? FileManager.default.removeItem(at: storageURL) }
 let storage = ChatStore(folder: DataFolder(root: storageURL))
-let record = ChatRecord(summary: ChatSummary(title: "Deletion regression", updated: Date()))
+let record = ChatRecord(summary: ChatSummary(title: "Deletion regression", lastInteraction: Date()))
 try await storage.save(record, revision: 1)
 let savedRecords = try await storage.load()
 precondition(savedRecords.count == 1, "A chat saved through the temporary-directory alias must load")
@@ -131,7 +240,7 @@ try await storage.remove(record.summary.id)
 try await storage.save(record, revision: 2)
 let deletedRecords = try await storage.load()
 precondition(deletedRecords.isEmpty, "A queued save must not resurrect a deleted chat")
-let unsaved = ChatRecord(summary: ChatSummary(title: "Unsaved", updated: Date()))
+let unsaved = ChatRecord(summary: ChatSummary(title: "Unsaved", lastInteraction: Date()))
 try await storage.remove(unsaved.summary.id)
 try await storage.save(unsaved, revision: 3)
 let unsavedRecords = try await storage.load()
@@ -195,6 +304,32 @@ precondition(ChatTranscript(events: running) { _ in nil }.messages.map(\.id)
     "a count adds no row")
 print("ok: a running summary stays running across calls and carries the run's received tokens")
 
+/// Once the reply after it has begun, the summary is finished and keeps the
+/// run's count, settling, until the run ends; a turn that replies without a
+/// summary of its own leaves the last turn's summary without one.
+let replying = patched + [
+    event(8, "messageStarted"), event(9, "text", ["text": .string("Done: the hook is on.")]),
+    received(10, 1400),
+]
+let settlingRows = ChatTranscript(events: replying) { _ in nil }.messages
+precondition(settlingRows.last?.role == .assistant, "the reply is the last row")
+let summaryAbove = settlingRows[settlingRows.count - 2]
+precondition(!summaryAbove.role.isThinking && summaryAbove.receivedTokens == 1400 && summaryAbove.receivedSettles,
+             "the summary above the reply keeps the count, settling")
+precondition(!ChatTranscript(events: running) { _ in nil }.messages.contains(where: \.receivedSettles),
+             "a running summary does not settle")
+let endedReply = ChatTranscript(events: replying + [event(11, "message", ["text": .string("Done: the hook is on.")]),
+                                                    event(12, "finished")]) { _ in nil }.messages
+precondition(endedReply.allSatisfy { $0.receivedTokens == nil && !$0.receivedSettles }, "an ended run has no count")
+let directReply = replying + [
+    event(11, "message", ["text": .string("Done: the hook is on.")]), event(12, "finished"),
+    event(13, "prompt", ["text": .string("Thanks")]), event(14, "messageStarted"),
+    event(15, "text", ["text": .string("You're welcome.")]), received(16, 5),
+]
+precondition(ChatTranscript(events: directReply) { _ in nil }.messages.allSatisfy { $0.receivedTokens == nil },
+             "no count goes above the turn's own message")
+print("ok: the count stays, settling, on the summary above the reply the run is writing")
+
 /// The line under a running summary is its newest call: the reason the agent
 /// gave, a file edit's name and, once its result is in, the lines it added
 /// and removed. Thinking after a call leaves the call there; nothing of the
@@ -242,6 +377,45 @@ precondition(ToolCallBanner.lineChange(in: "Replaced Tweak.x (40 bytes, +2 -2)")
 precondition(ToolCallBanner.lineChange(in: "Unable to patch Tweak.x") == nil)
 precondition(ToolCallBanner.lineChange(in: "Patched Tweak.x (1 replacement)") == nil)
 print("ok: a running summary's line is its newest call, with a file edit's name and counts")
+
+/// kwwk gives up a reply the connection dropped halfway and asks for it
+/// again: what it showed goes, the running summary says it is reconnecting
+/// under the id it had, and the reply that follows is drawn once.
+let askedID = UUID()
+let cutOff = [
+    event(1, "prompt", ["id": .string(askedID.uuidString), "text": .string("Explain the hook")]),
+    event(2, "messageStarted"), event(3, "thinking", ["text": .string("It chains")]),
+    event(4, "text", ["text": .string("The hook ch")]),
+    event(5, "messageDiscarded"), event(6, "reconnecting"),
+]
+let answeringRows = ChatTranscript(events: Array(cutOff.prefix(2))) { _ in nil }.messages
+let cutOffRows = ChatTranscript(events: cutOff) { _ in nil }.messages
+precondition(cutOffRows.map(\.role) == [.user, .thinking(seconds: nil, tools: 0)], "the partial reply goes: \(cutOffRows)")
+precondition(cutOffRows.last?.id == answeringRows.last?.id, "the summary keeps its id")
+precondition(cutOffRows.last?.text.isEmpty == true, "and the given-up thought goes with it")
+precondition(cutOffRows.last?.isReconnecting == true && cutOffRows.last?.activityTitle == "Reconnecting…")
+let cutOffRetried = cutOff + [
+    event(7, "messageStarted"), event(8, "text", ["text": .string("The hook chains to the original.")]),
+    event(9, "message", ["text": .string("The hook chains to the original.")]), event(10, "finished"),
+]
+let retriedRunning = ChatTranscript(events: Array(cutOffRetried.prefix(7))) { _ in nil }.messages.last
+precondition(retriedRunning?.id == answeringRows.last?.id && retriedRunning?.activityTitle == "Thinking…", "a new attempt ends it")
+let retriedReplies = ChatTranscript(events: cutOffRetried) { _ in nil }.messages.filter { $0.role == .assistant }
+precondition(retriedReplies.map(\.text) == ["The hook chains to the original."], "the reply is drawn once: \(retriedReplies.map(\.text))")
+let callThenRetry = [
+    event(1, "prompt", ["text": .string("Build it")]), event(2, "messageStarted"),
+    event(3, "toolCall", ["id": .string("t1"), "tool": .string("apelin_project_build"), "arguments": .string("{}")]),
+    event(4, "toolResult", ["id": .string("t1"), "output": .string("Built")]),
+    event(5, "reconnecting"),
+]
+precondition(ChatTranscript(events: callThenRetry) { _ in nil }.messages.last?.activityTitle == "Reconnecting…")
+precondition(ChatTranscript(events: callThenRetry + [event(6, "finished")]) { _ in nil }.messages.allSatisfy { !$0.isReconnecting },
+             "nor once the run ends")
+let beforeDiscard = ChatTranscript(events: Array(callThenRetry.prefix(4))) { _ in nil }.messages
+let notStreaming = Array(callThenRetry.prefix(4)) + [event(5, "messageDiscarded")]
+precondition(ChatTranscript(events: notStreaming) { _ in nil }.messages == beforeDiscard,
+             "a discard takes back only a message still streaming")
+print("ok: a reply given up halfway is taken back, and a request made again reads Reconnecting…")
 
 /// A running turn that has shown a reply and then gone quiet for
 /// `quietInterval` gets a running summary under the reply, under the id its
@@ -349,7 +523,7 @@ precondition(summaries[2].text == "The hook is off. Turning it on.")
 precondition(countsOwnCalls(summaries))
 let stillBuilding = ChatTranscript(events: Array(twoSummaries.prefix(15))) { _ in nil }.messages.last
 precondition(stillBuilding?.role == .thinking(seconds: nil, tools: 2) && stillBuilding?.runningTools == 1)
-precondition(stillBuilding?.activityTitle == "Executing 1 tool…")
+precondition(stillBuilding?.activityTitle == "Executing tool…")
 print("ok: each summary counts only the calls in its own trace")
 
 /// A message another conversation's agent sent names that conversation over
@@ -369,7 +543,7 @@ print("ok: messages from other conversations name their sender")
 // opener's project, once; agentList adopts what the app missed.
 let openerSession = UUID().uuidString.lowercased()
 let childSession = UUID().uuidString.lowercased()
-let opener = ChatRecord(summary: ChatSummary(title: "Plan", updated: Date(), projectName: "Clock"), sessionID: openerSession, task: TaskHandle(taskID: TaskID("opener-task"), kind: .agent))
+let opener = ChatRecord(summary: ChatSummary(title: "Plan", lastInteraction: Date(), projectName: "Clock"), sessionID: openerSession, task: TaskHandle(taskID: TaskID("opener-task"), kind: .agent))
 let opened: JSONValue = .object([
     "sessionID": .string(childSession),
     "task": .object(["taskID": .string("child-task"), "kind": .string("agent")]),
@@ -379,7 +553,7 @@ let opened: JSONValue = .object([
 let adopted = ChatAdoption.record(opened: opened, parent: opener, records: [opener], now: Date(timeIntervalSince1970: 7))
 precondition(adopted?.sessionID == childSession && adopted?.task == TaskHandle(taskID: TaskID("child-task"), kind: .agent))
 precondition(adopted?.summary.projectName == "Clock" && adopted?.summary.title == "Docs" && adopted?.summary.isWorking == true)
-precondition(adopted?.summary.updated == Date(timeIntervalSince1970: 7) && adopted?.events.isEmpty == true)
+precondition(adopted?.summary.lastInteraction == Date(timeIntervalSince1970: 7) && adopted?.events.isEmpty == true)
 precondition(ChatAdoption.record(opened: opened, parent: opener, records: [opener, adopted!]) == nil, "a conversation is adopted once")
 var untitled = opened
 if case var .object(fields) = untitled {
@@ -389,7 +563,7 @@ if case var .object(fields) = untitled {
 
 precondition(ChatAdoption.record(opened: untitled, parent: opener, records: [opener])?.summary.title == "Write the README")
 precondition(ChatAdoption.record(opened: .object(["sessionID": .string("not-a-uuid")]), parent: opener, records: [opener]) == nil)
-let general = ChatRecord(summary: ChatSummary(title: "General", updated: Date(), projectName: nil), sessionID: openerSession)
+let general = ChatRecord(summary: ChatSummary(title: "General", lastInteraction: Date(), projectName: nil), sessionID: openerSession)
 precondition(ChatAdoption.record(opened: opened, parent: general, records: [general]) == nil, "a conversation naming no project is not adopted from General Chat")
 /// One opened in another project, General Chat's or a project's, goes there.
 var elsewhere = opened
@@ -438,7 +612,7 @@ precondition(hostQueued.messages.filter { $0.id == sent.id }.count == 1)
 precondition(hostQueued.messages.last?.id == sent.id && hostQueued.messages.last?.isQueued == true)
 print("ok: a sent message shows at once and its prompt or queued echo replaces it")
 
-var sendingRecord = ChatRecord(summary: ChatSummary(title: "Send", updated: Date()))
+var sendingRecord = ChatRecord(summary: ChatSummary(title: "Send", lastInteraction: Date()))
 let second = ComposerDraft(text: "And test it")
 sendingRecord.sending = [sent, second]
 let taken = sendingRecord.takeEchoed(by: [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])])
@@ -446,39 +620,39 @@ precondition(taken.map(\.draft.id) == [sent.id] && sendingRecord.sending?.map(\.
 _ = sendingRecord.takeEchoed(by: [event(2, "queued", ["id": .string(second.id.uuidString), "text": .string("And test it")])])
 precondition(sendingRecord.sending == nil)
 
-var failed = ChatRecord(summary: ChatSummary(title: "Failed", updated: Date()))
+var failed = ChatRecord(summary: ChatSummary(title: "Failed", lastInteraction: Date()))
 failed.sending = [sent]
 precondition(failed.takeBack(sent) && failed.sending == nil, "a failed send leaves no row")
 precondition(failed.draft.id == sent.id && failed.draft.text == "Build it" && failed.draft.attachments == [file])
 precondition(ChatTranscript(events: failed.events, sending: failed.sending ?? []) { _ in nil }.messages.isEmpty)
-var typedSince = ChatRecord(summary: ChatSummary(title: "Typed", updated: Date()))
+var typedSince = ChatRecord(summary: ChatSummary(title: "Typed", lastInteraction: Date()))
 typedSince.sending = [sent]
 typedSince.draft = ComposerDraft(text: "Next")
 precondition(!typedSince.takeBack(sent) && typedSince.draft.text == "Next" && typedSince.sending == nil, "what was typed since stays")
-var recordedFirst = ChatRecord(summary: ChatSummary(title: "Recorded", updated: Date()))
+var recordedFirst = ChatRecord(summary: ChatSummary(title: "Recorded", lastInteraction: Date()))
 recordedFirst.sending = [sent]
 recordedFirst.events = [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]
 precondition(!recordedFirst.takeBack(sent) && recordedFirst.draft.text.isEmpty, "a message the host recorded is not put back")
 print("ok: an echo settles its message and a failed send takes it back into an empty draft")
 
-var killed = ChatRecord(summary: ChatSummary(title: "Killed", updated: Date()))
+var killed = ChatRecord(summary: ChatSummary(title: "Killed", lastInteraction: Date()))
 killed.sending = [sent]
 killed.reclaimUnsent()
 precondition(killed.sending == nil && killed.draft.id == sent.id && killed.draft.attachments == [file], "an unechoed message returns to the draft")
 precondition(killed.takeEchoed(by: [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]).isEmpty)
 precondition(killed.draft.text.isEmpty, "a returned draft the host did take empties on its echo")
-var edited = ChatRecord(summary: ChatSummary(title: "Edited", updated: Date()))
+var edited = ChatRecord(summary: ChatSummary(title: "Edited", lastInteraction: Date()))
 edited.sending = [sent]
 edited.reclaimUnsent()
 edited.draft.text = "Build it twice"
 _ = edited.takeEchoed(by: [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])])
 precondition(edited.draft.text == "Build it twice", "an edited draft stays")
-var merged = ChatRecord(summary: ChatSummary(title: "Merged", updated: Date()))
+var merged = ChatRecord(summary: ChatSummary(title: "Merged", lastInteraction: Date()))
 merged.sending = [sent]
 merged.draft = ComposerDraft(text: "Typed after")
 merged.reclaimUnsent()
 precondition(merged.draft.text == "Build it\n\nTyped after" && merged.draft.attachments == [file])
-var settled = ChatRecord(summary: ChatSummary(title: "Settled", updated: Date()))
+var settled = ChatRecord(summary: ChatSummary(title: "Settled", lastInteraction: Date()))
 settled.sending = [sent]
 settled.events = [event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]
 settled.reclaimUnsent()
@@ -570,7 +744,7 @@ let history = [
     event(9, "steer", ["text": .string("From another chat")]),
     event(10, "messageStarted"), event(11, "message", ["text": .string("Noted.")]), event(12, "finished"),
 ]
-var reopened = ChatRecord(summary: ChatSummary(title: "Story", updated: Date()))
+var reopened = ChatRecord(summary: ChatSummary(title: "Story", lastInteraction: Date()))
 reopened.task = TaskHandle(taskID: .make(), kind: .agent)
 reopened.events = history
 let before = ChatTranscript(events: reopened.events, sending: [sent]) { _ in nil }.messages
@@ -601,12 +775,12 @@ precondition(Array(after.prefix(before.count - 1)) == Array(before.prefix(before
 precondition(Set(after.map(\.id)).count == after.count, "and no id repeats, though the numbering started again")
 precondition(after.last { $0.role == .user }?.id == sent.id && after.last?.text == "Done")
 precondition(reopened.take([event(12, "text", ["text": .string(" now")])]).count == 1, "after the replay, everything is taken")
-var unknownHistory = ChatRecord(summary: ChatSummary(title: "Lost", updated: Date()))
+var unknownHistory = ChatRecord(summary: ChatSummary(title: "Lost", lastInteraction: Date()))
 unknownHistory.events = history
 unknownHistory.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
 precondition(unknownHistory.take([event(1, "prompt", ["id": .string(sent.id.uuidString), "text": .string("Build it")])]).count == 1,
              "a task that replays nothing starts with the new message")
-var firstTask = ChatRecord(summary: ChatSummary(title: "New", updated: Date()))
+var firstTask = ChatRecord(summary: ChatSummary(title: "New", lastInteraction: Date()))
 firstTask.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
 precondition(firstTask.take([event(1, "error", ["message": .string("Sign in first")])]).count == 1,
              "a conversation with no history reads its first task from the start, an early error included")
@@ -615,7 +789,7 @@ sameTask.reopen(as: reopened.task!)
 precondition(sameTask.events == reopened.events && sameTask.cursor == EventSeq(12), "the same task again reads on")
 // Compact… reopens a stopped session with no message after the replay:
 // the compaction it asked for is new, one already in the history is not.
-var compacted = ChatRecord(summary: ChatSummary(title: "Long", updated: Date()))
+var compacted = ChatRecord(summary: ChatSummary(title: "Long", lastInteraction: Date()))
 compacted.task = TaskHandle(taskID: .make(), kind: .agent)
 compacted.events = history + [event(13, "compactionStarted"), event(14, "compactionFinished", ["outcome": .string("compacted")])]
 compacted.reopen(as: TaskHandle(taskID: .make(), kind: .agent))
@@ -625,10 +799,55 @@ let asked = compacted.take([event(15, "compactionStarted"), event(16, "compactio
 precondition(asked.map(\.kind) == ["compactionStarted", "compactionFinished"], "the one asked for after a reopen is taken")
 print("ok: a reopened session's replay is read past, and the conversation keeps its rows")
 
+checkReplayEnd()
+
+/// A Compact… that compacted leaves a row where it happened, carrying the
+/// summary the conversation goes on from; one that did not leaves none.
+/// An older session recorded its compaction without the summary: the row
+/// is there, with nothing to open.
+let compactionSummary = "The user is building a tweak; <the hook> loads & logs."
+let compactedLog = history + [
+    event(13, "compactionStarted"),
+    event(14, "compactionFinished", [
+        "outcome": .string("compacted"), "messagesCompacted": .number(6), "summary": .string(compactionSummary),
+    ]),
+    event(15, "prompt", ["id": .string(UUID().uuidString), "text": .string("Carry on")]),
+]
+let compactedRows = ChatTranscript(events: compactedLog) { _ in nil }.messages
+let compactionIndex = compactedRows.firstIndex { $0.role == .compaction }
+precondition(compactedRows.count(where: { $0.role == .compaction }) == 1, "one row for the compaction")
+precondition(compactionIndex.map { compactedRows[$0].text } == compactionSummary, "the row keeps the summary as written")
+precondition(compactionIndex.map { compactedRows[$0 - 1].text } == "Noted.", "after the reply it followed")
+precondition(compactionIndex.map { compactedRows[$0 + 1].role } == .user, "before the message sent after it")
+precondition(ChatTranscript(events: compactedLog) { _ in nil }.messages.map(\.id) == compactedRows.map(\.id),
+             "the row's id comes from its event, built again or not")
+let notCompacted = ChatTranscript(events: history + [
+    event(13, "compactionStarted"), event(14, "compactionFinished", ["outcome": .string("tooShort")]),
+]) { _ in nil }
+precondition(!notCompacted.messages.contains { $0.role == .compaction } && !notCompacted.isCompacting,
+             "a compaction that left the chat as it was shows no row")
+let olderCompaction = ChatTranscript(events: history + [
+    event(13, "compactionStarted"),
+    event(14, "compactionFinished", ["outcome": .string("compacted"), "messagesCompacted": .number(6)]),
+]) { _ in nil }
+precondition(olderCompaction.messages.last?.role == .compaction && olderCompaction.messages.last?.text == "",
+             "an older session's compaction has its row, with no summary")
+let textAfter = ChatTranscript(events: [
+    event(1, "messageStarted"), event(2, "text", ["text": .string("Before")]),
+    event(3, "compactionFinished", ["outcome": .string("compacted"), "summary": .string("S")]),
+    event(4, "text", ["text": .string("After")]),
+]) { _ in nil }.messages
+precondition(textAfter.map(\.text) == ["Before", "S", "After"], "text after the row never lands above it")
+let olderResult = try JSONValue.object(["outcome": .string("compacted"), "messagesCompacted": .number(6)])
+    .decode(AgentCompactionResult.self)
+precondition(olderResult == AgentCompactionResult(outcome: .compacted, messagesCompacted: 6),
+             "a result recorded before the summary was kept still decodes")
+print("ok: a Compact… that compacted is a row where it happened, which opens the summary")
+
 /// A name the reader gives a conversation is kept: the agent's `title`
 /// events and the first message's opening no longer replace it, a name of
 /// nothing but spaces changes nothing, and the name survives a relaunch.
-var renamed = ChatSummary.untitled(updated: Date(), projectName: nil)
+var renamed = ChatSummary.untitled(lastInteraction: Date(), projectName: nil)
 renamed.suggestTitle("Opening words")
 precondition(renamed.title == "Opening words" && renamed.isNamedByReader == nil, "an unnamed conversation takes suggestions")
 precondition(!renamed.rename(to: " \n\t "), "a name with nothing in it is refused")
@@ -653,7 +872,7 @@ print("ok: a renamed conversation keeps its name over the agent's titles and acr
 /// language the app runs in now, and named after its first message. One an
 /// earlier version saved as the words New Chat, in any of the app's
 /// languages, reads as untitled too, unless the reader typed them.
-var fresh = ChatSummary.untitled(updated: Date(), projectName: "Clock")
+var fresh = ChatSummary.untitled(lastInteraction: Date(), projectName: "Clock")
 precondition(fresh.isUntitled && fresh.displayTitle == String(localized: "New Chat"), "a new conversation has only a placeholder")
 let freshFile = try JSONEncoder().encode(ChatRecord(summary: fresh))
 let freshSaved = try JSONDecoder().decode(ChatRecord.self, from: freshFile).summary
@@ -664,13 +883,13 @@ fresh.nameAfterFirstMessage(text: "Then the home screen", attachmentName: nil)
 precondition(fresh.title == "Hook the lock screen", "a later message does not")
 fresh.suggestTitle("Lock screen tweak")
 precondition(fresh.displayTitle == "Lock screen tweak", "the agent's title replaces the first message's")
-var attachedOnly = ChatSummary.untitled(updated: Date(), projectName: nil)
+var attachedOnly = ChatSummary.untitled(lastInteraction: Date(), projectName: nil)
 attachedOnly.nameAfterFirstMessage(text: "", attachmentName: "crash.ips")
 precondition(attachedOnly.title == "crash.ips", "a message of attachments alone is named after the first")
-var nothingSent = ChatSummary.untitled(updated: Date(), projectName: nil)
+var nothingSent = ChatSummary.untitled(lastInteraction: Date(), projectName: nil)
 nothingSent.nameAfterFirstMessage(text: "", attachmentName: nil)
 precondition(nothingSent.isUntitled, "nothing to name it after leaves it untitled, never the words New Chat")
-var longOpening = ChatSummary.untitled(updated: Date(), projectName: nil)
+var longOpening = ChatSummary.untitled(lastInteraction: Date(), projectName: nil)
 longOpening.nameAfterFirstMessage(text: String(repeating: "a", count: 200), attachmentName: nil)
 precondition(longOpening.title.count == 80, "the opening is its first 80 characters")
 
@@ -720,7 +939,7 @@ do {
     ]
     var titles = ["s1": "Docs"]
     var cache = ChatTranscriptCache()
-    var chat = ChatRecord(summary: ChatSummary(title: "Cached", updated: Date()), events: senderTurn)
+    var chat = ChatRecord(summary: ChatSummary(title: "Cached", lastInteraction: Date()), events: senderTurn)
     // before any of these turns has gone quiet
     let early = Date(timeIntervalSince1970: 0)
     func cached(_ record: ChatRecord, followed: Set<UUID> = [], now: Date = early) -> ChatTranscript {
@@ -758,8 +977,8 @@ do {
 
     // the page's conversation stays while another one is built; followed
     // ones stay whatever is built
-    let other = ChatRecord(summary: ChatSummary(title: "Other", updated: Date()), events: senderTurn)
-    let followed = ChatRecord(summary: ChatSummary(title: "Followed", updated: Date()), events: senderTurn)
+    let other = ChatRecord(summary: ChatSummary(title: "Other", lastInteraction: Date()), events: senderTurn)
+    let followed = ChatRecord(summary: ChatSummary(title: "Followed", lastInteraction: Date()), events: senderTurn)
     let keepers: Set = [followed.summary.id]
     let followedFirst = cached(followed, followed: keepers)
     let shown = cached(chat, followed: keepers)
@@ -781,7 +1000,7 @@ do {
 
     // a turn gone quiet is built again once its deadline has passed, when
     // the page's wake asks, with the running summary standing in
-    let quietChat = ChatRecord(summary: ChatSummary(title: "Quiet", updated: Date()), events: replied)
+    let quietChat = ChatRecord(summary: ChatSummary(title: "Quiet", lastInteraction: Date()), events: replied)
     let beforeQuiet = cached(quietChat, now: replyAt.addingTimeInterval(1))
     let quietAt = replyAt.addingTimeInterval(ChatTranscript.quietInterval)
     precondition(beforeQuiet.messages.last?.role == .assistant && beforeQuiet.quietDeadline == quietAt)
@@ -815,6 +1034,31 @@ precondition(earlierTitles == callTitles(earlierNames.compactMap { AgentToolName
 precondition(!earlierTitles.contains { $0.contains("_") }, "an earlier name is titled, not spelled out")
 print("ok: calls recorded under the earlier tool names read as today's do")
 
+/// A web fetch is titled by the site it reads.
+func webFetchTitle(_ arguments: String) -> String? {
+    let call = event(1, "toolCall", [
+        "id": .string("w"), "tool": .string(AgentToolName.webFetch.rawValue), "arguments": .string(arguments),
+    ])
+    return ChatTranscript(events: [call, event(2, "finished")]) { _ in nil }
+        .messages.flatMap(\.trace).first { $0.role == .tool }?.text
+}
+
+precondition(webFetchTitle(#"{"url":"https://docs.example.com/guide?x=1"}"#) == "Read docs.example.com")
+precondition(webFetchTitle("{}") == "Read a webpage")
+print("ok: a web fetch is titled by its site")
+
 checkTranscriptFold()
 
 checkToolCallDetail()
+
+checkTraceStep()
+
+checkDroppedMessages()
+
+checkDeletedProjects()
+
+checkCompletedBuilds()
+
+checkStarPromptState()
+
+try checkSidebarOrder()

@@ -36,6 +36,9 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", "2.98.0" ..< "2.104.0"),
         // Apelin's own wire and worker channel. System code only.
         .package(path: "../ApelinKit"),
+        // The agent tool extensions' manifests and their validation, read
+        // to offer their tools. System code only.
+        .package(path: "../ApelinToolHost"),
     ],
     targets: [
         .target(
@@ -52,8 +55,11 @@ let package = Package(
                 .product(name: "ApelinProtocol", package: "ApelinKit"),
                 // CanonicalPath: the path rules the rest of Apelin decides by.
                 .product(name: "ApelinCore", package: "ApelinKit"),
-                // The apelin-project.json schema the project-description skill serves.
+                // The apelin-project.json schema the apelin-project-description skill serves.
                 .product(name: "ApelinProject", package: "ApelinKit"),
+                // ToolManifestValidator: the installed agent tool extensions
+                // whose tools a session offers.
+                .product(name: "ApelinToolCore", package: "ApelinToolHost"),
             ],
             path: "Sources/ApelinAgent",
         ),
@@ -88,6 +94,7 @@ let package = Package(
                 "ApelinAgent",
                 .product(name: "KWWKAgent", package: "kwwk"),
                 .product(name: "KWWKAI", package: "kwwk"),
+                .product(name: "ApelinToolCore", package: "ApelinToolHost"),
             ],
             path: "Tests/ApelinAgentTests",
         ),

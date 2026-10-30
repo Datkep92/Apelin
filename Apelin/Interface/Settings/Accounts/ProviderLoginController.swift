@@ -1,7 +1,6 @@
 import AlertController
 import ApelinCore
 import ApelinProtocol
-import AuthenticationServices
 import SnapKit
 import SPIndicator
 import Then
@@ -14,9 +13,9 @@ import UIKit
 /// step needs — the device code, or the fields of a key with Sign In as the
 /// one prominent button. The provider's page opens inside Apelin by itself
 /// once it is known (a code it needs is on the clipboard, which the
-/// keyboard offers), through `ASWebAuthenticationSession`: Safari's own
-/// cookies, so an account already signed in there stays signed in, and
-/// nothing leaves the app. It closes by itself when the sign-in ends; the
+/// keyboard offers), in `SignInBrowser`: Safari's own cookies, so an
+/// account already signed in there stays signed in, and nothing leaves the
+/// app. It closes by itself when the sign-in ends; the
 /// user closing it first (or declining the system's prompt) leaves the
 /// sign-in waiting, with Continue to open the page again. While the
 /// flow waits the bar carries a spinner; signing in another way is a quiet
@@ -53,8 +52,12 @@ final class ProviderLoginController: UIViewController {
     private var submitting = false
     /// The page opened by itself: once per sign-in.
     private var openedPage: URL?
-    /// The in-app browser on the provider's page, while it is up.
-    private var webSession: ASWebAuthenticationSession?
+    private var isWaitingForContinue = false
+    /// The in-app browser on the provider's page.
+    private lazy var browser = SignInBrowser(anchor: view).then {
+        $0.onClosedByUser = { [weak self] in self?.webClosedByUser() }
+    }
+
     /// What the body shows now, so an event that repeats it redraws nothing.
     private var shownStep: SignInProgress.Step?
 
@@ -102,6 +105,8 @@ final class ProviderLoginController: UIViewController {
         $0.configuration?.cornerStyle = .large
         $0.configuration?.buttonSize = .large
         $0.configuration?.imagePadding = 8
+        // the fill is the tint, white in the dark before iOS 26
+        $0.configuration?.baseForegroundColor = AppAccent.foreground(glass: .white)
         $0.snp.makeConstraints { $0.height.greaterThanOrEqualTo(52) }
     }
 
@@ -203,7 +208,7 @@ final class ProviderLoginController: UIViewController {
     }
 
     private func abandon() {
-        closeWebSession()
+        browser.close()
         guard !progress.isFinished else { return }
         follower?.cancel()
         if let handle {
@@ -228,6 +233,7 @@ final class ProviderLoginController: UIViewController {
         handle = nil
         submitting = false
         openedPage = nil
+        isWaitingForContinue = false
         shownStep = nil
         render()
         let method = method == methods.first ? nil : method
@@ -301,7 +307,7 @@ final class ProviderLoginController: UIViewController {
     static func unavailableText(_ error: Error) -> String {
         if let error = error as? ApelinError, error.code == .backendUnavailable {
             return String(localized: """
-            Apelin's background service is unavailable. Reinstall Apelin with your preferred package \
+            Apelin’s background service is unavailable. Reinstall Apelin with your preferred package \
             manager to sign in.
             """)
         }
@@ -311,7 +317,7 @@ final class ProviderLoginController: UIViewController {
     private func finished() {
         onFinish?()
         // the provider's page has done its part either way
-        closeWebSession()
+        browser.close()
         guard case .ended(.succeeded, _) = progress.step else {
             // it may have ended while the user was in Safari
             UIAccessibility.post(notification: .announcement, argument: String(localized: "Sign-in did not finish"))
@@ -357,7 +363,8 @@ final class ProviderLoginController: UIViewController {
     private func render() {
         let step = progress.step
         let waiting: Bool = switch step {
-        case .starting, .deviceCode, .browser: true
+        case .starting: true
+        case .deviceCode, .browser: !isWaitingForContinue
         case .keys: submitting
         case .ended: false
         }
@@ -400,7 +407,7 @@ final class ProviderLoginController: UIViewController {
         case let .deviceCode(code, page, pageHoldsCode):
             // the page opens by itself with the code on the clipboard, which
             // the keyboard offers to paste: no button, a link to open it again
-            body.addArrangedSubview(CodeView(code: code))
+            body.addArrangedSubview(DeviceCodeView(code: code))
             primaryButton.isHidden = true
             openOnce(page, copying: pageHoldsCode ? nil : code)
         case let .browser(page, _):
@@ -504,42 +511,19 @@ final class ProviderLoginController: UIViewController {
 
     // MARK: - Acting
 
-    /// The provider's page in the system's sign-in browser, which shares
-    /// Safari's cookies (not `SFSafariViewController`, which does not). The
-    /// flow ends on kwwk's side — a device code approved, the loopback
-    /// reached — so the session waits on a scheme nothing redirects to and
-    /// is closed from here when the task ends. Closing it by hand leaves
-    /// the sign-in waiting; Continue opens it again.
+    /// The provider's page in the in-app browser. The flow ends on kwwk's
+    /// side — a device code approved, the loopback reached — and the page
+    /// is closed from here when the task ends. Closing it by hand leaves the
+    /// sign-in waiting; Continue opens it again.
     private func open(_ page: URL, copying code: String?) {
+        isWaitingForContinue = false
+        primaryButton.isHidden = true
+        render()
         if let code {
             UIPasteboard.general.string = code
             SPIndicator.present(title: String(localized: "Code Copied"), preset: .done, haptic: .success)
         }
-        closeWebSession()
-        var session: ASWebAuthenticationSession?
-        session = ASWebAuthenticationSession(url: page, callbackURLScheme: "apelin-sign-in") { [weak self] _, _ in
-            // closed here on purpose, the session is already let go
-            guard let self, let current = session, webSession === current else { return }
-            webSession = nil
-            webClosedByUser()
-        }
-        guard let session else { return }
-        session.presentationContextProvider = self
-        session.prefersEphemeralWebBrowserSession = false
-        webSession = session
-        if !session.start() {
-            // no in-app browser to be had: Safari itself
-            webSession = nil
-            UIApplication.shared.open(page)
-        }
-    }
-
-    /// Let go first, then cancel: the session's own completion then knows
-    /// it was closed from here.
-    private func closeWebSession() {
-        let session = webSession
-        webSession = nil
-        session?.cancel()
+        browser.open(page)
     }
 
     /// The page closed by the user, or the system's prompt declined. The
@@ -547,6 +531,8 @@ final class ProviderLoginController: UIViewController {
     /// made, still finishes it — and Continue opens the page again.
     private func webClosedByUser() {
         guard !progress.isFinished, let page = openedPage else { return }
+        isWaitingForContinue = true
+        render()
         let code: String? = if case let .deviceCode(code, _, false) = progress.step {
             code
         } else {
@@ -593,55 +579,5 @@ final class ProviderLoginController: UIViewController {
                 }
             }
         }
-    }
-}
-
-/// A device flow's code: large and monospaced on a rounded plate; a tap
-/// copies it.
-private final class CodeView: UIControl {
-    init(code: String) {
-        super.init(frame: .zero)
-        backgroundColor = .secondarySystemGroupedBackground
-        layer.cornerRadius = 16
-        layer.cornerCurve = .continuous
-        let label = UILabel().then {
-            $0.attributedText = NSAttributedString(string: code, attributes: [
-                .kern: 4,
-                .font: UIFont.monospacedSystemFont(ofSize: 34, weight: .semibold),
-            ])
-            $0.adjustsFontSizeToFitWidth = true
-            $0.minimumScaleFactor = 0.5
-            $0.textAlignment = .center
-            $0.isUserInteractionEnabled = false
-        }
-        addSubview(label)
-        label.snp.makeConstraints {
-            $0.edges.equalToSuperview().inset(UIEdgeInsets(top: 24, left: 20, bottom: 24, right: 20))
-        }
-        addAction(UIAction { _ in
-            UIPasteboard.general.string = code
-            SPIndicator.present(title: String(localized: "Copied"), preset: .done, haptic: .success)
-        }, for: .touchUpInside)
-        // one stop: what it is, the code spelled out, and that it copies
-        isAccessibilityElement = true
-        accessibilityTraits = .button
-        accessibilityLabel = String(localized: "Code")
-        accessibilityValue = code.map(String.init).joined(separator: " ")
-        accessibilityHint = String(localized: "Copies the code.")
-    }
-
-    @available(*, unavailable)
-    required init?(coder _: NSCoder) {
-        fatalError("Use init(code:)")
-    }
-
-    override var isHighlighted: Bool {
-        didSet { alpha = isHighlighted ? 0.6 : 1 }
-    }
-}
-
-extension ProviderLoginController: ASWebAuthenticationPresentationContextProviding {
-    func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        view.window ?? ASPresentationAnchor()
     }
 }

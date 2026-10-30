@@ -1,3 +1,4 @@
+import enum ApelinProtocol.GitRepositoryVisibility
 import Foundation
 
 // MARK: - git
@@ -78,9 +79,26 @@ public struct GitPathsToolResponse: Sendable, Hashable, Codable {
 public struct GitCommitToolRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext
     public var message: String
-    public init(context: HostCallContext, message: String) {
+    /// Stage every change first, as `git add --all` does.
+    public var all: Bool
+    public init(context: HostCallContext, message: String, all: Bool = false) {
         self.context = context
         self.message = message
+        self.all = all
+    }
+}
+
+public struct GitInitToolRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public init(context: HostCallContext) {
+        self.context = context
+    }
+}
+
+public struct GitInitToolResponse: Sendable, Hashable, Codable {
+    public var branch: String
+    public init(branch: String) {
+        self.branch = branch
     }
 }
 
@@ -92,15 +110,18 @@ public struct GitCommitToolResponse: Sendable, Hashable, Codable {
 }
 
 /// fetch, pull and push. A nil remote is `origin`; a nil branch (push only)
-/// is the checked-out one.
+/// is the checked-out one; a URL (push only) adds the remote when the
+/// project does not have it yet.
 public struct GitRemoteToolRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext
     public var remote: String?
     public var branch: String?
-    public init(context: HostCallContext, remote: String? = nil, branch: String? = nil) {
+    public var url: String?
+    public init(context: HostCallContext, remote: String? = nil, branch: String? = nil, url: String? = nil) {
         self.context = context
         self.remote = remote
         self.branch = branch
+        self.url = url
     }
 }
 
@@ -212,6 +233,46 @@ public struct GitCredentialRemoveToolRequest: Sendable, Hashable, Codable {
     public init(context: HostCallContext, host: String) {
         self.context = context
         self.host = host
+    }
+}
+
+/// An empty repository apelin_git_create_repository makes on GitHub: what
+/// its card named, nothing else. A nil owner is the signed-in account.
+public struct RepositoryCreateToolRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    public var owner: String?
+    public var name: String
+    public var visibility: GitRepositoryVisibility
+    public var description: String?
+    public init(
+        context: HostCallContext,
+        owner: String?,
+        name: String,
+        visibility: GitRepositoryVisibility,
+        description: String?,
+    ) {
+        self.context = context
+        self.owner = owner
+        self.name = name
+        self.visibility = visibility
+        self.description = description
+    }
+}
+
+public struct RepositoryCreateToolResponse: Sendable, Hashable, Codable {
+    /// `owner/name`.
+    public var fullName: String
+    /// What git_push's url takes.
+    public var cloneURL: String
+    /// Its page on GitHub, which the user is given.
+    public var url: String
+    /// What the model does next, in words.
+    public var next: String
+    public init(fullName: String, cloneURL: String, url: String, next: String) {
+        self.fullName = fullName
+        self.cloneURL = cloneURL
+        self.url = url
+        self.next = next
     }
 }
 

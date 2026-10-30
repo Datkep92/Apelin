@@ -9,7 +9,7 @@ import Testing
 struct ToolArgumentTests {
     @Test
     func `an empty optional argument is dropped, a required or meaningful one kept`() {
-        #expect(ToolArguments.normalized(["name": "tweak-development", "file": ""], for: .skillRead) == ["name": "tweak-development"])
+        #expect(ToolArguments.normalized(["name": "apelin-tweak-development", "file": ""], for: .skillRead) == ["name": "apelin-tweak-development"])
         #expect(ToolArguments.normalized(
             ["argv": [], "command": "ls", "cwd": "", "timeout_seconds": .null],
             for: .shellRun,
@@ -33,5 +33,25 @@ struct ToolArgumentTests {
         #expect(throws: ToolArgumentError.self) {
             try CommandClassifier.classify(["command": "ls", "script": "ls", "interpreter": "sh"])
         }
+    }
+
+    @Test
+    func `press_button takes wake, home and lock, and nothing it cannot press`() throws {
+        for button in ["wake", "home", "lock"] {
+            #expect(try ToolRunner.uiAction(["action": "press_button", "button": .string(button)]) == .pressButton(button))
+        }
+        for button in ["volume_up", "volume_down", "power", ""] {
+            #expect(throws: ToolArgumentError.self) {
+                try ToolRunner.uiAction(["action": "press_button", "button": .string(button)])
+            }
+        }
+    }
+
+    @Test
+    func `a swipe takes the duration it is given, 300 ms when none`() throws {
+        let swipe = try ToolRunner.uiAction(["action": "swipe", "x": 10, "y": 20, "to_x": 10, "to_y": 400])
+        #expect(swipe == .swipe(fromX: 10, fromY: 20, toX: 10, toY: 400, durationMilliseconds: 300))
+        let slow = try ToolRunner.uiAction(["action": "swipe", "x": 10, "y": 20, "to_x": 10, "to_y": 400, "duration_ms": 1200])
+        #expect(slow == .swipe(fromX: 10, fromY: 20, toX: 10, toY: 400, durationMilliseconds: 1200))
     }
 }

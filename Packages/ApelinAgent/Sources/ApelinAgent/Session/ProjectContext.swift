@@ -21,7 +21,9 @@ enum ProjectContext {
     private static let maximumListed = 20
 
     /// The block, ending with a blank line, to put before the user's text.
-    static func make(project: ProjectIdentity, root: ScopedRoot) -> String {
+    /// `repository` is the host's `gitStatus` of the project, when it
+    /// answered in time.
+    static func make(project: ProjectIdentity, root: ScopedRoot, repository: GitStatusToolResponse? = nil) -> String {
         var lines = [
             openingTag,
             "Apelin added this to the first message: the project when the conversation began. It is context, not the user's request, and files change after it.",
@@ -38,7 +40,7 @@ enum ProjectContext {
         } else {
             lines.append("- \(ProjectBuildSystem.manifestFile) is missing or does not read as JSON.")
         }
-        lines.append("- Git: " + gitState(root.path))
+        lines.append("- Git: " + (repository.map { gitState($0, root: root.path) } ?? gitState(root.path)))
         let tree = ProjectTree(root: root.path)
         if tree.lines.isEmpty {
             lines.append("Files: none.")
@@ -122,11 +124,67 @@ enum ProjectContext {
         return line.count > maximumFieldLength ? String(line.prefix(maximumFieldLength)) + "…" : line
     }
 
+    /// How many changed paths the line names before it counts the rest.
+    static let maximumChangesListed = 12
+
+    /// The repository as the host's `gitStatus` answered: its branch and
+    /// commit, the changes as `git status --short` spells them, and the
+    /// origin it would push to.
+    static func gitState(_ status: GitStatusToolResponse, root: String) -> String {
+        var line = switch (status.branch, status.head) {
+        case let (branch?, head?): "on branch \(ProjectTree.printable(branch)) at \(head.prefix(7))"
+        case let (branch?, nil): "on branch \(ProjectTree.printable(branch)), no commits yet"
+        case let (nil, head?): "detached at \(head.prefix(7))"
+        case (nil, nil): "a repository"
+        }
+        if status.entries.isEmpty {
+            line += "; nothing to commit"
+        } else {
+            let listed = status.entries.prefix(maximumChangesListed).map { entry in
+                let index = entry.index.isEmpty ? " " : entry.index
+                let worktree = entry.worktree.isEmpty ? " " : entry.worktree
+                return "\(index)\(worktree) \(ProjectTree.printable(entry.path))"
+            }
+            let more = status.entries.count - listed.count
+            line += "; \(status.entries.count) changed: " + listed.joined(separator: ", ")
+                + (more > 0 ? ", and \(more) more" : "")
+        }
+        if let origin = originURL(root) {
+            line += "; origin \(origin)"
+        }
+        return line + "."
+    }
+
+    /// `remote.origin.url` from `.git/config`, read as text, without any
+    /// user or password a URL might carry; nil when there is none.
+    static func originURL(_ root: String) -> String? {
+        guard let config = read(root + "/.git/config", limit: 64 << 10) else { return nil }
+        var inOrigin = false
+        for raw in config.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("[") {
+                inOrigin = line.replacingOccurrences(of: " ", with: "") == "[remote\"origin\"]"
+                continue
+            }
+            guard inOrigin, line.hasPrefix("url") else { continue }
+            let parts = line.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == "url" else { continue }
+            let url = parts[1].trimmingCharacters(in: .whitespaces)
+            guard var components = URLComponents(string: url), components.host != nil else {
+                return ProjectTree.printable(String(url.prefix(200)))
+            }
+            components.user = nil
+            components.password = nil
+            return components.string.map { ProjectTree.printable(String($0.prefix(200))) }
+        }
+        return nil
+    }
+
     /// The repository in one line, read from `.git` itself without running
-    /// anything; git_status has the rest.
+    /// anything, when the host did not answer; git_status has the rest.
     static func gitState(_ root: String) -> String {
         var metadata = stat()
-        guard lstat(root + "/.git", &metadata) == 0 else { return "none; the project is not a repository." }
+        guard lstat(root + "/.git", &metadata) == 0 else { return "none; the project is not a repository (git_init makes one)." }
         guard metadata.st_mode & S_IFMT == S_IFDIR else {
             return "a linked checkout (.git is not a folder); git_status has its state."
         }

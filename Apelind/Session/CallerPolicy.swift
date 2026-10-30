@@ -43,17 +43,34 @@ enum CallerPolicy {
         .sdkList, .sdkImport, .environmentAttach,
         .extensionList,
         // A rename is its own project's, or another's only as the user
-        // approved it (AgentProjectRenameRules).
-        .projectCreate, .projectCheck, .projectRename,
+        // approved it (AgentProjectRenameRules). A deletion is never its
+        // own project's, and another's under Confirm only as the user
+        // approved exactly it (AgentProjectDeleteRules).
+        .projectCreate, .projectCheck, .projectRename, .projectDelete,
         .buildStart, .buildAttach, .buildCancel,
-        .installPackage, .removePackage, .respring, .approvalDigestState,
+        // The installations it lists are every project's, as removal takes
+        // any build's; a toolchain's or a file's is listed as not its to remove.
+        .installPackage, .removePackage, .installationList, .respring, .approvalDigestState,
         .fileRead,
         .logStream, .crashList, .crashOpen, .crashSymbolicate,
         .confirmLoaded, .confirmLoadedAttach, .captureScreen, .readUITree, .uiAction,
         .toolHostOpen, .toolHostClose, .toolHostCall,
-        .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit,
+        .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit,
         .gitCloneInto, .gitFetch, .gitPull, .gitPush,
         .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove,
+        // An empty repository on GitHub with the user's sign-in, under
+        // Confirm only as the user approved exactly it
+        // (AgentRepositoryCreateRules).
+        .gitRepositoryCreate,
+        // A public issue on Apelin's own repository with the user's GitHub
+        // sign-in, under Confirm only as the user approved exactly it
+        // (AgentFeedbackRules).
+        .feedbackSend,
+        // Packages builds made, published to the linked package repository
+        // as they were built, under Confirm only as the user approved
+        // exactly them (AgentPublishRules). Creating, linking, listing and
+        // unlinking the repository stay the app's.
+        .distributionPublish,
         .agentRunCode,
         // The project's other conversations (AgentConversations): AgentHandler
         // keeps an agent to its own project, and to the sessions it opened

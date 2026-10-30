@@ -1,13 +1,31 @@
+import LitextAnimation
 import UIKit
 
-/// After a running summary's title: a downward arrow and the output tokens
-/// the run has received so far. The figure changes in place, its digits all
-/// one width, as often as a count arrives, apart from the title's own pace.
-/// VoiceOver reads it as the title's value, so the view itself is hidden.
+/// At the trailing end of a summary's title line: the output tokens the run
+/// has received so far, then a downward arrow, "653 ↓"; right to left, the
+/// arrow is at the edge and the figure on its right, still after it. The
+/// figure climbs to each count rather than jumping (`TokenClimb`), drawn
+/// again at most ten times a second with its digits rolling
+/// (`LTXNumericTransitionAnimator`), all of them one width. A count shown at
+/// once — another summary's, off screen or under Reduce Motion — neither
+/// climbs nor rolls. VoiceOver reads the count as the title's value, so the
+/// view itself is hidden.
+///
+/// The view spans the whole line and draws at its trailing end: the figure
+/// grows away from the arrow inside a label whose frame holds still, so the
+/// roll's glyphs stay where they are. `contentWidth` is how much of the
+/// line the count covers once the figure has arrived.
 final class ReceivedTokensView: UIView {
-    private let symbol = UIImageView(image: UIImage(systemName: "arrow.down.circle.fill"))
-    private let label = UILabel()
+    private let symbol = UIImageView(image: UIImage(systemName: "arrow.down"))
+    private let label = LTXAnimatableLabel()
+    private var climb = TokenClimb(at: 0)
+    private var shownFigure: Int?
+    private var timer: Timer?
     private static let spacing: CGFloat = 3
+    /// How often a climbing figure is drawn again.
+    private static let step: TimeInterval = 0.1
+    /// As the title is drawn when it is finished.
+    private static let color = UIColor.label.withAlphaComponent(0.5)
 
     var font = UIFont.preferredFont(forTextStyle: .body) {
         didSet { applyFont() }
@@ -17,14 +35,13 @@ final class ReceivedTokensView: UIView {
         super.init(frame: frame)
         isUserInteractionEnabled = false
         accessibilityElementsHidden = true
-        // as the title is drawn when it is finished
-        let color = UIColor.label.withAlphaComponent(0.5)
-        symbol.tintColor = color
+        symbol.tintColor = Self.color
         symbol.contentMode = .center
-        label.textColor = color
-        label.lineBreakMode = .byTruncatingTail
-        addSubview(symbol)
+        label.animator = LTXNumericTransitionAnimator()
+        label.animationPolicy = LTXNumericTransitionAnimator.policy
+        label.isSelectable = false
         addSubview(label)
+        addSubview(symbol)
         applyFont()
     }
 
@@ -33,11 +50,53 @@ final class ReceivedTokensView: UIView {
         fatalError("Use init(frame:)")
     }
 
+    /// Shows `tokens` at once.
     func show(_ tokens: Int) {
-        let figure = Self.figure(tokens)
-        guard label.text != figure else { return }
-        label.text = figure
-        setNeedsLayout()
+        stopClimbing()
+        climb = TokenClimb(at: tokens)
+        draw(tokens, rolls: false)
+    }
+
+    /// Climbs from the figure to `tokens`, to arrive `duration` from now;
+    /// off screen or under Reduce Motion it is there at once.
+    func climb(to tokens: Int, within duration: TimeInterval) {
+        guard window != nil, !UIAccessibility.isReduceMotionEnabled else {
+            show(tokens)
+            return
+        }
+        climb.aim(at: tokens, within: duration, at: CACurrentMediaTime())
+        tick()
+    }
+
+    private func tick() {
+        let now = CACurrentMediaTime()
+        draw(climb.figure(at: now), rolls: true)
+        if climb.hasArrived(at: now) {
+            stopClimbing()
+        } else if timer == nil {
+            let timer = Timer(timeInterval: Self.step, repeats: true) { [weak self] timer in
+                MainActor.assumeIsolated {
+                    guard let self else { return timer.invalidate() }
+                    self.tick()
+                }
+            }
+            // and while the list scrolls
+            RunLoop.main.add(timer, forMode: .common)
+            self.timer = timer
+        }
+    }
+
+    private func stopClimbing() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    /// A view leaving the screen is at its count when it comes back.
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window == nil, timer != nil {
+            show(climb.target)
+        }
     }
 
     /// The count as it is drawn, grouped in the reader's locale: 1,234.
@@ -52,21 +111,33 @@ final class ReceivedTokensView: UIView {
             : String(localized: "\(figure(tokens)) tokens received")
     }
 
-    override func sizeThatFits(_: CGSize) -> CGSize {
-        let symbolSize = symbol.intrinsicContentSize
-        let labelSize = label.intrinsicContentSize
-        return CGSize(
-            width: ceil(symbolSize.width + Self.spacing + labelSize.width),
-            height: ceil(max(symbolSize.height, font.lineHeight)),
-        )
+    /// The figure the climb arrives at, the space and the arrow.
+    var contentWidth: CGFloat {
+        let figure = NSAttributedString(string: Self.figure(climb.target), attributes: [.font: figureFont])
+        return ceil(figure.size().width + Self.spacing + symbol.intrinsicContentSize.width)
     }
 
+    var lineHeight: CGFloat {
+        ceil(max(symbol.intrinsicContentSize.height, figureFont.lineHeight))
+    }
+
+    /// The arrow at the trailing edge, the label filling the rest of the
+    /// line with its figure set against the arrow.
     override func layoutSubviews() {
         super.layoutSubviews()
         let symbolWidth = symbol.intrinsicContentSize.width
-        symbol.frame = directionalFrame(CGRect(x: 0, y: 0, width: symbolWidth, height: bounds.height))
-        let labelX = symbolWidth + Self.spacing
-        label.frame = directionalFrame(CGRect(x: labelX, y: 0, width: max(0, bounds.width - labelX), height: bounds.height))
+        symbol.frame = directionalFrame(CGRect(
+            x: bounds.width - symbolWidth,
+            y: 0,
+            width: symbolWidth,
+            height: bounds.height,
+        ))
+        label.frame = directionalFrame(CGRect(
+            x: 0,
+            y: ((bounds.height - ceil(figureFont.lineHeight)) / 2).rounded(),
+            width: max(0, bounds.width - symbolWidth - Self.spacing),
+            height: ceil(figureFont.lineHeight),
+        ))
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -74,9 +145,32 @@ final class ReceivedTokensView: UIView {
         font = .preferredFont(forTextStyle: .body)
     }
 
+    private var figureFont: UIFont {
+        .monospacedDigitSystemFont(ofSize: font.pointSize, weight: .regular)
+    }
+
+    /// The arrow is drawn at the figure's font, so the two keep their sizes
+    /// to each other at every text size.
     private func applyFont() {
-        label.font = .monospacedDigitSystemFont(ofSize: font.pointSize, weight: .regular)
-        symbol.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: font, scale: .small)
+        symbol.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: figureFont)
+        if let shownFigure {
+            draw(shownFigure, rolls: false, force: true)
+        }
         setNeedsLayout()
+    }
+
+    private func draw(_ figure: Int, rolls: Bool, force: Bool = false) {
+        guard force || figure != shownFigure else { return }
+        shownFigure = figure
+        let paragraph = NSMutableParagraphStyle()
+        // against the arrow, which is at the trailing edge
+        paragraph.alignment = laysOutRightToLeft ? .left : .right
+        paragraph.lineBreakMode = .byClipping
+        let text = NSAttributedString(string: Self.figure(figure), attributes: [
+            .font: figureFont,
+            .foregroundColor: Self.color,
+            .paragraphStyle: paragraph,
+        ])
+        label.setAttributedText(text, animated: rolls && window != nil && !UIAccessibility.isReduceMotionEnabled)
     }
 }

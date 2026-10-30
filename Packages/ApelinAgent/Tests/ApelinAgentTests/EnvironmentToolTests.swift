@@ -64,7 +64,7 @@ struct EnvironmentToolTests {
     func `the prompt says when to reach for them`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
-        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, mode: .confirm, skills: [], mcpServers: [])
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path, skills: [], mcpServers: [])
         #expect(prompt.contains("environment.* errors") && prompt.contains("apelin_project_set_environment"))
         #expect(prompt.contains("apelin_toolchain_setup or apelin_sdk_import") && prompt.contains("toolchain and SDK installs"))
     }

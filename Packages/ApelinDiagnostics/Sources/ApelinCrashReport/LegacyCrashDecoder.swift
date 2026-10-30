@@ -98,8 +98,7 @@ enum LegacyCrashDecoder {
             // The line patterns are lazy captures beside optional whitespace,
             // quadratic on a long run of spaces: 16 KB of them costs a second.
             // No line a crash reporter writes is this long; the raw text keeps it.
-            guard line.utf8.count <= 4096 else { return }
-            guard !beginsSection(line) else { return }
+            guard line.utf8.count <= 4096, !beginsSection(line) else { return }
             switch mode {
             case let .frames(index):
                 if let frame = LegacyCrashDecoder.frame(from: line) {

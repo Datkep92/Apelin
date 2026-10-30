@@ -56,8 +56,7 @@ public struct DWARFLineTable: Sendable {
         // A malformed unit costs us its own rows and nothing else, so long as
         // the length field itself was readable.
         while cursor + 4 <= debugLine.count {
-            guard var header = try? ByteReader(debugLine, start: cursor) else { return }
-            guard let first = try? header.integer(UInt32.self) else { return }
+            guard var header = try? ByteReader(debugLine, start: cursor), let first = try? header.integer(UInt32.self) else { return }
             var isDWARF64 = false
             var length = UInt64(first)
             if first == 0xFFFF_FFFF {
@@ -87,8 +86,7 @@ public struct DWARFLineTable: Sendable {
     /// The file and line for an address in the dSYM's own address space — for a
     /// frame that is `__TEXT`'s vmaddr plus the report's image offset.
     public func lookup(address: UInt64) -> Location? {
-        guard let sequence = sequence(containing: address) else { return nil }
-        guard let row = row(notAfter: address, in: sequence) else { return nil }
+        guard let sequence = sequence(containing: address), let row = row(notAfter: address, in: sequence) else { return nil }
         let file = Int(rows[row].file)
         guard files.indices.contains(file) else { return nil }
         return Location(file: files[file], line: Int(rows[row].line))

@@ -10,9 +10,10 @@ import UIKit
 /// name, replaces the message list and restores that conversation’s draft.
 /// Each conversation gets a fresh list and its own scrolling state.
 ///
-/// The messages fill the page; the composer sits at its foot, on the
-/// keyboard when it is up, no wider than 750 pt and centred, and the list
-/// scrolls clear of it.
+/// The messages fill the page across its safe area; the composer sits at
+/// its foot, on the keyboard when it is up, no wider than 750 pt and centred
+/// in the safe area, and the list scrolls clear of it. Each side keeps its
+/// own inset: a vertical bar (iPhone Duo) takes one side and not the other.
 final class ChatController: UIViewController {
     /// The conversation shown, nil until the first is picked.
     private(set) var chat: ChatSummary?
@@ -27,7 +28,7 @@ final class ChatController: UIViewController {
     private let composerSeparator = UIView()
     private let topBlur = ChatTopBlurView()
     private let latestMessageButton = UIButton(type: .system)
-    private weak var reasoningPage: ChatReasoningController?
+    private weak var tracePage: TraceController?
     /// Builds the rows again once a running turn has gone quiet.
     private let quietWatch = ChatQuietWatch()
 
@@ -51,7 +52,14 @@ final class ChatController: UIViewController {
     /// Approve does not ask again.
     private var checkingOwner: UUID?
     private var stoppableChat: UUID?
+    /// While `use(_:)` swaps another conversation in: nothing animates, and
+    /// the list's opening scroll waits for its rows.
     private var isSwitchingChat = false
+    /// The keyboard waits for the page to be on screen (`beginTyping`).
+    private var typesOnAppear = false
+    /// Conversations whose queued messages went back to the composer, said
+    /// once the reader sees them (`sayUnsent`).
+    private var unsent: [UUID: (messages: Int, attachmentsLeftOut: Int)] = [:]
     private var needsInitialScroll = false
     /// Whether the reader was at the latest message when the page last
     /// changed width — the sidebar opening or closing. The rows wrap again
@@ -59,6 +67,12 @@ final class ChatController: UIViewController {
     /// back at its end, and kept there as the rows above are measured again,
     /// until the reader drags it.
     private var holdsLatestMessage = false
+    /// Where a reader elsewhere in the conversation was when the page last
+    /// changed width: the row at the top of what they saw, under the bar,
+    /// and how far into it. The rows wrap again, and a long reply grows or
+    /// shrinks around the line the reader was on, so the list is put back
+    /// at the same point in that row rather than at the same offset.
+    private var readingPlace: (row: ChatMessage.ID, fraction: CGFloat)?
     private var lastLayoutWidth: CGFloat = 0
     private var modelLoader: Task<Void, Never>?
     private var selectionCheck: Task<Void, Never>?
@@ -137,6 +151,12 @@ final class ChatController: UIViewController {
             name: UIApplication.didBecomeActiveNotification,
             object: nil,
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sayUnsent),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil,
+        )
         updateModelSelection()
         modelButton.addAction(UIAction { [weak self] _ in self?.showModelPicker() }, for: .touchUpInside)
         view.addSubview(composer)
@@ -151,11 +171,14 @@ final class ChatController: UIViewController {
             } else {
                 make.bottom.equalTo(view.keyboardLayoutGuide.snp.top)
             }
-            make.centerX.equalToSuperview()
+            // Centred in the safe area, not on the page: a vertical bar
+            // insets one side only, and centring on the page would take the
+            // same width off the other side as well.
+            make.centerX.equalTo(view.safeAreaLayoutGuide)
             make.width.lessThanOrEqualTo(750)
             make.leading.greaterThanOrEqualTo(view.safeAreaLayoutGuide)
             make.trailing.lessThanOrEqualTo(view.safeAreaLayoutGuide)
-            make.width.equalToSuperview().priority(.low)
+            make.width.equalTo(view.safeAreaLayoutGuide).priority(.low)
         }
         composerBackground.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview()
@@ -164,10 +187,14 @@ final class ChatController: UIViewController {
             make.top.equalTo(composer.snp.top).offset(-4)
         }
 
-        var latestConfiguration: UIButton.Configuration = if #available(iOS 26, *) {
-            .glass()
+        var latestConfiguration: UIButton.Configuration
+        if #available(iOS 26, *) {
+            latestConfiguration = .glass()
         } else {
-            .gray()
+            latestConfiguration = .plain()
+            latestConfiguration.background.customView = UIVisualEffectView(
+                effect: UIBlurEffect(style: .systemMaterial),
+            )
         }
         latestConfiguration.image = UIImage(systemName: "chevron.down")
         latestConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
@@ -185,7 +212,7 @@ final class ChatController: UIViewController {
         }, for: .touchUpInside)
         view.addSubview(latestMessageButton)
         latestMessageButton.snp.makeConstraints { make in
-            make.centerX.equalToSuperview()
+            make.centerX.equalTo(view.safeAreaLayoutGuide)
             make.bottom.equalTo(composerBackground.snp.top).offset(-8)
             make.size.equalTo(44)
         }
@@ -198,7 +225,7 @@ final class ChatController: UIViewController {
         messageList.layer.mask = nil
         messageList.removeFromSuperview()
         messageList = ListView<ChatMessage>()
-        messageList.frame = view.bounds
+        messageList.frame = messageListFrame
         messageList.contentInset = contentInset
         messageList.verticalScrollIndicatorInsets = indicatorInset
         messageList.backgroundColor = .clear
@@ -213,10 +240,19 @@ final class ChatController: UIViewController {
                     row.onToggle = { [weak self] in
                         guard let self else { return }
                         if case .thinking = message.role {
-                            let page = ChatReasoningController(message: message)
-                            reasoningPage = page
+                            let page = TraceController(message: message)
+                            tracePage = page
                             presentPageAsFormSheet(page)
                         }
+                    }
+                }
+            ListRow(ChatCompactionRow.self)
+                .when { $0.role == .compaction }
+                .height { message, context in ChatCompactionRow.height(for: message, width: context.width) }
+                .configure { [weak self] row, message, _ in
+                    row.show(message)
+                    row.onOpen = { [weak self] in
+                        self?.presentPageAsFormSheet(ChatCompactionController(summary: message.text))
                     }
                 }
             ListRow(ChatMessageRow.self)
@@ -256,26 +292,91 @@ final class ChatController: UIViewController {
         if #available(iOS 26, *) {
             messageList.topEdgeEffect.isHidden = true
         }
+        // Top to bottom of the page, so it scrolls under the bar and the
+        // composer, but side to side only across the safe area: a row lays
+        // itself out across the list's whole width, and a vertical bar's
+        // strip is the bar's. The margins inside it still scroll.
         messageList.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
+            make.top.bottom.equalToSuperview()
+            make.leading.trailing.equalTo(view.safeAreaLayoutGuide)
         }
+    }
+
+    /// Where the constraints put the list: the page, less the safe area's
+    /// sides.
+    private var messageListFrame: CGRect {
+        let insets = view.safeAreaInsets
+        return view.bounds.inset(by: UIEdgeInsets(top: 0, left: insets.left, bottom: 0, right: insets.right))
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if typesOnAppear {
+            typesOnAppear = false
+            composer.beginEditing()
+        }
+        sayUnsent()
     }
 
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
         // read before the list takes the new width
-        let width = view.bounds.width
+        let width = messageListFrame.width
         guard width != lastLayoutWidth else { return }
-        if lastLayoutWidth > 0, !needsInitialScroll, distanceFromLatestMessage <= 2 {
-            holdsLatestMessage = true
+        if lastLayoutWidth > 0, !needsInitialScroll {
+            if distanceFromLatestMessage <= 2 {
+                holdsLatestMessage = true
+            } else if !holdsLatestMessage, readingPlace == nil {
+                readingPlace = currentReadingPlace()
+            }
         }
         lastLayoutWidth = width
+    }
+
+    /// The row the line under the bar crosses, and the fraction of its
+    /// height above that line.
+    private func currentReadingPlace() -> (row: ChatMessage.ID, fraction: CGFloat)? {
+        let line = messageList.contentOffset.y + messageList.adjustedContentInset.top
+        for index in messageList.indicesForVisibleRows.sorted() {
+            let frame = messageList.rectForRow(at: index)
+            guard frame.height > 0, frame.maxY > line else { continue }
+            let fraction = min(max((line - frame.minY) / frame.height, 0), 1)
+            return (messageList.content[index].id, fraction)
+        }
+        return nil
+    }
+
+    /// Puts the reader back on the line `readingPlace` kept, now that the
+    /// rows have their new width.
+    private func restoreReadingPlace() {
+        guard let place = readingPlace else { return }
+        readingPlace = nil
+        guard !messageList.isTracking, !messageList.isDecelerating else { return }
+        messageList.layoutIfNeeded()
+        let frame = messageList.rectForRow(with: place.row)
+        guard frame.height > 0 else { return }
+        let line = frame.minY + place.fraction * frame.height
+        let target = min(
+            max(line - messageList.adjustedContentInset.top, messageList.minimumContentOffset.y),
+            messageList.maximumContentOffset.y,
+        )
+        guard abs(target - messageList.contentOffset.y) > 0.5 else { return }
+        // inside the sidebar's animation the list rides it, as the latest
+        // message does (`holdLatestMessage`)
+        messageList.contentOffset = CGPoint(x: messageList.contentOffset.x, y: target)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateMessageListInsets()
-        if needsInitialScroll, view.window != nil, messageList.bounds.width > 0, messageList.bounds.height > 0 {
+        // Not while `use(_:)` is still swapping the conversation in:
+        // restoring its draft lays the window out before its rows are in the
+        // list, and a pass then would find the new list empty, take that for
+        // its end, and leave the page where the estimated heights put the
+        // end — a long chat's middle. `use(_:)` asks for the pass after.
+        if needsInitialScroll, !isSwitchingChat, view.window != nil, messageList.bounds.width > 0,
+           messageList.bounds.height > 0
+        {
             needsInitialScroll = false
             // The list measures newly visible rows during layout. Settle
             // those measurements at the end too, before the page is revealed.
@@ -301,6 +402,8 @@ final class ChatController: UIViewController {
         if holdsLatestMessage {
             messageList.layoutIfNeeded()
             holdLatestMessage()
+        } else {
+            restoreReadingPlace()
         }
         updateLatestMessageButton()
         topBlur.frame = CGRect(
@@ -327,6 +430,7 @@ final class ChatController: UIViewController {
         isSwitchingChat = true
         needsInitialScroll = true
         holdsLatestMessage = false
+        readingPlace = nil
         defer { isSwitchingChat = false }
         replaceMessageList()
 
@@ -344,6 +448,9 @@ final class ChatController: UIViewController {
         refreshRuntime()
         messageList.scrollToBottom(animated: false)
         updateLatestMessageButton()
+        // the opening pass, now that the rows are in (`viewDidLayoutSubviews`)
+        view.setNeedsLayout()
+        sayUnsent()
     }
 
     /// Back in front with this conversation on screen: its banners have
@@ -423,6 +530,10 @@ final class ChatController: UIViewController {
     /// (`followTurn`), timing its reply as it streams.
     private func updateMessages(_ items: [ChatMessage]) {
         guard messages != items else { return }
+        // A compaction's row comes between turns, with none to follow: a
+        // reader at the latest message is shown it.
+        let revealsCompaction = followedTurn == nil && distanceFromLatestMessage <= 2
+            && items.last?.role == .compaction && items.last?.id != messages.last?.id
         messages = items
         let message = TurnFollowing.turnMessage(in: items)
         if message != turnMessage {
@@ -435,6 +546,9 @@ final class ChatController: UIViewController {
         }
         showTranscript(items)
         followTurn()
+        if revealsCompaction {
+            revealLatestMessage()
+        }
         updateLatestMessageButton()
     }
 
@@ -469,7 +583,7 @@ final class ChatController: UIViewController {
     }
 
     private func showTranscript(_ items: [ChatMessage]) {
-        if let page = reasoningPage, let message = items.first(where: { $0.id == page.messageID }) {
+        if let page = tracePage, let message = items.first(where: { $0.id == page.messageID }) {
             page.show(message)
         }
         let visible = items.filter { !$0.role.isApproval }
@@ -599,6 +713,38 @@ extension ChatController {
         composer.restore(draft: draft)
     }
 
+    /// A stopped run's queued messages went back to `id`'s composer: the
+    /// reader is told when they next see the conversation, now if they do.
+    func unsentReturned(_ returned: DroppedMessages.Returned, to id: UUID) {
+        let earlier = unsent[id] ?? (0, 0)
+        unsent[id] = (earlier.messages + returned.messages, earlier.attachmentsLeftOut + returned.attachmentsLeftOut)
+        sayUnsent()
+    }
+
+    /// Says what went back to the composer of the conversation on screen,
+    /// spoken too: nothing else marks it.
+    @objc private func sayUnsent() {
+        guard let chat, view.window != nil, UIApplication.shared.applicationState == .active,
+              let returned = unsent.removeValue(forKey: chat.id)
+        else { return }
+        let title = String(localized: "\(returned.messages) Messages Not Sent")
+        let message = returned.attachmentsLeftOut > 0
+            ? String(localized: "\(returned.attachmentsLeftOut) attachments could not be put back")
+            : String(localized: "Back in the input box")
+        SPIndicator.present(title: title, message: message, preset: .error, haptic: .warning)
+        UIAccessibility.post(notification: .announcement, argument: [title, message].joined(separator: ", "))
+    }
+
+    /// The keyboard up in the composer, now if the page is on screen, else
+    /// once it is: a link's prompt waits there for the reader's Send.
+    func beginTyping() {
+        guard view.window != nil else {
+            typesOnAppear = true
+            return
+        }
+        composer.beginEditing()
+    }
+
     /// `text` as the reader's next message, as if typed and sent; during a
     /// reply, the run takes it at its next step.
     func sendPrompt(_ text: String) {
@@ -696,6 +842,7 @@ extension ChatController: ComposerView.Delegate {
 extension ChatController: UIScrollViewDelegate {
     func scrollViewWillBeginDragging(_: UIScrollView) {
         holdsLatestMessage = false
+        readingPlace = nil
         // The reader has the list: only the next turn is followed again.
         followedTurn = nil
     }

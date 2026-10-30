@@ -135,7 +135,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         }
         dataSource.footerTitle = { [weak self] section in
             guard let self, section == sections.last?.0, case .group = section else { return nil }
-            return String(localized: "Your agent uses these providers. Credentials stay in this device's keychain.")
+            return String(localized: "Credentials stay in this device’s keychain.")
         }
         dataSource.update(sections)
     }
@@ -236,11 +236,11 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             return WaitingCell().then { $0.show(String(localized: "Loading…")) }
         case let .unavailable(message):
             let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-            var content = UIListContentConfiguration.subtitleCell()
+            var content = UIListContentConfiguration.stackedValueCell()
             content.text = String(localized: "Model Providers Unavailable")
             content.secondaryText = message
             content.secondaryTextProperties.color = .secondaryLabel
-            content.textToSecondaryTextVerticalPadding = 4
+
             cell.contentConfiguration = content
             cell.selectionStyle = .none
             return cell
@@ -263,7 +263,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
         var content: UIListContentConfiguration
         if account.signedIn {
-            content = .subtitleCell()
+            content = .stackedValueCell()
             content.secondaryText = Self.signedInLine(account)
             Self.subtitleStyle(&content)
             cell.accessoryView = menuButton(account)
@@ -330,18 +330,16 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     private func accountActions(_ account: AgentAccount) -> [UIMenuElement] {
         var actions: [UIMenuElement] = [
             UIAction(
-                title: String(localized: "Enable Models"),
-                image: UIImage(systemName: "checklist"),
-            ) { [weak self] _ in
-                self?.presentPageAsFormSheet(ModelActivationController(account: account))
-            },
-            UIAction(
-                title: account.isAPIKeyAccount
-                    ? String(localized: "Edit Configuration")
-                    : String(localized: "Sign In Again"),
+                title: String(localized: "Edit"),
                 image: UIImage(systemName: account.isAPIKeyAccount ? "pencil" : "arrow.clockwise"),
             ) { [weak self] _ in
                 self?.signIn(account)
+            },
+            UIAction(
+                title: String(localized: "Models"),
+                image: UIImage(systemName: "checklist"),
+            ) { [weak self] _ in
+                self?.presentPageAsFormSheet(ModelActivationController(account: account))
             },
         ]
         // A provider that takes several API keys or endpoints offers one

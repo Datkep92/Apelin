@@ -1,6 +1,12 @@
-// The git service on a project: clone, status, diff, stage, unstage, local
-// commit, fetch, a fast-forward pull and push, and the settings behind
-// them — the commit author and one HTTPS credential per host.
+// The git service on a project: clone, init, status, diff, stage, unstage,
+// local commit, fetch, a fast-forward pull and push, and the settings behind
+// them — the commit author and one HTTPS credential per host —, and an empty
+// repository made on GitHub for a project to push to. A project Apelin makes
+// starts as a repository on `main` with no commit, whose `.git/info/exclude`
+// keeps Apelin's own files out (the agent's `Attachments/`, temporary files);
+// a repository made before gets it on a git call once the project has an
+// `Attachments` folder. A project that is not a repository is `notFound`
+// with reason `notARepository`.
 // Served by apelin-environment (Workers/Environment; ApelinGit, libgit2).
 //
 // `projectID` is the `projectID` in a project's apelin-project.json, or, for
@@ -107,12 +113,22 @@ public struct GitCommitRequest: OperationRequest {
     public var message: String
     public var authorName: String?
     public var authorEmail: String?
+    /// Stages every change first, as `git add --all` does: new, changed and
+    /// deleted files, ignored ones left out. Absent is false.
+    public var all: Bool?
 
-    public init(projectID: String, message: String, authorName: String? = nil, authorEmail: String? = nil) {
+    public init(
+        projectID: String,
+        message: String,
+        authorName: String? = nil,
+        authorEmail: String? = nil,
+        all: Bool? = nil,
+    ) {
         self.projectID = projectID
         self.message = message
         self.authorName = authorName
         self.authorEmail = authorEmail
+        self.all = all
     }
 }
 
@@ -120,6 +136,27 @@ public struct GitCommitResponse: Codable, Sendable, Equatable {
     public var commitID: String
     public init(commitID: String) {
         self.commitID = commitID
+    }
+}
+
+/// Makes a repository in a project that has none: HEAD on `main`, no
+/// commit, as `git init -b main` leaves it, with Apelin's own files in
+/// `.git/info/exclude`. A project with a `.git` already is `conflict`.
+public struct GitInitRequest: OperationRequest {
+    public typealias Response = GitInitResponse
+    public static let operation = AppOperation.gitInit
+    public var projectID: String
+
+    public init(projectID: String) {
+        self.projectID = projectID
+    }
+}
+
+public struct GitInitResponse: Codable, Sendable, Equatable {
+    public var branch: String
+
+    public init(branch: String) {
+        self.branch = branch
     }
 }
 
@@ -202,7 +239,11 @@ public struct GitPullRequest: OperationRequest {
 /// Pushes a local branch (nil: the checked-out one) to the branch of the
 /// same name on a remote (nil: `origin`), and records it as the branch's
 /// upstream. Never forced: a rejected update fails with `conflict`. HTTPS
-/// only, with the credential saved for the remote's host. A task of kind
+/// only, with the credential saved for the remote's host. With `url`, a
+/// remote the repository does not have yet is added first, fetching from
+/// that URL, as `git remote add` does; one it has must already have that
+/// URL, else `conflict` with reason `remoteURLDiffers`. A remote not there
+/// without `url` is `notFound` with reason `noSuchRemote`. A task of kind
 /// `environment`; `progress` {stage: "pushing", …}, then `result` {remote,
 /// branch, commit}.
 public struct GitPushRequest: OperationRequest {
@@ -211,12 +252,26 @@ public struct GitPushRequest: OperationRequest {
     public var projectID: String
     public var remote: String?
     public var branch: String?
+    /// HTTPS, without a user or password.
+    public var url: String?
 
-    public init(projectID: String, remote: String? = nil, branch: String? = nil) {
+    public init(projectID: String, remote: String? = nil, branch: String? = nil, url: String? = nil) {
         self.projectID = projectID
         self.remote = remote
         self.branch = branch
+        self.url = url
     }
+}
+
+/// What a git refusal names beyond its code, for the agent to act on.
+public extension ApelinError.Reason {
+    /// `notFound`: the project has no repository; `gitInit` makes one.
+    static let notARepository = Self(rawValue: "notARepository")
+    /// `notFound`: the repository has no remote of the name asked for; a
+    /// push with `url` adds it.
+    static let noSuchRemote = Self(rawValue: "noSuchRemote")
+    /// `conflict`: a push's `url` is not the URL its remote already has.
+    static let remoteURLDiffers = Self(rawValue: "remoteURLDiffers")
 }
 
 // MARK: Settings and credentials (the app's only)
@@ -299,6 +354,93 @@ public struct GitCredentialRemoveRequest: OperationRequest {
     }
 }
 
+// MARK: A repository on GitHub
+
+/// Who can see a repository made on GitHub. A request always names it.
+public enum GitRepositoryVisibility: String, Codable, Sendable, CaseIterable {
+    case `public`
+    case `private`
+}
+
+/// Makes an empty repository on GitHub — no README, licence or
+/// `.gitignore`, so a project's first push lays down its history — on the
+/// account of the github.com sign-in, or in the organization `owner` names,
+/// with the visibility the request names. Not a task: one request to
+/// GitHub. The app's, and an agent's as the host allows it
+/// (AgentRepositoryCreateRules). `problem` is checked before the sign-in is
+/// read; without one, `denied` with reason `authenticationRequired`.
+/// GitHub's refusals keep its words: a name the owner already has is
+/// `conflict`, an organization the account may not create in `denied`, one
+/// it cannot see `notFound`.
+public struct GitRepositoryCreateRequest: OperationRequest {
+    public typealias Response = GitRepositoryCreateResponse
+    public static let operation = AppOperation.gitRepositoryCreate
+    public var name: String
+    public var visibility: GitRepositoryVisibility
+    /// An organization's login; nil, or the account's own, for the account.
+    public var owner: String?
+    public var description: String?
+
+    /// GitHub's own limit.
+    public static let maximumDescriptionLength = 350
+
+    public init(name: String, visibility: GitRepositoryVisibility, owner: String? = nil, description: String? = nil) {
+        self.name = name
+        self.visibility = visibility
+        self.owner = owner
+        self.description = description
+    }
+
+    /// Nil when GitHub could take it, else why not, naming the field.
+    public var problem: String? {
+        guard GitHubName.isRepository(name) else {
+            return "Use letters, digits, hyphens, underscores and periods for the repository's name, at most 100."
+        }
+        if let owner, !GitHubName.isLogin(owner) {
+            return "Name the owner by its GitHub login: letters, digits and single hyphens, at most 39."
+        }
+        if let description, description.contains(where: \.isNewline) || description.count > Self.maximumDescriptionLength {
+            return "The description is one line of at most \(Self.maximumDescriptionLength) characters."
+        }
+        return nil
+    }
+}
+
+public struct GitRepositoryCreateResponse: Codable, Sendable, Equatable {
+    /// `owner/name`, as GitHub spells it.
+    public var fullName: String
+    /// The HTTPS address a remote takes, `https://github.com/owner/name.git`.
+    public var cloneURL: String
+    /// Its page on GitHub.
+    public var url: String
+
+    public init(fullName: String, cloneURL: String, url: String) {
+        self.fullName = fullName
+        self.cloneURL = cloneURL
+        self.url = url
+    }
+}
+
+/// What GitHub takes for a login and for a repository's name, checked
+/// before GitHub is asked.
+public enum GitHubName {
+    /// An account's or organization's login: letters, digits and single
+    /// hyphens, at most 39, no hyphen at either end.
+    public static func isLogin(_ name: String) -> Bool {
+        let allowed = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-")
+        return (1 ... 39).contains(name.count) && name.allSatisfy(allowed.contains)
+            && !name.hasPrefix("-") && !name.hasSuffix("-") && !name.contains("--")
+    }
+
+    /// Letters, digits, hyphens, underscores and periods, at most 100; not
+    /// `.` or `..`, and not ending in `.git`.
+    public static func isRepository(_ name: String) -> Bool {
+        let allowed = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
+        return (1 ... 100).contains(name.count) && name.allSatisfy(allowed.contains)
+            && name != "." && name != ".." && !name.lowercased().hasSuffix(".git")
+    }
+}
+
 public extension ApelinService {
     func gitStatus(projectID: String) async throws -> GitStatusResponse {
         try await send(GitStatusRequest(projectID: projectID))
@@ -318,6 +460,10 @@ public extension ApelinService {
 
     func gitCommit(_ request: GitCommitRequest) async throws -> GitCommitResponse {
         try await send(request)
+    }
+
+    func gitInit(projectID: String) async throws -> GitInitResponse {
+        try await send(GitInitRequest(projectID: projectID))
     }
 
     /// Starts a clone; follow it with `events(of:)`.
@@ -356,5 +502,9 @@ public extension ApelinService {
 
     func gitCredentialRemove(host: String) async throws {
         _ = try await send(GitCredentialRemoveRequest(host: host))
+    }
+
+    func gitRepositoryCreate(_ request: GitRepositoryCreateRequest) async throws -> GitRepositoryCreateResponse {
+        try await send(request)
     }
 }

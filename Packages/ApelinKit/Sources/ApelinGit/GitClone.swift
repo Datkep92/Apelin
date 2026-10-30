@@ -101,9 +101,12 @@ public enum GitClone {
     /// The checkout overwrites nothing: a file the repository has that is
     /// already in the folder throws `conflict`. `excluding` goes into
     /// `.git/info/exclude` first, for the files the caller keeps in the
-    /// folder that are not the repository's. Any failure, a stop by
-    /// `progress` included, removes the `.git` this made and every file and
-    /// folder the checkout wrote, so the folder is as it was.
+    /// folder that are not the repository's. A `.git` already there is
+    /// taken only when it is untouched (`GitRepository.isUntouched`), the
+    /// empty one a new project starts with, and replaced. Any failure, a
+    /// stop by `progress` included, removes the `.git` this made and every
+    /// file and folder the checkout wrote, and puts an untouched one back
+    /// on its branch, so the folder is as it was.
     public static func into(
         _ directory: URL,
         url: String,
@@ -122,8 +125,13 @@ public enum GitClone {
             throw GitError(.notFound, "no folder \(directory.lastPathComponent)")
         }
         let gitDirectory = directory.appendingPathComponent(".git", isDirectory: true)
-        guard lstat(gitDirectory.path, &metadata) != 0 else {
-            throw GitError(.conflict, "\(directory.lastPathComponent) already has a .git")
+        var replacedBranch: String?
+        if lstat(gitDirectory.path, &metadata) == 0 {
+            guard let existing = try? GitRepository(at: directory), existing.isUntouched else {
+                throw GitError(.conflict, "\(directory.lastPathComponent) already has a .git")
+            }
+            replacedBranch = existing.head().branch ?? "main"
+            try FileManager.default.removeItem(at: gitDirectory)
         }
 
         var options = git_repository_init_options()
@@ -148,6 +156,9 @@ public enum GitClone {
         } catch {
             undo(checkout.written, keeping: folders, in: directory)
             try? FileManager.default.removeItem(at: gitDirectory)
+            if let replacedBranch {
+                _ = try? GitRepository.create(at: directory, initialBranch: replacedBranch)
+            }
             throw error
         }
     }

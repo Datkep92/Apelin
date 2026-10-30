@@ -20,6 +20,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             Self.presentWhenActive(alert, in: application)
         }
         AppJournal.start()
+        NetworkAccess.start()
         ConversationNotices.start()
         // the progress card and the alerts carry the app's icon, as Fila's do
         AlertControllerConfiguration.alertImage = UIImage(named: "AppIconMark")
@@ -108,8 +109,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     /// opener refuses what is not one with a notice. One at a time: a
     /// second sheet could not be presented over the first.
     private func openURLs(_ contexts: Set<UIOpenURLContext>, in scene: UIWindowScene) {
-        guard let context = contexts.first else { return }
-        guard !ApelinLinkRouter.open(context.url, in: scene) else { return }
+        guard let context = contexts.first, !ApelinLinkRouter.open(context.url, in: scene) else { return }
         TransferOpener.open(context.url, in: scene)
     }
 }
