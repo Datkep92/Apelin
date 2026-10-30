@@ -5,8 +5,8 @@
   "template": {
     "extensionID": "wiki.qaq.apelin.dev.preferences",
     "templateID": "objc-bundle",
-    "version": "0.1.2",
-    "digest": "sha256:270cb2d23cf6dfb3dfabec33475b9af12b256e55ddba26e828570fed4c8d45d2"
+    "version": "0.1.3",
+    "digest": "sha256:f85d273d84fd93f0faf5ccdc7e56dad0f58a45da8889cbe368e446afd20a2311"
   },
   "environment": {
     "toolchain": {
@@ -54,7 +54,10 @@
         "Sources"
       ],
       "resources": [
-        "Resources/Root.plist"
+        "Resources/Root.plist",
+        "Resources/icon.png",
+        "Resources/icon@2x.png",
+        "Resources/icon@3x.png"
       ],
       "infoPlist": "Resources/Info.plist",
       "objcARC": true,
