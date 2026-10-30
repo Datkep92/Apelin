@@ -14,7 +14,7 @@ enum LegacyHome {
     static func bringDataAcross() {
         let folder = DataFolder.app
         guard let legacy = legacyFolder() else { return }
-        try? FileManager.default.createDirectory(folder.root, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: folder.root, withIntermediateDirectories: true)
         let marker = folder.root.appendingPathComponent(".brought-from-container")
         guard !FileManager.default.fileExists(atPath: marker.path) else { return }
 
@@ -30,7 +30,7 @@ enum LegacyHome {
         // is itself an Apelin project (its `apelin-project.json` is there)
         // and that has never been here, so a stray folder is not carried.
         copyProjects(from: legacy, into: folder.root)
-        try? FileManager.default.createFile(atPath: marker.path, contents: Data())
+        _ = FileManager.default.createFile(atPath: marker.path, contents: Data())
         NSLog("Apelin: the container's data was brought into \(folder.root.path)")
     }
 
