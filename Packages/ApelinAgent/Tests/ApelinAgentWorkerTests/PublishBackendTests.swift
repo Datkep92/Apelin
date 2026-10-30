@@ -43,7 +43,7 @@ struct PublishBackendTests {
 
         /// A build's record and, unless `gone`, its package.
         @discardableResult
-        func build(_ id: String, configuration: String = "release", bootstrap: String = "roothide", gone: Bool = false) throws -> String {
+        func build(_ id: String, configuration: String = "Release", bootstrap: String = "roothide", gone: Bool = false) throws -> String {
             let folder = root.appendingPathComponent("Builds/p-clock/\(id)", isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let deb = folder.appendingPathComponent("com.example.clock_1.0.deb").path
@@ -88,7 +88,7 @@ struct PublishBackendTests {
         let data = try DataFolder()
         defer { data.remove() }
         let deb = try data.build("b-hide")
-        try data.build("b-debug", configuration: "debug", bootstrap: "rootless")
+        try data.build("b-debug", configuration: "Debug", bootstrap: "rootless")
         try data.build("b-gone", gone: true)
         data.host.on(.gitSettings, reply: GitSettingsResponse(credentials: [GitCredentialSummary(host: "github.com", username: "someone")]))
 
@@ -100,11 +100,11 @@ struct PublishBackendTests {
         #expect(read.signedIn == true)
         #expect(read.builds.count == 5)
         #expect(read.builds[0] == PackageBuildRecord(
-            buildID: "b-hide", projectID: "p-clock", configuration: "release", bootstrap: "roothide",
+            buildID: "b-hide", projectID: "p-clock", configuration: "Release", bootstrap: "roothide",
             packageID: "com.example.clock", version: "1.0", architecture: "iphoneos-arm64e", file: deb,
             digest: "sha256:" + String(repeating: "c", count: 64), present: true,
         ))
-        #expect(read.builds[1]?.configuration == "debug")
+        #expect(read.builds[1]?.configuration == "Debug")
         #expect(read.builds[2]?.present == false, "a record whose package is gone")
         #expect(read.builds[3] == nil && read.builds[4] == nil, "no record, and an id that is no build's")
         #expect(data.host.requests.map(\.operation) == [.gitSettings], "nothing else asks the host")
