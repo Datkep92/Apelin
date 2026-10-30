@@ -203,6 +203,13 @@ console now goes on after a restart only past a successful respring.
       the widget on its next look. VoiceOver offers Delete (and Stop) among
       a row's actions and reads Delete Conversation… in the menu; in
       Chinese they read 删除 / 停止并删除 and 删除聊天….
+      Run so far (2026-10-30, build 24 from CI): on the iPad 26.4 vphone
+      the menu ends with Delete Conversation… in red, it asks naming the
+      conversation, and Delete took the row and its file, leaving the icon
+      beside the sidebar; on the iPhone 26.4 vphone the same from a
+      General Chat, leaving a new conversation behind the drawer. The
+      sidebar's swipe, a working conversation's Stop and Delete, the
+      widget and VoiceOver are still to run.
 - [ ] Ask Before Using the Screen (2026-10-30, AGENTS.md ▸
       Product ▸ Approval, Approvals ▸ The screen; none has run on a
       device, and it needs a model provider). On the iOS 26.4 and iOS
@@ -222,6 +229,15 @@ console now goes on after a restart only past a successful respring.
       the agent opens asks as its opener does. The console's own
       `readUITree` and `uiAction` (`diagnostics.json`) run as before
       either way.
+      Run so far (2026-10-30, build 24, iPad 26.4 vphone): Settings ▸
+      Permission Mode shows the switch on, with its footer. The rest is
+      still to run.
+- [x] The reader's line through a sidebar toggle (2026-10-30, build 24,
+      iPad 26.4 vphone, AGENTS.md ▸ the page's width change,
+      `readingPlace`): a one-row reply of sixty paragraphs scrolled to
+      sections 38–42; hiding the sidebar kept sections 38–44 in view where
+      the reader was, and showing it again put back exactly the first
+      screen.
 - [ ] Agent tool extensions in a conversation (2026-10-29, AGENTS.md ▸
       Agent sessions ▸ Agent tool extensions; none of it has run on a
       device, and it needs a model provider). On roothide and rootless,
@@ -646,6 +662,13 @@ console now goes on after a restart only past a successful respring.
       "Not Approved" indicator; an ordinary approval and a session grant
       never running a root command (covered on the Mac by `RootRunChecks`
       in `make harness`).
+      Run on 2026-10-30 (build 24, iOS 26.4 iPhone vphone, Relaxed,
+      deepseek-v4-pro): asked which packages Irisin could upgrade, the
+      agent asked for root itself, the card saying Runs as root for
+      `irisin-cli list --upgradable --json`; Approve ran it at euid 0 and
+      the reply listed Irisin's three updates, changing nothing. The
+      console refuses `approvalMode: full` without the owner check, so Full
+      stays by hand.
 - [ ] The approval card after the 2026-10-25 polish (build 45's card said
       the root sentence twice, listed `root: true` and showed argv as JSON):
       a root card and an ordinary shell_run card each show the agent's
