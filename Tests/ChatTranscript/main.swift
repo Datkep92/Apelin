@@ -1062,3 +1062,5 @@ checkCompletedBuilds()
 checkStarPromptState()
 
 try checkSidebarOrder()
+
+checkChatDeletion()

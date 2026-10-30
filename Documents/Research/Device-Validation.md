@@ -180,6 +180,29 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
+- [ ] Deleting a conversation (2026-10-30, issue #17, AGENTS.md ▸ The root
+      and ▸ Project display names and external project actions; only the
+      Mac transcript harness's `ChatDeletionCheck` has run). On the iPhone
+      (`VPHONE=Date`) and the iPad (`VPHONE=Banana`) vphone, after `make
+      vphone-app`. In the sidebar, a New Chat holding only a typed draft,
+      a pinned New Chat, and a conversation swiped the moment its first
+      message is sent (still "New Chat" and spinning): each swipes to a
+      red Delete, with Stop beside it while it works, and its long press
+      ends on Delete. Delete on one at rest goes at once, the picked one
+      leaving the icon beside the iPad's sidebar and a new conversation
+      behind the iPhone's drawer. Delete on one that works, and on one
+      waiting for an approval, asks "Delete Conversation?", saying it is
+      still working, with Stop and Delete: Cancel leaves it running, Stop
+      and Delete stops it (no more output) and the row goes. From the
+      chat's `…`, in a project's chat and in General Chat: Delete
+      Conversation… is last, red, in a group of its own; it asks, naming
+      the conversation, Cancel keeps it, and Delete takes it, the page
+      then as the sidebar's Delete leaves it; while a turn runs the
+      question says so and its button is Stop and Delete. A deleted
+      conversation leaves no banner in Notification Center and goes from
+      the widget on its next look. VoiceOver offers Delete (and Stop) among
+      a row's actions and reads Delete Conversation… in the menu; in
+      Chinese they read 删除 / 停止并删除 and 删除聊天….
 - [ ] Agent tool extensions in a conversation (2026-10-29, AGENTS.md ▸
       Agent sessions ▸ Agent tool extensions; none of it has run on a
       device, and it needs a model provider). On roothide and rootless,

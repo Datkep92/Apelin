@@ -19,6 +19,9 @@ final class ChatController: UIViewController {
     private(set) var chat: ChatSummary?
 
     var runtime: ChatRuntime!
+    /// Delete Conversation… in the `…` menu: the sidebar asks and deletes,
+    /// as its own Delete does.
+    var onDelete: ((UUID) -> Void)?
     private let titleView = ChatTitleView()
     private var messageList = ListView<ChatMessage>()
     private let composer = ComposerView()
@@ -98,6 +101,7 @@ final class ChatController: UIViewController {
                 from: self,
                 anchor: more,
                 onPrepareDistribution: { [weak self] prompt in self?.sendPrompt(prompt) },
+                onDelete: { [weak self] id in self?.onDelete?(id) },
                 completion: completion,
             )
         }])

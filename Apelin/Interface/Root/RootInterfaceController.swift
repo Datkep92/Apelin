@@ -29,9 +29,14 @@ final class RootInterfaceController: UIViewController {
     private var isResolvingLink = false
     private lazy var sidebarNavigation = UINavigationController(rootViewController: sidebar)
     /// The conversation page, made once and handed each conversation picked.
+    /// Its Delete Conversation… goes through the sidebar's Delete, which
+    /// leaves the page to what is picked next.
     private lazy var chatController: ChatController = {
         let page = ChatController()
         page.runtime = chatRuntime
+        page.onDelete = { [weak self, weak page] id in
+            self?.sidebar.delete(id, from: .moreMenu, presenter: page)
+        }
         return page
     }()
 

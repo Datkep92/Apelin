@@ -2035,8 +2035,16 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   renaming, so the list holds still while conversations work in the
   background. A conversation an agent opened keeps the time the app took
   it in (`ChatAdoption`) until the reader writes in it. A leading swipe pins, a trailing one
-  deletes (and offers Stop while a turn is running), a long press offers the same actions, and an empty list shows a filled symbol, its
-  words left to VoiceOver. Settings and the picker are form
+  deletes, a long press offers the same actions, and an empty list shows a filled symbol, its
+  words left to VoiceOver. Every conversation listed offers Delete,
+  whatever it is called or holds (owner, 2026-10-30, `ChatRowAction`: an
+  untitled one — a first message on its way, a draft, a pinned New Chat,
+  one an agent opened before it had a title — swiped to Stop alone while
+  it worked, and at rest to UIKit's default Delete, which does nothing
+  here, its swipe answering nil); one at rest goes at once. One still working — a turn, a
+  compaction, an approval waiting — has Stop beside Delete, and its Delete
+  asks first: Stop and Delete stops the run as Stop does, then deletes
+  (`ChatDeletion`). Settings and the picker are form
   sheets through Xrash's `presentAsFormSheet` (`Interface/Components/`). The
   list contains only persisted conversations; no sample conversation is injected at launch.
   `ChatRuntime` owns drafts, session IDs, task cursors and histories; each chat is atomically saved under `Chats/`. A chat is removed from memory only after its session closes (an absent session is already closed) and its file is deleted; later queued saves cannot restore it.
@@ -3019,10 +3027,16 @@ project metadata without changing the selected folder or chat. All Projects
 uses type section headers and single-line display names.
 
 The chat's More menu (`ChatActions`) acts on its conversation and its current
-project, in three groups: Rename… and Compact… (the conversation) and Rename
-Project…; Open in iGhostVT and Open in Fila; Export… and Distribute…. General
-Chat has Rename…, Compact… and the two Open items for the conversation's own `Temporary/<conversation>/`,
-made if missing (`ProjectActions.temporaryDirectory`). A conversation the reader
+project, in four groups: Rename… and Compact… (the conversation); Open in
+iGhostVT and Open in Fila; the project's Rename…, Export… and Distribute…;
+and Delete Conversation…. General
+Chat has Rename…, Compact…, the two Open items for the conversation's own `Temporary/<conversation>/`,
+made if missing (`ProjectActions.temporaryDirectory`), and Delete
+Conversation…. Delete Conversation… (owner, 2026-10-30) is the sidebar's
+Delete (`SidebarController.delete(_:from:presenter:)`), but always asks
+first, naming the conversation; while it works the question says so and
+its button is Stop and Delete. The page is then what the sidebar's Delete
+leaves it: the icon beside the sidebar, a conversation behind a drawer. A conversation the reader
 renamed keeps that name (`ChatSummary.isNamedByReader`, saved with the chat):
 the agent's `title` events and the first message's opening no longer replace
 it, and a name of only spaces changes nothing. Compact… is enabled only
