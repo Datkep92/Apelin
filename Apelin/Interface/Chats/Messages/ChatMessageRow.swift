@@ -54,6 +54,17 @@ final class ChatMessageRow: ListRowView {
         }
     }
 
+    /// The screen's, the one `height(for:…)` was given, rather than the
+    /// row's own traits, which a row not yet in its window may not have:
+    /// the row lays its images out at the height it was measured at.
+    var displayScale: CGFloat = 0 {
+        didSet {
+            if displayScale != oldValue {
+                setNeedsLayout()
+            }
+        }
+    }
+
     private var attachments: [ComposerAttachment] = []
     private var isUser = false
     private static let sizingMarkdown = ChatMarkdownView()
@@ -213,11 +224,13 @@ final class ChatMessageRow: ListRowView {
         let attachmentWidth = isUser ? available + Self.textPadding * 2 : content.width
         attachmentsView.documentWidthLimit = documentWidth
         attachmentsView.previewHeightLimit = attachmentHeightLimit
+        attachmentsView.displayScale = displayScale
         let attachmentHeight = MessageAttachmentsView.height(
             for: attachments,
             width: attachmentWidth,
             documentWidthLimit: documentWidth,
             maximumPreviewHeight: attachmentHeightLimit,
+            displayScale: displayScale,
         )
         let gap = hasText && attachmentHeight > 0 ? ChatMarkdownView.blockSpacing : 0
         if isUser {
@@ -259,7 +272,12 @@ final class ChatMessageRow: ListRowView {
         }
     }
 
-    static func height(for message: ChatMessage, width: CGFloat, maximumAttachmentHeight: CGFloat) -> CGFloat {
+    static func height(
+        for message: ChatMessage,
+        width: CGFloat,
+        maximumAttachmentHeight: CGFloat,
+        displayScale: CGFloat,
+    ) -> CGFloat {
         let user = message.role == .user
         let available = textWidth(for: width, user: user)
         let userTextSize = user && !message.text.isEmpty ? textSize(message.text, width: available) : nil
@@ -281,6 +299,7 @@ final class ChatMessageRow: ListRowView {
             width: attachmentWidth,
             documentWidthLimit: documentWidth,
             maximumPreviewHeight: maximumAttachmentHeight,
+            displayScale: displayScale,
         )
         let gap = textHeight > 0 && attachmentHeight > 0 ? ChatMarkdownView.blockSpacing : 0
         let senderHeight = user && message.sender != nil ? Self.senderHeight : 0
