@@ -138,11 +138,7 @@ final class ChatController: UIViewController {
             object: nil,
         )
         updateModelSelection()
-        modelButton.showsMenuAsPrimaryAction = true
-        modelButton.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
-            guard let self else { completion([]); return }
-            loadModelMenu(completion: completion)
-        }])
+        modelButton.addAction(UIAction { [weak self] _ in self?.showModelPicker() }, for: .touchUpInside)
         view.addSubview(composer)
         composer.snp.makeConstraints { make in
             if #available(iOS 17.0, *) {
@@ -522,39 +518,25 @@ final class ChatController: UIViewController {
         }
     }
 
-    /// The menu re-reads enabled accounts each time, including after setup.
-    private func loadModelMenu(completion: @escaping ([UIMenuElement]) -> Void) {
-        guard let chat else { completion([]); return }
+    /// The picker re-reads enabled accounts each time it opens, including
+    /// after setup. The list is a sheet now, as only a sheet can hold the
+    /// field its search needs.
+    private func showModelPicker() {
+        guard chat != nil, presentedViewController == nil else { return }
         modelLoader?.cancel()
         modelLoader = Task { [weak self] in
-            guard let self else { completion([]); return }
+            guard let self else { return }
             do {
                 let accounts = try await EnabledModels.accounts(from: ApelinService.app.agentAccountList().accounts)
-                guard !Task.isCancelled, self.chat?.id == chat.id else { completion([]); return }
+                guard !Task.isCancelled, presentedViewController == nil else { return }
                 guard !accounts.isEmpty else {
-                    completion([])
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self, presentedViewController == nil else { return }
-                        presentPageAsFormSheet(ModelProvidersController())
-                    }
+                    presentPageAsFormSheet(ModelProvidersController())
                     return
                 }
-                let selected = ComposerModelSelection.current
-                completion(accounts.map { account in
-                    UIMenu(title: account.name ?? account.account ?? account.provider.displayName,
-                           options: .displayInline,
-                           children: (account.models ?? []).map { model in
-                               let checked = account.provider == selected?.provider
-                                   && account.profileID == selected?.profileID
-                                   && model == selected?.model
-                               return UIAction(title: model, state: checked ? .on : .off) { _ in
-                                   ComposerModelSelection.current = Self.selection(of: model, in: account)
-                               }
-                           })
-                })
+                let page = ChatModelPickerController(accounts: accounts, selected: ComposerModelSelection.current)
+                presentPageAsFormSheet(page)
             } catch {
-                completion([])
-                guard !Task.isCancelled, self.chat?.id == chat.id else { return }
+                guard !Task.isCancelled, presentedViewController == nil else { return }
                 presentNotice(title: "Models Unavailable", message: error.readableMessage)
             }
         }
@@ -565,7 +547,7 @@ extension ChatController {
     /// `model` of `account` with what the catalog says it offers. The
     /// reader's effort and speed are kept apart (`ComposerModelPreferences`),
     /// so picking a model that lacks them does not lose them.
-    private static func selection(of model: String, in account: AgentAccount) -> ComposerModelSelection {
+    static func selection(of model: String, in account: AgentAccount) -> ComposerModelSelection {
         ComposerModelSelection(
             provider: account.provider,
             model: model,

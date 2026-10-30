@@ -1268,8 +1268,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Anthropic-compatible endpoint maps to the DeepSeek model family, not the
   Claude catalog; API-key discovery reads the endpoint's model-list API.
   `EnabledModels` owns only local, non-secret selections and custom IDs;
-  sign-out clears them. The chat picker is an uncached deferred context
-  menu reading enabled IDs only, and opens
+  sign-out clears them. The chat picker (`ChatModelPickerController`) is a
+  sheet of the enabled configurations, each opening its own models, with a
+  search reaching every model of every configuration, and it opens
   Model Providers when there are none. API-key model IDs need not occur in
   kwwk's static catalog; OAuth IDs remain restricted to that provider's list.
   Each login is an `AgentProvider` case kept
