@@ -19,6 +19,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             })
             Self.presentWhenActive(alert, in: application)
         }
+        // before anything reads the folder the package made: a build that
+        // saved on the container side is brought across by its first launch
+        LegacyHome.bringDataAcross()
         AppJournal.start()
         NetworkAccess.start()
         ConversationNotices.start()

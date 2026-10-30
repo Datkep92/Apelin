@@ -27,6 +27,16 @@ extension DataFolder {
         if let root = RoothideRoot.containing(Bundle.main.bundlePath) {
             return root + "/var/mobile"
         }
-        return NSHomeDirectory()
+        let home = NSHomeDirectory()
+        // An app the system gave a data container answers a home inside
+        // `Containers/Data/Application/<uuid>`, a different folder from the
+        // one the postinst made and everything else reads, so the container
+        // is crossed and mobile's own home is used (the data saved on the
+        // container side comes across on this launch, see `LegacyHome`).
+        if let range = home.range(of: "/Containers/Data/Application/") {
+            let home = String(home[..<range.lowerBound])
+            if home.hasSuffix("/var/mobile") { return home }
+        }
+        return home
     }
 }
