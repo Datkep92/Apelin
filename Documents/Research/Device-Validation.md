@@ -177,9 +177,76 @@ console now goes on after a restart only past a successful respring.
   which clears them.
 - Only the `ApelinLoaded` marker is checked; whether the template's hook
   ran (`ApelinHooked`) is not part of the evidence.
+- Procursus' PreferenceLoader 2.2.8 on the iOS 26.4 iPhone vphone added no
+  row for an installed pane, neither in Settings' list nor under Apps, so
+  a Settings row and its icon are seen only on an older iOS.
 
 ## Still to run on the owner's devices
 
+- [ ] A preference bundle's Settings row with its icon (2026-10-30, issue
+      #19, `wiki.qaq.apelin.dev.preferences` 0.1.3), on a device where
+      PreferenceLoader shows panes (the owner's iOS 17.3.1 iPhone): a new
+      project from the template, built and installed, shows the plate
+      beside its name in Settings.
+
+- [ ] Deleting a conversation (2026-10-30, AGENTS.md ▸ The root
+      and ▸ Project display names and external project actions; only the
+      Mac transcript harness's `ChatDeletionCheck` has run). On the iPhone
+      (`VPHONE=Date`) and the iPad (`VPHONE=Banana`) vphone, after `make
+      vphone-app`. In the sidebar, a New Chat holding only a typed draft,
+      a pinned New Chat, and a conversation swiped the moment its first
+      message is sent (still "New Chat" and spinning): each swipes to a
+      red Delete, with Stop beside it while it works, and its long press
+      ends on Delete. Delete on one at rest goes at once, the picked one
+      leaving the icon beside the iPad's sidebar and a new conversation
+      behind the iPhone's drawer. Delete on one that works, and on one
+      waiting for an approval, asks "Delete Conversation?", saying it is
+      still working, with Stop and Delete: Cancel leaves it running, Stop
+      and Delete stops it (no more output) and the row goes. From the
+      chat's `…`, in a project's chat and in General Chat: Delete
+      Conversation… is last, red, in a group of its own; it asks, naming
+      the conversation, Cancel keeps it, and Delete takes it, the page
+      then as the sidebar's Delete leaves it; while a turn runs the
+      question says so and its button is Stop and Delete. A deleted
+      conversation leaves no banner in Notification Center and goes from
+      the widget on its next look. VoiceOver offers Delete (and Stop) among
+      a row's actions and reads Delete Conversation… in the menu; in
+      Chinese they read 删除 / 停止并删除 and 删除聊天….
+      Run so far (2026-10-30, build 24 from CI): on the iPad 26.4 vphone
+      the menu ends with Delete Conversation… in red, it asks naming the
+      conversation, and Delete took the row and its file, leaving the icon
+      beside the sidebar; on the iPhone 26.4 vphone the same from a
+      General Chat, leaving a new conversation behind the drawer. The
+      sidebar's swipe, a working conversation's Stop and Delete, the
+      widget and VoiceOver are still to run.
+- [ ] Ask Before Using the Screen (2026-10-30, AGENTS.md ▸
+      Product ▸ Approval, Approvals ▸ The screen; none has run on a
+      device, and it needs a model provider). On the iOS 26.4 and iOS
+      27.0.1 iPhone vphones (roothide) and the iPad vphone: Settings ▸
+      Permission Mode shows the switch under the modes, on, with its
+      footer, and VoiceOver reads it as one switch with its state. With it
+      on, in Relaxed and again in Full, ask a project's chat to report a
+      problem upstream: before anything opens, the reply says what it
+      would open and why and waits; once told to go ahead, `icli url open
+      https://github.com/…/issues/new` asks on a card ("Opens … on this
+      device …", no "for this session") and Approve opens Safari; an
+      apelin_screen_read_tree and an apelin_screen_interact each ask the
+      same way, every call, and Deny leaves the screen as it was. The
+      next message's `<system-state>` names the setting on. Turned off,
+      the next message's state says off and the three run as the mode
+      says: no card in Relaxed or Full, Strict's own card. A conversation
+      the agent opens asks as its opener does. The console's own
+      `readUITree` and `uiAction` (`diagnostics.json`) run as before
+      either way.
+      Run so far (2026-10-30, build 24, iPad 26.4 vphone): Settings ▸
+      Permission Mode shows the switch on, with its footer. The rest is
+      still to run.
+- [x] The reader's line through a sidebar toggle (2026-10-30, build 24,
+      iPad 26.4 vphone, AGENTS.md ▸ the page's width change,
+      `readingPlace`): a one-row reply of sixty paragraphs scrolled to
+      sections 38–42; hiding the sidebar kept sections 38–44 in view where
+      the reader was, and showing it again put back exactly the first
+      screen.
 - [ ] Agent tool extensions in a conversation (2026-10-29, AGENTS.md ▸
       Agent sessions ▸ Agent tool extensions; none of it has run on a
       device, and it needs a model provider). On roothide and rootless,
@@ -330,6 +397,36 @@ console now goes on after a restart only past a successful respring.
       log is not sent. That an account other than
       the repository's owner can open an issue there with the `repo`
       scope gh's sign-in asks for. Close the test issues afterwards.
+- [ ] Feedback edited by the agent (2026-10-30, AGENTS.md ▸ Distribution
+      repository ▸ Feedback; it edits a public issue, so by hand only, on a
+      test issue the signed-in account opened on owngoal-dev/Apelin, closed
+      afterwards). Asked to broaden it, the agent reads it with
+      apelin_feedback_read, shows the new body (or before and after) and
+      calls apelin_feedback_edit only after 同意 or 确定, in Relaxed too;
+      under Strict the card names the repository and issue, shows the
+      whole new text and offers no "for this session". On GitHub the body
+      changes, the footer below it stays the one first written, and the
+      title stays unless it was asked for; the model hands back the link.
+      Edit the issue on GitHub between the agent's read and its edit (or
+      while the card waits): nothing is written, the agent is told it
+      changed and reads it again, and the user's words survive. An issue
+      another account opened is refused before anything is asked. Signed
+      out, both tools name Sign In with GitHub in Settings ▸ Git.
+- [ ] An issue on a repository the user chose (2026-10-30, AGENTS.md ▸
+      The environment worker ▸ Git; it posts in public, so by hand only,
+      on a test repository of the signed-in account's with issues on, the
+      issues closed afterwards). Asked to report a problem there, the
+      agent shows the repository and the whole title and body and calls
+      apelin_git_create_issue only after 同意 or 确定, in Relaxed too;
+      under Strict the card shows the repository, title and body and offers
+      no "for this session". The issue opens there, with the footer "Sent
+      with Apelin <version> (<build>) · iOS <version> · <bootstrap>", and
+      the model hands back its number and link. With issues turned off on
+      the repository, and for a repository the account cannot see, the
+      agent says what blocks it and posts nothing elsewhere, opens no
+      browser and drives no screen. Asked to file on owngoal-dev/Apelin, it
+      goes through apelin_feedback_send. Signed out, it names Sign In with
+      GitHub in Settings ▸ Git.
 - [ ] The star prompt (2026-10-29, AGENTS.md ▸ Distribution repository ▸
       The star; it stars a real account, so by hand only). Signed out of
       GitHub, ten builds that succeed ask nothing and count for nothing.
@@ -574,6 +671,13 @@ console now goes on after a restart only past a successful respring.
       "Not Approved" indicator; an ordinary approval and a session grant
       never running a root command (covered on the Mac by `RootRunChecks`
       in `make harness`).
+      Run on 2026-10-30 (build 24, iOS 26.4 iPhone vphone, Relaxed,
+      deepseek-v4-pro): asked which packages Irisin could upgrade, the
+      agent asked for root itself, the card saying Runs as root for
+      `irisin-cli list --upgradable --json`; Approve ran it at euid 0 and
+      the reply listed Irisin's three updates, changing nothing. The
+      console refuses `approvalMode: full` without the owner check, so Full
+      stays by hand.
 - [ ] The approval card after the 2026-10-25 polish (build 45's card said
       the root sentence twice, listed `root: true` and showed argv as JSON):
       a root card and an ordinary shell_run card each show the agent's
@@ -2500,3 +2604,21 @@ system prompt frozen with each message's `<system-state>` (`f74afc1`). They
 passed `make harness`, `make check` and the CI build; 0.1.9 ships them
 unverified on hardware, and the next round should open a long chat, read a
 root card and switch the approval mode mid-chat on the iPhone vphone.
+
+## Small images, the pane's icon and publishing (2026-10-30, 0.3.2)
+
+CI's packages of `6b57f8e`, roothide, on the iOS 26.4 iPhone vphone (Strict,
+deepseek-v4-pro) and the iOS 26.4 iPad vphone:
+
+- A project made from the Preference Bundle template 0.1.3, built Debug and
+  installed, carries `icon.png`, `icon@2x.png` and `icon@3x.png` in
+  `/Library/PreferenceBundles/IconPane.bundle`, and its entry names
+  `icon.png`. Settings showed no row for it (Known limitations).
+- A General Chat had the agent show that `icon@3x.png` (87 px) and a
+  1290×2796 screenshot with two `file_show` calls: the icon came out a
+  32 pt tile on the iPhone's 3x screen and about 44 pt on the iPad's 2x
+  screen, the screenshot at the 30 % height limit as before (the iPad's
+  copy of the conversation was carried over from the iPhone).
+- `apelin_package_publish` given a release build of that project, whose
+  record says `Release`, passed the configuration check and stopped at "no
+  package repository is linked"; nothing reached GitHub.

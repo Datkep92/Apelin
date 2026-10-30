@@ -585,6 +585,7 @@ struct ChatTranscript {
         case .gitSaveCredential: return String(localized: "Save a Git credential")
         case .gitRemoveCredential: return String(localized: "Remove a Git credential")
         case .gitCreateRepository: return String(localized: "Create a GitHub repository")
+        case .gitCreateIssue: return String(localized: "Create a GitHub issue")
         case .conversationCreate: return String(localized: "Create a chat")
         case .conversationSend: return String(localized: "Send to a chat")
         case .conversationList: return String(localized: "List chats")
@@ -595,6 +596,8 @@ struct ChatTranscript {
             let host = values?["url"]?.stringValue.flatMap { URLComponents(string: $0)?.host } ?? ""
             return host.isEmpty ? String(localized: "Read a webpage") : String(localized: "Read \(host)")
         case .feedbackSend: return String(localized: "Send feedback")
+        case .feedbackRead: return String(localized: "Read a feedback issue")
+        case .feedbackEdit: return String(localized: "Edit a feedback issue")
         case .toolchainList: return String(localized: "List toolchains")
         case .sdkList: return String(localized: "List SDKs")
         case .toolchainSetup: return String(localized: "Set up a toolchain")

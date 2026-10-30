@@ -204,6 +204,9 @@ public struct AgentOpenRequest: OperationRequest {
     /// (`AgentProfileID`); nil is the provider's own, first one.
     public var profileID: String?
     public var approvalMode: ApprovalMode
+    /// Ask Before Using the Screen (`ScreenConsent`): nil is on. An agent's
+    /// open takes its opener's, whatever it sends.
+    public var asksBeforeScreen: Bool?
     public var reasoningEffort: AgentReasoningEffort?
     public var serviceTier: AgentServiceTier?
     /// A first prompt, submitted as soon as the session is open.
@@ -233,6 +236,7 @@ public struct AgentOpenRequest: OperationRequest {
         model: String? = nil,
         profileID: String? = nil,
         approvalMode: ApprovalMode = .confirm,
+        asksBeforeScreen: Bool? = nil,
         reasoningEffort: AgentReasoningEffort? = nil,
         serviceTier: AgentServiceTier? = nil,
         prompt: String? = nil,
@@ -248,6 +252,7 @@ public struct AgentOpenRequest: OperationRequest {
         self.model = model
         self.profileID = profileID
         self.approvalMode = approvalMode
+        self.asksBeforeScreen = asksBeforeScreen
         self.reasoningEffort = reasoningEffort
         self.serviceTier = serviceTier
         self.prompt = prompt
@@ -306,6 +311,10 @@ public struct AgentPromptRequest: OperationRequest {
     public var serviceTier: AgentServiceTier?
     public var attachments: [AgentInputAttachment]?
     public var approvalMode: ApprovalMode?
+    /// Ask Before Using the Screen (`ScreenConsent`), as the app has it now;
+    /// nil leaves the session's as it is, as a nil `approvalMode` does. The
+    /// host drops it from an agent's prompt.
+    public var asksBeforeScreen: Bool?
     /// The session whose agent sent this, written by the host for an
     /// agent's prompt and cleared for the app's; the worker records it on
     /// the `prompt` event as `from`.
@@ -322,6 +331,7 @@ public struct AgentPromptRequest: OperationRequest {
         reasoningEffort: AgentReasoningEffort? = nil,
         serviceTier: AgentServiceTier? = nil,
         approvalMode: ApprovalMode? = nil,
+        asksBeforeScreen: Bool? = nil,
         fromSessionID: String? = nil,
     ) {
         self.sessionID = sessionID
@@ -334,6 +344,7 @@ public struct AgentPromptRequest: OperationRequest {
         self.serviceTier = serviceTier
         self.attachments = attachments
         self.approvalMode = approvalMode
+        self.asksBeforeScreen = asksBeforeScreen
         self.fromSessionID = fromSessionID
     }
 }

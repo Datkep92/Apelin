@@ -1,3 +1,4 @@
+import enum ApelinProject.ConfigurationName
 import struct ApelinProtocol.DistributionPublishRequest
 import Foundation
 import KWWKAI
@@ -47,7 +48,9 @@ public enum PackagePublish {
                 continue
             }
             let package = "\(record.packageID) \(record.version) for \(record.architecture)"
-            guard record.configuration == "release" else {
+            // The record spells it as the project's configurations do
+            // (issue #21: a lowercase comparison refused every release build).
+            guard record.configuration == ConfigurationName.release.rawValue else {
                 problems.append("\(id) is a \(record.configuration) build of \(package); publish a release build, made by apelin_project_build with configuration release and the bootstrap, once for roothide and once for rootless.")
                 continue
             }

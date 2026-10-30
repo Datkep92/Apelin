@@ -243,6 +243,12 @@ public actor AgentSession {
         }
     }
 
+    /// Ask Before Using the Screen, as the app has it now: from the next
+    /// call on, and in the next message's `<system-state>`.
+    public func setAsksBeforeScreen(_ asks: Bool) async {
+        await runner.setAsksBeforeScreen(asks)
+    }
+
     /// What the system prompt would show now, with the extensions whose
     /// tools the agent has.
     private func currentState() -> PromptState {
@@ -353,6 +359,7 @@ public actor AgentSession {
         let facts = await SystemState.facts(
             configuration.systemState,
             mode: runner.approvalMode,
+            asksBeforeScreen: runner.asksBeforeScreen,
             changes: changes,
             hostRestarted: delta && restartUntoldBefore,
             installRoot: configuration.installRoot,

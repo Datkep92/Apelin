@@ -90,4 +90,56 @@ final class FeedbackRulesTests: XCTestCase {
         )
         XCTAssertEqual(FeedbackRules.issueBody("Body.\n\n ", footer: "F"), "Body.\n\n---\nF")
     }
+
+    // MARK: Edits
+
+    func testAnEditChecksOnlyWhatChanges() throws {
+        XCTAssertNotNil(FeedbackRules.editProblem(title: nil, body: nil), "an edit changes something")
+        XCTAssertNil(FeedbackRules.editProblem(title: "  The build log stops before the link step ", body: nil))
+        XCTAssertNil(FeedbackRules.editProblem(title: nil, body: "It also stops on rootless."))
+        XCTAssertEqual(FeedbackRules.editProblem(title: "  ", body: nil), "the title is empty")
+        XCTAssertEqual(FeedbackRules.editProblem(title: nil, body: " \n"), "the body is empty")
+        XCTAssertNotNil(FeedbackRules.editProblem(title: "Two\nlines", body: nil))
+        let network = try XCTUnwrap(FeedbackRules.editProblem(title: nil, body: "From 192.168.1.20"))
+        XCTAssertTrue(network.contains("local network"), network)
+        XCTAssertNotNil(FeedbackRules.editProblem(title: "Fails at 192.168.0.2", body: nil), "the title is read too")
+        XCTAssertNotNil(FeedbackRules.editProblem(title: nil, body: "see /opt/apelin-test/data/x", paths: ["/opt/apelin-test"]))
+        XCTAssertNotNil(FeedbackRules.editProblem(title: nil, body: "it is Adas-iPhone that fails", names: ["Adas-iPhone"]))
+        let footer = FeedbackRules.footer(appVersion: "0.2.7", appBuild: "18", osVersion: "17.3.1", bootstrap: .roothide)
+        let withFooter = try XCTUnwrap(FeedbackRules.editProblem(title: nil, body: FeedbackRules.issueBody("Body.", footer: footer)))
+        XCTAssertTrue(withFooter.contains("leave it out"), "the footer stays below the body as it was: \(withFooter)")
+    }
+
+    func testTheFooterIsSplitOffAsTheBodyEndsWithIt() {
+        let footer = FeedbackRules.footer(appVersion: "0.2.7", appBuild: "18", osVersion: "17.3.1", bootstrap: .rootless)
+        let sent = FeedbackRules.issueBody("It ends before the link step.\n", footer: footer)
+        let split = FeedbackRules.split(issueBody: sent)
+        XCTAssertEqual(split.text, "It ends before the link step.")
+        XCTAssertEqual(split.footer, footer)
+        XCTAssertEqual(split.replacingText("It also stops on roothide.\n\n"), "It also stops on roothide.\n\n---\n" + footer)
+
+        // GitHub's own line ends, after an edit on the site, and a version
+        // Apelin could not read: the footer still comes off, and goes back
+        // as it was.
+        let unknown = FeedbackRules.footer(appVersion: nil, appBuild: nil, osVersion: "26.0", bootstrap: .roothide)
+        let edited = "Line one\r\nLine two\r\n\r\n---\r\n" + unknown + "\r\n"
+        let fromSite = FeedbackRules.split(issueBody: edited)
+        XCTAssertEqual(fromSite.text, "Line one\r\nLine two")
+        XCTAssertEqual(fromSite.footer, unknown)
+        XCTAssertEqual(fromSite.replacingText("New"), "New\r\n\r\n---\r\n" + unknown + "\r\n")
+
+        // No footer, or one that is not the body's end: the body is all text.
+        for body in [
+            "No footer here.",
+            "Quoted:\n\n---\n" + footer + "\n\nand more below it.",
+            "Sent with Apelin 0.2.7 (18) · iOS 17.3.1 · rootless",
+            "Body\n---\n" + footer,
+            "Body\n\n---\nSent with Apelin 0.2.7 · iOS 17.3.1 · jailbroken",
+        ] {
+            let split = FeedbackRules.split(issueBody: body)
+            XCTAssertNil(split.footer, body)
+            XCTAssertEqual(split.text, body)
+            XCTAssertEqual(split.replacingText("New"), "New", "nothing is added below an issue that has no footer")
+        }
+    }
 }

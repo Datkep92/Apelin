@@ -310,6 +310,9 @@ enum AgentHandler: DomainHandler {
         var resolved = await AgentHostRun.shared.forwarded(open, sessionID: sessionID, byApp: opener == nil)
         resolved.projectID = project.id
         resolved.projectName = project.name
+        // Spelled out, so the worker and the host read it the same way.
+        let asksBeforeScreen = ScreenConsent.asks(open.asksBeforeScreen)
+        resolved.asksBeforeScreen = asksBeforeScreen
         let handle = await host.registry.create(kind: .agent, owner: .agent, ownerKey: sessionID)
         await host.notices.opened(session: sessionID, task: handle.taskID, headless: open.closeWhenFinished == true)
         // The host's own Confirm decisions (builds, installs, removals) read
@@ -352,6 +355,7 @@ enum AgentHandler: DomainHandler {
                 task: handle,
                 project: project,
                 mode: open.approvalMode,
+                asksBeforeScreen: asksBeforeScreen,
                 title: title ?? existing?.title,
                 createdAt: Date(),
                 parentSessionID: opener?.sessionID ?? existing?.parentSessionID ?? saved?.parentSessionID,
@@ -376,8 +380,9 @@ enum AgentHandler: DomainHandler {
     }
 
     /// The app's prompt goes as it is, minus any `fromSessionID`, and sets
-    /// the session's mode first; an agent's is rewritten as a message from
-    /// its session (`AgentConversationRules.childPrompt`) and changes no mode.
+    /// the session's mode and Ask Before Using the Screen first; an agent's
+    /// is rewritten as a message from its session
+    /// (`AgentConversationRules.childPrompt`) and changes neither.
     /// Either one its worker took has reached the session in this host's
     /// run (`AgentHostRun`).
     private static func prompt(_ request: HostRequest, host: SessionHost) async -> HostReply {
@@ -415,8 +420,11 @@ enum AgentHandler: DomainHandler {
             return request.fail(error)
         }
         let reply = await deliver(request, wire, to: prompt.sessionID, host: host) {
-            guard let mode = prompt.approvalMode else { return }
             // Applied before forwarding: the worker can start tools before its reply arrives.
+            if let asks = prompt.asksBeforeScreen {
+                await AgentSessionTable.shared.setAsksBeforeScreen(asks, session: prompt.sessionID)
+            }
+            guard let mode = prompt.approvalMode else { return }
             await host.approvals.setMode(mode, session: prompt.sessionID)
             await AgentSessionTable.shared.setMode(mode, session: prompt.sessionID)
         }

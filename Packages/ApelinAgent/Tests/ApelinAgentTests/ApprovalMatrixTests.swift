@@ -15,8 +15,10 @@ struct ApprovalMatrixTests {
         root = try ScopedRoot(home.projectURL)
     }
 
+    /// The modes alone: Ask Before Using the Screen, which asks in every mode
+    /// while it is on, has its own suite (`ScreenUseConsentTests`).
     private func verdict(_ mode: ApprovalMode, _ facts: InvocationFacts, presets: ApprovalPresets = .default) -> GateVerdict {
-        ApprovalPolicy(mode: mode, presets: presets).evaluate(facts, root: root)
+        ApprovalPolicy(mode: mode, presets: presets, asksBeforeScreen: false).evaluate(facts, root: root)
     }
 
     private func isAllow(_ verdict: GateVerdict) -> Bool {

@@ -101,6 +101,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case gitCredentialSet
     case gitCredentialRemove
     case gitRepositoryCreate
+    case gitIssueCreate
 
     case distributionRepositoryList
     case distributionRepositoryCreate
@@ -108,6 +109,8 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case distributionRepositoryUnlink
     case distributionPublish
     case feedbackSend
+    case feedbackRead
+    case feedbackEdit
     case feedbackStarState
     case feedbackStar
     case transferExport
@@ -137,11 +140,13 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .toolHostOpen, .toolHostClose, .toolHostCall: .toolHost
         case .gitStatus, .gitDiff, .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitClone, .gitCloneInto, .gitFetch,
              .gitPull,
-             .gitPush, .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove, .gitRepositoryCreate:
+             .gitPush, .gitSettings, .gitAuthorSet, .gitCredentialSet, .gitCredentialRemove, .gitRepositoryCreate,
+             .gitIssueCreate:
             .git
         case .transferExport, .transferInspect, .transferImport: .transfer
         case .distributionRepositoryList, .distributionRepositoryCreate, .distributionRepositoryLink,
-             .distributionRepositoryUnlink, .distributionPublish, .feedbackSend, .feedbackStarState, .feedbackStar:
+             .distributionRepositoryUnlink, .distributionPublish, .feedbackSend, .feedbackRead, .feedbackEdit,
+             .feedbackStarState, .feedbackStar:
             .distribution
         }
     }
@@ -229,12 +234,15 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .gitCredentialSet: GitCredentialSetRequest.self
         case .gitCredentialRemove: GitCredentialRemoveRequest.self
         case .gitRepositoryCreate: GitRepositoryCreateRequest.self
+        case .gitIssueCreate: GitIssueCreateRequest.self
         case .distributionRepositoryList: DistributionRepositoryListRequest.self
         case .distributionRepositoryCreate: DistributionRepositoryCreateRequest.self
         case .distributionRepositoryLink: DistributionRepositoryLinkRequest.self
         case .distributionRepositoryUnlink: DistributionRepositoryUnlinkRequest.self
         case .distributionPublish: DistributionPublishRequest.self
         case .feedbackSend: FeedbackSendRequest.self
+        case .feedbackRead: FeedbackReadRequest.self
+        case .feedbackEdit: FeedbackEditRequest.self
         case .feedbackStarState: FeedbackStarStateRequest.self
         case .feedbackStar: FeedbackStarRequest.self
         case .transferExport: TransferExportRequest.self

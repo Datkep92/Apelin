@@ -104,15 +104,25 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For apelin_feedback_send: the issue, checked before asking, as it is
     /// sent.
     public var feedback: FeedbackApproval?
+    /// For apelin_feedback_edit: the issue, read and checked before asking,
+    /// and the edit as it is sent.
+    public var feedbackEdit: FeedbackEditApproval?
     /// For apelin_git_create_repository: the repository, checked before
     /// asking, as it is requested.
     public var repositoryCreate: RepositoryCreateApproval?
+    /// For apelin_git_create_issue: the repository and the issue, checked
+    /// before asking, as they are sent.
+    public var issueCreate: IssueCreateApproval?
     /// For apelin_project_delete: the project, resolved before asking,
     /// which is the one deleted.
     public var projectDeletion: ProjectDeleteApproval?
     /// For apelin_package_publish: the repository and the packages,
     /// checked before asking, as they are sent.
     public var packagePublish: PackagePublishApproval?
+    /// For apelin_screen_read_tree, apelin_screen_interact and a shell_run
+    /// that runs icli (or another of `ScreenConsent.programs`): what it does
+    /// on the screen, as the host is asked for it.
+    public var screenControl: ScreenControlApproval?
 
     public init(
         tool: Tool,
@@ -171,10 +181,15 @@ public enum GateVerdict: Sendable, Hashable {
 public struct ApprovalPolicy: Sendable, Hashable {
     public var mode: ApprovalMode
     public var presets: ApprovalPresets
+    /// Ask Before Using the Screen, the app's setting (owner, 2026-10-30):
+    /// on, the UI tree, every UI action and every command that runs icli
+    /// ask each time, in every mode (`evaluateScreen`).
+    public var asksBeforeScreen: Bool
 
-    public init(mode: ApprovalMode, presets: ApprovalPresets = .default) {
+    public init(mode: ApprovalMode, presets: ApprovalPresets = .default, asksBeforeScreen: Bool = true) {
         self.mode = mode
         self.presets = presets
+        self.asksBeforeScreen = asksBeforeScreen
     }
 
     public func evaluate(_ facts: InvocationFacts, root: ScopedRoot) -> GateVerdict {
@@ -182,6 +197,9 @@ public struct ApprovalPolicy: Sendable, Hashable {
         // tool's capability, not a matter of asking.
         if case let .outside(path)? = facts.pathCheck {
             return .deny("\(path) is outside the project")
+        }
+        if let screen = evaluateScreen(facts) {
+            return screen
         }
         if case .local(.shellRun) = facts.tool, facts.runsAsRoot {
             return evaluateRoot(facts)
@@ -219,6 +237,101 @@ public struct ApprovalPolicy: Sendable, Hashable {
             reason: "Runs as root, with full control of this device. Each command that runs as root needs your approval.",
             detail: .rootCommand(command),
         )
+    }
+
+    /// While Ask Before Using the Screen is on, the UI tree, every UI
+    /// action and every command that runs icli (or another of
+    /// `ScreenConsent.programs`) ask each time, in every mode and whatever
+    /// the presets say, the card saying what the call opens, reads or does
+    /// there; the host spends that one approval. Nil leaves the call to the
+    /// mode.
+    private func evaluateScreen(_ facts: InvocationFacts) -> GateVerdict? {
+        guard asksBeforeScreen else { return nil }
+        switch facts.tool {
+        case .local(.screenReadTree), .local(.screenInteract):
+            break
+        case .local(.shellRun):
+            guard facts.command?.screenProgram != nil else { return nil }
+        default:
+            return nil
+        }
+        guard let use = facts.screenControl else {
+            return .ask(reason: "What this call does on the screen could not be read. \(Self.screenNote)", detail: .none)
+        }
+        return .ask(reason: "\(Self.screenPhrase(use)) \(Self.screenNote)", detail: .screenControl(use))
+    }
+
+    static let screenNote = "Ask Before Using the Screen is on, so each use of the screen needs your approval, in every mode."
+
+    /// What a use of the screen opens, reads or does, in a sentence.
+    static func screenPhrase(_ use: ScreenControlApproval) -> String {
+        switch use {
+        case let .readTree(targetID):
+            let app = targetID.map { "the app \($0)" } ?? "the app in front, whichever it is"
+            return "Reads what is on the screen: the text and controls of \(app)."
+        case let .interact(targetID, action):
+            if case .pressButton = action {
+                return actionPhrase(action) + "."
+            }
+            let app = targetID.map { "the app \($0)" } ?? "the app in front, whichever it is"
+            return "\(actionPhrase(action)) in \(app)."
+        case let .command(invocation, _):
+            return commandPhrase(invocation)
+        }
+    }
+
+    private static func actionPhrase(_ action: UIAction) -> String {
+        switch action {
+        case let .tap(x, y):
+            "Taps the screen at \(point(x, y))"
+        case let .tapElement(id):
+            id.hasPrefix("text:") ? "Taps “\(id.dropFirst(5))”" : "Taps the element \(id)"
+        case let .typeText(text):
+            "Types “\(text.count > 200 ? String(text.prefix(200)) + "…" : text)”"
+        case let .swipe(fromX, fromY, toX, toY, _):
+            "Swipes from \(point(fromX, fromY)) to \(point(toX, toY))"
+        case let .pressButton(button):
+            switch button {
+            case "wake": "Presses wake, which turns the screen on"
+            case "home": "Presses Home, which sends the app in front to the home screen"
+            case "lock": "Presses the side button, which turns the screen off and locks the device"
+            default: "Presses \(button)"
+            }
+        }
+    }
+
+    private static func point(_ x: Double, _ y: Double) -> String {
+        func number(_ value: Double) -> String {
+            value.rounded() == value && abs(value) < 1e9 ? String(Int(value)) : String(value)
+        }
+        return "(\(number(x)), \(number(y)))"
+    }
+
+    /// A command that runs one of `ScreenConsent.programs`: icli's
+    /// `url open` and `app launch` by what they open, anything else by the
+    /// program it runs.
+    private static func commandPhrase(_ invocation: RunCodeInvocation) -> String {
+        if case let .argv(argv) = invocation, let program = argv.first,
+           (program as NSString).lastPathComponent.lowercased() == "icli", argv.count >= 4,
+           !argv[3].hasPrefix("-")
+        {
+            switch (argv[1], argv[2]) {
+            case ("url", "open"):
+                return "Opens \(argv[3]) on this device, in the app that handles it, which comes to the front."
+            case ("app", "launch"):
+                return "Opens the app \(argv[3]) on this device, which comes to the front."
+            default:
+                break
+            }
+        }
+        switch invocation.screenProgram {
+        case "uiopen":
+            return "Runs uiopen, which opens an app or a link on this device and brings it to the front."
+        case "uishoot":
+            return "Runs uishoot, which takes a screenshot of whatever is on the screen."
+        default:
+            return "Runs icli, which can open apps and links, read what is on the screen and act on it, whatever app is in front."
+        }
     }
 
     private func evaluateConfirm(_ tool: AgentToolName, facts: InvocationFacts, root: ScopedRoot) -> GateVerdict {
@@ -338,6 +451,14 @@ public struct ApprovalPolicy: Sendable, Hashable {
             }
             return .ask(reason: Self.feedbackReason(feedback), detail: .feedback(feedback))
 
+        // The same issue, changed in public: every edit asks, the card
+        // showing the whole new text.
+        case .feedbackEdit:
+            guard let edit = facts.feedbackEdit else {
+                return .ask(reason: "The edit to make could not be read.", detail: .none)
+            }
+            return .ask(reason: Self.feedbackEditReason(edit), detail: .feedbackEdit(edit))
+
         // A repository on GitHub under the user's account, which outlives
         // the conversation: every one asks, the card naming its owner, name
         // and visibility.
@@ -346,6 +467,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 return .ask(reason: "The repository to create could not be read.", detail: .none)
             }
             return .ask(reason: Self.repositoryReason(repository), detail: .repositoryCreate(repository))
+
+        // An issue under the user's GitHub account on a repository they
+        // chose, as feedback is filed: every one asks, the card showing the
+        // repository and the whole text.
+        case .gitCreateIssue:
+            guard let issue = facts.issueCreate else {
+                return .ask(reason: "The issue to open could not be read.", detail: .none)
+            }
+            return .ask(reason: Self.issueReason(issue), detail: .issueCreate(issue))
 
         // Packages in the user's package repository, where anyone who adds
         // its source installs them, as a push publishes: every publication
@@ -369,7 +499,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
              .packageList, .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
-             .conversationList, .conversationRead, .toolchainList, .sdkList, .webFetch:
+             .conversationList, .conversationRead, .toolchainList, .sdkList, .webFetch, .feedbackRead:
             if presets.readTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
             }
@@ -466,6 +596,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
 
     static func feedbackReason(_ feedback: FeedbackApproval) -> String {
         "Posts this title and body as a public issue on \(feedback.repository) under your GitHub account, where anyone can read it; Apelin adds its version, the iOS version and the bootstrap below it. Each one needs your approval."
+    }
+
+    static func issueReason(_ issue: IssueCreateApproval) -> String {
+        "Opens this issue on \(issue.repository) under your GitHub account, where everyone who can see that repository can read it; Apelin adds its version, the iOS version and the bootstrap below it. Each one needs your approval."
+    }
+
+    static func feedbackEditReason(_ edit: FeedbackEditApproval) -> String {
+        let fields: [String] = [edit.title.map { _ in "title" }, edit.body.map { _ in "body" }].compactMap(\.self)
+        return "Replaces the \(fields.joined(separator: " and ")) of issue #\(edit.number) on \(edit.repository), which your GitHub account opened and anyone can read, with the text below; the line Apelin added below the body stays as it is. Each edit needs your approval."
     }
 
     static func publishReason(_ publication: PackagePublishApproval) -> String {

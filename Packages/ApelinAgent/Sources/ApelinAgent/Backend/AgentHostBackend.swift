@@ -80,6 +80,9 @@ public protocol AgentHostBackend: Sendable {
     /// An empty repository on GitHub with the user's sign-in; the host
     /// checks it was approved.
     func createRepository(_ request: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse
+    /// An issue on a GitHub repository the user chose, with the user's
+    /// sign-in; the host checks it was approved.
+    func createIssue(_ request: IssueCreateToolRequest) async throws -> IssueCreateToolResponse
     /// Another conversation in the session's project, opened with a first
     /// message; answers without waiting for it.
     func conversationCreate(_ request: ConversationCreateToolRequest) async throws -> ConversationCreateToolResponse
@@ -120,6 +123,13 @@ public protocol AgentHostBackend: Sendable {
     /// A public issue on Apelin's own repository with the user's GitHub
     /// sign-in; the host checks it was approved.
     func sendFeedback(_ request: FeedbackToolRequest) async throws -> FeedbackToolResponse
+    /// An issue on Apelin's own repository, read with the user's GitHub
+    /// sign-in.
+    func readFeedback(_ request: FeedbackReadToolRequest) async throws -> FeedbackReadToolResponse
+    /// An issue the user's GitHub account opened there, edited only while it
+    /// still says what the edit was made against; the host checks it was
+    /// approved.
+    func editFeedback(_ request: FeedbackEditToolRequest) async throws -> FeedbackEditToolResponse
     /// An installed agent tool extension, started by the host as mobile
     /// after its own check of the manifest: the tool session its calls name.
     func openToolExtension(id: String) async throws -> String
@@ -185,8 +195,20 @@ public extension AgentHostBackend {
         throw ToolDeniedError(message: "sending feedback is not available here")
     }
 
+    func readFeedback(_: FeedbackReadToolRequest) async throws -> FeedbackReadToolResponse {
+        throw ToolDeniedError(message: "reading feedback is not available here")
+    }
+
+    func editFeedback(_: FeedbackEditToolRequest) async throws -> FeedbackEditToolResponse {
+        throw ToolDeniedError(message: "editing feedback is not available here")
+    }
+
     func createRepository(_: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse {
         throw ToolDeniedError(message: "creating repositories is not available here")
+    }
+
+    func createIssue(_: IssueCreateToolRequest) async throws -> IssueCreateToolResponse {
+        throw ToolDeniedError(message: "opening issues is not available here")
     }
 
     func openToolExtension(id _: String) async throws -> String {

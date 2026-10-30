@@ -433,7 +433,8 @@ error, or on `ok: false` where the exact refusal is the worker's to choose.
 - `distribution.json` — nothing written to GitHub: `distributionRepositoryList`
   without GitHub, a bad repository name, a bad `owner/name` and a package
   outside `Builds/` each refused `badRequest` before a task starts, an
-  empty feedback title refused before anything reaches GitHub,
+  empty feedback title, a `feedbackRead` of issue 0 and a `feedbackEdit`
+  to an empty title each refused before anything reaches GitHub,
   `feedbackStarState` (a read: `denied` without a GitHub sign-in),
   `distributionRepositoryUnlink`, then the list with no link. The harness
   keeps `Settings/distribution.json` and puts it back.

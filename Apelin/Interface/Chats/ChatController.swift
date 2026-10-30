@@ -19,6 +19,9 @@ final class ChatController: UIViewController {
     private(set) var chat: ChatSummary?
 
     var runtime: ChatRuntime!
+    /// Delete Conversation… in the `…` menu: the sidebar asks and deletes,
+    /// as its own Delete does.
+    var onDelete: ((UUID) -> Void)?
     private let titleView = ChatTitleView()
     private var messageList = ListView<ChatMessage>()
     private let composer = ComposerView()
@@ -85,6 +88,11 @@ final class ChatController: UIViewController {
         (view.window?.bounds.height ?? view.bounds.height) * 0.3
     }
 
+    /// The scale a message row measures and lays out its images at.
+    private var displayScale: CGFloat {
+        (view.window ?? view).traitCollection.displayScale
+    }
+
     init() {
         super.init(nibName: nil, bundle: nil)
         navigationItem.titleView = titleView
@@ -98,6 +106,7 @@ final class ChatController: UIViewController {
                 from: self,
                 anchor: more,
                 onPrepareDistribution: { [weak self] prompt in self?.sendPrompt(prompt) },
+                onDelete: { [weak self] id in self?.onDelete?(id) },
                 completion: completion,
             )
         }])
@@ -261,11 +270,13 @@ final class ChatController: UIViewController {
                         for: message,
                         width: context.width,
                         maximumAttachmentHeight: self?.attachmentHeightLimit ?? 0,
+                        displayScale: self?.displayScale ?? 0,
                     )
                 }
                 .configure { [weak self] row, message, _ in
                     let chatID = self?.chat?.id
                     row.attachmentHeightLimit = self?.attachmentHeightLimit ?? 0
+                    row.displayScale = self?.displayScale ?? 0
                     row.show(message, isStreaming: self?.chat?.isWorking == true)
                     row.onAttachmentLayoutChanged = { [weak self] in
                         guard let self, chat?.id == chatID else { return }

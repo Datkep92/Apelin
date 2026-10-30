@@ -45,7 +45,8 @@ public struct PackagePublication: Sendable, Hashable, Codable {
 public struct PackageBuildRecord: Sendable, Hashable, Codable {
     public var buildID: String
     public var projectID: String
-    /// `debug` or `release`.
+    /// `Debug` or `Release`, the project's configuration names, as the
+    /// artifact record spells them (ApelinProject's `ConfigurationName`).
     public var configuration: String
     /// `roothide` or `rootless`.
     public var bootstrap: String

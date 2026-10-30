@@ -62,10 +62,15 @@ enum CallerPolicy {
         // Confirm only as the user approved exactly it
         // (AgentRepositoryCreateRules).
         .gitRepositoryCreate,
+        // An issue under the user's GitHub account on a repository the user
+        // chose, under Confirm only as the user approved exactly it
+        // (AgentIssueCreateRules).
+        .gitIssueCreate,
         // A public issue on Apelin's own repository with the user's GitHub
-        // sign-in, under Confirm only as the user approved exactly it
-        // (AgentFeedbackRules).
-        .feedbackSend,
+        // sign-in, filed or, when the account opened it, edited under
+        // Confirm only as the user approved exactly it (AgentFeedbackRules),
+        // and read.
+        .feedbackSend, .feedbackRead, .feedbackEdit,
         // Packages builds made, published to the linked package repository
         // as they were built, under Confirm only as the user approved
         // exactly them (AgentPublishRules). Creating, linking, listing and

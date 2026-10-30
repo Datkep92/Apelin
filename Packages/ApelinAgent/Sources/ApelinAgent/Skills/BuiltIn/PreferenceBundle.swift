@@ -56,8 +56,14 @@ extension BuiltInSkills {
           `/Library/PreferenceLoader/Preferences/<Name>.plist` with one
           `entry` dictionary: `bundle` (the bundle's name), `detail` (the
           controller class), `cell` `PSLinkCell`, `isController` true,
-          `label` (the Settings row). The package depends on
-          `preferenceloader`.
+          `label` (the Settings row) and `icon` (the row's image, a file
+          name in the bundle). The package depends on `preferenceloader`.
+        - **The row's icon** is `icon.png` with `icon@2x.png` and
+          `icon@3x.png`, 29 points (29, 58 and 87 pixels), a rounded square
+          on a clear ground, listed in the product's `resources` so the
+          bundle carries them. The template ships Apelin's preferences
+          plate; replace the three files, same names and sizes, to give the
+          pane its own. Without `icon` the row shows no image.
         - **The bundle Info.plist** names `NSPrincipalClass` and
           `CFBundlePackageType` `BNDL`.
 
@@ -71,7 +77,7 @@ extension BuiltInSkills {
         ## Layout
         - The bundle: `/Library/PreferenceBundles/<Name>.bundle` (a `bundle`
           product, with a `bundle-resources` step and `resources`:
-          `Resources/Root.plist`).
+          `Resources/Root.plist` and the three icon files).
         - The entry: `/Library/PreferenceLoader/Preferences/<Name>.plist`, a
           `{path, file}` layout entry, mode `0644`.
         Settings reads the row at launch; a change to the entry or the bundle

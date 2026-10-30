@@ -1,6 +1,7 @@
 import enum ApelinCore.ProjectDisplayName
 import enum ApelinProtocol.AgentToolName
 import enum ApelinProtocol.FeedbackRules
+import struct ApelinProtocol.GitIssueCreateRequest
 import struct ApelinProtocol.GitRepositoryCreateRequest
 import enum ApelinProtocol.GitRepositoryVisibility
 import Foundation
@@ -27,11 +28,21 @@ extension ToolRunner {
             let checks = (arguments.argStrings("paths") ?? []).map { path in check { _ = try root.resolveExisting(path) } }
             facts.pathCheck = checks.first { $0 != .inside } ?? .inside
         case .shellRun:
-            facts.command = try CommandClassifier.classify(arguments)
+            let command = try CommandClassifier.classify(arguments)
+            facts.command = command
             facts.runsAsRoot = arguments.argBool("root") ?? false
             let cwd = arguments.argString("cwd") ?? "."
             facts.pathCheck = root.mayReach(cwd) ? .inside : .outside(cwd)
             facts.workingDirectory = cwd
+            if command.screenProgram != nil {
+                facts.screenControl = .command(command, asRoot: facts.runsAsRoot)
+            }
+        // What the call does on the screen, as the host is asked for it:
+        // what Ask Before Using the Screen's card names.
+        case .screenReadTree:
+            facts.screenControl = .readTree(targetID: arguments.argString("target_id"))
+        case .screenInteract:
+            facts.screenControl = try .interact(targetID: arguments.argString("target_id"), action: Self.uiAction(arguments))
         case .projectBuild:
             if let script = ProjectBuildSystem.externalScript(in: root) {
                 facts.externalBuild = ExternalBuildApproval(
@@ -116,6 +127,25 @@ extension ToolRunner {
                 visibility: request.visibility,
                 description: request.description,
             )
+        case .gitCreateIssue:
+            // Checked before anyone is asked, and again by apelin-environment;
+            // the card names the repository and the text that is sent.
+            // Apelin's own feedback is apelin_feedback_send's.
+            let request = try GitIssueCreateRequest(
+                repository: arguments.requireString("repository").trimmingCharacters(in: .whitespaces),
+                title: arguments.requireString("title").trimmingCharacters(in: .whitespaces),
+                body: arguments.requireString("body"),
+            )
+            if let problem = request.problem {
+                throw ToolArgumentError("Nothing was posted: \(problem)")
+            }
+            guard request.repository.lowercased() != FeedbackRules.repository.lowercased() else {
+                throw ToolArgumentError("Nothing was posted: feedback about Apelin itself goes to \(FeedbackRules.repository) with apelin_feedback_send.")
+            }
+            if let problem = FeedbackRules.problem(title: request.title, body: request.body) {
+                throw ToolArgumentError("Nothing was posted: \(problem).")
+            }
+            facts.issueCreate = IssueCreateApproval(repository: request.repository, title: request.title, body: request.body)
         case .packageConfirmLoaded where arguments.argBool("respring") == true:
             // It resprings the device, so it is gated as respring is.
             facts.tool = .local(.deviceRespring)
@@ -142,6 +172,18 @@ extension ToolRunner {
                 throw ToolArgumentError("Not sent: \(problem).")
             }
             facts.feedback = FeedbackApproval(repository: FeedbackRules.repository, title: title, body: body)
+        case .feedbackEdit:
+            // The issue is read again before anyone is asked: an edit made
+            // against an older text, or another account's issue, is refused
+            // here, and the card names the text that is sent.
+            let number = try FeedbackEdit.number(arguments)
+            let issue: FeedbackReadToolResponse
+            do {
+                issue = try await backend.readFeedback(FeedbackReadToolRequest(context: probeContext, number: number))
+            } catch let failure as FeedbackToolFailure {
+                throw FeedbackToolFailure(message: "Nothing was changed: " + failure.message)
+            }
+            facts.feedbackEdit = try FeedbackEdit.approval(for: arguments, issue: issue)
         case .packagePublish:
             // Read and checked before anyone is asked; the card names what
             // is sent, which the host and apelin-environment check again.

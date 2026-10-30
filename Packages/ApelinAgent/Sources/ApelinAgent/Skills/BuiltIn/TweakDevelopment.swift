@@ -125,6 +125,9 @@ extension BuiltInSkills {
         5. Check the behaviour itself, not only that it loaded: bring up what
            you changed, read it with `apelin_screen_read_tree`, drive it with
            `apelin_screen_interact`, and read it again after each action;
+           while Ask Before Using the Screen is on, first tell the user what
+           you will open, read and do there and why, and go on only once
+           they consent explicitly (the prompt's rule, in every mode);
            behaviour that does not show in the UI tree is checked in what it
            logs (`apelin_log_read`), or in a screenshot only once the user
            has agreed to that one (the prompt's rule, in every mode). Report

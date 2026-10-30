@@ -517,8 +517,9 @@ struct PromptCacheTests {
         #expect(block.contains("- Local time: Saturday 2026-10-24 15:58, GMT (UTC+00:00)."))
         #expect(block.contains("- Approval mode: Full."))
         #expect(block.hasSuffix(SystemState.closingTag + "\n\n"))
-        // Some sixty tokens: about four bytes a token.
-        #expect(block.utf8.count < 400, "\(block.utf8.count) bytes")
+        // A few dozen tokens, at about four bytes a token, the screen
+        // setting's line (2026-10-30) included.
+        #expect(block.utf8.count < 440, "\(block.utf8.count) bytes")
         let none = SystemState.make(SystemState.Facts(languages: [], region: nil, date: Self.beforeMidnight, timeZone: Self.zone, mode: .confirm))
         #expect(none.contains("- System language: not known."))
         #expect(none.contains("- Write to the user in the language they write in, progress notes included.\n"))

@@ -1,3 +1,4 @@
+import enum ApelinProtocol.ScreenConsent
 import Foundation
 
 // MARK: - shell_run
@@ -11,6 +12,18 @@ public enum RunCodeInvocation: Sendable, Hashable, Codable {
     case shell(String)
     /// A script handed to an interpreter (`sh`, `bash`, `python3`, …).
     case script(interpreter: String, source: String)
+
+    /// The program that opens apps and links or reads and acts on the
+    /// screen (`ScreenConsent.programs`, icli first) that this runs, as the
+    /// session host reads the request it is sent as; nil for any other
+    /// command.
+    var screenProgram: String? {
+        switch self {
+        case let .argv(argv): ScreenConsent.program(inArgv: argv)
+        case let .shell(text): ScreenConsent.program(in: text)
+        case let .script(interpreter, source): ScreenConsent.program(inArgv: [interpreter, source])
+        }
+    }
 }
 
 public struct RunCodeRequest: Sendable, Hashable, Codable {

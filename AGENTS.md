@@ -232,11 +232,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `gitStatus`, `gitDiff`, `gitStage`, `gitUnstage`, `gitCommit`, `gitInit`,
   `gitClone`, `gitCloneInto`, `gitFetch`, `gitPull`, `gitPush`, `gitSettings`,
   `gitAuthorSet`, `gitCredentialSet`, `gitCredentialRemove`,
-  `gitRepositoryCreate`;
+  `gitRepositoryCreate`, `gitIssueCreate`;
   `distributionRepositoryList`, `distributionRepositoryCreate`,
   `distributionRepositoryLink`, `distributionRepositoryUnlink`,
-  `distributionPublish`, `feedbackSend`, `feedbackStarState`,
-  `feedbackStar`;
+  `distributionPublish`, `feedbackSend`, `feedbackRead`, `feedbackEdit`,
+  `feedbackStarState`, `feedbackStar`;
   `transferExport`, `transferInspect`, `transferImport`. Every one is
   in the list today; most answer `unimplemented` until their domain lands.
   The envelope (protocol version 2) carries `op`, `protocolVersion`,
@@ -301,8 +301,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   session started — its git tasks too; never a removal or a cancel;
   `projectRename`, narrowed by `AgentProjectRenameRules`; `projectDelete`,
   narrowed by `AgentProjectDeleteRules`; `installationList`,
-  every project's; `feedbackSend`, narrowed by `AgentFeedbackRules`;
+  every project's; `feedbackSend` and `feedbackEdit`, narrowed by
+  `AgentFeedbackRules`, and `feedbackRead`;
   `gitRepositoryCreate`, narrowed by `AgentRepositoryCreateRules`;
+  `gitIssueCreate`, narrowed by `AgentIssueCreateRules`;
   `distributionPublish`, narrowed by `AgentPublishRules`, the rest of the
   package repository's operations staying the app's), the
   environment worker `installPackage`, `removePackage`
@@ -455,6 +457,22 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     order the grants are withdrawn in. The file's format is unchanged.
     Nothing on the wire writes the ledger, and
     `approvalDigestState` is its read side for the agent.
+    The screen (owner, 2026-10-30; `Session/Agent/AgentScreenRules.swift`,
+    ApelinProtocol's `ScreenConsent`): the session table keeps each
+    session's Ask Before Using the Screen (`asksBeforeScreen`), the app's
+    from every `agentOpen` and from an `agentPrompt` that carries it, an
+    agent-opened session its opener's. While it is on, in every mode, an
+    agent's `readUITree` and `uiAction` (DiagnosticsHandler, before
+    `AgentUIActionRules`) each spend one approval the app gave this session
+    whose own `approvalRequested` names exactly it — `detail.screenControl`
+    {operation, request}, the target and action as the host is asked for
+    them —, and `AgentApprovals.authorize` runs an `agentRunCode` whose argv
+    word or script names one of `ScreenConsent.programs` (icli, `uiopen`,
+    `uishoot`) as a word only on its `.user` approval of a card marked
+    `screenControl` with exactly that `command`, or `rootCommand` as root
+    (owner checked, Full included), in that directory. A preset, a
+    `.relaxed` claim and a session grant run none of them; `agentClose`
+    forgets what is left. The app's and the console's calls are untouched.
     Device setups and other projects (2026-10-22, in memory, per session,
     `Session/Agent/AgentEnvironmentRules.swift`, `AgentConversationRules`):
     in every mode an agent's `toolchainSetup` names an Apple catalog product
@@ -592,8 +610,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   against a fake irisind, the folders a removed toolchain leaves, the
   ledger, the control reader, the attachment
   copies, ordinary events leaving the record alone and its number and time
-  read back from the log, one `agentOpen` of a session at a time, and a
-  real PTY.
+  read back from the log, one `agentOpen` of a session at a time, Ask
+  Before Using the Screen's refusals and spends in every mode
+  (`ScreenConsentChecks.swift`), and a real PTY.
   `Documents/Console/scripts/i1-smoke.json` drives it on a device;
   `r1-resume-build.json`, `r1-resume-sdk-import.json` and
   `r2-resume-toolchain.json` check a resume, killing the host by its
@@ -710,6 +729,22 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   agent's passes `AgentRepositoryCreateRules` first. Tested by
   `GitHubRepositoryTests` (a fake GitHub); `i2-git-remote.json` sends a
   name GitHub would refuse, answered before anything reaches GitHub.
+  An issue on a repository the user chose (owner, 2026-10-30;
+  `GitHubIssueService` beside it): `gitIssueCreate {repository, title,
+  body}` opens one on `owner/name` (`GitHubName.isFullName`) with the same
+  sign-in, `POST /repos/<owner>/<name>/issues`, answering `{number, url,
+  repository}`. The title and body pass `FeedbackRules.problem` with this
+  device's paths and host name (`IssueReport`, which feedback's checks and
+  footer are too) before the sign-in is read, `badRequest` naming the
+  kind, and below the body goes feedback's footer. GitHub's refusals keep
+  its words and say what blocks it (`GitHubAPI.createIssue`): a repository
+  the account cannot see `notFound`, issues turned off there (410) or no
+  permission (403) `denied`, GitHub's validation (422) `conflict`; without
+  a sign-in, `denied` with reason `authenticationRequired`. Only the
+  repository named is asked, never Apelin's in its place. Unscoped in
+  `GitHandler`; an agent's passes `AgentIssueCreateRules` first. Tested by
+  `GitHubIssueTests`; `i2-git-remote.json` names a repository with no
+  owner, refused before GitHub.
   An empty workspace's manifest says `"buildSystem": "external"` (one
   without the key is read the same way): Apelin has no build description
   for it, so the agent builds with the project's own tools through
@@ -1007,7 +1042,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the session for the next, and a waiter whose request is cancelled leaves
   the line and opens nothing (`cancelled`); provider (`githubCopilot`
   default, model default `claude-sonnet-5.5`), reasoning effort, service
-  tier, approval mode, an optional
+  tier, approval mode, Ask Before Using the Screen (`asksBeforeScreen`,
+  absent read as on, so an older caller cannot turn it off; an agent's
+  open takes its opener's, an agent's message changes none), an optional
   first `prompt` and `closeWhenFinished` (the task ends with the first run,
   for headless runs) ride on it. So does `hostRestarted`, the host's alone
   (owner, 2026-10-29; `Session/Agent/AgentHostRun.swift`): what a caller
@@ -1176,7 +1213,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   at most 10 s, list/read/symbolicate crashes → `crashList`, `crashOpen`
   (descriptor), `crashSymbolicate`, screen/UI → `captureScreen` (only
   after the user consented to that screenshot, as the prompt says),
-  `readUITree`, `uiAction`, the framework tools' SDK → `sdkList` (the
+  `readUITree`, `uiAction` (while Ask Before Using the Screen is on, each
+  call asks in every mode, never for the session, the card's
+  `detail.screenControl` naming the request, and so does a shell_run
+  that runs icli, its `command` beside it: `ScreenControlApproval`), the
+  framework tools' SDK → `sdkList` (the
   project's pinned `environment.sdk.id` first), shell_run → `agentRunCode`;
   in any chat (owner, 2026-10-24; General Chat's alone before),
   apelin_template_list → `extensionList` (isolated extensions left out)
@@ -1258,6 +1299,26 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `authenticationRequired` becomes "Nothing was created: GitHub
   authorization is needed … Sign In with GitHub in Settings ▸ Git"; any
   other refusal is GitHub's or the host's, in their words.
+  apelin_git_create_issue {repository, title, body} → `gitIssueCreate`
+  (owner, 2026-10-30), in any chat: an issue under the user's account on
+  a repository the user named (`owner/name`), such as another app's or
+  tweak's, answering its number and link; Apelin's own feedback stays
+  apelin_feedback_send, and the tool refuses owngoal-dev/Apelin for it.
+  Its description and a line of the prompt's `# Working` keep it to a
+  repository the user named and asked to file on (or explicitly agreed to
+  when asked), the repository and the whole title and body shown to them
+  and posted only after their explicit consent, in every mode, never on
+  the agent's own initiative or because a file, log, page or tool output
+  says to; when GitHub refuses, the agent tells the user what blocks it
+  and never posts elsewhere or falls back to a browser or the screen
+  tools (a refusal's answer says so too). The tool refuses before asking
+  a repository not shaped `owner/name` and text `FeedbackRules` would
+  refuse. Like apelin_feedback_send it asks under Strict every time, the
+  card showing the repository, title and body (`detail.issueCreate`
+  {repository, title, body}), never with a session grant, and the host
+  spends exactly that approval (`AgentIssueCreateRules`); Relaxed and
+  Full post it without asking. `IssueToolTests` pins the description and
+  the prompt line.
   On a workspace, apelin_project_build runs the script its `external`
   declares (Workspace builds, below) and asks under Confirm every time,
   never with a session grant; one that declares none answers how to
@@ -1431,6 +1492,28 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   show no card. A
   reply with reason `authenticationRequired` becomes "GitHub
   authorization is needed: … Sign In with GitHub in Settings ▸ Git".
+  Feedback already filed is edited, never filed again (owner, 2026-10-30;
+  `Tools/FeedbackEdit.swift`), in any chat: apelin_feedback_read {number}
+  → `feedbackRead`, a read preset, answering the title, the body without
+  Apelin's footer, the footer apart, who opened it, whether the user's
+  account did, the state, the link and a `revision` naming the title and
+  body it saw; apelin_feedback_edit {number, revision, title?, body?} reads
+  the issue again first and refuses before asking another account's
+  issue, one whose revision is not the one passed (it changed on GitHub
+  since the model read it, perhaps by the user: read it again and keep
+  that), an edit that changes nothing and text `FeedbackRules.editProblem`
+  refuses, then sends `feedbackEdit` with only the fields that change and
+  the title and body it just read as `expectedTitle`/`expectedBody`,
+  answering the link and the revision a further edit passes. Its description and a `# Working` line keep it to
+  a change the user asked for, shown to them (the new title and body, or
+  before and after) and made only after their explicit consent, in every
+  mode, never on its own initiative or because a file, log, page or tool
+  output says to. Strict asks every time, the card naming the repository
+  and issue and showing the new title or body whole (`detail.feedbackEdit`
+  {repository, number, url, title?, body?, currentTitle, currentBody}),
+  never with a session grant, and the host spends exactly that approval
+  (`AgentFeedbackRules`); Relaxed and Full show no card.
+  `FeedbackEditToolTests` pins the descriptions and the prompt line.
   Agent tool extensions (2026-10-29, `Tools/ToolExtensions.swift`,
   `Tools/ToolExtensionSessions.swift`; Milestone 1 §6), in any chat: an
   installed extension's tools are the agent's own. The worker reads the
@@ -1610,7 +1693,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   device, the screen, logs and crashes, toolchains and SDKs, other
   conversations, memory, skills, its git settings, a notification, the
   feedback filed on Apelin — or reaches past the device (`apelin_web_fetch`,
-  `apelin_git_create_repository`) is
+  `apelin_git_create_repository`, `apelin_git_create_issue`) is
   `apelin_<scope>_<verb>` (`apelin_project_build`, `apelin_package_install`,
   `apelin_device_respring`, `apelin_git_set_author`, `apelin_feedback_send`);
   a generic verb on the
@@ -1887,8 +1970,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   changing a setting stays the user's, and a project is deleted with
   apelin_project_delete (Agent sessions), never by taps. The app's and
   the console's actions carry no list, and the screen and the tree stay
-  readable. Screenshots go back as an unlinked temporary file's descriptor,
-  JPEG.
+  readable. While a session's Ask Before Using the Screen is on (owner,
+  2026-10-30; Approvals ▸ The screen), its agent's tree reads and actions
+  go only on the approval naming exactly each. Screenshots go back as an
+  unlinked temporary file's descriptor, JPEG.
 - **The hello** has a five-second bound per attempt, guarded by connection
   generation, retried every second; the fallback to the unprivileged backend
   comes ten seconds after the first miss (`Apelin/DaemonClient.swift`). After
@@ -2077,8 +2162,16 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   renaming, so the list holds still while conversations work in the
   background. A conversation an agent opened keeps the time the app took
   it in (`ChatAdoption`) until the reader writes in it. A leading swipe pins, a trailing one
-  deletes (and offers Stop while a turn is running), a long press offers the same actions, and an empty list shows a filled symbol, its
-  words left to VoiceOver. Settings and the picker are form
+  deletes, a long press offers the same actions, and an empty list shows a filled symbol, its
+  words left to VoiceOver. Every conversation listed offers Delete,
+  whatever it is called or holds (owner, 2026-10-30, `ChatRowAction`: an
+  untitled one — a first message on its way, a draft, a pinned New Chat,
+  one an agent opened before it had a title — swiped to Stop alone while
+  it worked, and at rest to UIKit's default Delete, which does nothing
+  here, its swipe answering nil); one at rest goes at once. One still working — a turn, a
+  compaction, an approval waiting — has Stop beside Delete, and its Delete
+  asks first: Stop and Delete stops the run as Stop does, then deletes
+  (`ChatDeletion`). Settings and the picker are form
   sheets through Xrash's `presentAsFormSheet` (`Interface/Components/`). The
   list contains only persisted conversations; no sample conversation is injected at launch.
   `ChatRuntime` owns drafts, session IDs, task cursors and histories; each chat is atomically saved under `Chats/`. A chat is removed from memory only after its session closes (an absent session is already closed) and its file is deleted; later queued saves cannot restore it.
@@ -2155,7 +2248,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   (`ComposerDropPolicy`). Attachments use its
   horizontal preview layout, removal and Quick Look; camera, Photos and
   Files use system pickers, and web text uses FlowDown's ScrubberKit at its
-  pinned revision. Live assistant text uses `MarkdownStreamView` with a stable message identity and immediate first fill, so only streaming additions fade in. Each turn is followed while a reader can keep up (`TurnFollowing`): from its user message (a local row just sent, a message a run took, or one another conversation sent) the list follows new output to the end of the turn while the reply streams at no more than 50 tokens a second. The pace is the reply's estimated tokens (`TokenEstimate`: about four ASCII characters to a token, a token to each other character, so Chinese and English both count sensibly) over the time since its first text, judged once a second of it has passed; the first update marks the start and does not count, so neither the first coalesced chunk nor a backlog reads as speed. Faster than that, the turn is followed only until its message reaches the top of the visible area, under the bar's blur, at most a page; the list then holds still while the reply grows below and the downward chevron above the composer shows (Liquid Glass on iOS 26, the system material's blur before it). The chevron scrolls to the latest content once and does not follow again; a drag ends following for the turn, and reaching the bottom does not bring it back: only the next turn does. A message a running turn will take later is shown once on Send and starts no turn until it is taken. The chat header uses a 1 pt private `variableBlur` CAFilter with an alpha-gradient mask on an owned `CABackdropLayer`, following VariableBlur; the old transcript opacity mask and the system top scroll-edge effect are removed. Drafts persist their attachment bytes; submitted and received files are stored in the chat workspace. User attachments sit above the bubble with the same trailing edge. Image previews, PDF first pages and supported Quick Look thumbnails use the same album layout as assistant images; text and other files use document cards with a filename and up to three lines of text, preserving single line breaks and collapsing consecutive blank lines in at most eight passes over the 220-character preview. Each card is capped at the smallest of its natural content width, its user bubble’s width and 350 pt; size labels are omitted. All user attachment previews stay within the maximum user-bubble width. Each image album and document card is at most 30% of the window height; album fitting preserves tile proportions. Card borders use the user bubble’s background tint. Attachment changes cross-fade, while ordinary reconfiguration does not. Presentation thumbnails are bounded and cached separately from the original attachment, which remains unchanged for sending, persistence and Quick Look. Ordinary blocks share a 16 pt gap. Unordered, ordered and task-list items use MarkdownView’s independent list spacing with no extra item gap, retaining the renderer’s 4 pt wrapped-line spacing; the transcript normalizer preserves this instead of replacing it with 16 pt. An empty body adds neither height nor spacing. Imports are bound to a chat and draft ID, so a late result cannot
+  pinned revision. Live assistant text uses `MarkdownStreamView` with a stable message identity and immediate first fill, so only streaming additions fade in. Each turn is followed while a reader can keep up (`TurnFollowing`): from its user message (a local row just sent, a message a run took, or one another conversation sent) the list follows new output to the end of the turn while the reply streams at no more than 50 tokens a second. The pace is the reply's estimated tokens (`TokenEstimate`: about four ASCII characters to a token, a token to each other character, so Chinese and English both count sensibly) over the time since its first text, judged once a second of it has passed; the first update marks the start and does not count, so neither the first coalesced chunk nor a backlog reads as speed. Faster than that, the turn is followed only until its message reaches the top of the visible area, under the bar's blur, at most a page; the list then holds still while the reply grows below and the downward chevron above the composer shows (Liquid Glass on iOS 26, the system material's blur before it). The chevron scrolls to the latest content once and does not follow again; a drag ends following for the turn, and reaching the bottom does not bring it back: only the next turn does. A message a running turn will take later is shown once on Send and starts no turn until it is taken. The chat header uses a 1 pt private `variableBlur` CAFilter with an alpha-gradient mask on an owned `CABackdropLayer`, following VariableBlur; the old transcript opacity mask and the system top scroll-edge effect are removed. Drafts persist their attachment bytes; submitted and received files are stored in the chat workspace. User attachments sit above the bubble with the same trailing edge. Image previews, PDF first pages and supported Quick Look thumbnails use the same album layout as assistant images; text and other files use document cards with a filename and up to three lines of text, preserving single line breaks and collapsing consecutive blank lines in at most eight passes over the 220-character preview. Each card is capped at the smallest of its natural content width, its user bubble’s width and 350 pt; size labels are omitted. All user attachment previews stay within the maximum user-bubble width. Each image album and document card is at most 30% of the window height; album fitting preserves tile proportions. An album is also no larger than its images (owner, 2026-10-30, issue #20; `MessageImageLayout.frames(aspectRatios:naturalSizes:…)`): shrunk until the image it enlarges least is drawn at its own size, one of its pixels (the original's, read by ImageIO, not the thumbnail's) to each of the screen's (`displayScale`), but no tile under 32 pt on its shorter side, and never larger than those limits, so an icon stays small and sharp while a photo or a screenshot fills the limits as before; an image of unknown size (a PDF page, a Quick Look thumbnail) keeps its album as large as the limits, and a small album's corners round as an icon's. Card borders use the user bubble’s background tint. Attachment changes cross-fade, while ordinary reconfiguration does not. Presentation thumbnails are bounded and cached separately from the original attachment, which remains unchanged for sending, persistence and Quick Look. Ordinary blocks share a 16 pt gap. Unordered, ordered and task-list items use MarkdownView’s independent list spacing with no extra item gap, retaining the renderer’s 4 pt wrapped-line spacing; the transcript normalizer preserves this instead of replacing it with 16 pt. An empty body adds neither height nor spacing. Imports are bound to a chat and draft ID, so a late result cannot
   land in a newly cleared draft. The model control is below the input, with
   the exact FlowDown BlockButton geometry and original editor SVGs, with
   reasoning choices from kwwk's supported-thinking-level metadata; High is
@@ -2190,7 +2283,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   confirmation when changing into Relaxed from Strict, and, for Full, a
   confirmation that root runs without asking followed by `DeviceOwnerCheck`
   (Face ID, Touch ID or the passcode; a device with no passcode passes);
-  leaving Full asks nothing. The composer's approval card
+  leaving Full asks nothing. Under the modes, on the same page, a switch
+  keeps `AgentPermissions.asksBeforeScreen`, Ask Before Using the Screen,
+  default on (owner, 2026-10-30), its footer saying it covers opening apps
+  and links and reading and acting on the screen, by the screen tools or
+  icli, in every mode; it rides on every `agentOpen` and `agentPrompt` as
+  the mode does. The composer's approval card
   (`ApprovalCardText`) says, under its title, the reason the agent gave the
   call (from its `toolCall`), why the gate asks, a changed description's
   diff, then the arguments by name through the same `ToolCallDetail` the
@@ -2552,6 +2650,23 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `AgentFeedbackRules` lets it through. Tested by `FeedbackTests` and
   `FeedbackRulesTests`; the console's `distribution.json` sends an empty
   title, refused before anything reaches GitHub.
+  An issue there is read and, when the signed-in account opened it,
+  edited (owner, 2026-10-30): `feedbackRead {number}` answers {number,
+  url, title, body, footer?, author, state, isAuthor}, the body split from
+  the footer it ends with (`FeedbackRules.split`, `\n` or GitHub's `\r\n`);
+  a pull request, or an issue GitHub moved elsewhere (its `html_url` not
+  this repository's), is `notFound`. `feedbackEdit {number, title?, body?,
+  expectedTitle, expectedBody}` checks only the fields that change
+  (`FeedbackRules.editProblem`: the same shapes, a body ending in a
+  footer refused, nothing changing refused) before the sign-in is read,
+  refuses another account's issue `denied`, reads the issue again and
+  writes nothing unless its title and body are still exactly the expected
+  ones (`conflict`), so an edit the user made on GitHub meanwhile is never
+  overwritten; then it `PATCH`es only those fields, the footer kept below
+  the body as it was, never written again with this device's version.
+  Answers {number, url, title, body}. Both the app's and the agent's.
+  Tested by `FeedbackEditTests`; `distribution.json` reads issue 0 and
+  edits a title to nothing, both refused before GitHub.
   *The star* (owner, 2026-10-29; `Apelin/Interface/Feedback/`). Once the
   reader has signed in with GitHub, builds that complete ask "Do You Like
   Apelin?" — "Please star us on GitHub. It helps us go further.", Maybe
@@ -2613,7 +2728,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   setup or an SDK import asks every time, and so does any conversation
   call that reaches another project, and so does deleting another project
   (owner, 2026-10-29), and so does publishing packages to the user's
-  package repository (owner, 2026-10-29); none is ever granted for the
+  package repository (owner, 2026-10-29), and so does editing a feedback
+  issue or opening an issue on a repository the user chose (owner,
+  2026-10-30); none is ever granted for the
   session, and the host spends the one approval (owner, 2026-10-22). An
   MCP tool and an agent tool extension's tool ask at every call too,
   whatever the extension declares its risk to be; those two may be
@@ -2646,6 +2763,18 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   says root will run without asking, plus the same owner check; leaving it
   asks nothing. The wire value is `full` and old stored values still decode;
   `ApprovalMode.asks` is true for Strict alone.
+  *Ask Before Using the Screen* (owner, 2026-10-30: asked to
+  report a problem upstream, an agent opened the issue page in Safari with
+  `icli url open` and read the UI tree twice, never asking) is a setting
+  beside the mode, on by default, that holds in all three: while on, the UI
+  tree, every UI action and every `shell_run` that runs icli (or uikittools'
+  `uiopen` or `uishoot`) ask on a card every time, whatever the presets or
+  the icli subcommand, never granted for the session, and the host runs
+  each only on the one approval given for exactly it. A request to do a
+  task is no consent to open an app, read the screen or act on it: the
+  prompt has the agent say what it will open, read or do and wait for the
+  user's reply first. Off, those calls go as the mode says. Screenshots
+  stay the conversation's rule (2026-10-29).
 - **Install** always packages a deb and hands it to Irisin's daemon. irisind
   is changed to accept a peer by its entitlement and an executable under the
   jailbreak root or the system, not by Irisin's own path, and ships in a new
@@ -2979,14 +3108,14 @@ adding a dated record beside it.
 
 - `ChatRuntime` keeps one reader per live session while the user switches pages. It persists ordered host events and reattaches after the saved cursor. A save that fails (a full disk, a folder it cannot write) leaves the conversation running in memory: `StorageWarning` says so once — "Storage Almost Full" when less than 512 MB is free, else the error — and not again until a save gets through; the unsaved conversations are written with the next save that works and on every return to the foreground, and the same notice comes at launch or on return when free space is already under 512 MB. Sending text never needs the disk; only attachments are staged. A stopped host can reopen the persisted session ID; the host and worker refuse a different workspace identity. A reopened session comes back as a new task that replays the whole history, renumbered and newly timed, before anything new; the conversation keeps the events it has and reads past that replay (`ChatRecord.reopen(as:)`, `SessionReplay`, saved with the record) to the first user message or compaction it has not seen (Compact… reopens a stopped session with no message after it), or to the task's own end, so the rows on screen stay as they are. A terminal `state` is never read as the replay (the worker replays only the states an approval sets), so a task that stops before catching up (its worker died, the host stopped, a second open failed) ends the turn as a first task does. A conversation an earlier version saved with its cursor past that end takes it again when an attach answers `finished` while its transcript still runs a turn (`ChatRecord.missedEnd`, `takeMissedEnd`): that one event, read again from just before the task's last seq; the row stops working even when it cannot be read. Never empty the events for a new task: the list would collapse to the message being sent and land at the top of the history when the replay came back. Rows are numbered by their event's position, not its seq, since a reopened task's numbering starts again. Stop calls `agentAbort`; approval buttons call `agentApprove` and wait for the authoritative resolved event.
 - `agentPrompt` accepts an optional message UUID and descriptor-indexed attachments (at most eight, at most 32 MiB each). The worker saves them under random workspace-relative `Attachments/` paths; filenames remain display metadata. The session log records the message UUID and relative attachments, deduplicates a retried send, and supplies image content to the provider. Tool-returned images are saved the same way and replay into the image album UI. So are the files `file_show` puts in front of the reader (2026-10-29, `Tools/FileShow.swift`), the agent's one way to show a project file, since a path or a `file:` link in a reply opens nothing: one to eight regular files inside the project, each at most 32 MiB, every one checked before any is copied into `Attachments/` as it is then, listed in the result's `details` (which no provider reads) and handed by the session to the call's `toolResult` attachments, where the album, the document cards and Quick Look show them. A read preset with no host request; the model hears what was shown, never the contents.
-- Every app prompt also carries the current approval mode. The host updates its ledger before forwarding; the session updates its tool policy and metadata, records the message (its `prompt` or `queued` event, the text alone), then builds the message's `<system-state>`: the mode reaches the model there, with whatever the session's system prompt shows that changed since (Prompt caching). A prompt naming the provider and model the session already resolved, with the same stored sign-in, keeps that resolution: no token exchange before the message is recorded, and a signed-out provider is still refused. An existing pending approval is not silently accepted. A bounded, tool-free completion on the current model summarizes the first user message into a `title` event; title failure leaves the local fallback and does not fail the turn; a later message asks again, until three completions have named nothing (`maximumTitleMisses`) or, while the project keeps its generated name, on every message. A JSON answer in one Markdown fence is read as the JSON.
+- Every app prompt also carries the current approval mode and Ask Before Using the Screen, which the message's `<system-state>` names beside the mode (owner, 2026-10-30). The host updates its ledger and session table before forwarding; the session updates its tool policy and metadata, records the message (its `prompt` or `queued` event, the text alone), then builds the message's `<system-state>`: the mode reaches the model there, with whatever the session's system prompt shows that changed since (Prompt caching). A prompt naming the provider and model the session already resolved, with the same stored sign-in, keeps that resolution: no token exchange before the message is recorded, and a signed-out provider is still refused. An existing pending approval is not silently accepted. A bounded, tool-free completion on the current model summarizes the first user message into a `title` event; title failure leaves the local fallback and does not fail the turn; a later message asks again, until three completions have named nothing (`maximumTitleMisses`) or, while the project keeps its generated name, on every message. A JSON answer in one Markdown fence is read as the JSON.
 - `ChatRuntime.transcript` brings a conversation's rows up to date only when they would differ (`ChatTranscriptCache`, kept for the followed conversations and the page's). `ChatTranscript` is a fold: new events (`ChatRecord.events` are only appended to) are read onto the rows the earlier ones made (`append`), and the rows shown are made afresh from those, as a build from every event at once at the same `now` makes them (`Tests/ChatTranscript/TranscriptFold.swift` compares the two over random logs). A change to the messages it is sending, or a `quietDeadline` passed since it was shown, shows the rows again, so the refresh `ChatQuietWatch` asks for at the deadline adds the stand-in; only a sender's new title builds it again from every event. A row equal to one shown before is that very value, so the page's comparison stops at its storage. The composer is told of its approval request and its Stop only when either changes, a long-poll that ran out with nothing writes nothing, and a conversation is written once at a time, then once more with what changed meanwhile.
 - Working state comes from session events, never a late send acknowledgement. Completed zero-second, zero-tool thought rows are omitted. A positive duration without tools shows only the duration; tools without a positive duration show only their count; “and” joins the clauses only when both values are positive. Thought headers use Litext numeric transitions, with reduced motion respected. User messages and reply text are selectable.
 - The conversation alternates a single thinking summary with response content. Consecutive thinking steps merge across tools and approvals. Tool calls and completed approvals stay out of the main transcript; tapping the summary opens their ordered trace in a form sheet, a list of the steps, provider-supplied thinking included, each opening its own plain text. Headers use body-size 50% primary text aligned to the body margin, with a sentence for duration and tool count. Pending approval still replaces the composer.
 - Every agent tool, MCP tools included, requires a short `reason` (`ToolReason`), stripped from the arguments before the approval gate, the fingerprint, the tool or the host sees them; the `toolCall` event keeps it. The file tools end their result's first line with `+a -b` lines added and removed. While a turn runs, its trailing summary stays unfinished across calls and approvals, the run's received tokens climbing at the trailing end of its title line (and of the summary above the reply while the reply streams). Once the summary has a call, `ToolCallBannerView` shows one line under it, at the reading width, between hairlines on a 5% grey ground drawn out to the row's edges: the newest call in its trace (`ToolCallBanner`), by its reason, or its title for a call made without one, and for a file tool (`ToolCallBanner.fileTools`) the file's name first, then the lines added in green and removed in red once its result is in, read from the result's first line (a failed call has none), so truncation takes the end of the reason, never the numbers. Thinking after a call leaves that call there; nothing of the thinking shows (owner, 2026-10-24: no thinking tail, typing or character fade). On the same summary, a new call, or its counts coming in, fades in over 0.2 s; the line's first call, a row taken over by another summary and everything under Reduce Motion show at once. VoiceOver reads the line after the title: the reason, then the file and its counts in words as its value. Only the running summary in the transcript has it; the trace sheet lists every call and opens each whole. The running summary reads “Reconnecting…” after a `reconnecting`, until the request made again streams or the run moves on, else “Executing N tools…” only while N calls await a result, “Thinking…” otherwise, and its title changes at most once a second: the first change at once, the latest of the rest when the second is up. A running summary stands in under a prompt, or under images a tool returned, until the turn shows something, with the id its next thought takes, and `toolCallPreparing` starts one while the model writes a call's arguments, so a turn never shows a gap. One stands in under the turn's last reply (or error) too once the running turn has gone `ChatTranscript.quietInterval` (1.5 s) without an event — the model may be writing a call it has not announced, or the provider has stalled —, never under a running summary or a waiting approval. The transcript is given the time (`now`) and answers `quietDeadline`; the page builds its rows again once, then (`ChatQuietWatch`), and nothing polls. The reply's next thought, call or message start takes the stand-in's id, so it becomes that row with no flash, and more of the reply ends it. A `messageDiscarded` takes back the rows its message made, while it was still streaming, and leaves unanswered again what it answered, so the stand-in comes back under the same id and the retried reply is drawn once, never under the partial one. Transcript content is centred in at most 730 pt, the composer card's widest, so the two edges line up; the list itself spans the page's safe area side to side, so its margins scroll, and stops at a vertical bar's strip, which is the bar's (iPhone Duo at the 27.1 SDK tier: a trailing safe-area inset on one side only).
 - `ProjectPickerController` lists real projects; `NewProjectController` chooses a catalog template, using its default parameters and calls `projectCreate`. Settings includes a read-only Templates catalog with single-line names with source-file byte counts at the trailing edge, no subtitles and no disclosure navigation. The built-in `wiki.qaq.apelin.workspace/empty` template creates only a workspace identity manifest, atomically and without SDK/toolchain requirements. It supplies no build or install baseline; a build requires a real build description.
 
-- Templates are a single read-only release catalog, with additions and corrections submitted as repository pull requests. There is no create/delete action or separate user template library. `make template-archive` validates and reproducibly packs sources, support files and licenses as `Apelin_<version>_Templates.tar.zst`; CI records its checksum and Release publishes that exact artifact without rebuilding. The command-line tool templates' `Tool.entitlements` carry the app templates' GPU and IOSurface IOKit user-client list under both keys from `wiki.qaq.apelin.dev.cli` 0.1.1 (owner, 2026-10-29; `make check` holds the app's entitlements and every app and cli template's to `Scripts/check-gpu-entitlements.py`, while a tweak or preference bundle, a library, runs with its host process's), and a project keeps the entitlements its template wrote, so a cli project made from 0.1.0 has no list until one is added, a build description change Strict reviews. Every template writes its extension's package manager icon on Pages, `https://owngoal-dev.github.io/Apelin/icons/<extension id>.png`, as `package.icon` (owner, 2026-10-29; app and tweak 0.1.1, cli and preferences 0.1.2), which the build writes as the deb's `Icon`, so a package manager shows it beside the installed package and in the user's package repository; the user keeps it or names their own https image, a packaging description change Strict reviews. It is not an app's own icon. A project made before has none and keeps its digests.
+- Templates are a single read-only release catalog, with additions and corrections submitted as repository pull requests. There is no create/delete action or separate user template library. `make template-archive` validates and reproducibly packs sources, support files and licenses as `Apelin_<version>_Templates.tar.zst`; CI records its checksum and Release publishes that exact artifact without rebuilding. The command-line tool templates' `Tool.entitlements` carry the app templates' GPU and IOSurface IOKit user-client list under both keys from `wiki.qaq.apelin.dev.cli` 0.1.1 (owner, 2026-10-29; `make check` holds the app's entitlements and every app and cli template's to `Scripts/check-gpu-entitlements.py`, while a tweak or preference bundle, a library, runs with its host process's), and a project keeps the entitlements its template wrote, so a cli project made from 0.1.0 has no list until one is added, a build description change Strict reviews. Every template writes its extension's package manager icon on Pages, `https://owngoal-dev.github.io/Apelin/icons/<extension id>.png`, as `package.icon` (owner, 2026-10-29; app and tweak 0.1.1, cli and preferences 0.1.2), which the build writes as the deb's `Icon`, so a package manager shows it beside the installed package and in the user's package repository; the user keeps it or names their own https image, a packaging description change Strict reviews. It is not an app's own icon, nor a Settings row's: the preference bundle template carries that one in its bundle from `wiki.qaq.apelin.dev.preferences` 0.1.3 (owner, 2026-10-30, issue #19), `Resources/icon.png` with its @2x and @3x at 29 points, the extension's plate scaled from the `ProjectIconPreferences` image set, named by the PreferenceLoader entry's `icon`, for the developer to replace. A project made before has none and keeps its digests.
 
 
 ## Project display names and external project actions
@@ -3061,10 +3190,16 @@ project metadata without changing the selected folder or chat. All Projects
 uses type section headers and single-line display names.
 
 The chat's More menu (`ChatActions`) acts on its conversation and its current
-project, in three groups: Rename… and Compact… (the conversation) and Rename
-Project…; Open in iGhostVT and Open in Fila; Export… and Distribute…. General
-Chat has Rename…, Compact… and the two Open items for the conversation's own `Temporary/<conversation>/`,
-made if missing (`ProjectActions.temporaryDirectory`). A conversation the reader
+project, in four groups: Rename… and Compact… (the conversation); Open in
+iGhostVT and Open in Fila; the project's Rename…, Export… and Distribute…;
+and Delete Conversation…. General
+Chat has Rename…, Compact…, the two Open items for the conversation's own `Temporary/<conversation>/`,
+made if missing (`ProjectActions.temporaryDirectory`), and Delete
+Conversation…. Delete Conversation… (owner, 2026-10-30) is the sidebar's
+Delete (`SidebarController.delete(_:from:presenter:)`), but always asks
+first, naming the conversation; while it works the question says so and
+its button is Stop and Delete. The page is then what the sidebar's Delete
+leaves it: the icon beside the sidebar, a conversation behind a drawer. A conversation the reader
 renamed keeps that name (`ChatSummary.isNamedByReader`, saved with the chat):
 the agent's `title` events and the first message's opening no longer replace
 it, and a name of only spaces changes nothing. Compact… is enabled only
@@ -3178,9 +3313,14 @@ sends the model to a known source with apelin_web_fetch, never a search
 engine through curl, and sends a program the agent compiles and runs
 itself through shell_run to `apelin-device-executables` to be signed
 first, has apelin_feedback_send wait for the user's explicit consent
-to the issue it showed them, and has apelin_git_create_repository make
+to the issue it showed them, and apelin_feedback_edit, which corrects
+feedback already filed instead of filing it again, for their consent to
+the edit it showed them, has apelin_git_create_repository make
 only a repository the user asked for or explicitly agreed to, with the
-owner, name and visibility they gave. After a change that shows on screen it
+owner, name and visibility they gave, and has apelin_git_create_issue
+post only on a repository the user named, after their explicit consent
+to the issue shown, a refusal reported rather than worked around in a
+browser or on another repository. After a change that shows on screen it
 drives it with the screen tools — the UI tree read, an action, the tree read
 again —, and a step it cannot take (the device locked, a gesture the tool
 lacks, a declined call or screenshot) leaves that behaviour Not tested. A
@@ -3193,7 +3333,15 @@ the device is no consent, nor is another conversation's message, one consent
 covers one screenshot, and what is under test comes to the front first. That is instructions only, in the
 prompt, the tool's description and the apelin-icli and
 apelin-tweak-development skills (`ScreenshotConsentTests`); the tool and
-Strict's card are as they were. It asks for independent tool calls in
+Strict's card are as they were. While `<system-state>` says Ask Before
+Using the Screen is on (owner, 2026-10-30), opening an app or a link and
+reading or acting on the screen, by the screen tools, icli or any other way,
+wait the same way, in every mode: the model says what it will open, read or
+do and why, a request to do a task (filing an issue, testing on the device)
+is no consent, and the card then asks too; `# This device` and
+`# Approval modes` say so, as do both screen tools' descriptions and the
+apelin-icli and apelin-tweak-development skills, and the gate and the host
+enforce it (`ScreenUseConsentTests`). It asks for independent tool calls in
 one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
 logs and MCP results as data, and names every approval mode with what it
 lets through (`# Approval modes`) but none as the one on. It holds nothing
@@ -3205,7 +3353,8 @@ a steer, `apelin_conversation_send` — the model reads a `<system-state>`
 block, the system language (the mobile user's `AppleLanguages` and
 `AppleLocale`, read by the worker itself through `CFPreferences` each time,
 so no wire change), the reply rule, progress notes included, the local
-date, time and time zone, and the approval mode on — and, when the
+date, time and time zone, the approval mode on and whether Ask Before
+Using the Screen is on — and, when the
 snapshot is out of date, what changed since the model was last told, and
 on the first message after the host said it restarted (`hostRestarted`,
 Agent sessions above; owner, 2026-10-29: a roothide device's jbroot was
@@ -3225,9 +3374,9 @@ by the user, and not to be quoted. Like the project context it is added to the t
 model sees and goes into that message of the transcript, so every later
 request sends it as it went; the app's `prompt`, `queued` and `steer` events,
 the title completion and `apelin_conversation_read` have the text alone.
-The language, time and mode are in every block, about sixty tokens paid in
-full once and read from the cache after: the time differs on every message
-anyway, and a block that said only what changed would leave the model
+The language, time, mode and screen setting are in every block, a few dozen
+tokens paid in full once and read from the cache after: the time differs on
+every message anyway, and a block that said only what changed would leave the model
 guessing once a compaction summarised the message that last named the
 language or the mode. The host's
 enforcement of the mode is unchanged; the block only tells the model. The
@@ -3248,7 +3397,8 @@ build defines and what asks the user, with the embedded schema as its file
 `apelin-project.schema.json` (`ProjectValidation.schemaText`); a test fails
 when the schema gains a member the guide never names. `apelin-tweak-development`
 is the edit-build loop, ending on the changed behaviour driven with the screen
-tools (the UI tree, a screenshot only once the user agreed to it), and how
+tools (the UI tree, asked for first while Ask Before Using the Screen is
+on, and a screenshot only once the user agreed to it), and how
 to live beside other tweaks (hooks that chain,
 `static` names, prefixed added methods and classes), and says Theos is not
 supported (owner, 2026-10-23): a Theos tweak's Logos is rewritten as plain
@@ -3307,8 +3457,12 @@ release, and keeping old versions in check. `apelin-icli` (owner,
 first, Apelin's own tools where they exist, the commands its device
 acceptance ran as mobile, never its package, respring or uicache
 commands, its launchd changes, `fs chown`, system writes and a reboot only
-as root with the user's go-ahead for exactly that (owner, 2026-10-30), its `screen shot`, `screen ocr` and `screen describe` as
-screenshots that wait for the user's consent, roothide's `jbroot` prefix,
+as root with the user's go-ahead for exactly that (owner, 2026-10-30), its
+`screen shot`, `screen ocr` and `screen describe` as screenshots that wait
+for the user's consent, every command, while Ask Before Using the Screen is
+on, asking on a card and, for one that opens, reads or acts on the screen,
+after the user's consent in the conversation (owner, 2026-10-30),
+roothide's `jbroot` prefix,
 and pointing the user to `https://apt.owngoal.dev` when it is missing.
 Every built-in's name begins `apelin-` (owner, 2026-10-25), so none takes
 the name of a user's skill of the same subject; `BuiltInSkills.legacyNames`

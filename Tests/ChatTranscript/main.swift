@@ -140,6 +140,34 @@ precondition(
 )
 print("ok: a publication's card names the repository and every package's digest")
 
+/// A feedback edit's card shows what it is bound to: the repository, the
+/// issue and the new text in full, not the revision the call named, and
+/// no title when only the body changes.
+let feedbackEditApproval = ChatTranscript(events: [
+    event(1, "prompt", ["text": .string("Broaden #12")]),
+    event(2, "approvalRequested", [
+        "approvalID": .string("e1"), "tool": .string("apelin_feedback_edit"),
+        "arguments": .string("{\"body\":\"It ends early on both bootstraps.\",\"number\":12,\"revision\":\"0123abcd\"}"),
+        "reason": .string("Replaces the body of issue #12 on owngoal-dev/Apelin."),
+        "detail": .object(["feedbackEdit": .object([
+            "repository": .string("owngoal-dev/Apelin"), "number": .number(12),
+            "url": .string("https://github.com/owngoal-dev/Apelin/issues/12"),
+            "body": .string("It ends early on both bootstraps."),
+            "currentTitle": .string("The build log stops early"), "currentBody": .string("It ends early."),
+        ])]),
+    ]),
+]) { _ in nil }.messages.first { $0.role.needsApproval }
+precondition(feedbackEditApproval?.approvalTitle == "Edit a feedback issue")
+let feedbackEditDetail = feedbackEditApproval?.approvalDetail ?? ""
+precondition(
+    feedbackEditDetail.contains("repository\nowngoal-dev/Apelin") && feedbackEditDetail.contains("issue\n#12")
+        && feedbackEditDetail.contains("body\nIt ends early on both bootstraps.")
+        && !feedbackEditDetail.contains("0123abcd") && !feedbackEditDetail.contains("title\n")
+        && !feedbackEditDetail.contains("It ends early."),
+    "the card names the issue and the new body, not the revision or what it replaces: \(feedbackEditDetail)",
+)
+print("ok: a feedback edit's card names the issue and the whole new text")
+
 /// A command that runs as root marks its card (`runsAsRoot`). The card says
 /// the root sentence once (the red line; the gate's own sentence is left
 /// out), why the agent made the call first, then the command as the line the
@@ -1062,3 +1090,5 @@ checkCompletedBuilds()
 checkStarPromptState()
 
 try checkSidebarOrder()
+
+checkChatDeletion()

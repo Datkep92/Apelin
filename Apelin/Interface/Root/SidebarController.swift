@@ -372,8 +372,46 @@ final class SidebarController: UIViewController {
         }
     }
 
+    /// Deletes a conversation, from its row or the chat's More menu
+    /// (`origin`), asking first as `ChatDeletion` says; `presenter` asks,
+    /// the sidebar when it is nil. One still working is stopped first.
+    func delete(_ id: UUID, from origin: ChatDeletion.Origin, presenter: UIViewController? = nil) {
+        guard let chat = runtime.records[id]?.summary else { return }
+        guard let confirmation = ChatDeletion.confirmation(for: chat, from: origin) else {
+            delete(id)
+            return
+        }
+        let onConfirm: () -> Void = { [weak self] in self?.delete(id) }
+        let presenter = presenter ?? self
+        let name = chat.displayTitle
+        switch confirmation {
+        case .delete:
+            presenter.presentConfirmation(
+                title: "Delete Conversation?",
+                message: "“\(name)” and its messages will be deleted. This cannot be undone.",
+                confirmTitle: "Delete",
+                destructive: true,
+                onConfirm: onConfirm,
+            )
+        case .stopAndDelete:
+            presenter.presentConfirmation(
+                title: "Delete Conversation?",
+                message: "“\(name)” is still working. It will be stopped, then deleted with its messages. This cannot be undone.",
+                confirmTitle: "Stop and Delete",
+                destructive: true,
+                onConfirm: onConfirm,
+            )
+        }
+    }
+
+    /// Stops it if it is working by then, as Stop does, closes its session,
+    /// removes its history and leaves the page to what is picked next. A
+    /// stop that fails leaves the run to the close, which ends it too.
     private func delete(_ id: UUID) {
         Task {
+            if runtime.records[id]?.summary.isWorking == true {
+                try? await runtime.stop(id)
+            }
             do {
                 try await runtime.delete(id)
                 if selectedID == id {
@@ -531,57 +569,70 @@ extension SidebarController: UITableViewDelegate {
         onSelect?(selectedID.flatMap(chat), true)
     }
 
-    // MARK: Pin and delete
+    // MARK: Pin, stop and delete
 
     func tableView(
         _: UITableView,
         leadingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
     ) -> UISwipeActionsConfiguration? {
         guard let id = dataSource.itemIdentifier(for: indexPath), let chat = chat(id) else { return nil }
-        let pin = UIContextualAction(
-            style: .normal,
-            title: chat.isPinned ? String(localized: "Unpin") : String(localized: "Pin"),
-        ) { [weak self] _, _, completion in
-            // the swipe's own transaction has to end for the row to settle
-            completion(true)
-            DispatchQueue.main.async { [weak self] in self?.togglePin(id) }
-        }
-        pin.image = UIImage(systemName: chat.isPinned ? "pin.slash.fill" : "pin.fill")
-        pin.backgroundColor = .systemOrange
-        return UISwipeActionsConfiguration(actions: [pin])
+        return UISwipeActionsConfiguration(actions: ChatRowAction.leadingSwipe(for: chat).map { swipeAction($0, for: id) })
     }
 
+    /// Never nil, which would put UIKit's default Delete on the row, one
+    /// that does nothing here.
     func tableView(
         _: UITableView,
         trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
     ) -> UISwipeActionsConfiguration? {
-        guard let id = dataSource.itemIdentifier(for: indexPath), let chat = chat(id) else { return nil }
-        let delete = UIContextualAction(
-            style: .destructive,
-            title: String(localized: "Delete"),
-        ) { [weak self] _, _, completion in
-            // The snapshot removes the row only after deletion succeeds.
-            completion(false)
-            self?.delete(id)
+        guard let id = dataSource.itemIdentifier(for: indexPath), let chat = chat(id) else {
+            return UISwipeActionsConfiguration(actions: [])
         }
-        delete.image = UIImage(systemName: "trash.fill")
-        var rowActions = chat.isUntitled ? [] : [delete]
-        guard chat.isWorking else {
-            return rowActions.isEmpty ? nil : UISwipeActionsConfiguration(actions: rowActions)
-        }
-        let stop = UIContextualAction(
-            style: .normal,
-            title: String(localized: "Stop"),
-        ) { [weak self] _, _, completion in
-            completion(true)
-            self?.stop(id)
-        }
-        stop.image = UIImage(systemName: "stop.fill")
-        stop.backgroundColor = .darkGray
-        rowActions.append(stop)
-        let actions = UISwipeActionsConfiguration(actions: rowActions)
-        actions.performsFirstActionWithFullSwipe = false
+        let actions = UISwipeActionsConfiguration(
+            actions: ChatRowAction.trailingSwipe(for: chat).map { swipeAction($0, for: id) },
+        )
+        // a full swipe deletes one at rest; one that works keeps Stop beside Delete
+        actions.performsFirstActionWithFullSwipe = !chat.isWorking
         return actions
+    }
+
+    private func swipeAction(_ action: ChatRowAction, for id: UUID) -> UIContextualAction {
+        switch action {
+        case .pin, .unpin:
+            let pin = UIContextualAction(
+                style: .normal,
+                title: action == .unpin ? String(localized: "Unpin") : String(localized: "Pin"),
+            ) { [weak self] _, _, completion in
+                // the swipe's own transaction has to end for the row to settle
+                completion(true)
+                DispatchQueue.main.async { [weak self] in self?.togglePin(id) }
+            }
+            pin.image = UIImage(systemName: action == .unpin ? "pin.slash.fill" : "pin.fill")
+            pin.backgroundColor = .systemOrange
+            return pin
+        case .stop:
+            let stop = UIContextualAction(
+                style: .normal,
+                title: String(localized: "Stop"),
+            ) { [weak self] _, _, completion in
+                completion(true)
+                self?.stop(id)
+            }
+            stop.image = UIImage(systemName: "stop.fill")
+            stop.backgroundColor = .darkGray
+            return stop
+        case .delete:
+            let delete = UIContextualAction(
+                style: .destructive,
+                title: String(localized: "Delete"),
+            ) { [weak self] _, _, completion in
+                // The snapshot removes the row only after deletion succeeds.
+                completion(false)
+                self?.delete(id, from: .sidebarRow)
+            }
+            delete.image = UIImage(systemName: "trash.fill")
+            return delete
+        }
     }
 
     /// A swipe that ends after the list changed under it, as deleting the
@@ -590,7 +641,7 @@ extension SidebarController: UITableViewDelegate {
         applySnapshot()
     }
 
-    /// The swipes' two actions, for a long press and a pointer.
+    /// The swipes' actions, for a long press and a pointer.
     func tableView(
         _: UITableView,
         contextMenuConfigurationForRowAt indexPath: IndexPath,
@@ -598,26 +649,28 @@ extension SidebarController: UITableViewDelegate {
     ) -> UIContextMenuConfiguration? {
         guard let id = dataSource.itemIdentifier(for: indexPath), let chat = chat(id) else { return nil }
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
-            let pin = UIAction(
-                title: chat.isPinned ? String(localized: "Unpin") : String(localized: "Pin"),
-                image: UIImage(systemName: chat.isPinned ? "pin.slash" : "pin"),
-            ) { _ in self?.togglePin(id) }
-            let delete = UIAction(
+            UIMenu(children: ChatRowAction.menu(for: chat).compactMap { self?.menuAction($0, for: id) })
+        }
+    }
+
+    private func menuAction(_ action: ChatRowAction, for id: UUID) -> UIAction {
+        switch action {
+        case .pin, .unpin:
+            UIAction(
+                title: action == .unpin ? String(localized: "Unpin") : String(localized: "Pin"),
+                image: UIImage(systemName: action == .unpin ? "pin.slash" : "pin"),
+            ) { [weak self] _ in self?.togglePin(id) }
+        case .stop:
+            UIAction(
+                title: String(localized: "Stop"),
+                image: UIImage(systemName: "stop.fill"),
+            ) { [weak self] _ in self?.stop(id) }
+        case .delete:
+            UIAction(
                 title: String(localized: "Delete"),
                 image: UIImage(systemName: "trash"),
                 attributes: .destructive,
-            ) { _ in self?.delete(id) }
-            var actions = chat.isUntitled ? [pin] : [pin, delete]
-            if chat.isWorking {
-                actions.insert(
-                    UIAction(
-                        title: String(localized: "Stop"),
-                        image: UIImage(systemName: "stop.fill"),
-                    ) { _ in self?.stop(id) },
-                    at: 0,
-                )
-            }
-            return UIMenu(children: actions)
+            ) { [weak self] _ in self?.delete(id, from: .sidebarRow) }
         }
     }
 }
