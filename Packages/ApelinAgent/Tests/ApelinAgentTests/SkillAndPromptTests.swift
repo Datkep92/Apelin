@@ -475,6 +475,36 @@ struct SkillAndPromptTests {
         #expect(section.contains("never for routine progress, instead of your reply, or to say you are done"))
     }
 
+    /// On a device, asked why Irisin refused an upgrade, the agent ran
+    /// irisin-cli's list and dry run as mobile (exit 77) and then refused to
+    /// ask for root, even when the user asked it to: root was for a
+    /// dependency's install alone. Root is now for any step of the user's
+    /// task that needs it, said first, and a change outside the project
+    /// only with the user's go-ahead for exactly it, in every mode.
+    @Test
+    func `root is for a step of the user's task that needs it, a change only as the user agreed`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let prompt = SystemPrompt.make(project: home.project, projectRoot: home.projectURL.path,
+                                       skills: [], mcpServers: [])
+        let rule = try #require(prompt.range(of: "- shell_run with root: true is for a step of the user's task that needs uid 0"))
+        let line = prompt[rule.lowerBound...].prefix { $0 != "\n" }
+        #expect(line.contains("a change it only checks with --dry-run --yes"))
+        #expect(line.contains("when the user asks you to request root for a step, request it"))
+        #expect(line.contains("needs the user's explicit go-ahead for exactly that in their reply, in every mode, Full included"))
+        #expect(line.contains("never to get around a refusal or an approval"))
+        #expect(!prompt.contains("root for nothing else"))
+        #expect(AgentToolName.shellRun.summary.contains("irisin-cli's questions and --dry-run"))
+        let skill = BuiltInSkills.packageDependencies.body
+        let diagnosis = try #require(skill.range(of: "## Why Irisin refuses → its questions and dry runs, as root"))
+        let rest = skill[diagnosis.upperBound...]
+        #expect(rest.contains("`irisin-cli list` (`--upgradable`"))
+        #expect(rest.contains("`--dry-run --yes`"))
+        #expect(rest.contains("Never drop `--dry-run`"))
+        let icli = BuiltInSkills.deviceCLI.body
+        #expect(icli.contains("only with the user's explicit go-ahead for exactly\nthat command in their reply, in every mode"))
+    }
+
     /// On a device, asked to clean up toolchains, the agent deleted their
     /// files through icli and a script the user ran, and left their folders
     /// behind; nothing had told it removal is the user's, in Settings.

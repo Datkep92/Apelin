@@ -1,7 +1,7 @@
 extension BuiltInSkills {
     static let deviceCLI = SkillDocument(
         name: "apelin-icli",
-        description: "Running icli, the device's command-line tool, through shell_run: apps, URLs, files, preferences, processes, launchd, packages, the screen and input, when no dedicated Apelin tool does it, and icli probe, a JavaScriptCore script with Objective-C reflection for probing what the device has. What runs as mobile, what is never yours to run, roothide paths, and what to tell the user when icli is missing.",
+        description: "Running icli, the device's command-line tool, through shell_run: apps, URLs, files, preferences, processes, launchd, packages, the screen and input, when no dedicated Apelin tool does it, and icli probe, a JavaScriptCore script with Objective-C reflection for probing what the device has. What runs as mobile, what changes the device only as the user asks, roothide paths, and what to tell the user when icli is missing.",
         body: """
         # icli
 
@@ -107,17 +107,23 @@ extension BuiltInSkills {
         terminal. An icli older than 0.10.0 has no `probe`; say so and
         point the user to `https://apt.owngoal.dev` for the update.
 
-        ## As mobile, and never as root
+        ## As mobile; what changes the device only as the user asks
         shell_run runs as mobile, and the commands above work so. Never run
         these, as mobile or with `root: true`: package installs and removals
         (`pkg install`, `pkg remove`, `pkg add-repo`, `app install`,
         `app uninstall`: a package goes through `apelin_package_install`, a
-        dependency as the apelin-package-dependencies skill says), launchd
-        changes (`svc load`, `unload`, `bootstrap`, `bootout`, `start`,
-        `stop`, `kill`, `kickstart`, `enable`, `disable`, `setenv`,
-        `remove`), `sb respring`, `sb uicache`, `device reboot`, `fs chown`
-        and writes under the system or the bootstrap. If the user asks for
-        one, say which command would do it and let them run it.
+        dependency as the apelin-package-dependencies skill says),
+        `sb respring` (apelin_device_respring does it) and `sb uicache`.
+        Launchd changes (`svc load`, `unload`, `bootstrap`, `bootout`,
+        `start`, `stop`, `kill`, `kickstart`, `enable`, `disable`, `setenv`,
+        `remove`), `fs chown` and writes under the system or the bootstrap
+        change the device: run one only with `root: true`, after saying what
+        it changes, and only with the user's explicit go-ahead for exactly
+        that command in their reply, in every mode. `device reboot` only
+        when the user asks for exactly that, after saying that this
+        conversation stops until Apelin's service is back and that a
+        jailbreak that does not survive a reboot must be run again. If the
+        user would rather do it, say which command would.
 
         ## Paths on roothide
         icli takes real filesystem paths, while a bootstrap shell's `/` is

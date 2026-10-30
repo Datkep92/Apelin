@@ -2583,9 +2583,18 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   preset and never granted for the session; the host runs it only in Full,
   or against one single-use approval bound to that exact command and
   directory as a *root* request (`detail.rootCommand`, never
-  `detail.command`). Full is for a dependency install
-  (`irisin-cli install --yes <id>` at euid 0, apelin-package-dependencies skill),
-  not the project's own build. Switching into Full is a confirmation that
+  `detail.command`). Root is for a step of the user's task that needs uid
+  0 (owner, 2026-10-30): a dependency install (`irisin-cli install --yes
+  <id>`), irisin-cli's questions and `--dry-run --yes`, which Irisin answers
+  only as root (apelin-package-dependencies skill), or another step only
+  root can take — never the project's own build, install, removal or a
+  respring, never to get around a refusal or an approval, never Apelin's,
+  Irisin's or the bootstrap's own packages. The prompt has the agent say
+  first what a root call runs and why, request root when the user asks it
+  to, and, in every mode, Full included, make a change outside the
+  project (deleting, overwriting or moving files, a system or bootstrap
+  setting, a launch daemon, another package) only with the user's
+  explicit go-ahead for exactly it. Switching into Full is a confirmation that
   says root will run without asking, plus the same owner check; leaving it
   asks nothing. The wire value is `full` and old stored values still decode;
   `ApprovalMode.asks` is true for Strict alone.
@@ -3214,9 +3223,11 @@ before calling the framework from code (a method it lacks goes in a
 category in the project).
 `apelin-package-dependencies` is how a package is installed — the project's own build
 through `apelin_package_install`, a dependency through the user in Irisin — and why
-shell_run (mobile) cannot install, remove or respring and why `apt`, `dpkg` and
-`irisin-cli` (root-only, and the daemon takes an external client only at euid
-0) do not work for the agent. `apelin-packaging-and-install` and `apelin-crash-triage` cover
+shell_run (mobile) cannot install, remove or respring and why `apt` and `dpkg`
+do not work for the agent; `irisin-cli`, which answers only as root, runs
+with `root: true` for a dependency's install and, to find why Irisin
+refuses an install or upgrade, for its questions and `--dry-run --yes`
+(owner, 2026-10-30). `apelin-packaging-and-install` and `apelin-crash-triage` cover
 where the package stays, its identity (the placeholders asked about before
 the first install and changed everywhere `file_grep` finds them, the same
 identifiers for debug and release, and changing an installed one: another
@@ -3246,8 +3257,9 @@ owngoal-packages, the control fields a package needs, how Publish adds a
 release, and keeping old versions in check. `apelin-icli` (owner,
 2026-10-26) is running icli through shell_run: an argv, its help read
 first, Apelin's own tools where they exist, the commands its device
-acceptance ran as mobile, never its package, launchd, respring, uicache or
-reboot commands, its `screen shot`, `screen ocr` and `screen describe` as
+acceptance ran as mobile, never its package, respring or uicache
+commands, its launchd changes, `fs chown`, system writes and a reboot only
+as root with the user's go-ahead for exactly that (owner, 2026-10-30), its `screen shot`, `screen ocr` and `screen describe` as
 screenshots that wait for the user's consent, roothide's `jbroot` prefix,
 and pointing the user to `https://apt.owngoal.dev` when it is missing.
 Every built-in's name begins `apelin-` (owner, 2026-10-25), so none takes
