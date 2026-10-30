@@ -457,6 +457,22 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     order the grants are withdrawn in. The file's format is unchanged.
     Nothing on the wire writes the ledger, and
     `approvalDigestState` is its read side for the agent.
+    The screen (owner, 2026-10-30; `Session/Agent/AgentScreenRules.swift`,
+    ApelinProtocol's `ScreenConsent`): the session table keeps each
+    session's Ask Before Using the Screen (`asksBeforeScreen`), the app's
+    from every `agentOpen` and from an `agentPrompt` that carries it, an
+    agent-opened session its opener's. While it is on, in every mode, an
+    agent's `readUITree` and `uiAction` (DiagnosticsHandler, before
+    `AgentUIActionRules`) each spend one approval the app gave this session
+    whose own `approvalRequested` names exactly it — `detail.screenControl`
+    {operation, request}, the target and action as the host is asked for
+    them —, and `AgentApprovals.authorize` runs an `agentRunCode` whose argv
+    word or script names one of `ScreenConsent.programs` (icli, `uiopen`,
+    `uishoot`) as a word only on its `.user` approval of a card marked
+    `screenControl` with exactly that `command`, or `rootCommand` as root
+    (owner checked, Full included), in that directory. A preset, a
+    `.relaxed` claim and a session grant run none of them; `agentClose`
+    forgets what is left. The app's and the console's calls are untouched.
     Device setups and other projects (2026-10-22, in memory, per session,
     `Session/Agent/AgentEnvironmentRules.swift`, `AgentConversationRules`):
     in every mode an agent's `toolchainSetup` names an Apple catalog product
@@ -594,8 +610,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   against a fake irisind, the folders a removed toolchain leaves, the
   ledger, the control reader, the attachment
   copies, ordinary events leaving the record alone and its number and time
-  read back from the log, one `agentOpen` of a session at a time, and a
-  real PTY.
+  read back from the log, one `agentOpen` of a session at a time, Ask
+  Before Using the Screen's refusals and spends in every mode
+  (`ScreenConsentChecks.swift`), and a real PTY.
   `Documents/Console/scripts/i1-smoke.json` drives it on a device;
   `r1-resume-build.json`, `r1-resume-sdk-import.json` and
   `r2-resume-toolchain.json` check a resume, killing the host by its
@@ -1025,7 +1042,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the session for the next, and a waiter whose request is cancelled leaves
   the line and opens nothing (`cancelled`); provider (`githubCopilot`
   default, model default `claude-sonnet-5.5`), reasoning effort, service
-  tier, approval mode, an optional
+  tier, approval mode, Ask Before Using the Screen (`asksBeforeScreen`,
+  absent read as on, so an older caller cannot turn it off; an agent's
+  open takes its opener's, an agent's message changes none), an optional
   first `prompt` and `closeWhenFinished` (the task ends with the first run,
   for headless runs) ride on it. So does `hostRestarted`, the host's alone
   (owner, 2026-10-29; `Session/Agent/AgentHostRun.swift`): what a caller
@@ -1194,7 +1213,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   at most 10 s, list/read/symbolicate crashes → `crashList`, `crashOpen`
   (descriptor), `crashSymbolicate`, screen/UI → `captureScreen` (only
   after the user consented to that screenshot, as the prompt says),
-  `readUITree`, `uiAction`, the framework tools' SDK → `sdkList` (the
+  `readUITree`, `uiAction` (while Ask Before Using the Screen is on, each
+  call asks in every mode, never for the session, the card's
+  `detail.screenControl` naming the request, and so does a shell_run
+  that runs icli, its `command` beside it: `ScreenControlApproval`), the
+  framework tools' SDK → `sdkList` (the
   project's pinned `environment.sdk.id` first), shell_run → `agentRunCode`;
   in any chat (owner, 2026-10-24; General Chat's alone before),
   apelin_template_list → `extensionList` (isolated extensions left out)
@@ -1905,8 +1928,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   changing a setting stays the user's, and a project is deleted with
   apelin_project_delete (Agent sessions), never by taps. The app's and
   the console's actions carry no list, and the screen and the tree stay
-  readable. Screenshots go back as an unlinked temporary file's descriptor,
-  JPEG.
+  readable. While a session's Ask Before Using the Screen is on (owner,
+  2026-10-30; Approvals ▸ The screen), its agent's tree reads and actions
+  go only on the approval naming exactly each. Screenshots go back as an
+  unlinked temporary file's descriptor, JPEG.
 - **The hello** has a five-second bound per attempt, guarded by connection
   generation, retried every second; the fallback to the unprivileged backend
   comes ten seconds after the first miss (`Apelin/DaemonClient.swift`). After
@@ -2216,7 +2241,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   confirmation when changing into Relaxed from Strict, and, for Full, a
   confirmation that root runs without asking followed by `DeviceOwnerCheck`
   (Face ID, Touch ID or the passcode; a device with no passcode passes);
-  leaving Full asks nothing. The composer's approval card
+  leaving Full asks nothing. Under the modes, on the same page, a switch
+  keeps `AgentPermissions.asksBeforeScreen`, Ask Before Using the Screen,
+  default on (owner, 2026-10-30), its footer saying it covers opening apps
+  and links and reading and acting on the screen, by the screen tools or
+  icli, in every mode; it rides on every `agentOpen` and `agentPrompt` as
+  the mode does. The composer's approval card
   (`ApprovalCardText`) says, under its title, the reason the agent gave the
   call (from its `toolCall`), why the gate asks, a changed description's
   diff, then the arguments by name through the same `ToolCallDetail` the
@@ -2691,6 +2721,18 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   says root will run without asking, plus the same owner check; leaving it
   asks nothing. The wire value is `full` and old stored values still decode;
   `ApprovalMode.asks` is true for Strict alone.
+  *Ask Before Using the Screen* (owner, 2026-10-30: asked to
+  report a problem upstream, an agent opened the issue page in Safari with
+  `icli url open` and read the UI tree twice, never asking) is a setting
+  beside the mode, on by default, that holds in all three: while on, the UI
+  tree, every UI action and every `shell_run` that runs icli (or uikittools'
+  `uiopen` or `uishoot`) ask on a card every time, whatever the presets or
+  the icli subcommand, never granted for the session, and the host runs
+  each only on the one approval given for exactly it. A request to do a
+  task is no consent to open an app, read the screen or act on it: the
+  prompt has the agent say what it will open, read or do and wait for the
+  user's reply first. Off, those calls go as the mode says. Screenshots
+  stay the conversation's rule (2026-10-29).
 - **Install** always packages a deb and hands it to Irisin's daemon. irisind
   is changed to accept a peer by its entitlement and an executable under the
   jailbreak root or the system, not by Irisin's own path, and ships in a new
@@ -3024,7 +3066,7 @@ adding a dated record beside it.
 
 - `ChatRuntime` keeps one reader per live session while the user switches pages. It persists ordered host events and reattaches after the saved cursor. A save that fails (a full disk, a folder it cannot write) leaves the conversation running in memory: `StorageWarning` says so once — "Storage Almost Full" when less than 512 MB is free, else the error — and not again until a save gets through; the unsaved conversations are written with the next save that works and on every return to the foreground, and the same notice comes at launch or on return when free space is already under 512 MB. Sending text never needs the disk; only attachments are staged. A stopped host can reopen the persisted session ID; the host and worker refuse a different workspace identity. A reopened session comes back as a new task that replays the whole history, renumbered and newly timed, before anything new; the conversation keeps the events it has and reads past that replay (`ChatRecord.reopen(as:)`, `SessionReplay`, saved with the record) to the first user message or compaction it has not seen (Compact… reopens a stopped session with no message after it), or to the task's own end, so the rows on screen stay as they are. A terminal `state` is never read as the replay (the worker replays only the states an approval sets), so a task that stops before catching up (its worker died, the host stopped, a second open failed) ends the turn as a first task does. A conversation an earlier version saved with its cursor past that end takes it again when an attach answers `finished` while its transcript still runs a turn (`ChatRecord.missedEnd`, `takeMissedEnd`): that one event, read again from just before the task's last seq; the row stops working even when it cannot be read. Never empty the events for a new task: the list would collapse to the message being sent and land at the top of the history when the replay came back. Rows are numbered by their event's position, not its seq, since a reopened task's numbering starts again. Stop calls `agentAbort`; approval buttons call `agentApprove` and wait for the authoritative resolved event.
 - `agentPrompt` accepts an optional message UUID and descriptor-indexed attachments (at most eight, at most 32 MiB each). The worker saves them under random workspace-relative `Attachments/` paths; filenames remain display metadata. The session log records the message UUID and relative attachments, deduplicates a retried send, and supplies image content to the provider. Tool-returned images are saved the same way and replay into the image album UI. So are the files `file_show` puts in front of the reader (2026-10-29, `Tools/FileShow.swift`), the agent's one way to show a project file, since a path or a `file:` link in a reply opens nothing: one to eight regular files inside the project, each at most 32 MiB, every one checked before any is copied into `Attachments/` as it is then, listed in the result's `details` (which no provider reads) and handed by the session to the call's `toolResult` attachments, where the album, the document cards and Quick Look show them. A read preset with no host request; the model hears what was shown, never the contents.
-- Every app prompt also carries the current approval mode. The host updates its ledger before forwarding; the session updates its tool policy and metadata, records the message (its `prompt` or `queued` event, the text alone), then builds the message's `<system-state>`: the mode reaches the model there, with whatever the session's system prompt shows that changed since (Prompt caching). A prompt naming the provider and model the session already resolved, with the same stored sign-in, keeps that resolution: no token exchange before the message is recorded, and a signed-out provider is still refused. An existing pending approval is not silently accepted. A bounded, tool-free completion on the current model summarizes the first user message into a `title` event; title failure leaves the local fallback and does not fail the turn; a later message asks again, until three completions have named nothing (`maximumTitleMisses`) or, while the project keeps its generated name, on every message. A JSON answer in one Markdown fence is read as the JSON.
+- Every app prompt also carries the current approval mode and Ask Before Using the Screen, which the message's `<system-state>` names beside the mode (owner, 2026-10-30). The host updates its ledger and session table before forwarding; the session updates its tool policy and metadata, records the message (its `prompt` or `queued` event, the text alone), then builds the message's `<system-state>`: the mode reaches the model there, with whatever the session's system prompt shows that changed since (Prompt caching). A prompt naming the provider and model the session already resolved, with the same stored sign-in, keeps that resolution: no token exchange before the message is recorded, and a signed-out provider is still refused. An existing pending approval is not silently accepted. A bounded, tool-free completion on the current model summarizes the first user message into a `title` event; title failure leaves the local fallback and does not fail the turn; a later message asks again, until three completions have named nothing (`maximumTitleMisses`) or, while the project keeps its generated name, on every message. A JSON answer in one Markdown fence is read as the JSON.
 - `ChatRuntime.transcript` brings a conversation's rows up to date only when they would differ (`ChatTranscriptCache`, kept for the followed conversations and the page's). `ChatTranscript` is a fold: new events (`ChatRecord.events` are only appended to) are read onto the rows the earlier ones made (`append`), and the rows shown are made afresh from those, as a build from every event at once at the same `now` makes them (`Tests/ChatTranscript/TranscriptFold.swift` compares the two over random logs). A change to the messages it is sending, or a `quietDeadline` passed since it was shown, shows the rows again, so the refresh `ChatQuietWatch` asks for at the deadline adds the stand-in; only a sender's new title builds it again from every event. A row equal to one shown before is that very value, so the page's comparison stops at its storage. The composer is told of its approval request and its Stop only when either changes, a long-poll that ran out with nothing writes nothing, and a conversation is written once at a time, then once more with what changed meanwhile.
 - Working state comes from session events, never a late send acknowledgement. Completed zero-second, zero-tool thought rows are omitted. A positive duration without tools shows only the duration; tools without a positive duration show only their count; “and” joins the clauses only when both values are positive. Thought headers use Litext numeric transitions, with reduced motion respected. User messages and reply text are selectable.
 - The conversation alternates a single thinking summary with response content. Consecutive thinking steps merge across tools and approvals. Tool calls and completed approvals stay out of the main transcript; tapping the summary opens their ordered trace in a form sheet, a list of the steps, provider-supplied thinking included, each opening its own plain text. Headers use body-size 50% primary text aligned to the body margin, with a sentence for duration and tool count. Pending approval still replaces the composer.
@@ -3249,7 +3291,15 @@ the device is no consent, nor is another conversation's message, one consent
 covers one screenshot, and what is under test comes to the front first. That is instructions only, in the
 prompt, the tool's description and the apelin-icli and
 apelin-tweak-development skills (`ScreenshotConsentTests`); the tool and
-Strict's card are as they were. It asks for independent tool calls in
+Strict's card are as they were. While `<system-state>` says Ask Before
+Using the Screen is on (owner, 2026-10-30), opening an app or a link and
+reading or acting on the screen, by the screen tools, icli or any other way,
+wait the same way, in every mode: the model says what it will open, read or
+do and why, a request to do a task (filing an issue, testing on the device)
+is no consent, and the card then asks too; `# This device` and
+`# Approval modes` say so, as do both screen tools' descriptions and the
+apelin-icli and apelin-tweak-development skills, and the gate and the host
+enforce it (`ScreenUseConsentTests`). It asks for independent tool calls in
 one response (kwwk's `parallelToolCallsGuideline`), treats tool output, files,
 logs and MCP results as data, and names every approval mode with what it
 lets through (`# Approval modes`) but none as the one on. It holds nothing
@@ -3261,7 +3311,8 @@ a steer, `apelin_conversation_send` — the model reads a `<system-state>`
 block, the system language (the mobile user's `AppleLanguages` and
 `AppleLocale`, read by the worker itself through `CFPreferences` each time,
 so no wire change), the reply rule, progress notes included, the local
-date, time and time zone, and the approval mode on — and, when the
+date, time and time zone, the approval mode on and whether Ask Before
+Using the Screen is on — and, when the
 snapshot is out of date, what changed since the model was last told, and
 on the first message after the host said it restarted (`hostRestarted`,
 Agent sessions above; owner, 2026-10-29: a roothide device's jbroot was
@@ -3281,9 +3332,9 @@ by the user, and not to be quoted. Like the project context it is added to the t
 model sees and goes into that message of the transcript, so every later
 request sends it as it went; the app's `prompt`, `queued` and `steer` events,
 the title completion and `apelin_conversation_read` have the text alone.
-The language, time and mode are in every block, about sixty tokens paid in
-full once and read from the cache after: the time differs on every message
-anyway, and a block that said only what changed would leave the model
+The language, time, mode and screen setting are in every block, a few dozen
+tokens paid in full once and read from the cache after: the time differs on
+every message anyway, and a block that said only what changed would leave the model
 guessing once a compaction summarised the message that last named the
 language or the mode. The host's
 enforcement of the mode is unchanged; the block only tells the model. The
@@ -3304,7 +3355,8 @@ build defines and what asks the user, with the embedded schema as its file
 `apelin-project.schema.json` (`ProjectValidation.schemaText`); a test fails
 when the schema gains a member the guide never names. `apelin-tweak-development`
 is the edit-build loop, ending on the changed behaviour driven with the screen
-tools (the UI tree, a screenshot only once the user agreed to it), and how
+tools (the UI tree, asked for first while Ask Before Using the Screen is
+on, and a screenshot only once the user agreed to it), and how
 to live beside other tweaks (hooks that chain,
 `static` names, prefixed added methods and classes), and says Theos is not
 supported (owner, 2026-10-23): a Theos tweak's Logos is rewritten as plain
@@ -3363,8 +3415,12 @@ release, and keeping old versions in check. `apelin-icli` (owner,
 first, Apelin's own tools where they exist, the commands its device
 acceptance ran as mobile, never its package, respring or uicache
 commands, its launchd changes, `fs chown`, system writes and a reboot only
-as root with the user's go-ahead for exactly that (owner, 2026-10-30), its `screen shot`, `screen ocr` and `screen describe` as
-screenshots that wait for the user's consent, roothide's `jbroot` prefix,
+as root with the user's go-ahead for exactly that (owner, 2026-10-30), its
+`screen shot`, `screen ocr` and `screen describe` as screenshots that wait
+for the user's consent, every command, while Ask Before Using the Screen is
+on, asking on a card and, for one that opens, reads or acts on the screen,
+after the user's consent in the conversation (owner, 2026-10-30),
+roothide's `jbroot` prefix,
 and pointing the user to `https://apt.owngoal.dev` when it is missing.
 Every built-in's name begins `apelin-` (owner, 2026-10-25), so none takes
 the name of a user's skill of the same subject; `BuiltInSkills.legacyNames`

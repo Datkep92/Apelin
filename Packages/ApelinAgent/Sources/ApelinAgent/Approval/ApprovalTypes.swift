@@ -124,6 +124,22 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// repository and each package with its digest. The host lets through
     /// only the publication it names, once.
     case packagePublish(PackagePublishApproval)
+    /// A use of the screen while Ask Before Using the Screen is on: the UI
+    /// tree read, the action, or the command that runs icli. Asked in every
+    /// mode, never granted for the session; the host lets through only the
+    /// call it names, once.
+    case screenControl(ScreenControlApproval)
+}
+
+/// What a card asks while Ask Before Using the Screen is on (owner,
+/// 2026-10-30), and the host matches the call to (AgentScreenRules): the
+/// UI tree read or the action with its target, as the host is asked for
+/// it, or the command that runs one of `ScreenConsent.programs`, which the
+/// card shows as any command's.
+public enum ScreenControlApproval: Sendable, Hashable, Codable {
+    case readTree(targetID: String?)
+    case interact(targetID: String?, action: UIAction)
+    case command(RunCodeInvocation, asRoot: Bool)
 }
 
 /// What an apelin_package_publish card names, and the host matches its

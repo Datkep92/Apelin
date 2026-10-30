@@ -21,6 +21,19 @@ extension BuiltInSkills {
         (`icli --help`, `icli <group> --help`, `icli <group> <command>
         --help`) and use only the options it documents; never guess a flag.
 
+        ## Asking before using the screen
+        While `<system-state>` says Ask Before Using the Screen is on, every
+        icli command asks the user on Apelin's card, in every mode, whatever
+        it does, and the session host runs none without that approval. Before
+        one that opens an app or a link (`app launch`, `url open`), reads
+        the screen (`screen info`) or acts on it (`screen tap`,
+        `screen swipe`, `input type`), say in the conversation what it will
+        open, read or do and why, and wait for the user's explicit consent
+        in their reply. A request to do a task, such as filing an issue or
+        testing on the device, is not consent. The screen tools,
+        `apelin_screen_read_tree` and `apelin_screen_interact`, ask the same
+        way.
+
         ## Dedicated tools come first
         Where Apelin has a tool, use it, not icli: building and installing
         your package, removing it, respringing (`apelin_device_respring`),

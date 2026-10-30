@@ -378,6 +378,7 @@ final class ChatRuntime {
                 reasoningEffort: selection?.effort,
                 serviceTier: selection?.tier,
                 approvalMode: AgentPermissions.mode,
+                asksBeforeScreen: AgentPermissions.asksBeforeScreen,
             ),
             descriptors: descriptors,
         )
@@ -463,6 +464,7 @@ final class ChatRuntime {
             provider: selected?.provider,
             model: selected?.model,
             approvalMode: mode,
+            asksBeforeScreen: AgentPermissions.asksBeforeScreen,
             reasoningEffort: selected?.effort,
             serviceTier: selected?.tier,
         )

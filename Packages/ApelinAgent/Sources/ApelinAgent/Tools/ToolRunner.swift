@@ -76,6 +76,14 @@ actor ToolRunner {
         policy.mode
     }
 
+    func setAsksBeforeScreen(_ asks: Bool) {
+        policy.asksBeforeScreen = asks
+    }
+
+    var asksBeforeScreen: Bool {
+        policy.asksBeforeScreen
+    }
+
     /// A run ended: the next one may send its own notices.
     func turnEnded() {
         notices.turnEnded()
@@ -305,7 +313,8 @@ actor ToolRunner {
     /// command as root, nor for an issue filed or edited in public as
     /// feedback, nor for a repository made on GitHub or an issue opened on
     /// one, nor for a project's deletion, which cannot be undone, nor for
-    /// packages published to the user's package repository.
+    /// packages published to the user's package repository, nor for a use
+    /// of the screen while Ask Before Using the Screen is on.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
@@ -318,7 +327,7 @@ actor ToolRunner {
         switch detail {
         case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
              .projectRename, .rootCommand, .feedback, .feedbackEdit, .repositoryCreate, .issueCreate, .projectDelete,
-             .packagePublish:
+             .packagePublish, .screenControl:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true

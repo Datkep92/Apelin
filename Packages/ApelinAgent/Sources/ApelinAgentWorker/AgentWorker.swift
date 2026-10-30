@@ -60,6 +60,9 @@ public enum AgentWorker {
                 if let mode = prompt.approvalMode {
                     await session.setApprovalMode(AgentWorker.approvalMode(mode))
                 }
+                if let asks = prompt.asksBeforeScreen {
+                    await session.setAsksBeforeScreen(asks)
+                }
                 if let provider = prompt.provider {
                     try await session.configure(
                         provider: AgentWorker.provider(AgentOpenRequest(provider: provider, model: prompt.model)),
@@ -282,7 +285,10 @@ actor WorkerState {
                     project: identity,
                     temporaryID: open.temporaryID,
                     provider: AgentWorker.provider(open),
-                    approval: ApprovalPolicy(mode: AgentWorker.approvalMode(open.approvalMode)),
+                    approval: ApprovalPolicy(
+                        mode: AgentWorker.approvalMode(open.approvalMode),
+                        asksBeforeScreen: ScreenConsent.asks(open.asksBeforeScreen),
+                    ),
                     dataRoot: dataRoot,
                     thinking: .init(rawValue: open.reasoningEffort?.rawValue ?? "off") ?? .off,
                     serviceTier: AgentWorker.serviceTier(open.serviceTier),
@@ -656,8 +662,43 @@ actor EventRelay {
         // distributionPublish to (AgentPublishRules).
         case let .packagePublish(publication):
             payload["detail"] = .object(["packagePublish": (try? ApelinCore.JSONValue(encoding: publication)) ?? .null])
+        // What the host matches an agent's readUITree, uiAction or
+        // agentRunCode to while Ask Before Using the Screen is on
+        // (AgentScreenRules).
+        case let .screenControl(use):
+            payload["detail"] = .object(screenDetail(use))
         }
         return .object(payload)
+    }
+
+    /// `detail` of a screen card: `screenControl` {operation, request?},
+    /// the tree read or the action as `ChannelHostBackend` sends it to the
+    /// host, and a command's own `command` — `rootCommand` as root — as any
+    /// shell_run card has it, which the app's card shows. A request that
+    /// would not reach the host (an element with nothing to tap it by) is
+    /// left out, so no approval covers it.
+    static func screenDetail(_ use: ScreenControlApproval) -> [String: ApelinCore.JSONValue] {
+        func marker(_ operation: AppOperation, request: ApelinCore.JSONValue? = nil) -> ApelinCore.JSONValue {
+            var marker: [String: ApelinCore.JSONValue] = ["operation": .string(operation.rawValue)]
+            marker["request"] = request
+            return .object(marker)
+        }
+        switch use {
+        case let .readTree(targetID):
+            let request = try? ApelinCore.JSONValue(encoding: ApelinProtocol.ReadUITreeRequest(targetID: targetID))
+            return [ScreenConsent.detailKey: marker(.readUITree, request: request)]
+        case let .interact(targetID, action):
+            let request = (try? ChannelHostBackend.action(action)).flatMap { wire in
+                try? ApelinCore.JSONValue(encoding: ApelinProtocol.UIActionRequest(targetID: targetID, action: wire))
+            }
+            return [ScreenConsent.detailKey: marker(.uiAction, request: request)]
+        case let .command(invocation, asRoot):
+            let key = asRoot ? RunCodeApproval.rootCommandDetail : "command"
+            return [
+                ScreenConsent.detailKey: marker(.agentRunCode),
+                key: (try? ApelinCore.JSONValue(encoding: invocation)) ?? .null,
+            ]
+        }
     }
 
     static func decisionName(_ decision: ApelinAgent.ApprovalDecision) -> String {

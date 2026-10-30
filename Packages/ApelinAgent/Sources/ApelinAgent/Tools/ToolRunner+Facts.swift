@@ -28,11 +28,21 @@ extension ToolRunner {
             let checks = (arguments.argStrings("paths") ?? []).map { path in check { _ = try root.resolveExisting(path) } }
             facts.pathCheck = checks.first { $0 != .inside } ?? .inside
         case .shellRun:
-            facts.command = try CommandClassifier.classify(arguments)
+            let command = try CommandClassifier.classify(arguments)
+            facts.command = command
             facts.runsAsRoot = arguments.argBool("root") ?? false
             let cwd = arguments.argString("cwd") ?? "."
             facts.pathCheck = root.mayReach(cwd) ? .inside : .outside(cwd)
             facts.workingDirectory = cwd
+            if command.screenProgram != nil {
+                facts.screenControl = .command(command, asRoot: facts.runsAsRoot)
+            }
+        // What the call does on the screen, as the host is asked for it:
+        // what Ask Before Using the Screen's card names.
+        case .screenReadTree:
+            facts.screenControl = .readTree(targetID: arguments.argString("target_id"))
+        case .screenInteract:
+            facts.screenControl = try .interact(targetID: arguments.argString("target_id"), action: Self.uiAction(arguments))
         case .projectBuild:
             if let script = ProjectBuildSystem.externalScript(in: root) {
                 facts.externalBuild = ExternalBuildApproval(

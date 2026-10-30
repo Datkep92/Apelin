@@ -62,15 +62,17 @@ public struct SystemStateSource: Sendable {
 
 /// What the model reads before every message the user, or another
 /// conversation, sends (`AgentSession.prompt` and `steer`): the system
-/// language and the reply rule, the local time and the approval mode on
-/// now. Like `<project-context>` it is added to the text the model sees,
+/// language and the reply rule, the local time, the approval mode on now
+/// and whether Ask Before Using the Screen is on (owner, 2026-10-30). Like
+/// `<project-context>` it is added to the text the model sees,
 /// never to the event the app shows, and it stays in that message of the
 /// transcript, so every later request sends the same bytes. What changes
 /// while a session runs lives here and nowhere in the system prompt, which
 /// is the session's snapshot (`PromptState`) and whose cache it would break.
 ///
-/// The language, the time and the mode are in every block: about sixty
-/// tokens, paid in full once and read from the cache after. Saying only
+/// The language, the time, the mode and the screen setting are in every
+/// block: a few dozen tokens, paid in full once and read from the cache
+/// after. Saying only
 /// what changed would save some forty a message, but the time changes on
 /// every one anyway, and a compaction that summarises the message that
 /// last named the language or the mode would leave the model guessing.
@@ -98,6 +100,8 @@ enum SystemState {
         var date: Date
         var timeZone: TimeZone
         var mode: ApprovalMode
+        /// Ask Before Using the Screen, the app's setting beside the mode.
+        var asksBeforeScreen = true
         /// What changed since the model was last told (`PromptState`).
         var changes: [String] = []
         /// The session host restarted since the conversation last ran.
@@ -109,6 +113,7 @@ enum SystemState {
     static func facts(
         _ source: SystemStateSource,
         mode: ApprovalMode,
+        asksBeforeScreen: Bool = true,
         changes: [String] = [],
         hostRestarted: Bool = false,
         installRoot: String? = nil,
@@ -119,6 +124,7 @@ enum SystemState {
             date: source.now(),
             timeZone: source.timeZone(),
             mode: mode,
+            asksBeforeScreen: asksBeforeScreen,
             changes: changes,
             hostRestarted: hostRestarted,
             installRoot: installRoot,
@@ -146,6 +152,7 @@ enum SystemState {
             reply,
             "- Local time: \(time(facts.date, in: facts.timeZone)).",
             "- Approval mode: \(modeName(facts.mode)).",
+            "- Ask Before Using the Screen: \(facts.asksBeforeScreen ? "on" : "off").",
         ]
         if facts.hostRestarted {
             lines.append(restartNote(installRoot: facts.installRoot, changesBelow: !facts.changes.isEmpty))

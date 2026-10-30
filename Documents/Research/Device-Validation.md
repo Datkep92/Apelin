@@ -180,7 +180,7 @@ console now goes on after a restart only past a successful respring.
 
 ## Still to run on the owner's devices
 
-- [ ] Deleting a conversation (2026-10-30, issue #17, AGENTS.md ▸ The root
+- [ ] Deleting a conversation (2026-10-30, AGENTS.md ▸ The root
       and ▸ Project display names and external project actions; only the
       Mac transcript harness's `ChatDeletionCheck` has run). On the iPhone
       (`VPHONE=Date`) and the iPad (`VPHONE=Banana`) vphone, after `make
@@ -203,6 +203,25 @@ console now goes on after a restart only past a successful respring.
       the widget on its next look. VoiceOver offers Delete (and Stop) among
       a row's actions and reads Delete Conversation… in the menu; in
       Chinese they read 删除 / 停止并删除 and 删除聊天….
+- [ ] Ask Before Using the Screen (2026-10-30, AGENTS.md ▸
+      Product ▸ Approval, Approvals ▸ The screen; none has run on a
+      device, and it needs a model provider). On the iOS 26.4 and iOS
+      27.0.1 iPhone vphones (roothide) and the iPad vphone: Settings ▸
+      Permission Mode shows the switch under the modes, on, with its
+      footer, and VoiceOver reads it as one switch with its state. With it
+      on, in Relaxed and again in Full, ask a project's chat to report a
+      problem upstream: before anything opens, the reply says what it
+      would open and why and waits; once told to go ahead, `icli url open
+      https://github.com/…/issues/new` asks on a card ("Opens … on this
+      device …", no "for this session") and Approve opens Safari; an
+      apelin_screen_read_tree and an apelin_screen_interact each ask the
+      same way, every call, and Deny leaves the screen as it was. The
+      next message's `<system-state>` names the setting on. Turned off,
+      the next message's state says off and the three run as the mode
+      says: no card in Relaxed or Full, Strict's own card. A conversation
+      the agent opens asks as its opener does. The console's own
+      `readUITree` and `uiAction` (`diagnostics.json`) run as before
+      either way.
 - [ ] Agent tool extensions in a conversation (2026-10-29, AGENTS.md ▸
       Agent sessions ▸ Agent tool extensions; none of it has run on a
       device, and it needs a model provider). On roothide and rootless,
