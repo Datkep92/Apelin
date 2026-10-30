@@ -71,6 +71,9 @@ enum ApprovalCardText {
         if let published = publishedPackages(payload) {
             return ToolCallDetail(detail: published, title: title)
         }
+        if let edited = editedIssue(payload) {
+            return ToolCallDetail(detail: edited, title: title)
+        }
         guard AgentToolName.canonical(payload?["tool"]?.stringValue ?? "") == .shellRun,
               case var .object(values)? = try? JSONCoding.decode(JSONValue.self, from: Data(json.utf8))
         else { return ToolCallDetail(detail: json, title: title) }
@@ -114,6 +117,24 @@ enum ApprovalCardText {
                   let architecture = package["architecture"]?.stringValue, let digest = package["digest"]?.stringValue
             else { return nil }
             shown["\(id) \(version) (\(architecture))"] = .string(digest)
+        }
+        return (try? JSONCoding.encode(JSONValue.object(shown))).map { String(decoding: $0, as: UTF8.self) }
+    }
+
+    /// An apelin_feedback_edit card's arguments: not the call's, which carry
+    /// the revision it was read at, but what the approval is bound to, its
+    /// `detail.feedbackEdit` — the repository, the issue, and the new title
+    /// or body in full, each only when it changes. Nil for any other request.
+    private static func editedIssue(_ payload: JSONValue?) -> String? {
+        guard let detail = payload?["detail"]?["feedbackEdit"],
+              let repository = detail["repository"]?.stringValue,
+              let number = detail["number"]?.doubleValue
+        else { return nil }
+        var shown: [String: JSONValue] = ["repository": .string(repository), "issue": .string("#\(Int(number))")]
+        for field in ["title", "body"] {
+            if let text = detail[field]?.stringValue {
+                shown[field] = .string(text)
+            }
         }
         return (try? JSONCoding.encode(JSONValue.object(shown))).map { String(decoding: $0, as: UTF8.self) }
     }

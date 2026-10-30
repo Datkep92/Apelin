@@ -120,6 +120,13 @@ public protocol AgentHostBackend: Sendable {
     /// A public issue on Apelin's own repository with the user's GitHub
     /// sign-in; the host checks it was approved.
     func sendFeedback(_ request: FeedbackToolRequest) async throws -> FeedbackToolResponse
+    /// An issue on Apelin's own repository, read with the user's GitHub
+    /// sign-in.
+    func readFeedback(_ request: FeedbackReadToolRequest) async throws -> FeedbackReadToolResponse
+    /// An issue the user's GitHub account opened there, edited only while it
+    /// still says what the edit was made against; the host checks it was
+    /// approved.
+    func editFeedback(_ request: FeedbackEditToolRequest) async throws -> FeedbackEditToolResponse
     /// An installed agent tool extension, started by the host as mobile
     /// after its own check of the manifest: the tool session its calls name.
     func openToolExtension(id: String) async throws -> String
@@ -183,6 +190,14 @@ public extension AgentHostBackend {
 
     func sendFeedback(_: FeedbackToolRequest) async throws -> FeedbackToolResponse {
         throw ToolDeniedError(message: "sending feedback is not available here")
+    }
+
+    func readFeedback(_: FeedbackReadToolRequest) async throws -> FeedbackReadToolResponse {
+        throw ToolDeniedError(message: "reading feedback is not available here")
+    }
+
+    func editFeedback(_: FeedbackEditToolRequest) async throws -> FeedbackEditToolResponse {
+        throw ToolDeniedError(message: "editing feedback is not available here")
     }
 
     func createRepository(_: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse {

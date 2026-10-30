@@ -189,6 +189,16 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: FeedbackSendResponse(number: 1, url: "https://github.com/owngoal-dev/Apelin/issues/1")) {
                 _ = try await $0.feedbackSend(title: "t", body: "b")
             }
+        case .feedbackRead:
+            let issue = FeedbackReadResponse(
+                number: 1, url: "https://github.com/owngoal-dev/Apelin/issues/1", title: "t", body: "b",
+                footer: nil, author: "someone", state: "open", isAuthor: true,
+            )
+            return Row(reply: issue) { _ = try await $0.feedbackRead(number: 1) }
+        case .feedbackEdit:
+            return Row(reply: FeedbackEditResponse(number: 1, url: "https://github.com/owngoal-dev/Apelin/issues/1", title: "t", body: "c")) {
+                _ = try await $0.feedbackEdit(FeedbackEditRequest(number: 1, title: nil, body: "c", expectedTitle: "t", expectedBody: "b"))
+            }
         case .feedbackStarState:
             return Row(reply: FeedbackStarResponse(repository: "owngoal-dev/Apelin", starred: false)) {
                 _ = try await $0.feedbackStarState()

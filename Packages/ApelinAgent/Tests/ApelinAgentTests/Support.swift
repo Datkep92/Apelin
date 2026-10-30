@@ -118,6 +118,8 @@ actor MockBackend: AgentHostBackend {
         case sdkImport(url: String, branch: String, evidence: ApprovalEvidence)
         case checkEnvironment(toolchainID: String?, sdkID: String?)
         case feedback(title: String, body: String, evidence: ApprovalEvidence)
+        case feedbackRead(Int)
+        case feedbackEdit(FeedbackEditToolRequest)
         case createRepository(RepositoryCreateApproval, evidence: ApprovalEvidence)
         case publishPackages(PackagePublishApproval, evidence: ApprovalEvidence)
         case other(String)
@@ -543,6 +545,59 @@ actor MockBackend: AgentHostBackend {
     func sendFeedback(_ request: FeedbackToolRequest) -> FeedbackToolResponse {
         calls.append(.feedback(title: request.title, body: request.body, evidence: request.context.approval))
         return FeedbackToolResponse(repository: "owngoal-dev/Apelin", issue: 7, url: "https://github.com/owngoal-dev/Apelin/issues/7")
+    }
+
+    /// What apelin_feedback_read answers, by number: #12, the user's own,
+    /// unless a test sets others.
+    var feedbackIssues: [Int: FeedbackReadToolResponse] = [12: FeedbackReadToolResponse(
+        repository: "owngoal-dev/Apelin",
+        issue: 12,
+        url: "https://github.com/owngoal-dev/Apelin/issues/12",
+        title: "The build log stops early",
+        state: "open",
+        author: "someone",
+        openedByUser: true,
+        body: "It ends before the link step.",
+        footer: "Sent with Apelin 0.2.7 (18) · iOS 17.3.1 · rootless",
+    )]
+
+    func setFeedbackIssue(_ issue: FeedbackReadToolResponse) {
+        feedbackIssues[issue.issue] = issue
+    }
+
+    func readFeedback(_ request: FeedbackReadToolRequest) throws -> FeedbackReadToolResponse {
+        calls.append(.feedbackRead(request.number))
+        guard let issue = feedbackIssues[request.number] else {
+            throw ToolDeniedError(message: "owngoal-dev/Apelin has no issue #\(request.number)")
+        }
+        return issue
+    }
+
+    /// Applied to the issue, as GitHub would, so a read after it sees it.
+    func editFeedback(_ request: FeedbackEditToolRequest) -> FeedbackEditToolResponse {
+        calls.append(.feedbackEdit(request))
+        if let issue = feedbackIssues[request.number] {
+            feedbackIssues[request.number] = FeedbackReadToolResponse(
+                repository: issue.repository,
+                issue: issue.issue,
+                url: issue.url,
+                title: request.title ?? issue.title,
+                state: issue.state,
+                author: issue.author,
+                openedByUser: issue.openedByUser,
+                body: request.body ?? issue.body,
+                footer: issue.footer,
+            )
+        }
+        let changed: [String] = [request.title.map { _ in "title" }, request.body.map { _ in "body" }].compactMap(\.self)
+        return FeedbackEditToolResponse(
+            repository: "owngoal-dev/Apelin",
+            issue: request.number,
+            url: "https://github.com/owngoal-dev/Apelin/issues/\(request.number)",
+            changed: changed,
+            title: request.title ?? request.expectedTitle,
+            body: request.body ?? request.expectedBody,
+        )
     }
 
     func checkEnvironment(_ request: EnvironmentCheckToolRequest) -> EnvironmentCheckToolResponse {

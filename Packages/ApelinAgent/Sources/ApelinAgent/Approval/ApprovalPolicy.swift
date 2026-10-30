@@ -104,6 +104,9 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For apelin_feedback_send: the issue, checked before asking, as it is
     /// sent.
     public var feedback: FeedbackApproval?
+    /// For apelin_feedback_edit: the issue, read and checked before asking,
+    /// and the edit as it is sent.
+    public var feedbackEdit: FeedbackEditApproval?
     /// For apelin_git_create_repository: the repository, checked before
     /// asking, as it is requested.
     public var repositoryCreate: RepositoryCreateApproval?
@@ -338,6 +341,14 @@ public struct ApprovalPolicy: Sendable, Hashable {
             }
             return .ask(reason: Self.feedbackReason(feedback), detail: .feedback(feedback))
 
+        // The same issue, changed in public: every edit asks, the card
+        // showing the whole new text.
+        case .feedbackEdit:
+            guard let edit = facts.feedbackEdit else {
+                return .ask(reason: "The edit to make could not be read.", detail: .none)
+            }
+            return .ask(reason: Self.feedbackEditReason(edit), detail: .feedbackEdit(edit))
+
         // A repository on GitHub under the user's account, which outlives
         // the conversation: every one asks, the card naming its owner, name
         // and visibility.
@@ -369,7 +380,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
              .packageList, .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
-             .conversationList, .conversationRead, .toolchainList, .sdkList, .webFetch:
+             .conversationList, .conversationRead, .toolchainList, .sdkList, .webFetch, .feedbackRead:
             if presets.readTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
             }
@@ -466,6 +477,11 @@ public struct ApprovalPolicy: Sendable, Hashable {
 
     static func feedbackReason(_ feedback: FeedbackApproval) -> String {
         "Posts this title and body as a public issue on \(feedback.repository) under your GitHub account, where anyone can read it; Apelin adds its version, the iOS version and the bootstrap below it. Each one needs your approval."
+    }
+
+    static func feedbackEditReason(_ edit: FeedbackEditApproval) -> String {
+        let fields: [String] = [edit.title.map { _ in "title" }, edit.body.map { _ in "body" }].compactMap(\.self)
+        return "Replaces the \(fields.joined(separator: " and ")) of issue #\(edit.number) on \(edit.repository), which your GitHub account opened and anyone can read, with the text below; the line Apelin added below the body stays as it is. Each edit needs your approval."
     }
 
     static func publishReason(_ publication: PackagePublishApproval) -> String {

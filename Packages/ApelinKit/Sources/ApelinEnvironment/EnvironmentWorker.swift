@@ -5,8 +5,8 @@ import Foundation
 /// apelin-environment's request handling, everything `Workers/Environment`
 /// hands it: the toolchain and SDK operations, the git service and its
 /// settings, a repository made on GitHub, the package repository, the
-/// feedback filed on Apelin's own repository and the star the reader gives
-/// it, and the cancellation of the tasks it runs.
+/// feedback filed, read and edited on Apelin's own repository and the star
+/// the reader gives it, and the cancellation of the tasks it runs.
 ///
 /// An operation that starts a task arrives with the task's ID. It is checked
 /// first — a bad request is the reply, not a failed task — then accepted with
@@ -199,6 +199,10 @@ public final class EnvironmentWorker: @unchecked Sendable {
             }
         case .feedbackSend:
             await WorkerMain.serve(FeedbackSendRequest.self, request) { [self] in try await feedback.send($0) }
+        case .feedbackRead:
+            await WorkerMain.serve(FeedbackReadRequest.self, request) { [self] in try await feedback.read($0) }
+        case .feedbackEdit:
+            await WorkerMain.serve(FeedbackEditRequest.self, request) { [self] in try await feedback.edit($0) }
         case .feedbackStarState:
             await WorkerMain.serve(FeedbackStarStateRequest.self, request) { [self] in try await feedback.starState($0) }
         case .feedbackStar:

@@ -302,22 +302,22 @@ actor ToolRunner {
     /// Nor for a push: each one publishes, so each one is asked. Nor for a
     /// toolchain or SDK install, which changes the device for every
     /// project, nor for a call that reaches another project, nor for a
-    /// command as root, nor for an issue filed in public as feedback, nor
-    /// for a repository made on GitHub, nor for a project's deletion, which
-    /// cannot be undone, nor for packages published to the user's package
-    /// repository.
+    /// command as root, nor for an issue filed or edited in public as
+    /// feedback, nor for a repository made on GitHub, nor for a project's
+    /// deletion, which cannot be undone, nor for packages published to the
+    /// user's package repository.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
              .local(.skillSave), .local(.skillRemove), .local(.feedbackSend), .local(.gitCreateRepository),
-             .local(.projectDelete), .local(.packagePublish):
+             .local(.projectDelete), .local(.packagePublish), .local(.feedbackEdit):
             return false
         default:
             break
         }
         switch detail {
         case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
-             .projectRename, .rootCommand, .feedback, .repositoryCreate, .projectDelete, .packagePublish:
+             .projectRename, .rootCommand, .feedback, .feedbackEdit, .repositoryCreate, .projectDelete, .packagePublish:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -817,6 +817,26 @@ actor ToolRunner {
                 context: context,
                 title: feedback.title,
                 body: feedback.body,
+            )))
+
+        case .feedbackRead:
+            return try await json(backend.readFeedback(FeedbackReadToolRequest(
+                context: context,
+                number: FeedbackEdit.number(arguments),
+            )))
+
+        case .feedbackEdit:
+            // The edit the card named, against the text read before asking.
+            guard let edit = facts.feedbackEdit else {
+                throw ToolDeniedError(message: "the edit to make could not be read")
+            }
+            return try await json(backend.editFeedback(FeedbackEditToolRequest(
+                context: context,
+                number: edit.number,
+                title: edit.title,
+                body: edit.body,
+                expectedTitle: edit.currentTitle,
+                expectedBody: edit.currentBody,
             )))
         }
     }

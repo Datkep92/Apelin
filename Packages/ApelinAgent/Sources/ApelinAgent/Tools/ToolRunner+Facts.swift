@@ -142,6 +142,18 @@ extension ToolRunner {
                 throw ToolArgumentError("Not sent: \(problem).")
             }
             facts.feedback = FeedbackApproval(repository: FeedbackRules.repository, title: title, body: body)
+        case .feedbackEdit:
+            // The issue is read again before anyone is asked: an edit made
+            // against an older text, or another account's issue, is refused
+            // here, and the card names the text that is sent.
+            let number = try FeedbackEdit.number(arguments)
+            let issue: FeedbackReadToolResponse
+            do {
+                issue = try await backend.readFeedback(FeedbackReadToolRequest(context: probeContext, number: number))
+            } catch let failure as FeedbackToolFailure {
+                throw FeedbackToolFailure(message: "Nothing was changed: " + failure.message)
+            }
+            facts.feedbackEdit = try FeedbackEdit.approval(for: arguments, issue: issue)
         case .packagePublish:
             // Read and checked before anyone is asked; the card names what
             // is sent, which the host and apelin-environment check again.

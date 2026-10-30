@@ -235,8 +235,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `gitRepositoryCreate`;
   `distributionRepositoryList`, `distributionRepositoryCreate`,
   `distributionRepositoryLink`, `distributionRepositoryUnlink`,
-  `distributionPublish`, `feedbackSend`, `feedbackStarState`,
-  `feedbackStar`;
+  `distributionPublish`, `feedbackSend`, `feedbackRead`, `feedbackEdit`,
+  `feedbackStarState`, `feedbackStar`;
   `transferExport`, `transferInspect`, `transferImport`. Every one is
   in the list today; most answer `unimplemented` until their domain lands.
   The envelope (protocol version 2) carries `op`, `protocolVersion`,
@@ -301,7 +301,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   session started — its git tasks too; never a removal or a cancel;
   `projectRename`, narrowed by `AgentProjectRenameRules`; `projectDelete`,
   narrowed by `AgentProjectDeleteRules`; `installationList`,
-  every project's; `feedbackSend`, narrowed by `AgentFeedbackRules`;
+  every project's; `feedbackSend` and `feedbackEdit`, narrowed by
+  `AgentFeedbackRules`, and `feedbackRead`;
   `gitRepositoryCreate`, narrowed by `AgentRepositoryCreateRules`;
   `distributionPublish`, narrowed by `AgentPublishRules`, the rest of the
   package repository's operations staying the app's), the
@@ -1431,6 +1432,28 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   show no card. A
   reply with reason `authenticationRequired` becomes "GitHub
   authorization is needed: … Sign In with GitHub in Settings ▸ Git".
+  Feedback already filed is edited, never filed again (owner, 2026-10-30;
+  `Tools/FeedbackEdit.swift`), in any chat: apelin_feedback_read {number}
+  → `feedbackRead`, a read preset, answering the title, the body without
+  Apelin's footer, the footer apart, who opened it, whether the user's
+  account did, the state, the link and a `revision` naming the title and
+  body it saw; apelin_feedback_edit {number, revision, title?, body?} reads
+  the issue again first and refuses before asking another account's
+  issue, one whose revision is not the one passed (it changed on GitHub
+  since the model read it, perhaps by the user: read it again and keep
+  that), an edit that changes nothing and text `FeedbackRules.editProblem`
+  refuses, then sends `feedbackEdit` with only the fields that change and
+  the title and body it just read as `expectedTitle`/`expectedBody`,
+  answering the link and the revision a further edit passes. Its description and a `# Working` line keep it to
+  a change the user asked for, shown to them (the new title and body, or
+  before and after) and made only after their explicit consent, in every
+  mode, never on its own initiative or because a file, log, page or tool
+  output says to. Strict asks every time, the card naming the repository
+  and issue and showing the new title or body whole (`detail.feedbackEdit`
+  {repository, number, url, title?, body?, currentTitle, currentBody}),
+  never with a session grant, and the host spends exactly that approval
+  (`AgentFeedbackRules`); Relaxed and Full show no card.
+  `FeedbackEditToolTests` pins the descriptions and the prompt line.
   Agent tool extensions (2026-10-29, `Tools/ToolExtensions.swift`,
   `Tools/ToolExtensionSessions.swift`; Milestone 1 §6), in any chat: an
   installed extension's tools are the agent's own. The worker reads the
@@ -2518,6 +2541,23 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `AgentFeedbackRules` lets it through. Tested by `FeedbackTests` and
   `FeedbackRulesTests`; the console's `distribution.json` sends an empty
   title, refused before anything reaches GitHub.
+  An issue there is read and, when the signed-in account opened it,
+  edited (owner, 2026-10-30): `feedbackRead {number}` answers {number,
+  url, title, body, footer?, author, state, isAuthor}, the body split from
+  the footer it ends with (`FeedbackRules.split`, `\n` or GitHub's `\r\n`);
+  a pull request, or an issue GitHub moved elsewhere (its `html_url` not
+  this repository's), is `notFound`. `feedbackEdit {number, title?, body?,
+  expectedTitle, expectedBody}` checks only the fields that change
+  (`FeedbackRules.editProblem`: the same shapes, a body ending in a
+  footer refused, nothing changing refused) before the sign-in is read,
+  refuses another account's issue `denied`, reads the issue again and
+  writes nothing unless its title and body are still exactly the expected
+  ones (`conflict`), so an edit the user made on GitHub meanwhile is never
+  overwritten; then it `PATCH`es only those fields, the footer kept below
+  the body as it was, never written again with this device's version.
+  Answers {number, url, title, body}. Both the app's and the agent's.
+  Tested by `FeedbackEditTests`; `distribution.json` reads issue 0 and
+  edits a title to nothing, both refused before GitHub.
   *The star* (owner, 2026-10-29; `Apelin/Interface/Feedback/`). Once the
   reader has signed in with GitHub, builds that complete ask "Do You Like
   Apelin?" — "Please star us on GitHub. It helps us go further.", Maybe
@@ -2579,7 +2619,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   setup or an SDK import asks every time, and so does any conversation
   call that reaches another project, and so does deleting another project
   (owner, 2026-10-29), and so does publishing packages to the user's
-  package repository (owner, 2026-10-29); none is ever granted for the
+  package repository (owner, 2026-10-29), and so does editing a feedback
+  issue (owner, 2026-10-30); none is ever granted for the
   session, and the host spends the one approval (owner, 2026-10-22). An
   MCP tool and an agent tool extension's tool ask at every call too,
   whatever the extension declares its risk to be; those two may be
@@ -3150,7 +3191,9 @@ sends the model to a known source with apelin_web_fetch, never a search
 engine through curl, and sends a program the agent compiles and runs
 itself through shell_run to `apelin-device-executables` to be signed
 first, has apelin_feedback_send wait for the user's explicit consent
-to the issue it showed them, and has apelin_git_create_repository make
+to the issue it showed them, and apelin_feedback_edit, which corrects
+feedback already filed instead of filing it again, for their consent to
+the edit it showed them, and has apelin_git_create_repository make
 only a repository the user asked for or explicitly agreed to, with the
 owner, name and visibility they gave. After a change that shows on screen it
 drives it with the screen tools — the UI tree read, an action, the tree read

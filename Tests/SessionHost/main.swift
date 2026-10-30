@@ -3036,6 +3036,94 @@ do {
     check(noSession?.code == .denied, "a worker with no session files nothing")
 }
 
+// MARK: - A feedback issue is edited under Strict only as the user approved exactly it
+
+do {
+    for operation in [AppOperation.feedbackRead, .feedbackEdit] {
+        check(CallerPolicy.allows(.worker(.agent, instance: "s"), operation), "the agent may read and edit feedback: \(operation)")
+        check(!CallerPolicy.allows(.worker(.build, instance: nil), operation), "the build worker may not: \(operation)")
+        check(!CallerPolicy.allows(.worker(.environment, instance: nil), operation), "nor the environment worker: \(operation)")
+    }
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-feedback-edit-tasks"))
+    await registry.load()
+    let sessions = AgentSessionTable.shared
+    func session(_ id: String, mode: ApprovalMode) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: ResolvedProject(id: "p-feedback-edit", name: "Feedback Edit", path: scratchPath),
+            mode: mode,
+            createdAt: Date(),
+        )
+        await sessions.add(entry)
+        return entry
+    }
+    let strict = await session("feedback-edit-strict", mode: .confirm)
+    let edit = FeedbackEditRequest(
+        number: 12,
+        title: nil,
+        body: "It ends before the link step, on roothide and rootless.",
+        expectedTitle: "The build log stops early",
+        expectedBody: "It ends before the link step.",
+    )
+    // What apelin-agent writes into apelin_feedback_edit's approvalRequested
+    // (ApelinAgentWorker's tests hold that shape): no title, since it stays.
+    func ask(
+        _ approvalID: String,
+        tool: String = "apelin_feedback_edit",
+        number: Double = 12,
+        title: String? = nil,
+        body: String = "It ends before the link step, on roothide and rootless.",
+        currentBody: String = "It ends before the link step.",
+    ) async {
+        var detail: [String: JSONValue] = [
+            "repository": .string(FeedbackRules.repository), "number": .number(number),
+            "url": .string("https://github.com/owngoal-dev/Apelin/issues/12"),
+            "body": .string(body), "currentTitle": .string("The build log stops early"), "currentBody": .string(currentBody),
+        ]
+        if let title {
+            detail["title"] = .string(title)
+        }
+        await registry.append(strict.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(approvalID), "tool": .string(tool),
+            "detail": .object([AgentFeedbackRules.editDetailKey: .object(detail)]),
+        ]))
+        await sessions.record(strict.sessionID, approvalID: approvalID, decision: .approve)
+    }
+    func authorized(_ entry: AgentSessionTable.Entry?) async -> ApelinError? {
+        await AgentFeedbackRules.authorize(edit, session: entry?.sessionID, registry: registry)
+    }
+    let unasked = await authorized(strict)
+    check(unasked?.code == .denied, "Strict edits an issue only as the user approved it")
+    await ask("edit-number", number: 13)
+    await ask("edit-body", body: "Another body.")
+    await ask("edit-title", title: "A title it does not change")
+    await ask("edit-against", currentBody: "What the issue said before the user edited it.")
+    await ask("edit-tool", tool: "apelin_feedback_send")
+    let near = await authorized(strict)
+    let unspent = await sessions.approvedIDs(strict.sessionID)
+    check(
+        near != nil && Set(unspent) == ["edit-number", "edit-body", "edit-title", "edit-against", "edit-tool"],
+        "an approval covers the issue, the text and what it was made against it showed only, and stays unspent (\(unspent))",
+    )
+    let send = await AgentFeedbackRules.authorize(
+        FeedbackSendRequest(title: "The build log stops early", body: edit.body ?? ""),
+        session: strict.sessionID,
+        registry: registry,
+    )
+    check(send != nil, "an edit's approval never files a new issue")
+    await ask("edit-exact")
+    let approved = await authorized(strict)
+    check(approved == nil, "the approved edit goes through")
+    let again = await authorized(strict)
+    check(again != nil, "once, never for the session: the same edit asks again")
+    let relaxed = await authorized(session("feedback-edit-relaxed", mode: .relaxed))
+    let full = await authorized(session("feedback-edit-full", mode: .full))
+    check(relaxed == nil && full == nil, "Relaxed and Full edit without asking")
+    let noSession = await authorized(nil)
+    check(noSession?.code == .denied, "a worker with no session edits nothing")
+}
+
 // MARK: - A repository is made on GitHub under Strict only as the user approved exactly it
 
 do {

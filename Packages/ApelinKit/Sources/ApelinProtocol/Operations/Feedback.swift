@@ -11,7 +11,9 @@ import Foundation
 /// cannot prove a text holds nothing private, which is why Strict shows the
 /// user the whole text first. Below the body apelin-environment writes
 /// `footer`: Apelin's version, the iOS version and the bootstrap, naming
-/// no device.
+/// no device. An edit of an issue the account opened (`feedbackEdit`;
+/// owner, 2026-10-30) checks the title or body it puts in the same way,
+/// and keeps below the body the footer the issue had (`split`).
 public enum FeedbackRules {
     public static let repository = "owngoal-dev/Apelin"
     public static let maximumTitleLength = 120
@@ -22,14 +24,40 @@ public enum FeedbackRules {
     /// (mobile's home, the install root) and `names` what it calls itself
     /// (its host name), beside the shapes every device's have.
     public static func problem(title: String, body: String, paths: [String] = [], names: [String] = []) -> String? {
-        let heading = title.trimmingCharacters(in: .whitespaces)
-        guard !heading.isEmpty else { return "the title is empty" }
-        guard heading.count <= maximumTitleLength, !heading.contains(where: \.isNewline) else {
-            return "the title is one line of at most \(maximumTitleLength) characters"
+        textProblem(title: title, body: body, paths: paths, names: names)
+    }
+
+    /// For an edit: nil when the new title, the new body or both may be put
+    /// in, else why not, as `problem` says it; nil stands for a field that
+    /// stays. Only what changes is read, so words the user wrote on GitHub
+    /// themselves never hold an edit up. A body that ends with Apelin's
+    /// footer is refused: the footer the issue has stays below it.
+    public static func editProblem(title: String?, body: String?, paths: [String] = [], names: [String] = []) -> String? {
+        guard title != nil || body != nil else {
+            return "it changes neither the title nor the body"
         }
-        guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "the body is empty" }
-        guard body.utf8.count <= maximumBodyBytes else { return "the body is at most \(maximumBodyBytes / 1024) KB" }
-        let text = heading + "\n" + body
+        if let body, split(issueBody: body).footer != nil {
+            return "the body ends with the line Apelin adds below it, which stays as it is: leave it out"
+        }
+        return textProblem(title: title, body: body, paths: paths, names: names)
+    }
+
+    private static func textProblem(title: String?, body: String?, paths: [String], names: [String]) -> String? {
+        var parts: [String] = []
+        if let title {
+            let heading = title.trimmingCharacters(in: .whitespaces)
+            guard !heading.isEmpty else { return "the title is empty" }
+            guard heading.count <= maximumTitleLength, !heading.contains(where: \.isNewline) else {
+                return "the title is one line of at most \(maximumTitleLength) characters"
+            }
+            parts.append(heading)
+        }
+        if let body {
+            guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "the body is empty" }
+            guard body.utf8.count <= maximumBodyBytes else { return "the body is at most \(maximumBodyBytes / 1024) KB" }
+            parts.append(body)
+        }
+        let text = parts.joined(separator: "\n")
         guard !text.unicodeScalars.contains("\0") else { return "the title or body holds a NUL character" }
         guard let kind = privateKind(in: text, paths: paths, names: names) else { return nil }
         return "the title or body holds \(kind), which a public issue must not carry: leave it out and send again"
@@ -47,11 +75,49 @@ public enum FeedbackRules {
 
     /// The issue's body: the text as given, then a rule and the footer.
     public static func issueBody(_ body: String, footer: String) -> String {
-        var text = body
+        trimmingTrailingWhitespace(body) + "\n\n---\n" + footer
+    }
+
+    /// An issue's body as feedback reads it: what was written, and the
+    /// footer `issueBody` put below it while the body still ends with it.
+    public struct IssueBody: Sendable, Equatable {
+        /// The body without the footer.
+        public var text: String
+        /// The footer's line, nil when the body does not end with one.
+        public var footer: String?
+        /// The rule and the footer exactly as the body ends with them,
+        /// GitHub's line ends included; empty without a footer.
+        public var tail: String
+
+        /// The body with `text` in place of what was written, and the
+        /// footer as it was, never written again with this device's version.
+        public func replacingText(_ text: String) -> String {
+            tail.isEmpty ? text : FeedbackRules.trimmingTrailingWhitespace(text) + tail
+        }
+    }
+
+    /// `body` split at the footer it ends with: a rule on a line of its own
+    /// after a blank line, then `Sent with Apelin … · iOS … · <bootstrap>`,
+    /// with `\n` or GitHub's `\r\n` line ends.
+    public static func split(issueBody body: String) -> IssueBody {
+        guard let match = footerPattern.firstMatch(in: body, range: NSRange(body.startIndex..., in: body)),
+              let whole = Range(match.range, in: body), let line = Range(match.range(at: 1), in: body)
+        else { return IssueBody(text: body, footer: nil, tail: "") }
+        return IssueBody(text: String(body[..<whole.lowerBound]), footer: String(body[line]), tail: String(body[whole]))
+    }
+
+    private static let footerPattern = pattern(
+        #"(?:\r?\n){2}---[ \t]*\r?\n(Sent with Apelin [^\r\n]* · iOS [^\r\n]* · (?:"#
+            + BuildBootstrap.allCases.map(\.rawValue).joined(separator: "|")
+            + #"))[ \t\r\n]*\z"#,
+    )
+
+    static func trimmingTrailingWhitespace(_ text: String) -> String {
+        var text = text
         while text.last?.isWhitespace == true {
             text.removeLast()
         }
-        return text + "\n\n---\n" + footer
+        return text
     }
 
     // MARK: Private data

@@ -10,8 +10,10 @@ import Foundation
 /// the sign-in is looked at, so a refused text reaches nobody. The footer
 /// is written here, from Apelin's own Info.plist, the iOS version and the
 /// bootstrap; nothing the caller sent goes into it. The same sign-in reads
-/// whether the account has starred that repository and stars it when the
-/// reader asks (`FeedbackStarRequest`).
+/// an issue there (`FeedbackReadRequest`) and edits one the account opened
+/// (`FeedbackEditRequest`), only while it still says what the edit was made
+/// against, keeping its footer; it reads whether the account has starred
+/// that repository and stars it when the reader asks (`FeedbackStarRequest`).
 public struct FeedbackService: Sendable {
     let layout: EnvironmentLayout
     let credentials: any GitCredentialStore
@@ -45,6 +47,106 @@ public struct FeedbackService: Sendable {
             body: FeedbackRules.issueBody(request.body, footer: footer()),
         )
         return FeedbackSendResponse(number: issue.number, url: issue.htmlURL)
+    }
+
+    /// One issue of Apelin's repository, its footer apart, and whether the
+    /// sign-in opened it.
+    public func read(_ request: FeedbackReadRequest) async throws -> FeedbackReadResponse {
+        try Self.checkNumber(request.number)
+        let api = try GitHubAPI.signedIn(credentials, exchange: exchange)
+        let issue = try await feedbackIssue(request.number, api: api)
+        let login = try await api.login()
+        let body = FeedbackRules.split(issueBody: issue.body ?? "")
+        return FeedbackReadResponse(
+            number: issue.number,
+            url: issue.htmlURL,
+            title: issue.title,
+            body: body.text,
+            footer: body.footer,
+            author: Self.author(of: issue),
+            state: issue.state,
+            isAuthor: Self.author(of: issue).lowercased() == login.lowercased(),
+        )
+    }
+
+    /// An issue the sign-in opened, edited only while it still says what
+    /// the edit was made against; the fields that change alone are sent,
+    /// the footer kept below the body as it was.
+    public func edit(_ request: FeedbackEditRequest) async throws -> FeedbackEditResponse {
+        try Self.checkNumber(request.number)
+        let title = request.title.map { $0.trimmingCharacters(in: .whitespaces) }
+        let newTitle = title == request.expectedTitle ? nil : title
+        let newBody = request.body == request.expectedBody ? nil : request.body
+        if let problem = FeedbackRules.editProblem(
+            title: newTitle,
+            body: newBody,
+            paths: privatePaths,
+            names: hostName.map { [$0] } ?? [],
+        ) {
+            throw ApelinError(.badRequest, problem)
+        }
+        let api = try GitHubAPI.signedIn(credentials, exchange: exchange)
+        let issue = try await feedbackIssue(request.number, api: api)
+        let login = try await api.login()
+        let author = Self.author(of: issue)
+        guard author.lowercased() == login.lowercased() else {
+            throw ApelinError(
+                .denied,
+                "#\(request.number) on \(FeedbackRules.repository) was opened by \(author), not by the signed-in account \(login): only an issue the account opened is edited.",
+            )
+        }
+        let current = FeedbackRules.split(issueBody: issue.body ?? "")
+        guard issue.title == request.expectedTitle, current.text == request.expectedBody else {
+            throw ApelinError(
+                .conflict,
+                "#\(request.number) on \(FeedbackRules.repository) changed on GitHub since it was read, so nothing was written: read it again and make the edit against what it says now.",
+            )
+        }
+        let edited = try await api.editIssue(
+            FeedbackRules.repository,
+            number: request.number,
+            title: newTitle,
+            body: newBody.map(current.replacingText),
+        )
+        return FeedbackEditResponse(
+            number: edited.number,
+            url: edited.htmlURL,
+            title: edited.title,
+            body: FeedbackRules.split(issueBody: edited.body ?? "").text,
+        )
+    }
+
+    /// Issue `number` of Apelin's repository and nothing else: not a pull
+    /// request, and not an issue GitHub moved to another repository, whose
+    /// old address it redirects to the new one.
+    private func feedbackIssue(_ number: Int, api: GitHubAPI) async throws -> GitHubAPI.IssueDetail {
+        let repository = FeedbackRules.repository
+        let issue: GitHubAPI.IssueDetail
+        do {
+            issue = try await api.issue(repository, number: number)
+        } catch let error as ApelinError where error.code == .notFound {
+            throw ApelinError(.notFound, "\(repository) has no issue #\(number), or the sign-in cannot see it.")
+        }
+        guard issue.pullRequest == nil else {
+            throw ApelinError(.notFound, "#\(number) on \(repository) is a pull request, not an issue.")
+        }
+        guard issue.number == number,
+              issue.htmlURL.lowercased() == "https://github.com/\(repository)/issues/\(number)".lowercased()
+        else {
+            throw ApelinError(.notFound, "#\(number) is no longer an issue on \(repository): GitHub moved it elsewhere.")
+        }
+        return issue
+    }
+
+    private static func checkNumber(_ number: Int) throws {
+        guard number >= 1 else {
+            throw ApelinError(.badRequest, "an issue's number is 1 or more")
+        }
+    }
+
+    /// GitHub's placeholder for an account that is gone stands in for none.
+    private static func author(of issue: GitHubAPI.IssueDetail) -> String {
+        issue.user?.login ?? "ghost"
     }
 
     /// Whether the sign-in has starred Apelin's repository.

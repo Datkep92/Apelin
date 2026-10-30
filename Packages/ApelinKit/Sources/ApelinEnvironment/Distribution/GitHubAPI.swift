@@ -4,10 +4,11 @@ import Foundation
 
 /// The part of GitHub's REST API a package repository needs, called with the
 /// github.com credential the user signed in with: the account, its own
-/// repositories, making one, and GitHub Pages; the issue feedback files and
-/// the star the reader gives Apelin; and the empty repository a project is
-/// pushed to (`gitRepositoryCreate`). The token goes in the `Authorization`
-/// header to api.github.com and nowhere else; no message quotes it.
+/// repositories, making one, and GitHub Pages; the issue feedback files,
+/// reads and edits, and the star the reader gives Apelin; and the empty
+/// repository a project is pushed to (`gitRepositoryCreate`). The token
+/// goes in the `Authorization` header to api.github.com and nowhere else;
+/// no message quotes it.
 struct GitHubAPI: Sendable {
     static let base = URL(string: "https://api.github.com")!
     typealias Exchange = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
@@ -69,6 +70,28 @@ struct GitHubAPI: Sendable {
         enum CodingKeys: String, CodingKey {
             case number
             case htmlURL = "html_url"
+        }
+    }
+
+    /// An issue as feedback reads and edits it. To GitHub a pull request is
+    /// an issue too, which `pullRequest` marks.
+    struct IssueDetail: Decodable, Sendable {
+        let number: Int
+        let htmlURL: String
+        let title: String
+        /// Nil for an issue with no body.
+        let body: String?
+        let state: String
+        /// Nil once the account that opened it is gone.
+        let user: Owner?
+        let pullRequest: PullRequestMark?
+
+        struct PullRequestMark: Decodable, Sendable {}
+
+        enum CodingKeys: String, CodingKey {
+            case number, title, body, state, user
+            case htmlURL = "html_url"
+            case pullRequest = "pull_request"
         }
     }
 
@@ -156,6 +179,24 @@ struct GitHubAPI: Sendable {
     /// A new issue on `fullName`, opened by the signed-in account.
     func createIssue(_ fullName: String, title: String, body: String) async throws -> Issue {
         try await send("POST", "/repos/\(fullName)/issues", body: ["title": title, "body": body], as: Issue.self)
+    }
+
+    /// Issue `number` on `fullName`, or the pull request of that number.
+    func issue(_ fullName: String, number: Int) async throws -> IssueDetail {
+        try await send("GET", "/repos/\(fullName)/issues/\(number)", as: IssueDetail.self)
+    }
+
+    /// The title, the body or both of issue `number` on `fullName` changed;
+    /// a field not given is not sent, and GitHub keeps it.
+    func editIssue(_ fullName: String, number: Int, title: String?, body: String?) async throws -> IssueDetail {
+        var fields: [String: Any] = [:]
+        if let title {
+            fields["title"] = title
+        }
+        if let body {
+            fields["body"] = body
+        }
+        return try await send("PATCH", "/repos/\(fullName)/issues/\(number)", body: fields, as: IssueDetail.self)
     }
 
     /// Whether the signed-in account has starred `fullName`: GitHub answers

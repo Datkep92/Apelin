@@ -353,6 +353,21 @@ console now goes on after a restart only past a successful respring.
       log is not sent. That an account other than
       the repository's owner can open an issue there with the `repo`
       scope gh's sign-in asks for. Close the test issues afterwards.
+- [ ] Feedback edited by the agent (2026-10-30, AGENTS.md ▸ Distribution
+      repository ▸ Feedback; it edits a public issue, so by hand only, on a
+      test issue the signed-in account opened on owngoal-dev/Apelin, closed
+      afterwards). Asked to broaden it, the agent reads it with
+      apelin_feedback_read, shows the new body (or before and after) and
+      calls apelin_feedback_edit only after 同意 or 确定, in Relaxed too;
+      under Strict the card names the repository and issue, shows the
+      whole new text and offers no "for this session". On GitHub the body
+      changes, the footer below it stays the one first written, and the
+      title stays unless it was asked for; the model hands back the link.
+      Edit the issue on GitHub between the agent's read and its edit (or
+      while the card waits): nothing is written, the agent is told it
+      changed and reads it again, and the user's words survive. An issue
+      another account opened is refused before anything is asked. Signed
+      out, both tools name Sign In with GitHub in Settings ▸ Git.
 - [ ] The star prompt (2026-10-29, AGENTS.md ▸ Distribution repository ▸
       The star; it stars a real account, so by hand only). Signed out of
       GitHub, ten builds that succeed ask nothing and count for nothing.

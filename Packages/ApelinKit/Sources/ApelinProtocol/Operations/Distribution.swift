@@ -5,8 +5,9 @@
 // user signed in with and calls GitHub's API with it; the app's alone, but
 // for the packages an agent publishes to the linked repository
 // (`DistributionPublishRequest`) and the feedback it files on Apelin's own
-// repository (`FeedbackSendRequest`). Starring that repository is the app's
-// alone (`FeedbackStarRequest`).
+// repository (`FeedbackSendRequest`), reads and edits there
+// (`FeedbackReadRequest`, `FeedbackEditRequest`). Starring that repository
+// is the app's alone (`FeedbackStarRequest`).
 //
 // The repository's clone is a workspace project like any other, so its
 // conversation maintains it with the file and git tools; the link is
@@ -227,6 +228,111 @@ public struct FeedbackSendResponse: Codable, Sendable, Equatable {
     }
 }
 
+/// Reads one issue on Apelin's own repository (`FeedbackRules.repository`,
+/// never another) with the github.com sign-in: its title, its body without
+/// the footer `feedbackSend` wrote and that footer apart, who opened it and
+/// whether the signed-in account did, which alone may edit it
+/// (`FeedbackEditRequest`). A pull request is no feedback and is refused,
+/// `notFound`. Not a task. The app's and an agent's. Without a sign-in,
+/// `denied` with reason `authenticationRequired`.
+public struct FeedbackReadRequest: OperationRequest {
+    public typealias Response = FeedbackReadResponse
+    public static let operation = AppOperation.feedbackRead
+    /// The issue's number in `FeedbackRules.repository`.
+    public var number: Int
+
+    public init(number: Int) {
+        self.number = number
+    }
+}
+
+public struct FeedbackReadResponse: Codable, Sendable, Equatable {
+    public var number: Int
+    /// Its page on GitHub.
+    public var url: String
+    public var title: String
+    /// The body without the footer.
+    public var body: String
+    /// The footer's line (`Sent with Apelin … · iOS … · <bootstrap>`), nil
+    /// when the body does not end with one.
+    public var footer: String?
+    /// The login of the account that opened it.
+    public var author: String
+    /// `open` or `closed`.
+    public var state: String
+    /// Whether the signed-in account opened it.
+    public var isAuthor: Bool
+
+    public init(
+        number: Int,
+        url: String,
+        title: String,
+        body: String,
+        footer: String?,
+        author: String,
+        state: String,
+        isAuthor: Bool,
+    ) {
+        self.number = number
+        self.url = url
+        self.title = title
+        self.body = body
+        self.footer = footer
+        self.author = author
+        self.state = state
+        self.isAuthor = isAuthor
+    }
+}
+
+/// Edits the title, the body or both of an issue the signed-in account
+/// opened on Apelin's own repository (owner, 2026-10-30): another account's
+/// is `denied`. The new text is checked by `FeedbackRules.editProblem`
+/// before the sign-in is read; then the issue is read again and nothing is
+/// written unless its title and body (without the footer) are still
+/// exactly `expectedTitle` and `expectedBody`, as the caller read them, so
+/// an edit the user made on GitHub meanwhile is never overwritten
+/// (`conflict`). Only the fields that change are sent, and the footer the
+/// body had stays below the new one as it was. Not a task. The app's, and
+/// an agent's as the host allows it (AgentFeedbackRules). Without a
+/// sign-in, `denied` with reason `authenticationRequired`.
+public struct FeedbackEditRequest: OperationRequest {
+    public typealias Response = FeedbackEditResponse
+    public static let operation = AppOperation.feedbackEdit
+    public var number: Int
+    /// The new title; nil keeps it.
+    public var title: String?
+    /// The new body, without the footer; nil keeps it.
+    public var body: String?
+    /// The title and body (without the footer) the edit was made against,
+    /// as `FeedbackReadResponse` gave them.
+    public var expectedTitle: String
+    public var expectedBody: String
+
+    public init(number: Int, title: String?, body: String?, expectedTitle: String, expectedBody: String) {
+        self.number = number
+        self.title = title
+        self.body = body
+        self.expectedTitle = expectedTitle
+        self.expectedBody = expectedBody
+    }
+}
+
+public struct FeedbackEditResponse: Codable, Sendable, Equatable {
+    public var number: Int
+    /// Its page on GitHub.
+    public var url: String
+    public var title: String
+    /// The body without the footer, as GitHub now has it.
+    public var body: String
+
+    public init(number: Int, url: String, title: String, body: String) {
+        self.number = number
+        self.url = url
+        self.title = title
+        self.body = body
+    }
+}
+
 /// Whether the github.com sign-in has starred Apelin's own repository
 /// (`FeedbackRules.repository`), read before the app asks the reader to
 /// star it, so one who already has is never asked. The app's alone. Without
@@ -286,6 +392,14 @@ public extension ApelinService {
 
     func feedbackSend(title: String, body: String) async throws -> FeedbackSendResponse {
         try await send(FeedbackSendRequest(title: title, body: body))
+    }
+
+    func feedbackRead(number: Int) async throws -> FeedbackReadResponse {
+        try await send(FeedbackReadRequest(number: number))
+    }
+
+    func feedbackEdit(_ request: FeedbackEditRequest) async throws -> FeedbackEditResponse {
+        try await send(request)
     }
 
     func feedbackStarState() async throws -> FeedbackStarResponse {

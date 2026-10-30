@@ -32,10 +32,10 @@ public struct ApprovalRequest: Sendable, Hashable, Codable {
     public var reason: String
     public var detail: ApprovalDetail
     /// Whether "for this session" may be offered. Never for package removal,
-    /// a push, a repository made on GitHub, an issue filed as feedback, a
-    /// project's deletion, packages published to the package repository, or
-    /// a request bound to a description digest (the host's ledger keeps
-    /// those).
+    /// a push, a repository made on GitHub, an issue filed or edited as
+    /// feedback, a project's deletion, packages published to the package
+    /// repository, or a request bound to a description digest (the host's
+    /// ledger keeps those).
     public var allowsSessionScope: Bool
 
     public init(
@@ -104,6 +104,11 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// A public issue on Apelin's own repository: the whole title and body.
     /// The host lets through only the issue it names, once.
     case feedback(FeedbackApproval)
+    /// An edit of an issue the user's GitHub account opened on Apelin's own
+    /// repository: the issue and the whole new title or body. The host lets
+    /// through only the edit it names, against the text it was made
+    /// against, once.
+    case feedbackEdit(FeedbackEditApproval)
     /// A repository made on GitHub under the user's account: its owner,
     /// name and visibility. The host lets through only the repository it
     /// names, once.
@@ -204,6 +209,37 @@ public struct FeedbackApproval: Sendable, Hashable, Codable {
         self.repository = repository
         self.title = title
         self.body = body
+    }
+}
+
+/// What an apelin_feedback_edit card names, and the host matches its edit to
+/// (AgentFeedbackRules): the issue, the title and body it puts in — nil for
+/// one that stays — and the title and body it was made against, as the
+/// tool read them just before asking.
+public struct FeedbackEditApproval: Sendable, Hashable, Codable {
+    public var repository: String
+    public var number: Int
+    public var url: String
+    public var title: String?
+    public var body: String?
+    public var currentTitle: String
+    public var currentBody: String
+    public init(
+        repository: String,
+        number: Int,
+        url: String,
+        title: String?,
+        body: String?,
+        currentTitle: String,
+        currentBody: String,
+    ) {
+        self.repository = repository
+        self.number = number
+        self.url = url
+        self.title = title
+        self.body = body
+        self.currentTitle = currentTitle
+        self.currentBody = currentBody
     }
 }
 

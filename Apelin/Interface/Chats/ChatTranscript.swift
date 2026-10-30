@@ -595,6 +595,8 @@ struct ChatTranscript {
             let host = values?["url"]?.stringValue.flatMap { URLComponents(string: $0)?.host } ?? ""
             return host.isEmpty ? String(localized: "Read a webpage") : String(localized: "Read \(host)")
         case .feedbackSend: return String(localized: "Send feedback")
+        case .feedbackRead: return String(localized: "Read a feedback issue")
+        case .feedbackEdit: return String(localized: "Edit a feedback issue")
         case .toolchainList: return String(localized: "List toolchains")
         case .sdkList: return String(localized: "List SDKs")
         case .toolchainSetup: return String(localized: "Set up a toolchain")

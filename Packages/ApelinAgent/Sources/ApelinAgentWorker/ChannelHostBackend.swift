@@ -43,6 +43,8 @@ import Foundation
 /// user approved. apelin_toolchain_list, apelin_sdk_list, apelin_toolchain_setup,
 /// apelin_toolchain_self_test, apelin_sdk_import and apelin_project_set_environment's check:
 /// ChannelHostBackend+Environment. apelin_feedback_send → `feedbackSend`;
+/// apelin_feedback_read → `feedbackRead`; apelin_feedback_edit →
+/// `feedbackRead`, then `feedbackEdit` against what it read;
 /// apelin_git_create_repository → `gitRepositoryCreate`;
 /// apelin_package_publish → `distributionPublish` with each file's digest
 /// and the repository, read to its end (ChannelHostBackend+Publish). An
@@ -658,6 +660,56 @@ public struct ChannelHostBackend: AgentHostBackend {
     }
 
     static let gitHubSignInNeeded = "Nothing was posted: GitHub authorization is needed. Ask the user to Sign In with GitHub in Settings ▸ Git, then send again."
+
+    // MARK: apelin_feedback_read, apelin_feedback_edit
+
+    public func readFeedback(_ request: FeedbackReadToolRequest) async throws -> FeedbackReadToolResponse {
+        let issue: FeedbackReadResponse
+        do {
+            issue = try await service.feedbackRead(number: request.number)
+        } catch let error as ApelinError where error.reason == .authenticationRequired {
+            throw FeedbackToolFailure(message: Self.issueSignInNeeded)
+        }
+        return FeedbackReadToolResponse(
+            repository: FeedbackRules.repository,
+            issue: issue.number,
+            url: issue.url,
+            title: issue.title,
+            state: issue.state,
+            author: issue.author,
+            openedByUser: issue.isAuthor,
+            body: issue.body,
+            footer: issue.footer,
+        )
+    }
+
+    /// apelin-environment's refusals are in words the model acts on: an
+    /// issue that changed since it was read, another account's.
+    public func editFeedback(_ request: FeedbackEditToolRequest) async throws -> FeedbackEditToolResponse {
+        let response: FeedbackEditResponse
+        do {
+            response = try await service.feedbackEdit(FeedbackEditRequest(
+                number: request.number,
+                title: request.title,
+                body: request.body,
+                expectedTitle: request.expectedTitle,
+                expectedBody: request.expectedBody,
+            ))
+        } catch let error as ApelinError where error.reason == .authenticationRequired {
+            throw FeedbackToolFailure(message: "Nothing was changed: " + Self.issueSignInNeeded)
+        }
+        let changed: [String] = [request.title.map { _ in "title" }, request.body.map { _ in "body" }].compactMap(\.self)
+        return FeedbackEditToolResponse(
+            repository: FeedbackRules.repository,
+            issue: response.number,
+            url: response.url,
+            changed: changed,
+            title: response.title,
+            body: response.body,
+        )
+    }
+
+    static let issueSignInNeeded = "GitHub authorization is needed. Ask the user to Sign In with GitHub in Settings ▸ Git, then try again."
 
     static func settings(_ response: GitSettingsResponse) -> GitSettingsToolResponse {
         GitSettingsToolResponse(

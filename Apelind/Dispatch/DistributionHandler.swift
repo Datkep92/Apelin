@@ -7,9 +7,11 @@ import ApelinProtocol
 /// one cut off is answered by running it again, which a link does safely.
 ///
 /// Feedback (`feedbackSend`) is one request to GitHub with the same sign-in,
-/// on Apelin's own repository; an agent may send it as AgentFeedbackRules
-/// allows, checked here before it is forwarded. Reading and giving that
-/// repository a star (`feedbackStarState`, `feedbackStar`) stay the app's.
+/// on Apelin's own repository; an agent may send it, and edit an issue the
+/// account opened there (`feedbackEdit`), as AgentFeedbackRules allows,
+/// checked here before it is forwarded, and read one (`feedbackRead`).
+/// Reading and giving that repository a star (`feedbackStarState`,
+/// `feedbackStar`) stay the app's.
 enum DistributionHandler: DomainHandler {
     static func handle(_ request: HostRequest, host: SessionHost) async -> HostReply {
         switch request.operation {
@@ -21,7 +23,9 @@ enum DistributionHandler: DomainHandler {
             await publish(request, host: host)
         case .feedbackSend:
             await sendFeedback(request, host: host)
-        case .feedbackStarState, .feedbackStar:
+        case .feedbackEdit:
+            await editFeedback(request, host: host)
+        case .feedbackRead, .feedbackStarState, .feedbackStar:
             await host.forward(request, to: .environment)
         default:
             request.fail(ApelinError(.badRequest, "\(request.operation.rawValue) is not a distribution operation"))
@@ -57,6 +61,21 @@ enum DistributionHandler: DomainHandler {
                 return request.fail(error)
             }
             if let refusal = await AgentFeedbackRules.authorize(feedback, session: instance, registry: host.registry) {
+                return request.fail(refusal)
+            }
+        }
+        return await host.forward(request, to: .environment)
+    }
+
+    private static func editFeedback(_ request: HostRequest, host: SessionHost) async -> HostReply {
+        if case let .worker(.agent, instance) = request.caller {
+            let edit: FeedbackEditRequest
+            do {
+                edit = try request.decode(FeedbackEditRequest.self)
+            } catch {
+                return request.fail(error)
+            }
+            if let refusal = await AgentFeedbackRules.authorize(edit, session: instance, registry: host.registry) {
                 return request.fail(refusal)
             }
         }
