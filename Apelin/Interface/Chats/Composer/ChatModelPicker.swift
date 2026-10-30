@@ -73,6 +73,14 @@ private func pickerHolds(_ model: String, _ account: AgentAccount, _ selected: C
         && selected.model == model
 }
 
+/// The configuration's models, each named once. The server sends names as
+/// an array, which may repeat; two rows alike would ask the snapshot for one
+/// identifier twice, and a snapshot answers such a request by throwing.
+private func pickerModels(_ account: AgentAccount) -> [String] {
+    var seen: Set<String> = []
+    return (account.models ?? []).filter { seen.insert($0).inserted }
+}
+
 /// The sheet the composer's model button opens: the enabled configurations
 /// first, each one opening its own models, and a search field answering
 /// over every model of every configuration at once. The context menu this
@@ -160,7 +168,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         }
         let matched = accounts.indices.compactMap { index -> (Section, [PickerRow])? in
             let account = accounts[index]
-            let models = (account.models ?? []).filter { $0.localizedStandardContains(query) }
+            let models = pickerModels(account).filter { $0.localizedStandardContains(query) }
             guard !models.isEmpty else { return nil }
             let rows = models.map { model in
                 PickerRow.model(index, model, nil, pickerHolds(model, account, selected))
@@ -247,7 +255,7 @@ private final class ChatModelListController: TableController {
     /// Every model of this one configuration, the composer's own marked.
     private func rewrite() {
         let account = accounts[index]
-        let rows = (account.models ?? []).map { model in
+        let rows = pickerModels(account).map { model in
             PickerRow.model(index, model, nil, pickerHolds(model, account, selected))
         }
         dataSource.update([(0, rows)])
