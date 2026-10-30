@@ -5,11 +5,11 @@ import Foundation
 /// on mobile's home — the one apelind, the session host and the workers all
 /// read. The system may instead have given the app a data container, so
 /// `NSHomeDirectory()` answers inside `Containers/Data/Application/<uuid>` and
-/// two homes grew apart: chats and the journal saved on one side were missing
-/// on the other, and the project list came up empty. On the first launch in
-/// mobile's home this brings the app's own data across: copied only where the
-/// target has nothing yet, never replacing a file, so nothing written by either
-/// side is lost. A marker keeps it a one-time pass.
+/// two homes grew apart: chats and the journal saved on the container side
+/// were missing on the other, and the project list came up empty. On the
+/// first launch this brings the container's data into mobile's home: copied
+/// only where the target has nothing yet, never replacing a file, so nothing
+/// written by either side is lost. A marker keeps it to a one-time pass.
 enum LegacyHome {
     static func bringDataAcross() {
         let folder = DataFolder.app
@@ -34,20 +34,29 @@ enum LegacyHome {
         NSLog("Apelin: the container's data was brought into \(folder.root.path)")
     }
 
-    /// Mobile's home when the system gave the app a container, `nil` otherwise:
-    /// on a home already in mobile's own there is nothing to bring across.
+    /// The container's own data folder when the system gave the app one,
+    /// `nil` otherwise: on a home already in mobile's own there is nothing
+    /// to bring across. The container is where earlier builds of the app
+    /// saved, and it stays under mobile's home, so the two sides are the
+    /// app's container and `DataFolder.app`, never a folder of another user.
     private static func legacyFolder() -> URL? {
         let home = NSHomeDirectory()
-        guard let range = home.range(of: "/Containers/Data/Application/") else { return nil }
-        let mobileHome = String(home[..<range.lowerBound])
-        guard mobileHome.hasSuffix("/var/mobile") else { return nil }
-        let root = URL(fileURLWithPath: mobileHome + "/Documents/wiki.qaq.apelin")
+        guard home.contains("/Containers/Data/Application/") else { return nil }
+        guard home.hasPrefix("/var/mobile/") || home.hasPrefix("/private/var/mobile/") else { return nil }
+        let root = URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent(DataFolder.bundleIdentifier)
         return FileManager.default.fileExists(atPath: root.path) ? root : nil
     }
 
     private static func copyMissing(from source: URL, into target: URL) {
         let fileManager = FileManager.default
         guard let names = try? fileManager.contentsOfDirectory(atPath: source.path) else { return }
+        // The target's levels come first: a store copied whole into a folder
+        // that is not there yet would fail file by file otherwise.
+        if !fileManager.fileExists(atPath: target.path) {
+            try? fileManager.createDirectory(at: target, withIntermediateDirectories: true)
+        }
         for name in names {
             let from = source.appendingPathComponent(name)
             let to = target.appendingPathComponent(name)
