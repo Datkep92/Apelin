@@ -177,8 +177,17 @@ console now goes on after a restart only past a successful respring.
   which clears them.
 - Only the `ApelinLoaded` marker is checked; whether the template's hook
   ran (`ApelinHooked`) is not part of the evidence.
+- Procursus' PreferenceLoader 2.2.8 on the iOS 26.4 iPhone vphone added no
+  row for an installed pane, neither in Settings' list nor under Apps, so
+  a Settings row and its icon are seen only on an older iOS.
 
 ## Still to run on the owner's devices
+
+- [ ] A preference bundle's Settings row with its icon (2026-10-30, issue
+      #19, `wiki.qaq.apelin.dev.preferences` 0.1.3), on a device where
+      PreferenceLoader shows panes (the owner's iOS 17.3.1 iPhone): a new
+      project from the template, built and installed, shows the plate
+      beside its name in Settings.
 
 - [ ] Deleting a conversation (2026-10-30, AGENTS.md ▸ The root
       and ▸ Project display names and external project actions; only the
@@ -2595,3 +2604,21 @@ system prompt frozen with each message's `<system-state>` (`f74afc1`). They
 passed `make harness`, `make check` and the CI build; 0.1.9 ships them
 unverified on hardware, and the next round should open a long chat, read a
 root card and switch the approval mode mid-chat on the iPhone vphone.
+
+## Small images, the pane's icon and publishing (2026-10-30, 0.3.2)
+
+CI's packages of `6b57f8e`, roothide, on the iOS 26.4 iPhone vphone (Strict,
+deepseek-v4-pro) and the iOS 26.4 iPad vphone:
+
+- A project made from the Preference Bundle template 0.1.3, built Debug and
+  installed, carries `icon.png`, `icon@2x.png` and `icon@3x.png` in
+  `/Library/PreferenceBundles/IconPane.bundle`, and its entry names
+  `icon.png`. Settings showed no row for it (Known limitations).
+- A General Chat had the agent show that `icon@3x.png` (87 px) and a
+  1290×2796 screenshot with two `file_show` calls: the icon came out a
+  32 pt tile on the iPhone's 3x screen and about 44 pt on the iPad's 2x
+  screen, the screenshot at the 30 % height limit as before (the iPad's
+  copy of the conversation was carried over from the iPhone).
+- `apelin_package_publish` given a release build of that project, whose
+  record says `Release`, passed the configuration check and stopped at "no
+  package repository is linked"; nothing reached GitHub.
