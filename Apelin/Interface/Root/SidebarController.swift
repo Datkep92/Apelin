@@ -448,16 +448,33 @@ final class SidebarController: UIViewController {
         projectMenuButton.accessibilityValue = project?.displayTitle ?? String(localized: "General Chat")
     }
 
-    /// The projects to switch to, the open one ticked, and the picker,
-    /// which also makes a new one.
+    /// The projects to switch to, the open one ticked: the newest at the
+    /// top and the rest under More Projects (`ProjectMenuOrder`), then
+    /// the picker, which also makes a new one.
     private func projectMenu() -> UIMenu {
-        let switches = projects.map { candidate in
-            UIAction(
+        let open = project?.name
+        let byName = Dictionary(projects.map { ($0.name, $0) }) { first, _ in first }
+        let order = ProjectMenuOrder.split(
+            projects.map(\.name),
+            created: byName.compactMapValues(\.created),
+            chats: runtime.summaries,
+            open: open,
+        )
+        let switchAction = { (name: String) -> UIAction? in
+            guard let candidate = byName[name] else { return nil }
+            return UIAction(
                 title: candidate.displayTitle,
-                state: candidate == project ? .on : .off,
+                state: name == open ? .on : .off,
             ) { [weak self] _ in
                 self?.switchProject(to: candidate)
             }
+        }
+        var switches: [UIMenuElement] = order.top.compactMap(switchAction)
+        if !order.more.isEmpty {
+            switches.append(UIMenu(
+                title: String(localized: "More Projects"),
+                children: order.more.compactMap(switchAction),
+            ))
         }
         let general = UIAction(
             title: String(localized: "General Chat"),

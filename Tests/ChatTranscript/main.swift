@@ -1091,4 +1091,6 @@ checkStarPromptState()
 
 try checkSidebarOrder()
 
+checkProjectMenuOrder()
+
 checkChatDeletion()

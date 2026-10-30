@@ -2077,7 +2077,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   The button shows the selected project's icon, or the folder in General Chat,
   with its current selection in the accessibility value. Its uncached menu has
   a fixed order: General Chat, a separator, the project names, a separator,
-  and All Projects, which opens the management sheet. Menu rows have no icons
+  and All Projects, which opens the management sheet. The projects are
+  listed newest first (owner, 2026-10-30, issue #22; `ProjectMenuOrder`,
+  tested in `Tests/ChatTranscript`), a project as new as the latest
+  conversation the reader started or wrote in it (`lastInteraction`) or
+  its folder's creation, whichever is later: the five newest, and the open
+  project wherever it falls, then the rest in a More Projects submenu,
+  shown only when there are more. Menu rows have no icons
   except the system's selected checkmark. The toolbar is
   glass on iOS 26 and the toolbar's blur before it. Before iOS 26 the
   accent is black in the light and white in the dark, the window's tint
