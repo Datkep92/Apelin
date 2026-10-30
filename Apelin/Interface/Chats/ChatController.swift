@@ -67,6 +67,12 @@ final class ChatController: UIViewController {
     /// back at its end, and kept there as the rows above are measured again,
     /// until the reader drags it.
     private var holdsLatestMessage = false
+    /// Where a reader elsewhere in the conversation was when the page last
+    /// changed width: the row at the top of what they saw, under the bar,
+    /// and how far into it. The rows wrap again, and a long reply grows or
+    /// shrinks around the line the reader was on, so the list is put back
+    /// at the same point in that row rather than at the same offset.
+    private var readingPlace: (row: ChatMessage.ID, fraction: CGFloat)?
     private var lastLayoutWidth: CGFloat = 0
     private var modelLoader: Task<Void, Never>?
     private var selectionCheck: Task<Void, Never>?
@@ -321,10 +327,47 @@ final class ChatController: UIViewController {
         // read before the list takes the new width
         let width = messageListFrame.width
         guard width != lastLayoutWidth else { return }
-        if lastLayoutWidth > 0, !needsInitialScroll, distanceFromLatestMessage <= 2 {
-            holdsLatestMessage = true
+        if lastLayoutWidth > 0, !needsInitialScroll {
+            if distanceFromLatestMessage <= 2 {
+                holdsLatestMessage = true
+            } else if !holdsLatestMessage, readingPlace == nil {
+                readingPlace = currentReadingPlace()
+            }
         }
         lastLayoutWidth = width
+    }
+
+    /// The row the line under the bar crosses, and the fraction of its
+    /// height above that line.
+    private func currentReadingPlace() -> (row: ChatMessage.ID, fraction: CGFloat)? {
+        let line = messageList.contentOffset.y + messageList.adjustedContentInset.top
+        for index in messageList.indicesForVisibleRows.sorted() {
+            let frame = messageList.rectForRow(at: index)
+            guard frame.height > 0, frame.maxY > line else { continue }
+            let fraction = min(max((line - frame.minY) / frame.height, 0), 1)
+            return (messageList.content[index].id, fraction)
+        }
+        return nil
+    }
+
+    /// Puts the reader back on the line `readingPlace` kept, now that the
+    /// rows have their new width.
+    private func restoreReadingPlace() {
+        guard let place = readingPlace else { return }
+        readingPlace = nil
+        guard !messageList.isTracking, !messageList.isDecelerating else { return }
+        messageList.layoutIfNeeded()
+        let frame = messageList.rectForRow(with: place.row)
+        guard frame.height > 0 else { return }
+        let line = frame.minY + place.fraction * frame.height
+        let target = min(
+            max(line - messageList.adjustedContentInset.top, messageList.minimumContentOffset.y),
+            messageList.maximumContentOffset.y,
+        )
+        guard abs(target - messageList.contentOffset.y) > 0.5 else { return }
+        // inside the sidebar's animation the list rides it, as the latest
+        // message does (`holdLatestMessage`)
+        messageList.contentOffset = CGPoint(x: messageList.contentOffset.x, y: target)
     }
 
     override func viewDidLayoutSubviews() {
@@ -363,6 +406,8 @@ final class ChatController: UIViewController {
         if holdsLatestMessage {
             messageList.layoutIfNeeded()
             holdLatestMessage()
+        } else {
+            restoreReadingPlace()
         }
         updateLatestMessageButton()
         topBlur.frame = CGRect(
@@ -389,6 +434,7 @@ final class ChatController: UIViewController {
         isSwitchingChat = true
         needsInitialScroll = true
         holdsLatestMessage = false
+        readingPlace = nil
         defer { isSwitchingChat = false }
         replaceMessageList()
 
@@ -806,6 +852,7 @@ extension ChatController: ComposerView.Delegate {
 extension ChatController: UIScrollViewDelegate {
     func scrollViewWillBeginDragging(_: UIScrollView) {
         holdsLatestMessage = false
+        readingPlace = nil
         // The reader has the list: only the next turn is followed again.
         followedTurn = nil
     }

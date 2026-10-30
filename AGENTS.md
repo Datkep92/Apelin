@@ -2190,7 +2190,13 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   keyboard or composer height change keeps a reader at the latest message
   there and leaves any other where it was. A reader at the latest message when the page changes width (the
   sidebar opening or closing) is kept there while the rows wrap again and
-  are measured, until a drag. The message list is explicitly registered as the
+  are measured, until a drag. A reader anywhere else is put back on the
+  line they were reading (owner, 2026-10-30; `readingPlace`): the row the
+  line under the bar crosses and how far into it, taken before the list
+  takes the new width and set again once that row is measured at it, so a
+  long reply that wraps taller or shorter around the reader does not carry
+  the text they were on off the screen; a drag or another conversation
+  forgets it. The message list is explicitly registered as the
   navigation bar's top content scroll view. `ChatTopBlurView` owns the masked
   backdrop and a matching page-color frost behind the status bar and navigation
   controls: radius 1 pt, linear alpha mask, linear page-color frost from 1.0
