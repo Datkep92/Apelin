@@ -110,6 +110,9 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For apelin_git_create_repository: the repository, checked before
     /// asking, as it is requested.
     public var repositoryCreate: RepositoryCreateApproval?
+    /// For apelin_git_create_issue: the repository and the issue, checked
+    /// before asking, as they are sent.
+    public var issueCreate: IssueCreateApproval?
     /// For apelin_project_delete: the project, resolved before asking,
     /// which is the one deleted.
     public var projectDeletion: ProjectDeleteApproval?
@@ -358,6 +361,15 @@ public struct ApprovalPolicy: Sendable, Hashable {
             }
             return .ask(reason: Self.repositoryReason(repository), detail: .repositoryCreate(repository))
 
+        // An issue under the user's GitHub account on a repository they
+        // chose, as feedback is filed: every one asks, the card showing the
+        // repository and the whole text.
+        case .gitCreateIssue:
+            guard let issue = facts.issueCreate else {
+                return .ask(reason: "The issue to open could not be read.", detail: .none)
+            }
+            return .ask(reason: Self.issueReason(issue), detail: .issueCreate(issue))
+
         // Packages in the user's package repository, where anyone who adds
         // its source installs them, as a push publishes: every publication
         // asks, the card naming the repository and each package's digest.
@@ -477,6 +489,10 @@ public struct ApprovalPolicy: Sendable, Hashable {
 
     static func feedbackReason(_ feedback: FeedbackApproval) -> String {
         "Posts this title and body as a public issue on \(feedback.repository) under your GitHub account, where anyone can read it; Apelin adds its version, the iOS version and the bootstrap below it. Each one needs your approval."
+    }
+
+    static func issueReason(_ issue: IssueCreateApproval) -> String {
+        "Opens this issue on \(issue.repository) under your GitHub account, where everyone who can see that repository can read it; Apelin adds its version, the iOS version and the bootstrap below it. Each one needs your approval."
     }
 
     static func feedbackEditReason(_ edit: FeedbackEditApproval) -> String {

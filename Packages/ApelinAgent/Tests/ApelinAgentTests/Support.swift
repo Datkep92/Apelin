@@ -121,6 +121,7 @@ actor MockBackend: AgentHostBackend {
         case feedbackRead(Int)
         case feedbackEdit(FeedbackEditToolRequest)
         case createRepository(RepositoryCreateApproval, evidence: ApprovalEvidence)
+        case createIssue(IssueCreateApproval, evidence: ApprovalEvidence)
         case publishPackages(PackagePublishApproval, evidence: ApprovalEvidence)
         case other(String)
     }
@@ -442,6 +443,12 @@ actor MockBackend: AgentHostBackend {
     func gitRemoveCredential(_ request: GitCredentialRemoveToolRequest) -> GitSettingsToolResponse {
         calls.append(.gitRemoveCredential(host: request.host))
         return GitSettingsToolResponse()
+    }
+
+    func createIssue(_ request: IssueCreateToolRequest) -> IssueCreateToolResponse {
+        let issue = IssueCreateApproval(repository: request.repository, title: request.title, body: request.body)
+        calls.append(.createIssue(issue, evidence: request.context.approval))
+        return IssueCreateToolResponse(repository: request.repository, issue: 7, url: "https://github.com/\(request.repository)/issues/7")
     }
 
     func createRepository(_ request: RepositoryCreateToolRequest) -> RepositoryCreateToolResponse {

@@ -368,6 +368,21 @@ console now goes on after a restart only past a successful respring.
       changed and reads it again, and the user's words survive. An issue
       another account opened is refused before anything is asked. Signed
       out, both tools name Sign In with GitHub in Settings ▸ Git.
+- [ ] An issue on a repository the user chose (2026-10-30, AGENTS.md ▸
+      The environment worker ▸ Git; it posts in public, so by hand only,
+      on a test repository of the signed-in account's with issues on, the
+      issues closed afterwards). Asked to report a problem there, the
+      agent shows the repository and the whole title and body and calls
+      apelin_git_create_issue only after 同意 or 确定, in Relaxed too;
+      under Strict the card shows the repository, title and body and offers
+      no "for this session". The issue opens there, with the footer "Sent
+      with Apelin <version> (<build>) · iOS <version> · <bootstrap>", and
+      the model hands back its number and link. With issues turned off on
+      the repository, and for a repository the account cannot see, the
+      agent says what blocks it and posts nothing elsewhere, opens no
+      browser and drives no screen. Asked to file on owngoal-dev/Apelin, it
+      goes through apelin_feedback_send. Signed out, it names Sign In with
+      GitHub in Settings ▸ Git.
 - [ ] The star prompt (2026-10-29, AGENTS.md ▸ Distribution repository ▸
       The star; it stars a real account, so by hand only). Signed out of
       GitHub, ten builds that succeed ask nothing and count for nothing.

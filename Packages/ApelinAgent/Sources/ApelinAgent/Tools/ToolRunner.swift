@@ -303,21 +303,22 @@ actor ToolRunner {
     /// toolchain or SDK install, which changes the device for every
     /// project, nor for a call that reaches another project, nor for a
     /// command as root, nor for an issue filed or edited in public as
-    /// feedback, nor for a repository made on GitHub, nor for a project's
-    /// deletion, which cannot be undone, nor for packages published to the
-    /// user's package repository.
+    /// feedback, nor for a repository made on GitHub or an issue opened on
+    /// one, nor for a project's deletion, which cannot be undone, nor for
+    /// packages published to the user's package repository.
     static func allowsSessionScope(_ tool: InvocationFacts.Tool, detail: ApprovalDetail) -> Bool {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
              .local(.skillSave), .local(.skillRemove), .local(.feedbackSend), .local(.gitCreateRepository),
-             .local(.projectDelete), .local(.packagePublish), .local(.feedbackEdit):
+             .local(.projectDelete), .local(.packagePublish), .local(.feedbackEdit), .local(.gitCreateIssue):
             return false
         default:
             break
         }
         switch detail {
         case .gitSettings, .descriptionChanged, .toolchainSetup, .sdkImport, .otherProject, .externalBuild, .skillChange,
-             .projectRename, .rootCommand, .feedback, .feedbackEdit, .repositoryCreate, .projectDelete, .packagePublish:
+             .projectRename, .rootCommand, .feedback, .feedbackEdit, .repositoryCreate, .issueCreate, .projectDelete,
+             .packagePublish:
             return false
         case .none, .command, .packageRemoval, .gitPush:
             return true
@@ -718,6 +719,18 @@ actor ToolRunner {
                 name: repository.name,
                 visibility: repository.visibility,
                 description: repository.description,
+            )))
+
+        case .gitCreateIssue:
+            // The repository and the issue the card named.
+            guard let issue = facts.issueCreate else {
+                throw ToolDeniedError(message: "the issue to open could not be read")
+            }
+            return try await json(backend.createIssue(IssueCreateToolRequest(
+                context: context,
+                repository: issue.repository,
+                title: issue.title,
+                body: issue.body,
             )))
 
         case .conversationCreate:

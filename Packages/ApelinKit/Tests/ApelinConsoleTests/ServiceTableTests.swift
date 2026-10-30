@@ -261,6 +261,10 @@ final class ServiceTableTests: XCTestCase {
                 url: "https://github.com/u/r",
             )
             return Row(reply: created) { _ = try await $0.gitRepositoryCreate(GitRepositoryCreateRequest(name: "r", visibility: .private)) }
+        case .gitIssueCreate:
+            return Row(reply: GitIssueCreateResponse(number: 1, url: "https://github.com/u/r/issues/1", repository: "u/r")) {
+                _ = try await $0.gitIssueCreate(repository: "u/r", title: "t", body: "b")
+            }
         }
     }
 

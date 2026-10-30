@@ -97,8 +97,8 @@ final class FeedbackEditTests: XCTestCase {
         }
         var service = FeedbackService(layout: home.layout, credentials: store)
         service.exchange = github.exchange
-        service.hostName = "Adas-iPhone"
-        service.osVersion = "26.0"
+        service.report.hostName = "Adas-iPhone"
+        service.report.osVersion = "26.0"
         return service
     }
 

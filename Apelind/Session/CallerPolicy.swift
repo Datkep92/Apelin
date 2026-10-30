@@ -62,6 +62,10 @@ enum CallerPolicy {
         // Confirm only as the user approved exactly it
         // (AgentRepositoryCreateRules).
         .gitRepositoryCreate,
+        // An issue under the user's GitHub account on a repository the user
+        // chose, under Confirm only as the user approved exactly it
+        // (AgentIssueCreateRules).
+        .gitIssueCreate,
         // A public issue on Apelin's own repository with the user's GitHub
         // sign-in, filed or, when the account opened it, edited under
         // Confirm only as the user approved exactly it (AgentFeedbackRules),

@@ -1,6 +1,7 @@
 import enum ApelinCore.ProjectDisplayName
 import enum ApelinProtocol.AgentToolName
 import enum ApelinProtocol.FeedbackRules
+import struct ApelinProtocol.GitIssueCreateRequest
 import struct ApelinProtocol.GitRepositoryCreateRequest
 import enum ApelinProtocol.GitRepositoryVisibility
 import Foundation
@@ -116,6 +117,25 @@ extension ToolRunner {
                 visibility: request.visibility,
                 description: request.description,
             )
+        case .gitCreateIssue:
+            // Checked before anyone is asked, and again by apelin-environment;
+            // the card names the repository and the text that is sent.
+            // Apelin's own feedback is apelin_feedback_send's.
+            let request = try GitIssueCreateRequest(
+                repository: arguments.requireString("repository").trimmingCharacters(in: .whitespaces),
+                title: arguments.requireString("title").trimmingCharacters(in: .whitespaces),
+                body: arguments.requireString("body"),
+            )
+            if let problem = request.problem {
+                throw ToolArgumentError("Nothing was posted: \(problem)")
+            }
+            guard request.repository.lowercased() != FeedbackRules.repository.lowercased() else {
+                throw ToolArgumentError("Nothing was posted: feedback about Apelin itself goes to \(FeedbackRules.repository) with apelin_feedback_send.")
+            }
+            if let problem = FeedbackRules.problem(title: request.title, body: request.body) {
+                throw ToolArgumentError("Nothing was posted: \(problem).")
+            }
+            facts.issueCreate = IssueCreateApproval(repository: request.repository, title: request.title, body: request.body)
         case .packageConfirmLoaded where arguments.argBool("respring") == true:
             // It resprings the device, so it is gated as respring is.
             facts.tool = .local(.deviceRespring)

@@ -3189,6 +3189,80 @@ do {
     check(noSession?.code == .denied, "a worker with no session makes nothing")
 }
 
+// MARK: - An issue is opened on another repository under Strict only as the user approved exactly it
+
+do {
+    check(CallerPolicy.allows(.worker(.agent, instance: "s"), .gitIssueCreate), "the agent may open an issue")
+    check(!CallerPolicy.allows(.worker(.build, instance: nil), .gitIssueCreate), "the build worker may not")
+    check(!CallerPolicy.allows(.worker(.environment, instance: nil), .gitIssueCreate), "nor the environment worker")
+    let registry = TaskRegistry(directory: scratch.appendingPathComponent("agent-issue-tasks"))
+    await registry.load()
+    let sessions = AgentSessionTable.shared
+    func session(_ id: String, mode: ApprovalMode) async -> AgentSessionTable.Entry {
+        let entry = await AgentSessionTable.Entry(
+            sessionID: id,
+            task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
+            project: ResolvedProject(id: "p-issue", name: "Issue", path: scratchPath),
+            mode: mode,
+            createdAt: Date(),
+        )
+        await sessions.add(entry)
+        return entry
+    }
+    let strict = await session("issue-strict", mode: .confirm)
+    let issue = GitIssueCreateRequest(
+        repository: "Lakr233/Irisin",
+        title: "The installer stops at 90%",
+        body: "Installing a package from the inbox stops at 90%.",
+    )
+    // What apelin-agent writes into apelin_git_create_issue's
+    // approvalRequested (ApelinAgentWorker's tests hold that shape).
+    func ask(
+        _ approvalID: String,
+        tool: String = "apelin_git_create_issue",
+        repository: String = "Lakr233/Irisin",
+        body: String = "Installing a package from the inbox stops at 90%.",
+    ) async {
+        await registry.append(strict.task.taskID, kind: "approvalRequested", payload: .object([
+            "approvalID": .string(approvalID), "tool": .string(tool),
+            "detail": .object([AgentIssueCreateRules.detailKey: .object([
+                "repository": .string(repository), "title": .string(issue.title), "body": .string(body),
+            ])]),
+        ]))
+        await sessions.record(strict.sessionID, approvalID: approvalID, decision: .approve)
+    }
+    func authorized(_ entry: AgentSessionTable.Entry?) async -> ApelinError? {
+        await AgentIssueCreateRules.authorize(issue, session: entry?.sessionID, registry: registry)
+    }
+    let unasked = await authorized(strict)
+    check(unasked?.code == .denied, "Strict opens an issue only as the user approved it")
+    await ask("issue-elsewhere", repository: "owngoal-dev/Apelin")
+    await ask("issue-body", body: "Another body.")
+    await ask("issue-tool", tool: "apelin_feedback_send")
+    let near = await authorized(strict)
+    let unspent = await sessions.approvedIDs(strict.sessionID)
+    check(
+        near != nil && Set(unspent) == ["issue-elsewhere", "issue-body", "issue-tool"],
+        "an approval covers the repository and the text it showed only, and stays unspent (\(unspent))",
+    )
+    let feedback = await AgentFeedbackRules.authorize(
+        FeedbackSendRequest(title: issue.title, body: issue.body),
+        session: strict.sessionID,
+        registry: registry,
+    )
+    check(feedback != nil, "an issue's approval files no feedback on Apelin's repository")
+    await ask("issue-exact")
+    let approved = await authorized(strict)
+    check(approved == nil, "the approved issue is opened")
+    let again = await authorized(strict)
+    check(again != nil, "once, never for the session: the next one asks again")
+    let relaxed = await authorized(session("issue-relaxed", mode: .relaxed))
+    let full = await authorized(session("issue-full", mode: .full))
+    check(relaxed == nil && full == nil, "Relaxed and Full open it without asking")
+    let noSession = await authorized(nil)
+    check(noSession?.code == .denied, "a worker with no session opens nothing")
+}
+
 // MARK: - Packages are published under Strict only as the user approved exactly them
 
 do {

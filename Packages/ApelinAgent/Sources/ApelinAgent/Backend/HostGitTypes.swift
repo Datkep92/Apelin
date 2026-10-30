@@ -276,6 +276,35 @@ public struct RepositoryCreateToolResponse: Sendable, Hashable, Codable {
     }
 }
 
+/// An issue apelin_git_create_issue opens on a repository the user chose:
+/// what its card named, nothing else. The footer is apelin-environment's.
+public struct IssueCreateToolRequest: Sendable, Hashable, Codable {
+    public var context: HostCallContext
+    /// `owner/name`.
+    public var repository: String
+    public var title: String
+    public var body: String
+    public init(context: HostCallContext, repository: String, title: String, body: String) {
+        self.context = context
+        self.repository = repository
+        self.title = title
+        self.body = body
+    }
+}
+
+public struct IssueCreateToolResponse: Sendable, Hashable, Codable {
+    public var repository: String
+    /// The issue's number there.
+    public var issue: Int
+    /// Its page on GitHub, which the user is given.
+    public var url: String
+    public init(repository: String, issue: Int, url: String) {
+        self.repository = repository
+        self.issue = issue
+        self.url = url
+    }
+}
+
 /// A git call that did not happen, with what to do about it, in words the
 /// model can pass on.
 public struct GitToolFailure: Error, LocalizedError, Sendable, Equatable {

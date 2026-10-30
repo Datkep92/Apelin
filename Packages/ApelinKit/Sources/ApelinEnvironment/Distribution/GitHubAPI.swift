@@ -176,9 +176,29 @@ struct GitHubAPI: Sendable {
         return try await pages(fullName)
     }
 
-    /// A new issue on `fullName`, opened by the signed-in account.
+    /// A new issue on `fullName`, opened by the signed-in account. A refusal
+    /// says what blocks it, with GitHub's words: a repository the account
+    /// cannot see, issues turned off there, no permission, or GitHub's
+    /// validation of the issue.
     func createIssue(_ fullName: String, title: String, body: String) async throws -> Issue {
-        try await send("POST", "/repos/\(fullName)/issues", body: ["title": title, "body": body], as: Issue.self)
+        let (data, response) = try await exchange(request("POST", "/repos/\(fullName)/issues", body: ["title": title, "body": body]))
+        switch response.statusCode {
+        case 404:
+            throw ApelinError(.notFound, "GitHub shows the signed-in account no repository \(fullName): its owner or name is not one GitHub has, or the account cannot see it.")
+        case 410:
+            throw ApelinError(.denied, "Issues are turned off on \(fullName), so it takes none (GitHub: \(Self.words(response, data))).")
+        case 403:
+            throw ApelinError(.denied, "GitHub does not let the signed-in account open an issue on \(fullName): \(Self.words(response, data))")
+        case 422:
+            throw ApelinError(.conflict, "GitHub refused the issue on \(fullName): \(Self.words(response, data))")
+        default:
+            try Self.check(response, data)
+        }
+        do {
+            return try JSONDecoder().decode(Issue.self, from: data)
+        } catch {
+            throw ApelinError(.unavailable, "GitHub's answer to POST /repos/\(fullName)/issues could not be read.")
+        }
     }
 
     /// Issue `number` on `fullName`, or the pull request of that number.
@@ -258,9 +278,8 @@ struct GitHubAPI: Sendable {
         String(path.prefix { $0 != "?" })
     }
 
-    /// GitHub's refusal in its own words, with the code Apelin gives it.
-    static func check(_ response: HTTPURLResponse, _ data: Data) throws {
-        guard !(200 ..< 300).contains(response.statusCode) else { return }
+    /// GitHub's refusal in its own words: its message, then each error's.
+    static func words(_ response: HTTPURLResponse, _ data: Data) -> String {
         let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         var message = object?["message"] as? String ?? "HTTP \(response.statusCode)"
         if let errors = object?["errors"] as? [[String: Any]] {
@@ -269,6 +288,13 @@ struct GitHubAPI: Sendable {
                 message += ": " + details.joined(separator: "; ")
             }
         }
+        return message
+    }
+
+    /// GitHub's refusal in its own words, with the code Apelin gives it.
+    static func check(_ response: HTTPURLResponse, _ data: Data) throws {
+        guard !(200 ..< 300).contains(response.statusCode) else { return }
+        let message = words(response, data)
         switch response.statusCode {
         case 401:
             throw ApelinError(

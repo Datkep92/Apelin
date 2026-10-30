@@ -46,6 +46,7 @@ import Foundation
 /// apelin_feedback_read → `feedbackRead`; apelin_feedback_edit →
 /// `feedbackRead`, then `feedbackEdit` against what it read;
 /// apelin_git_create_repository → `gitRepositoryCreate`;
+/// apelin_git_create_issue → `gitIssueCreate`;
 /// apelin_package_publish → `distributionPublish` with each file's digest
 /// and the repository, read to its end (ChannelHostBackend+Publish). An
 /// agent tool extension's tools → `toolHostOpen`, `toolHostCall` and
@@ -644,6 +645,31 @@ public struct ChannelHostBackend: AgentHostBackend {
     }
 
     static let repositorySignInNeeded = "Nothing was created: GitHub authorization is needed. Ask the user to Sign In with GitHub in Settings ▸ Git, then try again."
+
+    // MARK: apelin_git_create_issue
+
+    /// Without a github.com sign-in, or with one GitHub refused, the model
+    /// hears where the user signs in, read from the reply's reason; any
+    /// other refusal is GitHub's or the host's, in their words, with what
+    /// the model must not do instead.
+    public func createIssue(_ request: IssueCreateToolRequest) async throws -> IssueCreateToolResponse {
+        let response: GitIssueCreateResponse
+        do {
+            response = try await service.gitIssueCreate(repository: request.repository, title: request.title, body: request.body)
+        } catch let error as ApelinError where error.reason == .authenticationRequired {
+            throw GitToolFailure(message: Self.issueSignInNeededToPost)
+        } catch let error as ApelinError {
+            throw GitToolFailure(message: Self.issueRefused(error.message, repository: request.repository))
+        }
+        return IssueCreateToolResponse(repository: response.repository, issue: response.number, url: response.url)
+    }
+
+    static let issueSignInNeededToPost = "Nothing was posted: GitHub authorization is needed. Ask the user to Sign In with GitHub in Settings ▸ Git, then try again."
+
+    static func issueRefused(_ message: String, repository: String) -> String {
+        let words = message.hasSuffix(".") ? message : message + "."
+        return "Nothing was posted on \(repository): \(words) Tell the user what blocks it; never post it to another repository, or through a browser or the screen, instead."
+    }
 
     // MARK: apelin_feedback_send
 

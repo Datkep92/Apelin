@@ -32,10 +32,10 @@ public struct ApprovalRequest: Sendable, Hashable, Codable {
     public var reason: String
     public var detail: ApprovalDetail
     /// Whether "for this session" may be offered. Never for package removal,
-    /// a push, a repository made on GitHub, an issue filed or edited as
-    /// feedback, a project's deletion, packages published to the package
-    /// repository, or a request bound to a description digest (the host's
-    /// ledger keeps those).
+    /// a push, a repository made on GitHub or an issue opened on one, an
+    /// issue filed or edited as feedback, a project's deletion, packages
+    /// published to the package repository, or a request bound to a
+    /// description digest (the host's ledger keeps those).
     public var allowsSessionScope: Bool
 
     public init(
@@ -113,6 +113,10 @@ public enum ApprovalDetail: Sendable, Hashable, Codable {
     /// name and visibility. The host lets through only the repository it
     /// names, once.
     case repositoryCreate(RepositoryCreateApproval)
+    /// An issue opened under the user's account on a GitHub repository the
+    /// user chose: the repository and the whole title and body. The host
+    /// lets through only the issue it names, once.
+    case issueCreate(IssueCreateApproval)
     /// Another project deleted for good. The host lets through only the
     /// deletion of the project it names, once.
     case projectDelete(ProjectDeleteApproval)
@@ -181,6 +185,21 @@ public struct RepositoryCreateApproval: Sendable, Hashable, Codable {
         self.name = name
         self.visibility = visibility
         self.description = description
+    }
+}
+
+/// What an apelin_git_create_issue card names, and the host matches its
+/// issue to (AgentIssueCreateRules): the repository, the title and the
+/// body, as the tool sends them.
+public struct IssueCreateApproval: Sendable, Hashable, Codable {
+    /// `owner/name`.
+    public var repository: String
+    public var title: String
+    public var body: String
+    public init(repository: String, title: String, body: String) {
+        self.repository = repository
+        self.title = title
+        self.body = body
     }
 }
 

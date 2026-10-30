@@ -80,6 +80,9 @@ public protocol AgentHostBackend: Sendable {
     /// An empty repository on GitHub with the user's sign-in; the host
     /// checks it was approved.
     func createRepository(_ request: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse
+    /// An issue on a GitHub repository the user chose, with the user's
+    /// sign-in; the host checks it was approved.
+    func createIssue(_ request: IssueCreateToolRequest) async throws -> IssueCreateToolResponse
     /// Another conversation in the session's project, opened with a first
     /// message; answers without waiting for it.
     func conversationCreate(_ request: ConversationCreateToolRequest) async throws -> ConversationCreateToolResponse
@@ -202,6 +205,10 @@ public extension AgentHostBackend {
 
     func createRepository(_: RepositoryCreateToolRequest) async throws -> RepositoryCreateToolResponse {
         throw ToolDeniedError(message: "creating repositories is not available here")
+    }
+
+    func createIssue(_: IssueCreateToolRequest) async throws -> IssueCreateToolResponse {
+        throw ToolDeniedError(message: "opening issues is not available here")
     }
 
     func openToolExtension(id _: String) async throws -> String {

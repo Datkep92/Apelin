@@ -1,10 +1,11 @@
 // The git service on a project: clone, init, status, diff, stage, unstage,
 // local commit, fetch, a fast-forward pull and push, and the settings behind
-// them — the commit author and one HTTPS credential per host —, and an empty
-// repository made on GitHub for a project to push to. A project Apelin makes
-// starts as a repository on `main` with no commit, whose `.git/info/exclude`
-// keeps Apelin's own files out (the agent's `Attachments/`, temporary files);
-// a repository made before gets it on a git call once the project has an
+// them — the commit author and one HTTPS credential per host —, an empty
+// repository made on GitHub for a project to push to, and an issue opened on
+// a repository the user chose. A project Apelin makes starts as a
+// repository on `main` with no commit, whose `.git/info/exclude` keeps
+// Apelin's own files out (the agent's `Attachments/`, temporary files); a
+// repository made before gets it on a git call once the project has an
 // `Attachments` folder. A project that is not a repository is `notFound`
 // with reason `notARepository`.
 // Served by apelin-environment (Workers/Environment; ApelinGit, libgit2).
@@ -421,9 +422,65 @@ public struct GitRepositoryCreateResponse: Codable, Sendable, Equatable {
     }
 }
 
+/// Opens an issue on a GitHub repository the user chose, `owner/name`, with
+/// the github.com sign-in (owner, 2026-10-30): the title and body are
+/// checked by `FeedbackRules.problem` — the shapes of a device's private
+/// data, with this device's own paths and name — before the sign-in is
+/// read, and below the body goes the footer feedback carries, Apelin's
+/// version, the iOS version and the bootstrap. Apelin's own feedback is
+/// `FeedbackSendRequest`. Not a task: one request to GitHub. The app's,
+/// and an agent's as the host allows it (AgentIssueCreateRules). Without a
+/// sign-in, `denied` with reason `authenticationRequired`. GitHub's
+/// refusals keep its words and say what blocks it: a repository the
+/// account cannot see `notFound`, issues turned off there or no permission
+/// `denied`, GitHub's validation `conflict`.
+public struct GitIssueCreateRequest: OperationRequest {
+    public typealias Response = GitIssueCreateResponse
+    public static let operation = AppOperation.gitIssueCreate
+    /// `owner/name`, as the user named it.
+    public var repository: String
+    public var title: String
+    public var body: String
+
+    public init(repository: String, title: String, body: String) {
+        self.repository = repository
+        self.title = title
+        self.body = body
+    }
+
+    /// Nil when the repository is one GitHub could have, else why not; the
+    /// title and body are `FeedbackRules`'.
+    public var problem: String? {
+        GitHubName.isFullName(repository)
+            ? nil
+            : "Name the repository as owner/name, its owner's login and its name as GitHub spells them, such as octocat/hello-world."
+    }
+}
+
+public struct GitIssueCreateResponse: Codable, Sendable, Equatable {
+    /// The issue's number in `repository`.
+    public var number: Int
+    /// Its page on GitHub.
+    public var url: String
+    /// `owner/name`, as the request named it.
+    public var repository: String
+
+    public init(number: Int, url: String, repository: String) {
+        self.number = number
+        self.url = url
+        self.repository = repository
+    }
+}
+
 /// What GitHub takes for a login and for a repository's name, checked
 /// before GitHub is asked.
 public enum GitHubName {
+    /// `owner/name`: a login, then a repository's name.
+    public static func isFullName(_ fullName: String) -> Bool {
+        let parts = fullName.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        return parts.count == 2 && isLogin(parts[0]) && isRepository(parts[1])
+    }
+
     /// An account's or organization's login: letters, digits and single
     /// hyphens, at most 39, no hyphen at either end.
     public static func isLogin(_ name: String) -> Bool {
@@ -506,5 +563,9 @@ public extension ApelinService {
 
     func gitRepositoryCreate(_ request: GitRepositoryCreateRequest) async throws -> GitRepositoryCreateResponse {
         try await send(request)
+    }
+
+    func gitIssueCreate(repository: String, title: String, body: String) async throws -> GitIssueCreateResponse {
+        try await send(GitIssueCreateRequest(repository: repository, title: title, body: body))
     }
 }

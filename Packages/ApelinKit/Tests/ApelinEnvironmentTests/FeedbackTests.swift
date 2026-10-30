@@ -45,8 +45,8 @@ final class FeedbackTests: XCTestCase {
         }
         var service = FeedbackService(layout: home.layout, credentials: store)
         service.exchange = github.exchange
-        service.hostName = "Adas-iPhone"
-        service.osVersion = "17.3.1"
+        service.report.hostName = "Adas-iPhone"
+        service.report.osVersion = "17.3.1"
         return service
     }
 
@@ -89,12 +89,12 @@ final class FeedbackTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: mobile, withIntermediateDirectories: true)
         let layout = EnvironmentLayout(data: DataFolder(home: mobile), installRoot: installRoot, home: mobile)
         var service = FeedbackService(layout: layout, credentials: MemoryGitCredentialStore())
-        service.osVersion = "26.0"
-        XCTAssertEqual(service.footer(), "Sent with Apelin (version unknown) · iOS 26.0 · roothide", "no app installed")
+        service.report.osVersion = "26.0"
+        XCTAssertEqual(service.report.footer(), "Sent with Apelin (version unknown) · iOS 26.0 · roothide", "no app installed")
         try installApp(installRoot, version: "0.2.7 on Adas-iPhone", build: 18)
-        XCTAssertEqual(service.footer(), "Sent with Apelin (version unknown) · iOS 26.0 · roothide", "only a version as Apelin spells one is read")
+        XCTAssertEqual(service.report.footer(), "Sent with Apelin (version unknown) · iOS 26.0 · roothide", "only a version as Apelin spells one is read")
         try installApp(installRoot, version: "0.2.8", build: "19")
-        let footer = service.footer()
+        let footer = service.report.footer()
         XCTAssertEqual(footer, "Sent with Apelin 0.2.8 (19) · iOS 26.0 · roothide")
         var machine = [CChar](repeating: 0, count: 256)
         var size = machine.count

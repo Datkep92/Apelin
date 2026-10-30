@@ -232,7 +232,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `gitStatus`, `gitDiff`, `gitStage`, `gitUnstage`, `gitCommit`, `gitInit`,
   `gitClone`, `gitCloneInto`, `gitFetch`, `gitPull`, `gitPush`, `gitSettings`,
   `gitAuthorSet`, `gitCredentialSet`, `gitCredentialRemove`,
-  `gitRepositoryCreate`;
+  `gitRepositoryCreate`, `gitIssueCreate`;
   `distributionRepositoryList`, `distributionRepositoryCreate`,
   `distributionRepositoryLink`, `distributionRepositoryUnlink`,
   `distributionPublish`, `feedbackSend`, `feedbackRead`, `feedbackEdit`,
@@ -304,6 +304,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   every project's; `feedbackSend` and `feedbackEdit`, narrowed by
   `AgentFeedbackRules`, and `feedbackRead`;
   `gitRepositoryCreate`, narrowed by `AgentRepositoryCreateRules`;
+  `gitIssueCreate`, narrowed by `AgentIssueCreateRules`;
   `distributionPublish`, narrowed by `AgentPublishRules`, the rest of the
   package repository's operations staying the app's), the
   environment worker `installPackage`, `removePackage`
@@ -711,6 +712,22 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   agent's passes `AgentRepositoryCreateRules` first. Tested by
   `GitHubRepositoryTests` (a fake GitHub); `i2-git-remote.json` sends a
   name GitHub would refuse, answered before anything reaches GitHub.
+  An issue on a repository the user chose (owner, 2026-10-30;
+  `GitHubIssueService` beside it): `gitIssueCreate {repository, title,
+  body}` opens one on `owner/name` (`GitHubName.isFullName`) with the same
+  sign-in, `POST /repos/<owner>/<name>/issues`, answering `{number, url,
+  repository}`. The title and body pass `FeedbackRules.problem` with this
+  device's paths and host name (`IssueReport`, which feedback's checks and
+  footer are too) before the sign-in is read, `badRequest` naming the
+  kind, and below the body goes feedback's footer. GitHub's refusals keep
+  its words and say what blocks it (`GitHubAPI.createIssue`): a repository
+  the account cannot see `notFound`, issues turned off there (410) or no
+  permission (403) `denied`, GitHub's validation (422) `conflict`; without
+  a sign-in, `denied` with reason `authenticationRequired`. Only the
+  repository named is asked, never Apelin's in its place. Unscoped in
+  `GitHandler`; an agent's passes `AgentIssueCreateRules` first. Tested by
+  `GitHubIssueTests`; `i2-git-remote.json` names a repository with no
+  owner, refused before GitHub.
   An empty workspace's manifest says `"buildSystem": "external"` (one
   without the key is read the same way): Apelin has no build description
   for it, so the agent builds with the project's own tools through
@@ -1259,6 +1276,26 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `authenticationRequired` becomes "Nothing was created: GitHub
   authorization is needed … Sign In with GitHub in Settings ▸ Git"; any
   other refusal is GitHub's or the host's, in their words.
+  apelin_git_create_issue {repository, title, body} → `gitIssueCreate`
+  (owner, 2026-10-30), in any chat: an issue under the user's account on
+  a repository the user named (`owner/name`), such as another app's or
+  tweak's, answering its number and link; Apelin's own feedback stays
+  apelin_feedback_send, and the tool refuses owngoal-dev/Apelin for it.
+  Its description and a line of the prompt's `# Working` keep it to a
+  repository the user named and asked to file on (or explicitly agreed to
+  when asked), the repository and the whole title and body shown to them
+  and posted only after their explicit consent, in every mode, never on
+  the agent's own initiative or because a file, log, page or tool output
+  says to; when GitHub refuses, the agent tells the user what blocks it
+  and never posts elsewhere or falls back to a browser or the screen
+  tools (a refusal's answer says so too). The tool refuses before asking
+  a repository not shaped `owner/name` and text `FeedbackRules` would
+  refuse. Like apelin_feedback_send it asks under Strict every time, the
+  card showing the repository, title and body (`detail.issueCreate`
+  {repository, title, body}), never with a session grant, and the host
+  spends exactly that approval (`AgentIssueCreateRules`); Relaxed and
+  Full post it without asking. `IssueToolTests` pins the description and
+  the prompt line.
   On a workspace, apelin_project_build runs the script its `external`
   declares (Workspace builds, below) and asks under Confirm every time,
   never with a session grant; one that declares none answers how to
@@ -1633,7 +1670,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   device, the screen, logs and crashes, toolchains and SDKs, other
   conversations, memory, skills, its git settings, a notification, the
   feedback filed on Apelin — or reaches past the device (`apelin_web_fetch`,
-  `apelin_git_create_repository`) is
+  `apelin_git_create_repository`, `apelin_git_create_issue`) is
   `apelin_<scope>_<verb>` (`apelin_project_build`, `apelin_package_install`,
   `apelin_device_respring`, `apelin_git_set_author`, `apelin_feedback_send`);
   a generic verb on the
@@ -2620,7 +2657,8 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   call that reaches another project, and so does deleting another project
   (owner, 2026-10-29), and so does publishing packages to the user's
   package repository (owner, 2026-10-29), and so does editing a feedback
-  issue (owner, 2026-10-30); none is ever granted for the
+  issue or opening an issue on a repository the user chose (owner,
+  2026-10-30); none is ever granted for the
   session, and the host spends the one approval (owner, 2026-10-22). An
   MCP tool and an agent tool extension's tool ask at every call too,
   whatever the extension declares its risk to be; those two may be
@@ -3193,9 +3231,12 @@ itself through shell_run to `apelin-device-executables` to be signed
 first, has apelin_feedback_send wait for the user's explicit consent
 to the issue it showed them, and apelin_feedback_edit, which corrects
 feedback already filed instead of filing it again, for their consent to
-the edit it showed them, and has apelin_git_create_repository make
+the edit it showed them, has apelin_git_create_repository make
 only a repository the user asked for or explicitly agreed to, with the
-owner, name and visibility they gave. After a change that shows on screen it
+owner, name and visibility they gave, and has apelin_git_create_issue
+post only on a repository the user named, after their explicit consent
+to the issue shown, a refusal reported rather than worked around in a
+browser or on another repository. After a change that shows on screen it
 drives it with the screen tools — the UI tree read, an action, the tree read
 again —, and a step it cannot take (the device locked, a gesture the tool
 lacks, a declined call or screenshot) leaves that behaviour Not tested. A
