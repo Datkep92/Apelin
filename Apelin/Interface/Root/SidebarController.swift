@@ -124,11 +124,12 @@ final class SidebarController: UIViewController {
 
     private lazy var newChatButton: UIButton = {
         var configuration = UIButton.Configuration.plain()
-        configuration.title = String(localized: "New Chat")
+        configuration.title = nil
         configuration.image = UIImage(systemName: "square.and.pencil")
         let font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 17, weight: .semibold))
         configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
-        configuration.imagePadding = 6
+        configuration.imagePadding = 0
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 4)
         configuration.baseForegroundColor = .label
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
             var attributes = attributes
@@ -186,7 +187,8 @@ final class SidebarController: UIViewController {
             completion(self?.projectMenu().children ?? [])
         }])
         var config = UIButton.Configuration.plain()
-        config.image = UIImage(systemName: "folder")
+        config.image = UIImage(systemName: "chevron.down")
+        config.imagePlacement = .trailing
         config.title = String(localized: "General Chat")
         config.imagePlacement = .leading
         config.imagePadding = 4
