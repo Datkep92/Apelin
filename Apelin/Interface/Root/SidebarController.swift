@@ -494,7 +494,7 @@ final class SidebarController: UIViewController {
             guard let candidate = byName[name] else { return nil }
             return UIAction(
                 title: candidate.displayTitle,
-                subtitle: projectActiveChatTitle(for: name),
+                subtitle: self.projectActiveChatTitle(for: name),
                 state: name == open ? .on : .off,
             ) { [weak self] _ in
                 self?.switchProject(to: candidate)
@@ -509,7 +509,7 @@ final class SidebarController: UIViewController {
         }
         let general = UIAction(
             title: String(localized: "General Chat"),
-            subtitle: projectActiveChatTitle(for: nil),
+            subtitle: self.projectActiveChatTitle(for: nil),
             state: project == nil ? .on : .off,
         ) { [weak self] _ in self?.switchProject(to: nil) }
         let allProjects = UIAction(title: String(localized: "All Projects…")) { [weak self] _ in
