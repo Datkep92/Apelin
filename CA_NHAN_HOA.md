@@ -148,6 +148,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 4 | 2026-10-31 | Bản vá (danh sách dự án) | Danh sách dự án hiển thị thiếu/lẫn; đã sửa và kiểm chứng trên máy: Home hiện đủ dự án, dự án không có `apelin-project.json` bị loại đúng. | nằm trong nhóm `dfe14b9..ec2727a` | Giữ nguyên; kiểm tra lại sau mỗi lần merge: Home và bộ chọn dự án phải cùng số dự án. |
 
 | 6 | 2026-10-31 | Cá nhân hoá | Long-press menu on user message bubbles: copy the message into clipboard then delete it. | `f7b2f878804424d90b3f163276a3f4934bc1c1df` | Giữ nguyên `ChatMessageRow` long-press `bubble`, `ChatController.confirmAndDelete`, `ChatRuntime.deleteMessage` |
+| 7 | 2026-11-01 | Cá nhân hoá | **Xoá nhà cung cấp mô hình** trong Settings ▸ Model Providers: cấu hình đã lưu có mục `Delete` trong menu `...` và vuốt để xoá (hỏi lại trước). Xoá khoá khỏi keychain qua `agentSignOut`, bỏ model đã bật của cấu hình và tên đang chờ, hàng biến mất. Hàng của chính nhà cung cấp vẫn chỉ có `Sign Out` vì apelin-agent luôn liệt kê nó. | `77adeec` | Giữ `delete`/`confirmDelete` trong `ModelProvidersController.swift` (không gộp vào `signOut`), và ba khoá catalog `Delete %@?`, câu xác nhận, `Unable to Delete` đủ 12 ngôn ngữ. |
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
 2. Bổ sung **1 dòng** vào bảng 6.1: `Số | Ngày (YYYY-MM-DD) | Cá nhân hoá/Bản vá | Tóm tắt | Hash commit | Yêu cầu giữ lại`.
