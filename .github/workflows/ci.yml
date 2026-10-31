@@ -72,6 +72,17 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.DERIVED_DATA }}/Build/Intermediates.noindex
+            ${{ env.DERIVED_DATA }}/Build/Products
+          key: apelin-dd-${{ runner.os }}-${{ github.ref_name }}-${{ hashFiles('Apelin/**', 'Makefile', 'Scripts/**') }}
+          restore-keys: |
+            apelin-dd-${{ runner.os }}-${{ github.ref_name }}-
+            apelin-dd-${{ runner.os }}-
+
       - name: Select Xcode 27.1
         run: |
           sudo xcode-select -s /Applications/Xcode_27.1.app/Contents/Developer
@@ -96,6 +107,17 @@ jobs:
       # tool extensions, each read back and verified.
       - name: Build, package and verify the IDE and every extension
         run: make deb-all CONFIGURATION=Release SKIP_HARNESS=1 DERIVED_DATA="$DERIVED_DATA" BUILD_NUMBER="$GITHUB_RUN_NUMBER"
+
+      # Cache build intermediates and products: when the source hash does not
+      # change (a re-run of a tag or push, the same pull request), llbuild keeps
+      # everything it already built, so the build shrinks to the changed files.
+      - name: Save build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.DERIVED_DATA }}/Build/Intermediates.noindex
+            ${{ env.DERIVED_DATA }}/Build/Products
+          key: apelin-dd-${{ runner.os }}-${{ github.ref_name }}-${{ hashFiles('Apelin/**', 'Makefile', 'Scripts/**') }}
 
       # Both flavours package the one build, and neither strip nor ldid touches
       # LC_UUID, so one set of dSYMs matches every shipped binary.
