@@ -147,6 +147,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 5 | 2026-10-31 | Bản vá (bỏ xác minh model) | Provider **custom (OpenAI-compatible)** không còn bắt buộc xác minh model khi thêm: endpoint miễn phí/relay thường quảng cáo model nhưng từ chối completion (hết hạn mức `:free`), khiến Apelin chặn thêm model dù model dùng được. Provider chính thức (OpenRouter, Anthropic, Copilot…) vẫn xác minh như cũ. | `260a73d` | Giữ nhánh `request.provider == .openAICompatible` trong `activateModels` (`AccountDesk.swift`); không bật lại `verifyKey` cho custom provider. |
 | 4 | 2026-10-31 | Bản vá (danh sách dự án) | Danh sách dự án hiển thị thiếu/lẫn; đã sửa và kiểm chứng trên máy: Home hiện đủ dự án, dự án không có `apelin-project.json` bị loại đúng. | nằm trong nhóm `dfe14b9..ec2727a` | Giữ nguyên; kiểm tra lại sau mỗi lần merge: Home và bộ chọn dự án phải cùng số dự án. |
 
+| 6 | 2026-10-31 | Cá nhân hoá | Long-press menu on user message bubbles: copy the message into clipboard then delete it. | `f7b2f878804424d90b3f163276a3f4934bc1c1df` | Giữ nguyên `ChatMessageRow` long-press `bubble`, `ChatController.confirmAndDelete`, `ChatRuntime.deleteMessage` |
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
 2. Bổ sung **1 dòng** vào bảng 6.1: `Số | Ngày (YYYY-MM-DD) | Cá nhân hoá/Bản vá | Tóm tắt | Hash commit | Yêu cầu giữ lại`.
