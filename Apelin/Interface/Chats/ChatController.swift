@@ -278,6 +278,7 @@ final class ChatController: UIViewController {
                     row.attachmentHeightLimit = self?.attachmentHeightLimit ?? 0
                     row.displayScale = self?.displayScale ?? 0
                     row.show(message, isStreaming: self?.chat?.isWorking == true)
+                    row.onLongPress = { [weak self] message in self?.confirmAndDelete(message) }
                     row.onAttachmentLayoutChanged = { [weak self] in
                         guard let self, chat?.id == chatID else { return }
                         messageList.reconfigureRow(with: message.id)
@@ -730,6 +731,23 @@ extension ChatController {
         let earlier = unsent[id] ?? (0, 0)
         unsent[id] = (earlier.messages + returned.messages, earlier.attachmentsLeftOut + returned.attachmentsLeftOut)
         sayUnsent()
+    }
+
+    /// A user message's copy and its removal: the destructive confirmation
+    /// holds both, so a single tap names the message's own end. It is the
+    /// only message the controller can take, which the runtime marks
+    /// (`ChatMessageRow`'s `bubble`).
+    private func confirmAndDelete(_ message: ChatMessage) {
+        guard let chat = chat else { return }
+        presentConfirmation(
+            title: String(localized: "Copy and delete message?"),
+            message: String(localized: "Copy the message to the clipboard, then delete it?"),
+            confirmTitle: String(localized: "Copy and delete"),
+            destructive: true,
+        ) { [weak self] in
+            UIPasteboard.general.string = message.text
+            self?.runtime.deleteMessage(message.id, in: chat.id)
+        }
     }
 
     /// Says what went back to the composer of the conversation on screen,

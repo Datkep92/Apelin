@@ -67,6 +67,13 @@ final class ChatMessageRow: ListRowView {
 
     private var attachments: [ComposerAttachment] = []
     private var isUser = false
+    /// What a long press on a user message bubble reports: the message's
+    /// copy and deletion, requested of the controller.
+    var onLongPress: ((ChatMessage) -> Void)?
+    private let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+    /// The last message `show` set, while the row is on screen: the long
+    /// press runs on it, who is receiving it.
+    private var shownMessage: ChatMessage?
     private static let sizingMarkdown = ChatMarkdownView()
     private static let sizingLabel = TextLabelView()
     var onAttachmentLayoutChanged: (() -> Void)?
@@ -81,6 +88,7 @@ final class ChatMessageRow: ListRowView {
         bubble.layer.cornerCurve = .continuous
         bubble.clipsToBounds = true
         bubble.isHidden = true
+        bubble.addGestureRecognizer(longPress)
         addSubview(bubble)
         senderLabel.font = Self.senderFont
         senderLabel.adjustsFontForContentSizeCategory = true
@@ -135,6 +143,7 @@ final class ChatMessageRow: ListRowView {
         senderLabel.text = nil
         senderLabel.isHidden = true
         shownID = nil
+        shownMessage = nil
         finishesStreamWhenStill = false
         markdownView.reset()
         markdownView.isStreaming = false
@@ -145,6 +154,14 @@ final class ChatMessageRow: ListRowView {
         onAttachmentLayoutChanged = nil
         onPreview = nil
         onPreviewImages = nil
+    }
+
+    /// A long press ended on the message bubble: only a user message's
+    /// copy and deletion is on the menu.
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .ended else { return }
+        guard let message = shownMessage, message.role == .user else { return }
+        onLongPress?(message)
     }
 
     func show(_ message: ChatMessage, isStreaming: Bool = false) {
@@ -168,6 +185,7 @@ final class ChatMessageRow: ListRowView {
             }
         }
         shownID = message.id
+        shownMessage = message
         label.accessibilityValue = waiting ? String(localized: "Waiting to Send") : nil
         bubble.isHidden = !isUser || message.text.isEmpty
         senderLabel.text = isUser ? message.sender : nil

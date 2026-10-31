@@ -165,6 +165,21 @@ final class ChatRuntime {
         changed(id)
     }
 
+    /// A user message is gone from the conversation: the events that carry
+    /// it — a `prompt`, a `steer` or a `queued` one — leave the record, as
+    /// does the draft of a message still on its way. The record saves
+    /// (`changed`), so the transcript rebuilds from the events left behind.
+    func deleteMessage(_ messageID: UUID, in chatID: UUID) {
+        guard var record = records[chatID] else { return }
+        if var sending = record.sending {
+            sending = sending.filter { $0.id != messageID }
+            record.sending = sending.isEmpty ? nil : sending
+        }
+        record.events = record.events.filter { ChatTranscript.userMessageID(of: $0) != messageID }
+        records[chatID] = record
+        changed(chatID)
+    }
+
     func delete(_ id: UUID) async throws {
         let session = records[id]?.sessionID
         try await closeSession(id)
