@@ -332,7 +332,11 @@ public actor AccountDesk {
                 for model in request.models {
                     currentModel = model
                     try Task.checkCancellation()
-                    if usesAPIKey {
+                    if request.provider == .openAICompatible {
+                        // Custom endpoints: catalogs and actual serving drift
+                        // apart too often (free tiers, relays) to block
+                        // saving a model on a failed probe.
+                    } else if usesAPIKey {
                         try await verifyKey(request.provider, credentials, model)
                     } else {
                         try await KWWKSignIn.enableCopilotModels(credentials, models: [model])
