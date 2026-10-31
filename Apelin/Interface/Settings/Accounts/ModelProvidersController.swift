@@ -512,7 +512,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             field.autocapitalizationType = .words
         }
         alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
-        alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { [alert] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Done"), style: .default) { [alert] _ in
             guard let value = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !value.isEmpty, value.count <= 120, !value.contains(where: \.isNewline) else { return }
             handler(value)
