@@ -3788,3 +3788,32 @@ fragment. The chat's ListViewKit keeps its own update mechanism.
   signs it with `Packaging/ApelinWidgets.entitlements` and reads them back;
   `install-device.sh --app` signs it too, and the rpath check takes an
   `.appex` as its own `@executable_path`.
+
+## Fork personalisation — Datkep92 (2026-10-31)
+
+Repo này là fork của `owngoal-dev/Apelin`. Mọi việc với fork này — thêm chức
+năng, build, cài, phát hành — đi theo **`CA_NHAN_HOA.md` ở đầu repo**: đọc file
+đó trước khi làm bất cứ điều gì, và nó là sổ tay sống.
+
+Quy tắc ngắn của fork:
+- **Base luôn là upstream mới nhất:** `git fetch upstream main` rồi merge vào
+  `main`; **không** fetch/push tag upstream (tag `v...` làm `release.yml` của
+  fork phát hành nhầm). Khi conflict: giữ cá nhân hoá của fork, đặc biệt
+  `ModelProvidersController.swift` và `Localizable.xcstrings` (xem `0428636`).
+- **Mọi chức năng mới hay bản vá (fix) phải kèm 1 dòng mới vào mục 6.1 của
+  `CA_NHAN_HOA.md`** (Ngày | Loại | Tóm tắt | Hash commit | Yêu cầu giữ lại),
+  ghi commit cùng lúc. Không ghi dòng nào thì chưa được coi là cá nhân hoá
+  chính thức, có thể bị merge sau đẩy mất.
+- **Build bằng CI GitHub**, không build trên máy này (không có `xcodebuild`):
+  push vào `main` → `ci.yml` (~20–27 phút, artifact `apelin-<full sha>`);
+  phát hành bằng tag `v...` của riêng fork → `release.yml`.
+- **Cài đặt:** `icli pkg install <deb>` chạy bằng root (maintainer script
+  **không** chạy — để nguyên, `postinst` sẽ bootout `apelind`); sau đó
+  `icli app kill wiki.qaq.apelin --force` + `icli app launch wiki.qaq.apelin`.
+- **Push qua lệnh**, vì công cụ push của Apelin không tới repo ngoài dự án:
+  `TOK=$(gh auth token); B64=$(printf "x-access-token:%s" "$TOK" | base64 | tr -d "\n"); git -c "http.extraHeader=Authorization: Basic $B64" push origin main`
+- **Bẫy trên máy này:** mọi lệnh `gh` cần `TMPDIR=/tmp`; shell mặc định là
+  `dash` (bọc `bash -c`); `icli screen ocr` / `icli screen describe` hỏng — kiểm
+  tra giao diện bằng accessibility tree; chỉ gói `iphoneos-arm64` (máy này arm64).
+- Không force push, không đổi URL remote, không tự làm `.deb` bằng tay
+  (`dpkg-deb`, `ar`… ngoài CI là cấm).
