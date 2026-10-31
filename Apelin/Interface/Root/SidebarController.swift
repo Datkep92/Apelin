@@ -474,6 +474,10 @@ final class SidebarController: UIViewController {
         projectTitleButton.configuration = config
     }
 
+    private func projectActiveChatTitle(for projectName: String?) -> String? {
+        runtime.summaries.first(where: { $0.projectName == projectName })?.title
+    }
+
     /// The projects to switch to, the open one ticked: the newest at the
     /// top and the rest under More Projects (`ProjectMenuOrder`), then
     /// the picker, which also makes a new one.
@@ -490,6 +494,7 @@ final class SidebarController: UIViewController {
             guard let candidate = byName[name] else { return nil }
             return UIAction(
                 title: candidate.displayTitle,
+                subtitle: projectActiveChatTitle(for: name),
                 state: name == open ? .on : .off,
             ) { [weak self] _ in
                 self?.switchProject(to: candidate)
@@ -504,6 +509,7 @@ final class SidebarController: UIViewController {
         }
         let general = UIAction(
             title: String(localized: "General Chat"),
+            subtitle: projectActiveChatTitle(for: nil),
             state: project == nil ? .on : .off,
         ) { [weak self] _ in self?.switchProject(to: nil) }
         let allProjects = UIAction(title: String(localized: "All Projects…")) { [weak self] _ in
