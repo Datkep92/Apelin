@@ -10,7 +10,11 @@ import UIKit
 /// that take a typed key. A search field narrows the list by name, and `+`
 /// adds another configuration of a provider that keeps several; one named but
 /// not yet given a key has a row too, under the provider it is a configuration
-/// of, and swiping it takes the name away.
+/// of, and swiping it takes the name away. Signing out gives up a key and
+/// leaves a row behind; a configuration is also deleted for good — its key out
+/// of the keychain and its name off the list — from its menu, or by a swipe.
+/// The provider's own row is only ever signed out of: apelin-agent lists it
+/// whether the keychain holds a key for it or not.
 final class ModelProvidersController: TableController, UISearchResultsUpdating {
     private enum Group: Hashable {
         case signedIn
@@ -352,7 +356,9 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 self?.addConfiguration(account.provider)
             })
         }
-        actions.append(UIMenu(options: .displayInline, children: [
+        // The two red ones, the lesser first: Sign Out gives up the key and
+        // leaves the row, Delete takes a configuration away altogether.
+        var endings: [UIMenuElement] = [
             UIAction(
                 title: String(localized: "Sign Out"),
                 image: UIImage(systemName: "rectangle.portrait.and.arrow.right"),
@@ -360,7 +366,17 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             ) { [weak self] _ in
                 self?.confirmSignOut(account)
             },
-        ]))
+        ]
+        if account.profileID != nil {
+            endings.append(UIAction(
+                title: String(localized: "Delete"),
+                image: UIImage(systemName: "trash"),
+                attributes: .destructive,
+            ) { [weak self] _ in
+                self?.confirmDelete(account)
+            })
+        }
+        actions.append(UIMenu(options: .displayInline, children: endings))
         return actions
     }
 
@@ -370,22 +386,35 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
 
     /// A configuration still waiting for its key has nothing to sign out of, so
     /// a swipe takes the name away instead: the walk back to `+` is the long
-    /// way round to the same thing.
+    /// way round to the same thing. A saved one is deleted the same way, and
+    /// asks first, since its key goes with it.
     override func tableView(
         _: UITableView,
         trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
     ) -> UISwipeActionsConfiguration? {
-        guard let account = account(at: indexPath), PendingConfigurations.contains(account.id) else { return nil }
-        let remove = UIContextualAction(
-            style: .destructive,
-            title: String(localized: "Remove"),
-        ) { [weak self] _, _, completion in
-            PendingConfigurations.remove(account.id)
-            self?.load()
-            completion(true)
+        guard let account = account(at: indexPath) else { return nil }
+        if PendingConfigurations.contains(account.id) {
+            let remove = UIContextualAction(
+                style: .destructive,
+                title: String(localized: "Remove"),
+            ) { [weak self] _, _, completion in
+                PendingConfigurations.remove(account.id)
+                self?.load()
+                completion(true)
+            }
+            remove.image = UIImage(systemName: "trash")
+            return UISwipeActionsConfiguration(actions: [remove])
         }
-        remove.image = UIImage(systemName: "trash")
-        return UISwipeActionsConfiguration(actions: [remove])
+        guard account.signedIn, account.profileID != nil else { return nil }
+        let delete = UIContextualAction(
+            style: .destructive,
+            title: String(localized: "Delete"),
+        ) { [weak self] _, _, completion in
+            self?.confirmDelete(account)
+            completion(false)
+        }
+        delete.image = UIImage(systemName: "trash")
+        return UISwipeActionsConfiguration(actions: [delete])
     }
 
     override func tableView(
@@ -443,6 +472,40 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 self?.load()
             } catch {
                 self?.presentNotice(title: "Unable to Sign Out", message: error.readableMessage)
+            }
+        }
+    }
+
+    /// A key is not given up on a stray tap: the alert is where deleting is
+    /// asked for the last time.
+    private func confirmDelete(_ account: AgentAccount) {
+        presentConfirmation(
+            title: "Delete \(account.title)?",
+            message: "The saved key is removed from this device’s keychain. This cannot be undone.",
+            confirmTitle: "Delete",
+            destructive: true,
+        ) { [weak self] in
+            self?.delete(account)
+        }
+    }
+
+    /// Delete: the key out of the keychain, where Sign Out leaves a row
+    /// waiting for the next one. A name that never reached a key goes from
+    /// here alone, without asking apelin-agent for anything.
+    private func delete(_ account: AgentAccount) {
+        guard account.signedIn else {
+            PendingConfigurations.remove(account.id)
+            load()
+            return
+        }
+        Task { [weak self] in
+            do {
+                try await ApelinService.app.agentSignOut(provider: account.provider, profileID: account.profileID)
+                EnabledModels.remove(for: account)
+                PendingConfigurations.remove(account.id)
+                self?.load()
+            } catch {
+                self?.presentNotice(title: "Unable to Delete", message: error.readableMessage)
             }
         }
     }
