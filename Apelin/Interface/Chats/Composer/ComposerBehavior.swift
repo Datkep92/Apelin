@@ -23,7 +23,12 @@ enum ComposerBehavior {
     /// Return inserts a new line and only the send button sends; otherwise
     /// return sends and ⌥ return inserts the new line.
     static var useConfirmationOnSend: Bool {
-        get { UserDefaults.standard.bool(forKey: "composer.useConfirmationOnSend") }
+        get {
+            if UserDefaults.standard.object(forKey: "composer.useConfirmationOnSend") == nil {
+                return true // Return inserts newline; use the send button to send
+            }
+            return UserDefaults.standard.bool(forKey: "composer.useConfirmationOnSend")
+        }
         set {
             UserDefaults.standard.set(newValue, forKey: "composer.useConfirmationOnSend")
             NotificationCenter.default.post(name: .composerBehaviorChanged, object: nil)
