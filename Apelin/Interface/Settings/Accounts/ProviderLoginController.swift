@@ -128,11 +128,11 @@ final class ProviderLoginController: UIViewController {
         return UIBarButtonItem(customView: spinner)
     }()
 
-    init(account: AgentAccount) {
+    init(account: AgentAccount, preferredProfileName: String? = nil) {
         provider = account.provider
         accountID = account.id
         profileID = account.profileID
-        profileName = account.name
+        profileName = preferredProfileName ?? account.name
         methods = [account.method] + (account.alternativeMethods ?? []).filter { $0 != account.method }
         isEditingConfiguration = account.signedIn && account.isAPIKeyAccount
         method = account.isAPIKeyAccount ? .apiKey : account.method

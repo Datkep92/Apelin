@@ -276,7 +276,8 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             content = .subtitleCell()
             content.secondaryText = Self.waitingLine(account)
             Self.subtitleStyle(&content)
-            cell.accessoryType = .disclosureIndicator
+            cell.accessoryView = menuButton(account)
+            cell.selectionStyle = .none
         } else {
             content = .cell()
             cell.accessoryType = .disclosureIndicator
@@ -332,6 +333,31 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     }
 
     private func accountActions(_ account: AgentAccount) -> [UIMenuElement] {
+        // A configuration waiting for its key has no credential to edit: offer
+        // a rename of the name it was given, and removing that name.
+        guard account.signedIn else {
+            var actions: [UIMenuElement] = []
+            if PendingConfigurations.contains(account.id) {
+                actions.append(UIAction(
+                    title: String(localized: "Rename"),
+                    image: UIImage(systemName: "pencil.line"),
+                ) { [weak self] _ in
+                    self?.renameWaiting(account)
+                })
+            }
+            actions.append(UIMenu(options: .displayInline, children: [
+                UIAction(
+                    title: String(localized: "Remove"),
+                    image: UIImage(systemName: "trash"),
+                    attributes: .destructive,
+                ) { [weak self] _ in
+                    PendingConfigurations.remove(account.id)
+                    self?.load()
+                },
+            ]))
+            return actions
+        }
+
         var actions: [UIMenuElement] = [
             UIAction(
                 title: String(localized: "Edit"),
@@ -346,6 +372,16 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 self?.presentPageAsFormSheet(ModelActivationController(account: account))
             },
         ]
+        // A named configuration can take a new name; it is a re-sign-in
+        // that still reuses its saved key fields.
+        if account.profileID != nil {
+            actions.insert(UIAction(
+                title: String(localized: "Rename"),
+                image: UIImage(systemName: "pencil.line"),
+            ) { [weak self] _ in
+                self?.renameSigned(account)
+            }, at: 0)
+        }
         // A provider that takes several API keys or endpoints offers one
         // more here, beside the ones it has.
         if AgentProfileID.canonicalID(for: account.provider) != nil {
@@ -422,7 +458,10 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         contextMenuConfigurationForRowAt indexPath: IndexPath,
         point _: CGPoint,
     ) -> UIContextMenuConfiguration? {
-        guard let account = account(at: indexPath), account.signedIn else { return nil }
+        guard let account = account(at: indexPath) else { return nil }
+        if !account.signedIn && !PendingConfigurations.contains(account.id) {
+            return nil
+        }
         return UIContextMenuConfiguration(actionProvider: { [weak self] _ in
             UIMenu(children: self?.accountActions(account) ?? [])
         })
@@ -436,13 +475,49 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
 
     // MARK: - Acting
 
-    private func signIn(_ account: AgentAccount) {
-        let page = ProviderLoginController(account: account)
+    private func signIn(_ account: AgentAccount, preferredProfileName: String? = nil) {
+        let page = ProviderLoginController(account: account, preferredProfileName: preferredProfileName)
         page.onFinish = { [weak self] in self?.load() }
         // a sheet of its own over Settings, kept up until it is closed: a
         // stray swipe would end a sign-in waiting on Safari
         page.isModalInPresentation = true
         presentPageAsFormSheet(page)
+    }
+
+    /// Rename a configuration that has only been named: keep the new name.
+    private func renameWaiting(_ account: AgentAccount) {
+        promptForName(initial: account.name) { [weak self] newName in
+            PendingConfigurations.remove(account.id)
+            PendingConfigurations.save(newName, for: account.id)
+            self?.load()
+        }
+    }
+
+    /// Rename a signed configuration: re-sign in, reusing its saved key.
+    private func renameSigned(_ account: AgentAccount) {
+        promptForName(initial: account.name) { [weak self] newName in
+            self?.signIn(account, preferredProfileName: newName)
+        }
+    }
+
+    private func promptForName(initial: String?, handler: @escaping (String) -> Void) {
+        let alert = UIAlertController(
+            title: String(localized: "Rename"),
+            message: nil,
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.text = initial
+            field.placeholder = String(localized: "Name")
+            field.autocapitalizationType = .words
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { [alert] _ in
+            guard let value = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty, value.count <= 120, !value.contains(where: \.isNewline) else { return }
+            handler(value)
+        })
+        present(alert, animated: true)
     }
 
     private func confirmSignOut(_ account: AgentAccount) {

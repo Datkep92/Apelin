@@ -170,6 +170,32 @@ final class SidebarController: UIViewController {
         return item
     }()
 
+    private lazy var settingsBarButton: UIBarButtonItem = {
+        UIBarButtonItem(
+            image: UIImage(systemName: "gearshape"),
+            primaryAction: UIAction { [weak self] _ in self?.presentPageAsFormSheet(SettingsViewController()) },
+        ).then {
+            $0.accessibilityLabel = String(localized: "Settings")
+        }
+    }()
+
+    private lazy var projectTitleButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.showsMenuAsPrimaryAction = true
+        button.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
+            completion(self?.projectMenu().children ?? [])
+        }])
+        var config = UIButton.Configuration.plain()
+        config.image = UIImage(systemName: "folder")
+        config.title = String(localized: "General Chat")
+        config.imagePlacement = .leading
+        config.imagePadding = 4
+        config.baseForegroundColor = .label
+        button.configuration = config
+        button.accessibilityLabel = String(localized: "Projects")
+        return button
+    }()
+
     /// The system's inset grouped list, cells, headers and selection as
     /// they come.
     private let tableView = FirstFillTableView(frame: .zero, style: .insetGrouped).then {
@@ -233,13 +259,16 @@ final class SidebarController: UIViewController {
         projectMonitor.start()
         view.backgroundColor = .panelBackground
 
-        // The project name stays at the leading edge; the folder owns switching.
+        // One top row: Settings, the project switcher, New Project and New Chat.
         navigationItem.style = .editor
+        navigationItem.leftBarButtonItem = settingsBarButton
+        navigationItem.hidesBackButton = true
+        navigationItem.titleView = projectTitleButton
         // under the bar, hidden until the list is pulled down
         navigationItem.preferredSearchBarPlacement = .stacked
         navigationItem.hidesSearchBarWhenScrolling = true
-        // Making things stays in the top bar; project switching lives below.
-        navigationItem.rightBarButtonItems = [newMenuButton]
+        let newChatItem = UIBarButtonItem(customView: newChatButton)
+        navigationItem.rightBarButtonItems = [newChatItem, newMenuButton]
         showProject()
         refresh()
         NotificationCenter.default.addObserver(
@@ -249,15 +278,7 @@ final class SidebarController: UIViewController {
             object: nil,
         )
         Task { await refreshProjects() }
-        toolbarItems = [
-            UIBarButtonItem(customView: newChatButton),
-            .flexibleSpace(),
-            projectMenuButton,
-            UIBarButtonItem(
-                image: UIImage(systemName: "gearshape"),
-                primaryAction: UIAction { [weak self] _ in self?.presentPageAsFormSheet(SettingsViewController()) },
-            ).then { $0.accessibilityLabel = String(localized: "Settings") },
-        ]
+        toolbarItems = nil
 
         tableView.delegate = self
         // a row that arrives fades in where it belongs, rather than sliding
@@ -285,7 +306,7 @@ final class SidebarController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        navigationController?.setToolbarHidden(false, animated: animated)
+        navigationController?.setToolbarHidden(true, animated: animated)
     }
 
     // MARK: - The list
@@ -446,6 +467,11 @@ final class SidebarController: UIViewController {
         title = project?.displayTitle ?? String(localized: "Apelin")
         projectMenuButton.image = project.flatMap { ProjectIcon.menuImage(for: $0) } ?? UIImage(systemName: "folder")
         projectMenuButton.accessibilityValue = project?.displayTitle ?? String(localized: "General Chat")
+
+        var config = projectTitleButton.configuration ?? UIButton.Configuration.plain()
+        config.image = project.flatMap { ProjectIcon.menuImage(for: $0) } ?? UIImage(systemName: "folder")
+        config.title = project?.displayTitle ?? String(localized: "General Chat")
+        projectTitleButton.configuration = config
     }
 
     /// The projects to switch to, the open one ticked: the newest at the
