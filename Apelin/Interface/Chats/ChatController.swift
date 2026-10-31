@@ -740,9 +740,9 @@ extension ChatController {
     private func confirmAndDelete(_ message: ChatMessage) {
         guard let chat = chat else { return }
         presentConfirmation(
-            title: String(localized: "Copy and delete message?"),
-            message: String(localized: "Copy the message to the clipboard, then delete it?"),
-            confirmTitle: String(localized: "Copy and delete"),
+            title: "Copy and delete message?",
+            message: "Copy the message to the clipboard, then delete it?",
+            confirmTitle: "Copy and delete",
             destructive: true,
         ) { [weak self] in
             UIPasteboard.general.string = message.text
