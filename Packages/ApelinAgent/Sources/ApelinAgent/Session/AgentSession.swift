@@ -168,7 +168,11 @@ public actor AgentSession {
                 messages: transcript,
             ),
             // a request the network failed waits for it to come back
-            streamFn: NetworkRecovery.stream(path: configuration.network) {
+            streamFn: NetworkRecovery.stream(path: configuration.network, inner: { model, context, options in
+                var context = context
+                AgentSession.normalizeReasoningContext(for: model, in: &context)
+                return try await KWWKAI.stream(model: model, context: context, options: options)
+            }) {
                 _ = try? await log.append(.reconnecting)
             },
             toolExecution: .sequential,
@@ -702,6 +706,47 @@ public actor AgentSession {
     /// its own check, and records digest approvals in its ledger itself.
     public func approve(requestID: String, decision: ApprovalDecision) async throws {
         try await gate.resolve(requestID, decision: decision)
+    }
+
+    /// Normalize prior assistant turns for OpenAI-compatible DeepSeek-style
+    /// providers that require `reasoning_content` for every earlier assistant
+    /// message. kwwk only emits that field when the thinking block has a
+    /// non-empty signature, or as an empty string when the compat says so, so
+    /// both cases are fixed up at the stream boundary before the request.
+    static func normalizeReasoningContext(for model: Model, in context: inout Context) {
+        guard model.api == "openai-completions" else { return }
+        let isDeepSeek = model.provider.lowercased().contains("deepseek")
+            || model.id.lowercased().contains("deepseek")
+            || model.baseURL.lowercased().contains("deepseek")
+        let requires = isDeepSeek || (model.compat?.requiresReasoningContentOnAssistantMessages == true)
+        guard requires, model.reasoning else { return }
+        for i in context.messages.indices {
+            guard case let .assistant(assistant) = context.messages[i] else { continue }
+            var assistant = assistant
+            var content = assistant.content
+            let hasNonEmptyThinking = content.contains { block in
+                if case .thinking(let t) = block {
+                    return !t.thinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+                return false
+            }
+            if !hasNonEmptyThinking {
+                content.insert(.thinking(ThinkingContent(thinking: " ", thinkingSignature: "r")), at: 0)
+            } else {
+                content = content.map { block in
+                    if case .thinking(let t) = block {
+                        var copy = t
+                        if (copy.thinkingSignature?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty {
+                            copy.thinkingSignature = "r"
+                        }
+                        return .thinking(copy)
+                    }
+                    return block
+                }
+            }
+            assistant.content = content
+            context.messages[i] = .assistant(assistant)
+        }
     }
 
     public var pendingApprovals: [ApprovalRequest] {
