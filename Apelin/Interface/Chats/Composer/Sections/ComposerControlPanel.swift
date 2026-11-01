@@ -11,7 +11,7 @@ final class ComposerControlPanel: ComposerSectionView {
     let photoButton = ComposerGiantButton(title: String(localized: "Photo"), icon: "ComposerPhoto")
     let fileButton = ComposerGiantButton(title: String(localized: "File"), icon: "ComposerFile")
     let webButton = ComposerGiantButton(title: String(localized: "Web"), icon: "ComposerWeb")
-    let htmlButton = ComposerGiantButton(title: String(localized: "HTML"), icon: "ComposerWeb")
+    let htmlButton = ComposerGiantButton(title: "HTML", icon: "ComposerWeb")
     private lazy var buttons = [cameraButton, photoButton, fileButton, webButton, htmlButton]
 
     override func initializeViews() {
