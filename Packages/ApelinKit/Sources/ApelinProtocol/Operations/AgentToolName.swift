@@ -82,6 +82,7 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case sdkImport = "apelin_sdk_import"
     case toolchainSelfTest = "apelin_toolchain_self_test"
     case projectSetEnvironment = "apelin_project_set_environment"
+    case runJavaScript = "apelin_run_javascript"
 }
 
 public extension AgentToolName {

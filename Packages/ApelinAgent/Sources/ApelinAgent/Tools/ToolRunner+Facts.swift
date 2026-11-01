@@ -79,6 +79,15 @@ extension ToolRunner {
         case .webSearch:
             // An empty query would ask nothing useful.
             _ = try arguments.requireString("query")
+        case .runJavaScript:
+            // An empty program would ask nothing useful.
+            let code = arguments.argString("code")
+                ?? arguments.argString("script")
+                ?? arguments.argString("javascript")
+                ?? arguments.argString("source")
+            guard let code, !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ToolArgumentError("missing string argument 'code'")
+            }
         case .gitPush:
             // The branch the card names is the one pushed: an omitted one is
             // read now and sent explicitly.

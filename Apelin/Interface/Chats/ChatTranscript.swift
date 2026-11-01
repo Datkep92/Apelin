@@ -600,6 +600,7 @@ struct ChatTranscript {
             let method = values?["method"]?.stringValue ?? "GET"
             return host.isEmpty ? String(localized: "\(method) request") : String(localized: "\(method) \(host)")
         case .webSearch: return String(localized: "Search the web")
+        case .runJavaScript: return String(localized: "Run JavaScript")
         case .feedbackSend: return String(localized: "Send feedback")
         case .feedbackRead: return String(localized: "Read a feedback issue")
         case .feedbackEdit: return String(localized: "Edit a feedback issue")

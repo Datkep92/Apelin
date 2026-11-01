@@ -34,6 +34,7 @@ actor ToolRunner {
     let webFetch: WebFetch
     let httpRequest: HTTPRequest
     let webSearch: WebSearch
+    let javaScript: JavaScript
     /// The agent tool extensions' sessions, opened as their tools are called.
     let toolExtensions: ToolExtensionSessions
     private var notices = UserNotices()
@@ -53,6 +54,7 @@ actor ToolRunner {
         webFetch: WebFetch = .shared,
         httpRequest: HTTPRequest = .shared,
         webSearch: WebSearch = .shared,
+        javaScript: JavaScript = .shared,
     ) {
         self.sessionID = sessionID
         self.project = project
@@ -68,6 +70,7 @@ actor ToolRunner {
         self.webFetch = webFetch
         self.httpRequest = httpRequest
         self.webSearch = webSearch
+        self.javaScript = javaScript
         toolExtensions = ToolExtensionSessions(backend: backend)
     }
 
@@ -411,6 +414,10 @@ actor ToolRunner {
         case .webSearch:
             let webSearch = webSearch
             return try await text(Self.untilCancelled(cancellation) { try await webSearch.search(arguments) })
+
+        case .runJavaScript:
+            let javaScript = javaScript
+            return try await text(Self.untilCancelled(cancellation) { try await javaScript.run(arguments) })
 
         case .fileWrite: return try text(files.writeFile(arguments))
 
