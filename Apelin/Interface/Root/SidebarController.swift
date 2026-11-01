@@ -260,7 +260,7 @@ final class SidebarController: UIViewController {
         var content = UIListContentConfiguration.cell()
         content.text = summary?.displayTitle
         content.textProperties.numberOfLines = 1
-        let activeSection = (indexPath.section < dataSource.snapshot().sectionIdentifiers.count) && dataSource.snapshot().sectionIdentifiers[indexPath.section] == .active
+        let activeSection = (indexPath.section < self.dataSource.snapshot().sectionIdentifiers.count) && self.dataSource.snapshot().sectionIdentifiers[indexPath.section] == .active
         if activeSection {
             content.secondaryText = summary?.projectName
             content.secondaryTextProperties.color = .secondaryLabel
@@ -320,7 +320,7 @@ final class SidebarController: UIViewController {
 
         tableView.delegate = self
         // a row that arrives fades in where it belongs, rather than sliding
-        dataSource.defaultRowAnimation = .fade
+        dataSource.defaultRowAnimation = UITableView.RowAnimation.fade
         let projectFooter = UIView()
         projectFooter.backgroundColor = .panelBackground
         projectFooter.addSubview(projectNameLabel)
@@ -456,7 +456,7 @@ final class SidebarController: UIViewController {
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard self.runtime.canCompact(id) else {
-                self.presentNotice(title: String(localized: "Nothing to Compact"), message: String(localized: "This conversation has nothing to compact yet."))
+                self.presentNotice(title: "Nothing to Compact", message: String(localized: "This conversation has nothing to compact yet."))
                 return
             }
             // this runs in the background: the UI is never blocked while
@@ -476,10 +476,10 @@ final class SidebarController: UIViewController {
                     }
                     SPIndicator.present(title: String(localized: "Forked"), preset: .done, haptic: .success)
                 case .cancelled, .failed:
-                    self.presentNotice(title: String(localized: "Unable to Compact Chat"), message: result.message)
+                    self.presentNotice(title: "Unable to Compact Chat", message: result.message)
                 }
             } catch {
-                self.presentNotice(title: String(localized: "Unable to Compact Chat"), message: error.readableMessage)
+                self.presentNotice(title: "Unable to Compact Chat", message: error.readableMessage)
             }
         }
     }
