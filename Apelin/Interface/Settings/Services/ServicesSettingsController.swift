@@ -204,20 +204,25 @@ final class ServicesSettingsController: TableController {
     // MARK: - Firebase
 
     private func presentFirebaseConfig() {
+        // Ask for Google Client ID first
         let alert = UIAlertController(
             title: "Firebase Configuration",
-            message: "Sign in with Google to link Firebase. Apelin uses its built-in OAuth client.",
+            message: "Enter your Google OAuth Client ID for Firebase (from Google Cloud Console).",
             preferredStyle: .alert,
         )
+        alert.addTextField { field in
+            field.placeholder = "Google Client ID"
+            field.text = self.config.firebase?.googleClientID
+        }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Sign In with Google", style: .default) { [weak self] _ in
-            guard let self else { return }
-            self.runBuiltInGoogleSignIn(service: "Firebase") { [weak self] token in
+            guard let self, let clientID = alert.textFields?.first?.text, !clientID.isEmpty else { return }
+            self.runGoogleSignIn(clientID: clientID, service: "Firebase") { [weak self] token in
                 guard let self else { return }
                 self.config.firebase = FirebaseServiceConfig(
                     projectID: self.config.firebase?.projectID,
                     accessToken: token,
-                    googleClientID: GoogleOAuthFlow.clientID,
+                    googleClientID: clientID,
                 )
                 try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                 self.updateRows()
@@ -325,18 +330,22 @@ final class ServicesSettingsController: TableController {
     private func presentGoogleScriptConfig() {
         let alert = UIAlertController(
             title: "Google Script Configuration",
-            message: "Sign in with Google to link Apps Script. Apelin uses its built-in OAuth client.",
+            message: "Enter your Google OAuth Client ID for Apps Script (from Google Cloud Console).",
             preferredStyle: .alert,
         )
+        alert.addTextField { field in
+            field.placeholder = "Google Client ID"
+            field.text = self.config.googleScript?.googleClientID
+        }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Sign In with Google", style: .default) { [weak self] _ in
-            guard let self else { return }
-            self.runBuiltInGoogleSignIn(service: "Google Script") { [weak self] token in
+            guard let self, let clientID = alert.textFields?.first?.text, !clientID.isEmpty else { return }
+            self.runGoogleSignIn(clientID: clientID, service: "Google Script") { [weak self] token in
                 guard let self else { return }
                 self.config.googleScript = GoogleScriptServiceConfig(
                     scriptID: self.config.googleScript?.scriptID,
                     accessToken: token,
-                    googleClientID: GoogleOAuthFlow.clientID,
+                    googleClientID: clientID,
                 )
                 try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                 self.updateRows()
@@ -424,28 +433,6 @@ final class ServicesSettingsController: TableController {
             } catch {
                 await MainActor.run {
                     SPIndicator.present(title: "Invalid bot token", message: error.localizedDescription, preset: .error, haptic: .error)
-                }
-            }
-        }
-    }
-
-    private func runBuiltInGoogleSignIn(service: String, completion: @escaping (String) -> Void) {
-        let waiting = UIAlertController(title: service, message: "Opening Google sign-in…", preferredStyle: .alert)
-        present(waiting, animated: true)
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let token = try await GoogleOAuthFlow.signIn(scopes: GoogleDeviceFlow.defaultScopes)
-                await MainActor.run {
-                    waiting.dismiss(animated: true) {
-                        completion(token)
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    waiting.dismiss(animated: true) {
-                        SPIndicator.present(title: "Sign-in failed", message: error.localizedDescription, preset: .error, haptic: .error)
-                    }
                 }
             }
         }
