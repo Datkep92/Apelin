@@ -715,11 +715,14 @@ public actor AgentSession {
     /// both cases are fixed up at the stream boundary before the request.
     static func normalizeReasoningContext(for model: Model, in context: inout Context) {
         guard model.api == "openai-completions" else { return }
-        let isDeepSeek = model.provider.lowercased().contains("deepseek")
-            || model.id.lowercased().contains("deepseek")
-            || model.baseURL.lowercased().contains("deepseek")
-        let requires = isDeepSeek || (model.compat?.requiresReasoningContentOnAssistantMessages == true)
-        guard requires, model.reasoning else { return }
+        // DeepSeek and DeepSeek-style endpoints require `reasoning_content`
+        // on every earlier assistant message. kwwk only emits that field when
+        // the thinking block has a non-empty signature, or as an empty string
+        // when the compat says so, so both cases are fixed up here. We cannot
+        // tell from the model id or base URL which endpoint enforces the rule
+        // (a relay may serve a DeepSeek model under an unrelated name), so
+        // normalize every OpenAI-compatible turn: the sentinel is ignored by
+        // endpoints that do not need it.
         for i in context.messages.indices {
             guard case let .assistant(assistant) = context.messages[i] else { continue }
             var assistantMessage = assistant
@@ -731,13 +734,16 @@ public actor AgentSession {
                 return false
             }
             if !hasNonEmptyThinking {
-                content.insert(.thinking(ThinkingContent(thinking: " ", thinkingSignature: "r")), at: 0)
+                content.insert(.thinking(ThinkingContent(thinking: "r", thinkingSignature: "r")), at: 0)
             } else {
                 content = content.map { block in
                     if case .thinking(let t) = block {
                         var copy = t
                         if (copy.thinkingSignature?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty {
                             copy.thinkingSignature = "r"
+                        }
+                        if copy.thinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            copy.thinking = "r"
                         }
                         return .thinking(copy)
                     }
