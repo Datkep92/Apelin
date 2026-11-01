@@ -194,7 +194,7 @@ final class ServicesSettingsController: TableController {
         alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
             guard let self, let text = alert.textFields?.first?.text, !text.isEmpty else { return }
             self.config.github = GitHubServiceConfig(repositoryFullName: text)
-            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+            try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
             self.updateRows()
             SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
         })
@@ -224,7 +224,7 @@ final class ServicesSettingsController: TableController {
                     accessToken: token,
                     googleClientID: clientID,
                 )
-                ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                 self.updateRows()
                 self.presentFirebaseProjectPicker(accessToken: token)
             }
@@ -248,7 +248,7 @@ final class ServicesSettingsController: TableController {
                         alert.addAction(UIAlertAction(title: project.displayName ?? project.id, style: .default) { [weak self] _ in
                             guard let self else { return }
                             self.config.firebase?.projectID = project.id
-                            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                            try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                             self.updateRows()
                             SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
                         })
@@ -293,11 +293,11 @@ final class ServicesSettingsController: TableController {
                 let accounts = try await client.listAccounts()
                 await MainActor.run {
                     self.config.cloudflare = CloudflareServiceConfig(apiToken: token)
-                    ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                    try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                     self.updateRows()
                     if accounts.count == 1 {
                         self.config.cloudflare?.accountID = accounts[0].id
-                        ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                        try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                         self.updateRows()
                         SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
                     } else if accounts.count > 1 {
@@ -306,7 +306,7 @@ final class ServicesSettingsController: TableController {
                             alert.addAction(UIAlertAction(title: account.name ?? account.id, style: .default) { [weak self] _ in
                                 guard let self else { return }
                                 self.config.cloudflare?.accountID = account.id
-                                ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                                try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                                 self.updateRows()
                                 SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
                             })
@@ -347,7 +347,7 @@ final class ServicesSettingsController: TableController {
                     accessToken: token,
                     googleClientID: clientID,
                 )
-                ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                 self.updateRows()
                 self.presentGoogleScriptProjectPicker(accessToken: token)
             }
@@ -371,7 +371,7 @@ final class ServicesSettingsController: TableController {
                         alert.addAction(UIAlertAction(title: project.title ?? project.id, style: .default) { [weak self] _ in
                             guard let self else { return }
                             self.config.googleScript?.scriptID = project.id
-                            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                            try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                             self.updateRows()
                             SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
                         })
@@ -426,7 +426,7 @@ final class ServicesSettingsController: TableController {
                         chatID: chatID?.isEmpty == true ? nil : chatID,
                         botUsername: botInfo.username,
                     )
-                    ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                    try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                     self.updateRows()
                     SPIndicator.present(title: "Saved", message: botInfo.username ?? "Bot validated", preset: .done, haptic: .success)
                 }

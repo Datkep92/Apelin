@@ -68,7 +68,7 @@ final class MemoriesController: TableController {
                 let kind = record.kind ?? "memory"
                 var parts: [String] = [kind == "handoff" ? "Handoff" : "Memory"]
                 if let status = record.status { parts.append(status) }
-                if let body = record.body, !body.isEmpty { parts.append(body) }
+                if !record.body.isEmpty { parts.append(record.body) }
                 content.secondaryText = parts.joined(separator: " • ")
                 content.secondaryTextProperties.numberOfLines = 2
                 cell.accessoryType = .disclosureIndicator
