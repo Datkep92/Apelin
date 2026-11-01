@@ -482,7 +482,7 @@ final class SidebarController: UIViewController {
                     }
                     SPIndicator.present(title: String(localized: "Forked"), preset: .done, haptic: .success)
                 case .cancelled, .failed:
-                    self.presentNotice(title: "Unable to Compact Chat", message: result.message)
+                    self.presentNotice(title: "Unable to Compact Chat", message: result.message ?? "Compact failed.")
                 }
             } catch {
                 self.presentNotice(title: "Unable to Compact Chat", message: error.readableMessage)
@@ -828,7 +828,7 @@ extension SidebarController: UITableViewDelegate {
         point _: CGPoint,
     ) -> UIContextMenuConfiguration? {
         guard let id = dataSource.itemIdentifier(for: indexPath), let chat = chat(id) else { return nil }
-        let runtime = self.runtime
+        let runtime = self.runtime!
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
             UIMenu(children: (
                 chat.isWorking ? [ChatRowAction.stop] : (chat.isPinned ? [ChatRowAction.unpin] : [ChatRowAction.pin])
