@@ -403,7 +403,7 @@ actor ToolRunner {
 
         case .webSearch:
             let webSearch = webSearch
-            return try text(Self.untilCancelled(cancellation) { try await webSearch.search(arguments) })
+            return try await text(Self.untilCancelled(cancellation) { try await webSearch.search(arguments) })
 
         case .fileWrite: return try text(files.writeFile(arguments))
 

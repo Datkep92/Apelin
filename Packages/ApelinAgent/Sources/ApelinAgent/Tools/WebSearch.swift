@@ -26,7 +26,7 @@ struct WebSearch: Sendable {
     }
 
     func search(_ arguments: JSONValue) async throws -> String {
-        let query = arguments.requireString("query")
+        let query = try arguments.requireString("query")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             throw ToolArgumentError("query is empty: say what should be searched for")
