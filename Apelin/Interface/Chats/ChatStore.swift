@@ -17,6 +17,10 @@ struct ChatRecord: Codable, Sendable {
     /// Set while the task of a reopened session replays the history
     /// `events` already hold (`reopen(as:)`). Absent from older files.
     var replay: SessionReplay?
+    /// The model this conversation runs on: nil for an older conversation,
+    /// which takes the reader's current one. Added per-conversation model
+    /// support; absent from older files.
+    var modelSelection: ComposerModelSelection?
 }
 
 /// The replay a reopened session's task starts with: every event of the

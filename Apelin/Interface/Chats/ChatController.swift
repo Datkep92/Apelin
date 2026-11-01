@@ -432,6 +432,9 @@ final class ChatController: UIViewController {
         loadViewIfNeeded()
         let previous = self.chat
         self.chat = chat
+        if let stored = runtime.modelSelection(for: chat.id) {
+            ComposerModelSelection.current = stored
+        }
         ConversationNotices.shared.withdraw(session: runtime.records[chat.id]?.sessionID)
         updateModelSelection()
         ensureModelSelection()
@@ -605,7 +608,7 @@ final class ChatController: UIViewController {
     }
 
     @objc private func updateModelSelection() {
-        let selection = ComposerModelSelection.current
+        let selection: ComposerModelSelection? = chat.flatMap { runtime.modelSelection(for: $0.id) } ?? ComposerModelSelection.current
         composer.modelBar.setModelName(selection?.model)
         composer.modelBar.setEfforts(selection?.supportedEfforts ?? [], selected: selection?.effort)
         composer.modelBar.setTiers(selection?.supportedTiers ?? [], selected: selection?.tier)
@@ -659,7 +662,10 @@ final class ChatController: UIViewController {
                     presentPageAsFormSheet(ModelProvidersController())
                     return
                 }
-                let page = ChatModelPickerController(accounts: accounts, selected: ComposerModelSelection.current)
+                let page = ChatModelPickerController(accounts: accounts, selected: chat.flatMap { runtime.modelSelection(for: $0.id) } ?? ComposerModelSelection.current, onPickModel: { [weak self] selection in
+                    guard let self, let id = self.chat?.id else { return }
+                    self.runtime.setModelSelection(selection, for: id)
+                })
                 presentPageAsFormSheet(page)
             } catch {
                 guard !Task.isCancelled, presentedViewController == nil else { return }
@@ -695,15 +701,26 @@ extension ChatController {
                   !Task.isCancelled
             else { return }
             let accounts = EnabledModels.accounts(from: listed)
-            if let current = ComposerModelSelection.current {
+            let chatID = chat?.id
+            let hasChatOverride = chatID.flatMap { runtime.modelSelection(for: $0) } != nil
+            let current = (chatID.flatMap { runtime.modelSelection(for: $0) }) ?? ComposerModelSelection.current
+            if let current {
                 if let account = accounts.first(where: { account in
                     account.provider == current.provider && account.profileID == current.profileID
                         && (account.models ?? []).contains(current.model)
                 }) {
                     let refreshed = Self.selection(of: current.model, in: account)
                     if refreshed != current {
+                        if hasChatOverride, let chatID {
+                            runtime.setModelSelection(refreshed, for: chatID)
+                        }
                         ComposerModelSelection.current = refreshed
+                    } else if hasChatOverride, let chatID {
+                        // keep the chat override on the refreshed value too, in case
+                        // global and override drifted
+                        runtime.setModelSelection(current, for: chatID)
                     }
+                    updateModelSelection()
                     return
                 }
                 if listed.contains(where: {
@@ -714,7 +731,12 @@ extension ChatController {
                 }
             }
             guard let account = accounts.first, let model = account.models?.first else { return }
-            ComposerModelSelection.current = Self.selection(of: model, in: account)
+            let selection = Self.selection(of: model, in: account)
+            ComposerModelSelection.current = selection
+            if let chatID {
+                runtime.setModelSelection(selection, for: chatID)
+            }
+            updateModelSelection()
         }
     }
 

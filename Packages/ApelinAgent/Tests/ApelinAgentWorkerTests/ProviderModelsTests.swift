@@ -72,6 +72,35 @@ struct ProviderModelsTests {
     }
 
     @Test
+    func `a Base URL pasted with its own endpoint still asks for the list, not a doubled path`() throws {
+        let bases = [
+            "https://example.invalid/v1/models",
+            "https://example.invalid/v1/chat/completions",
+            "  example.invalid/v1/  ",
+            "example.invalid/v1\n",
+        ]
+        for base in bases {
+            let credentials = OAuthCredentials(access: "k", refresh: "", expires: .max, extras: [
+                "baseUrl": .string(base),
+            ])
+            let request = try #require(ProviderModels.modelRequest(.openAICompatible, credentials: credentials))
+            #expect(request.url?.absoluteString == "https://example.invalid/v1/models", "\(base.debugDescription)")
+        }
+    }
+
+    @Test
+    func `an unusable Base URL is named instead of leaving the list empty`() {
+        #expect(ProviderModels.normalizedBase("   ") == nil)
+        #expect(ProviderModels.normalizedBase("/just/a/path") == nil)
+        #expect(ProviderModels.normalizedBase("tokenharbor.ai/v1") == "https://tokenharbor.ai/v1")
+        let credentials = OAuthCredentials(access: "k", refresh: "", expires: .max, extras: ["baseUrl": .string("?")])
+        #expect(ProviderModels.modelRequest(.openAICompatible, credentials: credentials) == nil)
+        #expect(ProviderModels.modelRequest(.githubCopilot, credentials: credentials) == nil)
+        #expect(!AgentProvider.githubCopilot.hasModelEndpoint)
+        #expect(AgentProvider.openAICompatible.hasModelEndpoint)
+    }
+
+    @Test
     func `OAuth accounts remain outside API-key configuration`() {
         let credentials = OAuthCredentials(access: "session", refresh: "refresh", expires: 123_456)
         #expect(!ProviderModels.usesAPIKey(.githubCopilot, credentials: credentials))

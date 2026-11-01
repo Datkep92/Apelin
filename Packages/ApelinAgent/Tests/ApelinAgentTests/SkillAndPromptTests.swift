@@ -558,6 +558,6 @@ struct SkillAndPromptTests {
 
         try FileManager.default.removeItem(at: home.projectURL.appendingPathComponent("AGENTS.md"))
         try home.write("AGENTS.md", String(repeating: "a", count: SystemPrompt.maxInstructionBytes + 10))
-        #expect(SystemPrompt.projectInstructions(in: root)?.text.hasSuffix("… (truncated)") == true)
+        #expect(SystemPrompt.projectInstructions(in: root)?.text.hasSuffix("… (truncated; read the remainder with file_read before acting on the truncated part)") == true)
     }
 }

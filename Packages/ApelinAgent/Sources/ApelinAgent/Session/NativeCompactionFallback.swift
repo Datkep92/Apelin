@@ -18,7 +18,15 @@ enum NativeCompactionFallback {
     static func compact(_ native: @escaping NativeCompactionFn = compactNative) -> NativeCompactionFn {
         { model, context, instructions, options in
             do {
-                return try await native(model, context, instructions, options)
+                let result = try await native(model, context, instructions, options)
+                // Provider sometimes answers 200 with an empty compaction: kwwk's
+                // `valid` summary check is not reached because the payload is not
+                // nil. Treating it as "no summary" lets a local summary replace
+                // the empty recap instead of leaving an unreadable one.
+                if let result, result.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return nil
+                }
+                return result
             } catch let error where returnedNoSummary(error) {
                 return nil
             }
@@ -41,6 +49,14 @@ enum NativeCompactionFallback {
     /// when the app asks: kwwk's defaults, with this in front of its native
     /// compaction.
     static var configuration: AgentContextCompactionConfig {
-        AgentContextCompactionConfig(nativeCompaction: compact())
+        AgentContextCompactionConfig(
+            toolOutputCharacterLimit: 6_000,
+            summaryWordTarget: 1_200,
+            keepRecentTokens: 16_000,
+            messageTextByteLimit: 16_000,
+            toolArgumentByteLimit: 6_000,
+            recoveryRatio: 0.75,
+            nativeCompaction: compact()
+        )
     }
 }

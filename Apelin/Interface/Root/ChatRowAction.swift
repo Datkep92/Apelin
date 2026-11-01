@@ -7,6 +7,7 @@ enum ChatRowAction: Equatable {
     case pin
     case unpin
     case stop
+    case fork
     case delete
 
     /// The leading swipe: Pin, or Unpin for a pinned one.

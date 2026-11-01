@@ -102,6 +102,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     private var query = ""
     private var sections: [(Section, [PickerRow])] = []
     private let search = UISearchController(searchResultsController: nil)
+    private let onPickModel: ((ComposerModelSelection) -> Void)?
 
     private lazy var dataSource = TableDataSource<Section, String, PickerRow>(
         tableView: tableView,
@@ -110,9 +111,10 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         pickerCell(row)
     }
 
-    init(accounts: [AgentAccount], selected: ComposerModelSelection?) {
+    init(accounts: [AgentAccount], selected: ComposerModelSelection?, onPickModel: ((ComposerModelSelection) -> Void)? = nil) {
         self.accounts = accounts
         self.selected = selected
+        self.onPickModel = onPickModel
         super.init(style: .insetGrouped)
     }
 
@@ -208,6 +210,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         let choice = ChatController.selection(of: model, in: account)
         selected = choice
         ComposerModelSelection.current = choice
+        onPickModel?(choice)
         navigationController?.dismiss(animated: !UIAccessibility.isReduceMotionEnabled)
     }
 }

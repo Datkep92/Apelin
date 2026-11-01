@@ -381,7 +381,11 @@ final class ChatRuntime {
             ))
             descriptors.append(OwnedDescriptor(adopting: fd))
         }
-        let selection = ComposerModelSelection.current
+        let selection = records[id]?.modelSelection ?? ComposerModelSelection.current
+        if records[id]?.modelSelection == nil, selection != nil {
+            records[id]?.modelSelection = selection
+            changed(id)
+        }
         _ = try await ApelinService.app.send(
             AgentPromptRequest(
                 sessionID: opened.sessionID,
@@ -463,6 +467,16 @@ final class ChatRuntime {
         (try? event.payload?.decode(AgentCompactionResult.self)) ?? AgentCompactionResult(outcome: .failed)
     }
 
+    func modelSelection(for id: UUID) -> ComposerModelSelection? {
+        records[id]?.modelSelection
+    }
+
+    func setModelSelection(_ selection: ComposerModelSelection?, for id: UUID) {
+        guard records[id] != nil else { return }
+        records[id]?.modelSelection = selection
+        changed(id)
+    }
+
     private func open(_ id: UUID) async throws -> AgentOpenResponse {
         if let pending = opening[id] {
             return try await pending.value
@@ -471,7 +485,11 @@ final class ChatRuntime {
         if let sessionID = record.sessionID, let task = record.task, readers[id] != nil {
             return AgentOpenResponse(sessionID: sessionID, task: task)
         }
-        let selected = ComposerModelSelection.current
+        let selected = records[id]?.modelSelection ?? ComposerModelSelection.current
+        if records[id]?.modelSelection == nil, selected != nil {
+            records[id]?.modelSelection = selected
+            changed(id)
+        }
         let mode = AgentPermissions.mode
         let request = AgentOpenRequest(
             projectName: record.summary.projectName,

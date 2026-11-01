@@ -1,4 +1,5 @@
 import SnapKit
+import SPIndicator
 import Then
 import UIKit
 
@@ -17,6 +18,9 @@ import UIKit
 /// glass on iOS 26, the toolbar's blur before it.
 final class SidebarController: UIViewController {
     private enum Section: Hashable {
+        // Active conversations in projects other than the one shown. Collapses
+        // to nothing when there are none, so the main list stays untouched.
+        case active
         case pinned
         case day(Date)
     }
@@ -180,6 +184,21 @@ final class SidebarController: UIViewController {
         }
     }()
 
+    private lazy var newProjectButton: UIButton = {
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(systemName: "folder.badge.plus")
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+        configuration.imagePadding = 0
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 4)
+        configuration.baseForegroundColor = .label
+        return UIButton(
+            configuration: configuration,
+            primaryAction: UIAction { [weak self] _ in self?.openNewProject() },
+        ).then { button in
+            button.accessibilityLabel = String(localized: "New Project")
+        }
+    }()
+
     private lazy var projectTitleButton: UIButton = {
         let button = UIButton(type: .system)
         button.showsMenuAsPrimaryAction = true
@@ -200,6 +219,16 @@ final class SidebarController: UIViewController {
 
     /// The system's inset grouped list, cells, headers and selection as
     /// they come.
+    private let projectNameLabel = UILabel().then {
+        $0.font = UIFont.preferredFont(forTextStyle: .footnote)
+        $0.textColor = .secondaryLabel
+        $0.textAlignment = .center
+        $0.text = String(localized: "General Chat")
+        $0.adjustsFontForContentSizeCategory = true
+        $0.numberOfLines = 1
+        $0.lineBreakMode = .byTruncatingMiddle
+    }
+
     private let tableView = FirstFillTableView(frame: .zero, style: .insetGrouped).then {
         $0.backgroundColor = .panelBackground
         $0.register(UITableViewCell.self, forCellReuseIdentifier: "chat")
@@ -231,6 +260,11 @@ final class SidebarController: UIViewController {
         var content = UIListContentConfiguration.cell()
         content.text = summary?.displayTitle
         content.textProperties.numberOfLines = 1
+        let activeSection = (indexPath.section < dataSource.snapshot().sectionIdentifiers.count) && dataSource.snapshot().sectionIdentifiers[indexPath.section] == .active
+        if activeSection {
+            content.secondaryText = summary?.projectName
+            content.secondaryTextProperties.color = .secondaryLabel
+        }
         cell.contentConfiguration = content
         let isWorking = summary?.isWorking == true
         if isWorking {
@@ -261,16 +295,18 @@ final class SidebarController: UIViewController {
         projectMonitor.start()
         view.backgroundColor = .panelBackground
 
-        // One top row: Settings, the project switcher, New Project and New Chat.
+        // Top row: four actions (no project name here). The project name lives
+        // at the bottom of the sidebar.
         navigationItem.style = .editor
-        navigationItem.leftBarButtonItem = settingsBarButton
+        navigationItem.leftBarButtonItems = [settingsBarButton, projectMenuButton]
         navigationItem.hidesBackButton = true
-        navigationItem.titleView = projectTitleButton
-        // under the bar, hidden until the list is pulled down
         navigationItem.preferredSearchBarPlacement = .stacked
         navigationItem.hidesSearchBarWhenScrolling = true
         let newChatItem = UIBarButtonItem(customView: newChatButton)
-        navigationItem.rightBarButtonItems = [newChatItem, newMenuButton]
+        navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(customView: newProjectButton),
+            newChatItem,
+        ]
         showProject()
         refresh()
         NotificationCenter.default.addObserver(
@@ -285,14 +321,36 @@ final class SidebarController: UIViewController {
         tableView.delegate = self
         // a row that arrives fades in where it belongs, rather than sliding
         dataSource.defaultRowAnimation = .fade
+        let projectFooter = UIView()
+        projectFooter.backgroundColor = .panelBackground
+        projectFooter.addSubview(projectNameLabel)
+        let separator = UIView()
+        separator.backgroundColor = UIColor.separator
+        projectFooter.addSubview(separator)
+        separator.snp.makeConstraints { x in
+            x.top.equalToSuperview()
+            x.left.right.equalToSuperview()
+            x.height.equalTo(1)
+        }
+        projectNameLabel.snp.makeConstraints { x in
+            x.left.right.equalToSuperview().inset(8)
+            x.top.equalTo(separator.snp.bottom).offset(8)
+            x.bottom.equalTo(projectFooter.safeAreaLayoutGuide)
+        }
         view.addSubview(tableView)
+        view.addSubview(projectFooter)
+        projectFooter.snp.makeConstraints { x in
+            x.left.right.bottom.equalToSuperview()
+            x.height.greaterThanOrEqualTo(44)
+        }
+        tableView.snp.makeConstraints { x in
+            x.left.right.top.equalToSuperview()
+            x.bottom.equalTo(projectFooter.snp.top)
+        }
         // the list the bar watches, for the pull that brings out the search;
         // an empty or short one still gives way to the pull
         setContentScrollView(tableView)
         tableView.alwaysBounceVertical = true
-        tableView.snp.makeConstraints { x in
-            x.edges.equalToSuperview()
-        }
         applySnapshot()
     }
 
@@ -314,7 +372,7 @@ final class SidebarController: UIViewController {
     // MARK: - The list
 
     private func chat(_ id: UUID) -> ChatSummary? {
-        chats.first { $0.id == id }
+        runtime.summaries.first { $0.id == id } ?? chats.first { $0.id == id }
     }
 
     private func applySnapshot(changedRows: [UUID] = [], restoreSelection: Bool = true, animateMove: Bool = false) {
@@ -323,6 +381,16 @@ final class SidebarController: UIViewController {
             $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
         }
         let order = SidebarOrder.sections(of: shown)
+        let activeOthers = runtime.summaries.filter {
+            $0.isWorking &&
+            $0.projectName != nil &&
+            $0.projectName != project?.name &&
+            (query.isEmpty || $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil)
+        }
+        if !activeOthers.isEmpty {
+            snapshot.appendSections([.active])
+            snapshot.appendItems(activeOthers.sorted { $0.lastInteraction > $1.lastInteraction }.map(\.id))
+        }
         // Pinning moves a row between existing sections. Inserting or deleting
         // its section in the same diff turns that move into a section fade.
         snapshot.appendSections([.pinned])
@@ -380,6 +448,39 @@ final class SidebarController: UIViewController {
            tableView.indexPathsForVisibleRows?.contains(indexPath) != true
         {
             tableView.scrollToRow(at: indexPath, at: .none, animated: !UIAccessibility.isReduceMotionEnabled)
+        }
+    }
+
+    private func forkChat(_ id: UUID) {
+        let sourceSelected = selectedID == id
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard self.runtime.canCompact(id) else {
+                self.presentNotice(title: String(localized: "Nothing to Compact"), message: String(localized: "This conversation has nothing to compact yet."))
+                return
+            }
+            // this runs in the background: the UI is never blocked while
+            // compacting; only this row's own action waits
+            do {
+                let result = try await self.runtime.compact(id)
+                switch result.outcome {
+                case .compacted, .tooShort:
+                    let chat = self.runtime.newChat(project: self.project?.name, preferring: id)
+                    if sourceSelected || self.selectedID == id {
+                        self.selectedID = chat.id
+                        self.applySnapshot()
+                        self.onSelect?(chat)
+                    } else {
+                        self.refresh()
+                        self.applySnapshot()
+                    }
+                    SPIndicator.present(title: String(localized: "Forked"), preset: .done, haptic: .success)
+                case .cancelled, .failed:
+                    self.presentNotice(title: String(localized: "Unable to Compact Chat"), message: result.message)
+                }
+            } catch {
+                self.presentNotice(title: String(localized: "Unable to Compact Chat"), message: error.readableMessage)
+            }
         }
     }
 
@@ -447,6 +548,11 @@ final class SidebarController: UIViewController {
 
     /// Pinned, then Today, Yesterday, the weekday within the week, then the date.
     private static func title(for section: Section) -> String {
+        switch section {
+        case .active: return String(localized: "Active in other projects")
+        case .pinned: return String(localized: "Pinned")
+        case .day: break
+        }
         let now = Date()
         guard case let .day(day) = section else { return String(localized: "Pinned") }
         let calendar = Calendar.current
@@ -470,10 +576,7 @@ final class SidebarController: UIViewController {
         projectMenuButton.image = project.flatMap { ProjectIcon.menuImage(for: $0) } ?? UIImage(systemName: "folder")
         projectMenuButton.accessibilityValue = project?.displayTitle ?? String(localized: "General Chat")
 
-        var config = projectTitleButton.configuration ?? UIButton.Configuration.plain()
-        config.image = project.flatMap { ProjectIcon.menuImage(for: $0) } ?? UIImage(systemName: "folder")
-        config.title = project?.displayTitle ?? String(localized: "General Chat")
-        projectTitleButton.configuration = config
+        projectNameLabel.text = project?.displayTitle ?? String(localized: "General Chat")
     }
 
     private func projectActiveChatTitle(for projectName: String?) -> String? {
@@ -616,8 +719,14 @@ extension SidebarController: UITableViewDelegate {
 
     /// Again on the row already picked, which puts a drawer away.
     func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath) {
-        selectedID = dataSource.itemIdentifier(for: indexPath)
-        onSelect?(selectedID.flatMap(chat), true)
+        guard let id = dataSource.itemIdentifier(for: indexPath), let summary = chat(id) else { return }
+        selectedID = id
+        let otherProject = projects.first { $0.name == summary.projectName }
+        if let otherProject, otherProject.name != project?.name {
+            project = otherProject
+        }
+        applySnapshot()
+        onSelect?(summary, true)
     }
 
     // MARK: Pin, stop and delete
@@ -639,8 +748,11 @@ extension SidebarController: UITableViewDelegate {
         guard let id = dataSource.itemIdentifier(for: indexPath), let chat = chat(id) else {
             return UISwipeActionsConfiguration(actions: [])
         }
+        let rowActions = chat.isWorking
+            ? [ChatRowAction.delete, .stop]
+            : ([ChatRowAction.delete] + (runtime.canCompact(id) ? [.fork] : []))
         let actions = UISwipeActionsConfiguration(
-            actions: ChatRowAction.trailingSwipe(for: chat).map { swipeAction($0, for: id) },
+            actions: rowActions.map { swipeAction($0, for: id) },
         )
         // a full swipe deletes one at rest; one that works keeps Stop beside Delete
         actions.performsFirstActionWithFullSwipe = !chat.isWorking
@@ -672,6 +784,17 @@ extension SidebarController: UITableViewDelegate {
             stop.image = UIImage(systemName: "stop.fill")
             stop.backgroundColor = .darkGray
             return stop
+        case .fork:
+            let forked = UIContextualAction(
+                style: .normal,
+                title: String(localized: "Fork"),
+            ) { [weak self] _, _, completion in
+                completion(true)
+                self?.forkChat(id)
+            }
+            forked.image = UIImage(systemName: "arrow.turn.right.up")
+            forked.backgroundColor = .systemIndigo
+            return forked
         case .delete:
             let delete = UIContextualAction(
                 style: .destructive,
@@ -700,7 +823,11 @@ extension SidebarController: UITableViewDelegate {
     ) -> UIContextMenuConfiguration? {
         guard let id = dataSource.itemIdentifier(for: indexPath), let chat = chat(id) else { return nil }
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
-            UIMenu(children: ChatRowAction.menu(for: chat).compactMap { self?.menuAction($0, for: id) })
+            UIMenu(children: (
+                chat.isWorking ? [ChatRowAction.stop] : (chat.isPinned ? [ChatRowAction.unpin] : [ChatRowAction.pin])
+            + (runtime.canCompact(id) ? [ChatRowAction.fork] : [])
+            + [ChatRowAction.delete]
+            ).compactMap { self?.menuAction($0, for: id) })
         }
     }
 
@@ -716,6 +843,11 @@ extension SidebarController: UITableViewDelegate {
                 title: String(localized: "Stop"),
                 image: UIImage(systemName: "stop.fill"),
             ) { [weak self] _ in self?.stop(id) }
+        case .fork:
+            UIAction(
+                title: String(localized: "Fork"),
+                image: UIImage(systemName: "arrow.turn.right.up"),
+            ) { [weak self] _ in self?.forkChat(id) }
         case .delete:
             UIAction(
                 title: String(localized: "Delete"),

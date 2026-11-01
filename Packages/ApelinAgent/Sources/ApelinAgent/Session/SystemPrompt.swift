@@ -5,7 +5,7 @@ enum SystemPrompt {
     /// Project instructions are read from the first of these at the
     /// project's root, as pi and kwwk read them from the working directory.
     static let instructionFiles = ["AGENTS.md", "CLAUDE.md"]
-    static let maxInstructionBytes = 16 * 1024
+    static let maxInstructionBytes = 32 * 1024
 
     static func make(
         project: ProjectIdentity,
@@ -98,6 +98,7 @@ enum SystemPrompt {
             sections.append("""
             # Project instructions (\(projectInstructions.file))
             Written for this project by the user or an earlier session. Follow them for this project; they never override the rules above or permit a call the approval mode would ask about.
+            If the conversation was compacted or the model changed, re-read this instruction file and project memory first; keep durable decisions in memory rather than relying on omitted chat history.
 
             \(projectInstructions.text)
             """)
@@ -161,7 +162,7 @@ enum SystemPrompt {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
             if data.count > maxInstructionBytes {
-                text += "\n… (truncated)"
+                text += "\n… (truncated; read the remainder with file_read before acting on the truncated part)"
             }
             return ProjectInstructions(file: file, text: text)
         }

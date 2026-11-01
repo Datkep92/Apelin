@@ -175,7 +175,7 @@ public actor AgentSession {
             sessionId: configuration.id,
             cwd: root.path,
             maxTurns: configuration.maxTurns,
-            autoCompact: AgentAutoCompactOptions(config: NativeCompactionFallback.configuration),
+            autoCompact: AgentAutoCompactOptions(threshold: 0.7, config: NativeCompactionFallback.configuration),
             authResolver: resolved.authResolver,
         ))
         agent.state.serviceTier = configuration.serviceTier
