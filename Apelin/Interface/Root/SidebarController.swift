@@ -244,8 +244,11 @@ final class SidebarController: UIViewController {
         )
     }
 
-    /// A picked row's ground, lighter than the system's: black at 0.1 in
-    /// the light, white at 0.1 in the dark (owner, 2026-10-21).
+/// Conversation IDs currently rendered under the `.active` section
+    /// (pinned-out conversations that are still working). Kept in sync in
+    /// `applySnapshot`, so the cell factory can tell the active section apart
+    /// without reading `self.dataSource` while it is still being built.
+    private var activeConversationIDs: Set<UUID> = []
     private static let selectionColor = UIColor(
         light: UIColor.black.withAlphaComponent(0.1),
         dark: UIColor.white.withAlphaComponent(0.1),
@@ -260,7 +263,7 @@ final class SidebarController: UIViewController {
         var content = UIListContentConfiguration.cell()
         content.text = summary?.displayTitle
         content.textProperties.numberOfLines = 1
-        let activeSection = (indexPath.section < self.dataSource.snapshot().sectionIdentifiers.count) && self.dataSource.snapshot().sectionIdentifiers[indexPath.section] == .active
+        let activeSection = self.activeConversationIDs.contains(id)
         if activeSection {
             content.secondaryText = summary?.projectName
             content.secondaryTextProperties.color = .secondaryLabel
@@ -388,10 +391,13 @@ final class SidebarController: UIViewController {
             (query.isEmpty || $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil)
         }
         if !activeOthers.isEmpty {
+            activeConversationIDs = Set(activeOthers.map(\.id))
             snapshot.appendSections([.active])
             snapshot.appendItems(activeOthers.sorted { $0.lastInteraction > $1.lastInteraction }.map(\.id))
+} else {
+            activeConversationIDs = []
         }
-        // Pinning moves a row between existing sections. Inserting or deleting
+        // Pinning moves a row between...
         // its section in the same diff turns that move into a section fade.
         snapshot.appendSections([.pinned])
         snapshot.appendItems(order.pinned)
@@ -469,7 +475,7 @@ final class SidebarController: UIViewController {
                     if sourceSelected || self.selectedID == id {
                         self.selectedID = chat.id
                         self.applySnapshot()
-                        self.onSelect?(chat)
+                        self.onSelect?(chat, true)
                     } else {
                         self.refresh()
                         self.applySnapshot()
