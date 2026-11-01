@@ -811,6 +811,11 @@ extension ChatController: ComposerView.Delegate {
             return
         }
         ConversationNotices.shared.requestAuthorizationIfNeeded()
+        var draft = draft
+        // Expand slash command if present.
+        if let (expanded, _) = ChatCommandStore.shared.expand(draft.text) {
+            draft.text = expanded
+        }
         // shown at once; the runtime puts the draft back if the send fails
         let sending = runtime.submit(draft, to: chat.id)
         // One a running turn takes later starts no turn yet: shown once.

@@ -20,6 +20,8 @@ class ComposerView: ComposerSectionView {
 
     let inputEditor = ComposerInputView()
     let approvalSection = ComposerApprovalSection()
+    let commandSuggestionsTable = UITableView()
+    private var commandSuggestions: [ChatCommand] = []
     let attachmentsBar = ComposerAttachmentsBar()
     let controlPanel = ComposerControlPanel()
     let modelBar = ComposerModelBar()
@@ -57,6 +59,7 @@ class ComposerView: ComposerSectionView {
 
     override func initializeViews() {
         super.initializeViews()
+        clipsToBounds = false
 
         shadowContainer.layer.cornerRadius = 16
         shadowContainer.layer.cornerCurve = .continuous
@@ -92,6 +95,15 @@ class ComposerView: ComposerSectionView {
         }
 
         inputEditor.delegate = self
+        commandSuggestionsTable.delegate = self
+        commandSuggestionsTable.dataSource = self
+        commandSuggestionsTable.register(UITableViewCell.self, forCellReuseIdentifier: "cmd")
+        commandSuggestionsTable.isHidden = true
+        commandSuggestionsTable.layer.cornerRadius = 8
+        commandSuggestionsTable.clipsToBounds = true
+        commandSuggestionsTable.backgroundColor = .secondarySystemBackground
+        addSubview(commandSuggestionsTable)
+        bringSubviewToFront(commandSuggestionsTable)
         controlPanel.cameraButton.actionBlock = { [weak self] in self?.delegate?.onComposerCameraTapped() }
         controlPanel.photoButton.actionBlock = { [weak self] in self?.delegate?.onComposerPhotoTapped() }
         controlPanel.fileButton.actionBlock = { [weak self] in self?.delegate?.onComposerFileTapped() }
@@ -159,6 +171,11 @@ class ComposerView: ComposerSectionView {
             }
         }
 
+        if !commandSuggestionsTable.isHidden {
+            let rowHeight: CGFloat = 44
+            let h = min(CGFloat(commandSuggestions.count) * rowHeight, 220)
+            commandSuggestionsTable.frame = CGRect(x: spacing, y: -h - 4, width: bounds.width - spacing * 2, height: h)
+        }
         heightPublisher.send(finalHeight)
     }
 
@@ -367,8 +384,69 @@ extension ComposerView: ComposerInputView.Delegate {
     func onComposerInputTextChanged(text: String) {
         dropColorView.alpha = 0
         publishNewEditorStatus()
+        updateCommandSuggestions(for: text)
         if text.isEmpty {
             controlPanel.close()
         }
+    }
+
+    private func updateCommandSuggestions(for text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Only suggest when text starts with "/" and command name not yet completed with space+content? 
+        // Show suggestions when typing command name (no space yet) OR when only "/" .
+        guard trimmed.hasPrefix("/") else {
+            hideCommandSuggestions()
+            return
+        }
+        let afterSlash = String(trimmed.dropFirst())
+        // If there's a space, command name is complete; hide.
+        if afterSlash.contains(" ") {
+            hideCommandSuggestions()
+            return
+        }
+        let prefix = afterSlash.lowercased()
+        let all = ChatCommandStore.shared.all()
+        let filtered = prefix.isEmpty ? all : all.filter { $0.name.hasPrefix(prefix) }
+        if filtered.isEmpty {
+            hideCommandSuggestions()
+            return
+        }
+        commandSuggestions = filtered
+        commandSuggestionsTable.reloadData()
+        commandSuggestionsTable.isHidden = false
+        setNeedsLayout()
+    }
+
+}
+
+extension ComposerView: UITableViewDataSource, UITableViewDelegate {
+    func hideCommandSuggestions() {
+        commandSuggestionsTable.isHidden = true
+        setNeedsLayout()
+    }
+
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        commandSuggestions.count
+    }
+
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "cmd", for: indexPath)
+        let cmd = commandSuggestions[indexPath.row]
+        var config = cell.defaultContentConfiguration()
+        config.text = "/\(cmd.name)"
+        config.secondaryText = cmd.description
+        cell.contentConfiguration = config
+        return cell
+    }
+
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let cmd = commandSuggestions[indexPath.row]
+        inputEditor.textView.text = "/\(cmd.name) "
+        hideCommandSuggestions()
+        inputEditor.textView.becomeFirstResponder()
+        // move cursor to end
+        let pos = inputEditor.textView.endOfDocument
+        inputEditor.textView.selectedTextRange = inputEditor.textView.textRange(from: pos, to: pos)
+        publishNewEditorStatus()
     }
 }
