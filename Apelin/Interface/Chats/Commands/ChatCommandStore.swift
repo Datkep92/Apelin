@@ -126,7 +126,8 @@ final class ChatCommandStore {
         Bạn là planner. Hãy lập kế hoạch chi tiết cho task sau, KHÔNG viết code, chỉ phân tích và đề xuất các bước:
 
         {{content}}
-        """),
+        """)
+        ,
         ("build", """
         ---
         name: build
@@ -135,7 +136,8 @@ final class ChatCommandStore {
         Hãy thực hiện build và kiểm tra sản phẩm theo task sau, báo cáo lỗi nếu có:
 
         {{content}}
-        """),
+        """)
+        ,
         ("review", """
         ---
         name: review
@@ -144,7 +146,8 @@ final class ChatCommandStore {
         Hãy review code sau theo best practices, chỉ ra vấn đề và đề xuất cải thiện:
 
         {{content}}
-        """),
+        """)
+        ,
         ("explain", """
         ---
         name: explain
@@ -153,7 +156,8 @@ final class ChatCommandStore {
         Hãy giải thích rõ ràng, dễ hiểu cho người không chuyên về code:
 
         {{content}}
-        """),
+        """)
+        ,
         ("fix", """
         ---
         name: fix
@@ -162,7 +166,7 @@ final class ChatCommandStore {
         Hãy tìm nguyên nhân gốc rễ và sửa lỗi sau, kiểm tra regression:
 
         {{content}}
-        """),
+        """)
+        ,
     ]
 }
-""", path: "Apelin/Interface/Chats/Commands/ChatCommand.swift", reason: "Tạo model và store cho slash commands")
