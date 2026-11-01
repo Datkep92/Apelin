@@ -165,6 +165,18 @@ final class RootInterfaceController: UIViewController {
             name: UIApplication.didEnterBackgroundNotification,
             object: nil,
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(syncViewedChat),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil,
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(resignedActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil,
+        )
 
         // the detail column sits a step above the sidebar: in the dark its
         // grounds resolve to their elevated shade, as a sheet's do
@@ -212,10 +224,28 @@ final class RootInterfaceController: UIViewController {
     /// What streamed or was typed since the last write goes to disk before
     /// the app is suspended, rather than at the end of its interval.
     @objc private func enteredBackground() {
+        chatRuntime.viewedChat = nil
         let task = UIApplication.shared.beginBackgroundTask(withName: "Save Chats")
         chatRuntime.saveNow {
             UIApplication.shared.endBackgroundTask(task)
         }
+    }
+
+    /// Out of the reader's sight, the conversation on the page is no longer
+    /// looked at: a reply that comes meanwhile leaves it unread, until the
+    /// app is back in front with it.
+    @objc private func resignedActive() {
+        chatRuntime.viewedChat = nil
+    }
+
+    /// Tells the runtime which conversation the reader is looking at
+    /// (`ChatRuntime.viewedChat`): the one on the conversation page, while
+    /// that page is the column's, no drawer is out over it and the app is
+    /// in front. A sheet over the page does not count.
+    @objc private func syncViewedChat() {
+        let page = navigator.topViewController as? ChatController
+        let isLooking = UIApplication.shared.applicationState == .active && !(isDrawer && drawerProgress > 0)
+        chatRuntime.viewedChat = isLooking ? page?.chat?.id : nil
     }
 
     func presentWelcome() {
@@ -287,6 +317,7 @@ final class RootInterfaceController: UIViewController {
             navigator.view.layer.shadowOpacity = 0
         }
         navigator.view.layer.shadowPath = UIBezierPath(rect: navigator.view.bounds).cgPath
+        syncViewedChat()
     }
 
     /// By bounds and center, which hold under a transform, then the
@@ -384,8 +415,8 @@ final class RootInterfaceController: UIViewController {
     /// where it is. Only a conversation the reader picked puts the drawer
     /// away.
     private func open(_ chat: ChatSummary?, picked: Bool) {
+        defer { syncViewedChat() }
         guard let chat else {
-            if isDrawer {
                 sidebar.startNewChat(picked: picked)
             } else if !(navigator.viewControllers.first is NothingSelectedController) {
                 navigator.show(NothingSelectedController())

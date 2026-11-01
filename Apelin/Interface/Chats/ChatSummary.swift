@@ -20,6 +20,11 @@ struct ChatSummary: Hashable, Codable, Sendable {
     var projectName: String?
     /// Listed above the days, until it is unpinned.
     var isPinned = false
+    /// A reply came while the reader was not looking at it, and they have
+    /// not looked since (`ChatUnread`). Kept apart from `isWorking`: the
+    /// sidebar shows it once the conversation is at rest (`showsUnread`).
+    /// Absent from older files, which read as read.
+    var isUnread = false
     /// Whether this conversation has a running turn.
     var isWorking = false
     /// The reader named it (`rename(to:)`), and a title the agent suggests
@@ -75,7 +80,7 @@ extension ChatSummary {
 
 extension ChatSummary {
     private enum CodingKeys: String, CodingKey {
-        case id, title, projectName, isPinned, isWorking, isNamedByReader
+        case id, title, projectName, isPinned, isWorking, isUnread, isNamedByReader
         case lastInteraction = "updated"
     }
 
@@ -92,6 +97,7 @@ extension ChatSummary {
         projectName = try container.decodeIfPresent(String.self, forKey: .projectName)
         isPinned = try container.decode(Bool.self, forKey: .isPinned)
         isWorking = try container.decode(Bool.self, forKey: .isWorking)
+        isUnread = try container.decodeIfPresent(Bool.self, forKey: .isUnread) ?? false
         isNamedByReader = try container.decodeIfPresent(Bool.self, forKey: .isNamedByReader)
         if isNamedByReader != true, Self.savedPlaceholders.contains(title) {
             title = ""

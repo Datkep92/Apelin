@@ -90,6 +90,7 @@ extension ChatRecord {
             draft = ComposerDraft()
         }
         summary.lastInteraction = now
+        _ = summary.markRead()
     }
 
     /// Takes out of `sending` each message `events` echo, and returns it

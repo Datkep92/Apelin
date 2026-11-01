@@ -24,6 +24,16 @@ final class ChatRuntime {
     /// conversation had not read before (`CompletedBuilds`).
     var onBuildsCompleted: ((Int) -> Void)?
     private(set) var isLoaded = false
+    /// The conversation the reader is looking at, nil while they look at
+    /// none (`RootInterfaceController.syncViewedChat`). A reply that comes
+    /// while another is looked at, or none, leaves it unread; looking at
+    /// one reads it (`ChatUnread`).
+    var viewedChat: UUID? {
+        didSet {
+            guard let viewedChat, viewedChat != oldValue, records[viewedChat]?.summary.markRead() == true else { return }
+            changed(viewedChat)
+        }
+    }
     /// The saved conversations have been checked against the host's live
     /// sessions once: what says working is working.
     private(set) var isReconciled = false
@@ -561,6 +571,8 @@ final class ChatRuntime {
                     if let title = batch.events.last(where: { $0.kind == "title" })?.payload?["text"]?.stringValue {
                         records[id]?.summary.suggestTitle(title)
                     }
+                    // never the replay, which `take` reads past
+                    records[id]?.summary.noteReplies(in: fresh, isViewed: id == viewedChat)
                     if let proposed = batch.events
                         .last(where: { $0.kind == "projectNameSuggested" })?.payload?["name"]?.stringValue,
                        let project = records[id]?.summary.projectName,
