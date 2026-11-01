@@ -828,6 +828,7 @@ extension SidebarController: UITableViewDelegate {
         point _: CGPoint,
     ) -> UIContextMenuConfiguration? {
         guard let id = dataSource.itemIdentifier(for: indexPath), let chat = chat(id) else { return nil }
+        let runtime = self.runtime
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
             UIMenu(children: (
                 chat.isWorking ? [ChatRowAction.stop] : (chat.isPinned ? [ChatRowAction.unpin] : [ChatRowAction.pin])

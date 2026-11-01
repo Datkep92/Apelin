@@ -74,6 +74,9 @@ extension ToolRunner {
             // An address that would never be fetched is refused before
             // anyone is asked about it.
             _ = try WebFetch.target(arguments.requireString("url"))
+        case .webSearch:
+            // An empty query would ask nothing useful.
+            _ = try arguments.requireString("query")
         case .gitPush:
             // The branch the card names is the one pushed: an omitted one is
             // read now and sent explicitly.

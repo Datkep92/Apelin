@@ -32,6 +32,7 @@ actor ToolRunner {
     /// Writes an event to the session's log: apelin_notification_send's `notice`.
     let record: (@Sendable (AgentSessionEvent) async throws -> Void)?
     let webFetch: WebFetch
+    let webSearch: WebSearch
     /// The agent tool extensions' sessions, opened as their tools are called.
     let toolExtensions: ToolExtensionSessions
     private var notices = UserNotices()
@@ -49,6 +50,7 @@ actor ToolRunner {
         readOnlyRoots: ReadOnlyRoots = .none,
         record: (@Sendable (AgentSessionEvent) async throws -> Void)? = nil,
         webFetch: WebFetch = .shared,
+        webSearch: WebSearch = .shared,
     ) {
         self.sessionID = sessionID
         self.project = project
@@ -62,6 +64,7 @@ actor ToolRunner {
         self.readOnlyRoots = readOnlyRoots
         self.record = record
         self.webFetch = webFetch
+        self.webSearch = webSearch
         toolExtensions = ToolExtensionSessions(backend: backend)
     }
 
@@ -397,6 +400,10 @@ actor ToolRunner {
             // as mobile, and answers its text.
             let webFetch = webFetch
             return try await text(Self.untilCancelled(cancellation) { try await webFetch.fetch(arguments) }.answer)
+
+        case .webSearch:
+            let webSearch = webSearch
+            return try text(Self.untilCancelled(cancellation) { try await webSearch.search(arguments) })
 
         case .fileWrite: return try text(files.writeFile(arguments))
 
