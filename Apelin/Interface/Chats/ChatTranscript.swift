@@ -595,6 +595,10 @@ struct ChatTranscript {
         case .webFetch:
             let host = values?["url"]?.stringValue.flatMap { URLComponents(string: $0)?.host } ?? ""
             return host.isEmpty ? String(localized: "Read a webpage") : String(localized: "Read \(host)")
+        case .httpRequest:
+            let host = values?["url"]?.stringValue.flatMap { URLComponents(string: $0)?.host } ?? ""
+            let method = values?["method"]?.stringValue ?? "GET"
+            return host.isEmpty ? String(localized: "\(method) request") : String(localized: "\(method) \(host)")
         case .webSearch: return String(localized: "Search the web")
         case .feedbackSend: return String(localized: "Send feedback")
         case .feedbackRead: return String(localized: "Read a feedback issue")

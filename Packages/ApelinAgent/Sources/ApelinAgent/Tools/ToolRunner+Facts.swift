@@ -74,6 +74,8 @@ extension ToolRunner {
             // An address that would never be fetched is refused before
             // anyone is asked about it.
             _ = try WebFetch.target(arguments.requireString("url"))
+        case .httpRequest:
+            _ = try HTTPRequest.target(arguments.requireString("url"))
         case .webSearch:
             // An empty query would ask nothing useful.
             _ = try arguments.requireString("query")
