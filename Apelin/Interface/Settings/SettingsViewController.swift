@@ -10,6 +10,7 @@ final class SettingsViewController: TableController {
         case agent
         case environment
         case git
+        case services
         case about
     }
 
@@ -22,6 +23,7 @@ final class SettingsViewController: TableController {
         case sdks
         case templates
         case git
+        case services
         case version
         case licenses
         case logs
@@ -98,6 +100,7 @@ final class SettingsViewController: TableController {
         case .agent: [.modelProviders, .permissionMode, .memories, .skills]
         case .environment: [.toolchain, .sdks, .templates]
         case .git: [.git]
+        case .services: [.services]
         case .about: [.version, .licenses, .logs]
         }
     }
@@ -118,6 +121,7 @@ final class SettingsViewController: TableController {
         case .agent: String(localized: "Agent")
         case .environment: String(localized: "Environment")
         case .git: nil
+        case .services: nil
         case .about: String(localized: "About")
         }
     }
@@ -128,6 +132,8 @@ final class SettingsViewController: TableController {
         case .environment: nil
         case .git:
             String(localized: "The author of your commits, your GitHub account, and the package repository your releases are published to.")
+        case .services:
+            String(localized: "Per-project configuration for GitHub, Firebase, Cloudflare, Google Script and Telegram.")
         case .about: nil
         }
     }
@@ -156,6 +162,8 @@ final class SettingsViewController: TableController {
             content.text = String(localized: "Templates")
         case .git:
             content.text = String(localized: "Git")
+        case .services:
+            content.text = String(localized: "Services")
         case .version:
             let info = Bundle.main.infoDictionary
             let version = info?["CFBundleShortVersionString"] as? String ?? "?"
@@ -193,6 +201,19 @@ final class SettingsViewController: TableController {
         case .sdks: page = SDKListController()
         case .templates: page = TemplatesController()
         case .git: page = GitSettingsController()
+        case .services:
+            // Services config is per-project; present a project picker first.
+            Task { [weak self] in
+                let projects = (try? await ProjectSummary.load()) ?? []
+                let picker = ProjectPickerController(projects: projects, current: nil)
+                let nav = UINavigationController(rootViewController: picker)
+                picker.onPick = { [weak self] project in
+                    let services = ServicesSettingsController(projectName: project.name)
+                    self?.navigationController?.pushViewController(services, animated: true)
+                }
+                self?.present(nav, animated: true)
+            }
+            return
         case .licenses: page = LicensesViewController()
         case .logs: page = LogsController()
         case .version: return
