@@ -3,13 +3,20 @@ import WebKit
 
 /// A per-chat HTML/JS playground: code editor on top, live preview below.
 /// Content is stored per chat ID in UserDefaults so each conversation keeps
-/// its own workspace.
+/// its own workspace. Also supports loading from clipboard and a shared file
+/// that the AI agent can write to.
 final class HTMLPlaygroundController: UIViewController {
     private let chatID: UUID
     private let editor = UITextView()
     private let webView = WKWebView()
     private let runButton = UIButton(type: .system)
+    private let pasteButton = UIButton(type: .system)
+    private let loadFileButton = UIButton(type: .system)
     private let storageKey: String
+
+    /// Shared file path the AI agent can write HTML to for display.
+    static let sharedFilePath = (NSHomeDirectory() as NSString)
+        .appendingPathComponent("Documents/wiki.qaq.apelin/playground.html")
 
     init(chatID: UUID) {
         self.chatID = chatID
@@ -41,12 +48,14 @@ final class HTMLPlaygroundController: UIViewController {
         webView.layer.borderWidth = 0.5
         webView.layer.cornerRadius = 8
 
-        runButton.setTitle(String(localized: "Run"), for: .normal)
-        runButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
-        runButton.backgroundColor = .systemBlue
-        runButton.setTitleColor(.white, for: .normal)
-        runButton.layer.cornerRadius = 8
+        configureButton(runButton, title: "Run", color: .systemBlue)
         runButton.addTarget(self, action: #selector(runTapped), for: .touchUpInside)
+
+        configureButton(pasteButton, title: "Paste", color: .systemGreen)
+        pasteButton.addTarget(self, action: #selector(pasteTapped), for: .touchUpInside)
+
+        configureButton(loadFileButton, title: "Load AI", color: .systemOrange)
+        loadFileButton.addTarget(self, action: #selector(loadFileTapped), for: .touchUpInside)
 
         let editorLabel = UILabel()
         editorLabel.text = String(localized: "Code")
@@ -58,7 +67,12 @@ final class HTMLPlaygroundController: UIViewController {
         previewLabel.font = .preferredFont(forTextStyle: .caption1)
         previewLabel.textColor = .secondaryLabel
 
-        let stack = UIStackView(arrangedSubviews: [editorLabel, editor, runButton, previewLabel, webView])
+        let buttonStack = UIStackView(arrangedSubviews: [runButton, pasteButton, loadFileButton])
+        buttonStack.axis = .horizontal
+        buttonStack.spacing = 8
+        buttonStack.distribution = .fillEqually
+
+        let stack = UIStackView(arrangedSubviews: [editorLabel, editor, buttonStack, previewLabel, webView])
         stack.axis = .vertical
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -69,13 +83,21 @@ final class HTMLPlaygroundController: UIViewController {
             stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
             stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
             stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
-            editor.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.45),
+            editor.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.4),
             webView.heightAnchor.constraint(greaterThanOrEqualToConstant: 120),
-            runButton.heightAnchor.constraint(equalToConstant: 44),
+            buttonStack.heightAnchor.constraint(equalToConstant: 44),
         ])
 
         loadContent()
         webView.loadHTMLString(editor.text ?? "", baseURL: nil)
+    }
+
+    private func configureButton(_ button: UIButton, title: String, color: UIColor) {
+        button.setTitle(title, for: .normal)
+        button.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+        button.backgroundColor = color
+        button.setTitleColor(.white, for: .normal)
+        button.layer.cornerRadius = 8
     }
 
     private func loadContent() {
@@ -93,6 +115,31 @@ final class HTMLPlaygroundController: UIViewController {
         webView.loadHTMLString(html, baseURL: nil)
     }
 
+    @objc private func pasteTapped() {
+        if let text = UIPasteboard.general.string {
+            editor.text = text
+            saveContent()
+            webView.loadHTMLString(text, baseURL: nil)
+        }
+    }
+
+    @objc private func loadFileTapped() {
+        let path = HTMLPlaygroundController.sharedFilePath
+        if let content = try? String(contentsOfFile: path, encoding: .utf8) {
+            editor.text = content
+            saveContent()
+            webView.loadHTMLString(content, baseURL: nil)
+        } else {
+            let alert = UIAlertController(
+                title: String(localized: "No AI content"),
+                message: String(localized: "The AI hasn't written to the shared file yet. Ask the AI to generate HTML and save it to: \(path)"),
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
+    }
+
     private var defaultHTML: String {
         """
         <!DOCTYPE html>
@@ -106,7 +153,7 @@ final class HTMLPlaygroundController: UIViewController {
         </head>
         <body>
         <h1>Hello World</h1>
-        <p>Edit code above and tap Run.</p>
+        <p>Edit code above and tap Run. Or tap Paste / Load AI.</p>
         </body>
         </html>
         """
