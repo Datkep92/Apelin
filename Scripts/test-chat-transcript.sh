@@ -26,6 +26,7 @@ sources=(
     "$root/Apelin/Interface/Chats/Messages/TraceStep.swift"
     "$root/Apelin/Interface/Chats/ChatTranscript.swift"
     "$root/Apelin/Interface/Chats/ChatTranscriptCache.swift"
+    "$root/Apelin/Interface/Chats/Composer/ComposerModelSelection.swift"
     "$root/Apelin/Interface/Chats/ChatStore.swift"
     "$root/Apelin/Interface/Chats/ChatAdoption.swift"
     "$root/Apelin/Interface/Chats/DroppedMessages.swift"
