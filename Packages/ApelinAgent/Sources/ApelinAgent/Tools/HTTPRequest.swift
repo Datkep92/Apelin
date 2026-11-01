@@ -38,15 +38,16 @@ struct HTTPRequest: Sendable {
         if let raw = arguments["headers"] {
             if case .object(let obj) = raw {
                 for (k, v) in obj {
-                    if let s = v.stringValue { headers[k] = s }
+                    if case .string(let s) = v { headers[k] = s }
                 }
             }
         }
+        let requestHeaders = headers
         let body: Data? = arguments.argString("body").map { Data($0.utf8) }
         let offset = max(0, arguments.argInt("offset") ?? 0)
         let session = session
         let result = try await Self.withinTimeout(url) {
-            try await Self.load(url, method: method, headers: headers, body: body, session: session)
+            try await Self.load(url, method: method, headers: requestHeaders, body: body, session: session)
         }
         return try result.response(from: offset)
     }
