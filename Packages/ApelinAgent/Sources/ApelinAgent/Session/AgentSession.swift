@@ -722,7 +722,7 @@ public actor AgentSession {
         guard requires, model.reasoning else { return }
         for i in context.messages.indices {
             guard case let .assistant(assistant) = context.messages[i] else { continue }
-            var assistant = assistant
+            var assistantMessage = assistant
             var content = assistant.content
             let hasNonEmptyThinking = content.contains { block in
                 if case .thinking(let t) = block {
@@ -744,8 +744,8 @@ public actor AgentSession {
                     return block
                 }
             }
-            assistant.content = content
-            context.messages[i] = .assistant(assistant)
+            assistantMessage.content = content
+            context.messages[i] = .assistant(assistantMessage)
         }
     }
 
