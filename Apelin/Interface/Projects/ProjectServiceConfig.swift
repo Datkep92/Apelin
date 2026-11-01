@@ -30,6 +30,8 @@ struct FirebaseServiceConfig: Codable, Equatable, Sendable {
     var appID: String?
     var apiKey: String?
     var storageBucket: String?
+    var accessToken: String?
+    var googleClientID: String?
 }
 
 struct CloudflareServiceConfig: Codable, Equatable, Sendable {
@@ -37,16 +39,20 @@ struct CloudflareServiceConfig: Codable, Equatable, Sendable {
     var zoneID: String?
     var workerName: String?
     var pagesProject: String?
+    var apiToken: String?
 }
 
 struct GoogleScriptServiceConfig: Codable, Equatable, Sendable {
     var scriptID: String?
     var deploymentID: String?
     var webAppURL: String?
+    var accessToken: String?
+    var googleClientID: String?
 }
 
 struct TelegramServiceConfig: Codable, Equatable, Sendable {
     var botToken: String?
     var chatID: String?
     var channelName: String?
+    var botUsername: String?
 }

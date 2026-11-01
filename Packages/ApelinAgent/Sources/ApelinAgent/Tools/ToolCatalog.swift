@@ -330,6 +330,27 @@ public extension AgentToolName {
                     "enum": ["global", "project"],
                     "description": "For new records: global for user preferences, project for this project's facts (default). Existing scope is preserved.",
                 ]),
+                "kind": .object([
+                    "type": "string",
+                    "enum": ["memory", "handoff"],
+                    "description": "Record kind. Default memory. Use handoff for work-in-progress state.",
+                ]),
+                "status": .object([
+                    "type": "string",
+                    "enum": ["active", "done"],
+                    "description": "For handoff records: active (default) or done.",
+                ]),
+                "commit": Schema.string("For handoff records: commit hash."),
+                "affectedFiles": .object([
+                    "type": "array",
+                    "items": .object(["type": "string"]),
+                    "description": "For handoff records: files affected.",
+                ]),
+                "nextSteps": .object([
+                    "type": "array",
+                    "items": .object(["type": "string"]),
+                    "description": "For handoff records: next steps.",
+                ]),
                 "project": Self.memoryProjectParameter,
             ], required: ["revision", "title", "body"])
         case .projectCheckDistribution:

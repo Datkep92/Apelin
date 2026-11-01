@@ -7,12 +7,37 @@ public struct MemoryRecord: Codable, Equatable, Identifiable, Sendable {
     public let body: String
     /// Nil for preferences shared by all chats; otherwise the stable project identity.
     public let projectID: String?
+    /// "memory" (default, durable fact/preference) or "handoff" (work-in-progress state).
+    public let kind: String?
+    /// For handoff: "active" or "done".
+    public let status: String?
+    /// For handoff: files affected.
+    public let affectedFiles: [String]?
+    /// For handoff: commit hash.
+    public let commit: String?
+    /// For handoff: next steps.
+    public let nextSteps: [String]?
 
-    public init(id: String = UUID().uuidString.lowercased(), title: String, body: String, projectID: String? = nil) {
+    public init(
+        id: String = UUID().uuidString.lowercased(),
+        title: String,
+        body: String,
+        projectID: String? = nil,
+        kind: String? = nil,
+        status: String? = nil,
+        affectedFiles: [String]? = nil,
+        commit: String? = nil,
+        nextSteps: [String]? = nil,
+    ) {
         self.id = id
         self.title = title
         self.body = body
         self.projectID = projectID
+        self.kind = kind
+        self.status = status
+        self.affectedFiles = affectedFiles
+        self.commit = commit
+        self.nextSteps = nextSteps
     }
 }
 
@@ -64,6 +89,11 @@ public struct MemoryStore: Sendable {
                 title: record.title.trimmingCharacters(in: .whitespacesAndNewlines),
                 body: record.body.trimmingCharacters(in: .whitespacesAndNewlines),
                 projectID: record.projectID,
+                kind: record.kind,
+                status: record.status,
+                affectedFiles: record.affectedFiles,
+                commit: record.commit,
+                nextSteps: record.nextSteps,
             )
             if let existingID {
                 guard existingID == record.id, let index = records.firstIndex(where: { $0.id == existingID }),

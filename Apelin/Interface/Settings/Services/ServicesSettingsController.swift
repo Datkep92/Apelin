@@ -19,8 +19,8 @@ final class ServicesSettingsController: TableController {
 
     private enum Row: Hashable {
         case projectName(String)
-        case serviceStatus(String, String) // (service name, status text)
-        case configure(String) // service name
+        case serviceStatus(String, String)
+        case configure(String)
     }
 
     private lazy var dataSource = TableDataSource<Section, Row, Row>(
@@ -71,7 +71,10 @@ final class ServicesSettingsController: TableController {
         // Firebase
         var firebaseRows: [Row] = []
         if let fb = config.firebase, fb.projectID != nil {
-            firebaseRows.append(.serviceStatus("Firebase", fb.projectID ?? "Linked"))
+            let name = fb.projectID ?? "Linked"
+            firebaseRows.append(.serviceStatus("Firebase", name))
+        } else if config.firebase?.accessToken != nil {
+            firebaseRows.append(.serviceStatus("Firebase", "Signed in"))
         } else {
             firebaseRows.append(.serviceStatus("Firebase", "Not configured"))
         }
@@ -82,6 +85,8 @@ final class ServicesSettingsController: TableController {
         var cfRows: [Row] = []
         if let cf = config.cloudflare, cf.accountID != nil {
             cfRows.append(.serviceStatus("Cloudflare", cf.accountID ?? "Linked"))
+        } else if config.cloudflare?.apiToken != nil {
+            cfRows.append(.serviceStatus("Cloudflare", "Token saved"))
         } else {
             cfRows.append(.serviceStatus("Cloudflare", "Not configured"))
         }
@@ -92,6 +97,8 @@ final class ServicesSettingsController: TableController {
         var gsRows: [Row] = []
         if let gs = config.googleScript, gs.scriptID != nil {
             gsRows.append(.serviceStatus("Google Script", gs.scriptID ?? "Linked"))
+        } else if config.googleScript?.accessToken != nil {
+            gsRows.append(.serviceStatus("Google Script", "Signed in"))
         } else {
             gsRows.append(.serviceStatus("Google Script", "Not configured"))
         }
@@ -101,7 +108,8 @@ final class ServicesSettingsController: TableController {
         // Telegram
         var tgRows: [Row] = []
         if let tg = config.telegram, tg.botToken != nil {
-            tgRows.append(.serviceStatus("Telegram", tg.chatID ?? "Linked"))
+            let name = tg.botUsername ?? tg.chatID ?? "Linked"
+            tgRows.append(.serviceStatus("Telegram", name))
         } else {
             tgRows.append(.serviceStatus("Telegram", "Not configured"))
         }
@@ -196,33 +204,64 @@ final class ServicesSettingsController: TableController {
     // MARK: - Firebase
 
     private func presentFirebaseConfig() {
+        // Ask for Google Client ID first
         let alert = UIAlertController(
             title: "Firebase Configuration",
-            message: "Enter the Firebase project ID for this project.",
+            message: "Enter your Google OAuth Client ID for Firebase (from Google Cloud Console).",
             preferredStyle: .alert,
         )
         alert.addTextField { field in
-            field.placeholder = "Firebase Project ID"
-            field.text = self.config.firebase?.projectID
-        }
-        alert.addTextField { field in
-            field.placeholder = "API Key (optional)"
-            field.text = self.config.firebase?.apiKey
+            field.placeholder = "Google Client ID"
+            field.text = self.config.firebase?.googleClientID
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
-            guard let self else { return }
-            let projectID = alert.textFields?[0].text
-            let apiKey = alert.textFields?[1].text
-            self.config.firebase = FirebaseServiceConfig(
-                projectID: projectID?.isEmpty == true ? nil : projectID,
-                apiKey: apiKey?.isEmpty == true ? nil : apiKey,
-            )
-            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
-            self.updateRows()
-            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+        alert.addAction(UIAlertAction(title: "Sign In with Google", style: .default) { [weak self] _ in
+            guard let self, let clientID = alert.textFields?.first?.text, !clientID.isEmpty else { return }
+            self.runGoogleSignIn(clientID: clientID, service: "Firebase") { [weak self] token in
+                guard let self else { return }
+                self.config.firebase = FirebaseServiceConfig(
+                    projectID: self.config.firebase?.projectID,
+                    accessToken: token,
+                    googleClientID: clientID,
+                )
+                ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                self.updateRows()
+                self.presentFirebaseProjectPicker(accessToken: token)
+            }
         })
         present(alert, animated: true)
+    }
+
+    private func presentFirebaseProjectPicker(accessToken: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let client = FirebaseServiceClient(accessToken: accessToken)
+                let projects = try await client.listProjects()
+                guard !projects.isEmpty else {
+                    SPIndicator.present(title: "No projects found", preset: .error, haptic: .error)
+                    return
+                }
+                await MainActor.run {
+                    let alert = UIAlertController(title: "Select Firebase Project", message: nil, preferredStyle: .actionSheet)
+                    for project in projects {
+                        alert.addAction(UIAlertAction(title: project.displayName ?? project.id, style: .default) { [weak self] _ in
+                            guard let self else { return }
+                            self.config.firebase?.projectID = project.id
+                            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                            self.updateRows()
+                            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                        })
+                    }
+                    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                    self.present(alert, animated: true)
+                }
+            } catch {
+                await MainActor.run {
+                    SPIndicator.present(title: "Failed to load projects", message: error.localizedDescription, preset: .error, haptic: .error)
+                }
+            }
+        }
     }
 
     // MARK: - Cloudflare
@@ -230,37 +269,60 @@ final class ServicesSettingsController: TableController {
     private func presentCloudflareConfig() {
         let alert = UIAlertController(
             title: "Cloudflare Configuration",
-            message: "Enter the Cloudflare account ID and zone ID for this project.",
+            message: "Enter your Cloudflare API token.",
             preferredStyle: .alert,
         )
         alert.addTextField { field in
-            field.placeholder = "Account ID"
-            field.text = self.config.cloudflare?.accountID
-        }
-        alert.addTextField { field in
-            field.placeholder = "Zone ID (optional)"
-            field.text = self.config.cloudflare?.zoneID
-        }
-        alert.addTextField { field in
-            field.placeholder = "API Token (optional)"
+            field.placeholder = "API Token"
             field.text = self.config.cloudflare?.apiToken
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
-            guard let self else { return }
-            let accountID = alert.textFields?[0].text
-            let zoneID = alert.textFields?[1].text
-            let apiToken = alert.textFields?[2].text
-            self.config.cloudflare = CloudflareServiceConfig(
-                accountID: accountID?.isEmpty == true ? nil : accountID,
-                zoneID: zoneID?.isEmpty == true ? nil : zoneID,
-                apiToken: apiToken?.isEmpty == true ? nil : apiToken,
-            )
-            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
-            self.updateRows()
-            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+            guard let self, let token = alert.textFields?.first?.text, !token.isEmpty else { return }
+            self.validateCloudflareToken(token)
         })
         present(alert, animated: true)
+    }
+
+    private func validateCloudflareToken(_ token: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let client = CloudflareServiceClient(apiToken: token)
+                _ = try await client.validateToken()
+                let accounts = try await client.listAccounts()
+                await MainActor.run {
+                    self.config.cloudflare = CloudflareServiceConfig(apiToken: token)
+                    ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                    self.updateRows()
+                    if accounts.count == 1 {
+                        self.config.cloudflare?.accountID = accounts[0].id
+                        ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                        self.updateRows()
+                        SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                    } else if accounts.count > 1 {
+                        let alert = UIAlertController(title: "Select Account", message: nil, preferredStyle: .actionSheet)
+                        for account in accounts {
+                            alert.addAction(UIAlertAction(title: account.name ?? account.id, style: .default) { [weak self] _ in
+                                guard let self else { return }
+                                self.config.cloudflare?.accountID = account.id
+                                ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                                self.updateRows()
+                                SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                            })
+                        }
+                        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                        self.present(alert, animated: true)
+                    } else {
+                        SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    SPIndicator.present(title: "Invalid token", message: error.localizedDescription, preset: .error, haptic: .error)
+                }
+            }
+        }
     }
 
     // MARK: - Google Script
@@ -268,31 +330,61 @@ final class ServicesSettingsController: TableController {
     private func presentGoogleScriptConfig() {
         let alert = UIAlertController(
             title: "Google Script Configuration",
-            message: "Enter the Google Apps Script ID for this project.",
+            message: "Enter your Google OAuth Client ID for Apps Script (from Google Cloud Console).",
             preferredStyle: .alert,
         )
         alert.addTextField { field in
-            field.placeholder = "Script ID"
-            field.text = self.config.googleScript?.scriptID
-        }
-        alert.addTextField { field in
-            field.placeholder = "Web App URL (optional)"
-            field.text = self.config.googleScript?.webAppURL
+            field.placeholder = "Google Client ID"
+            field.text = self.config.googleScript?.googleClientID
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
-            guard let self else { return }
-            let scriptID = alert.textFields?[0].text
-            let webAppURL = alert.textFields?[1].text
-            self.config.googleScript = GoogleScriptServiceConfig(
-                scriptID: scriptID?.isEmpty == true ? nil : scriptID,
-                webAppURL: webAppURL?.isEmpty == true ? nil : webAppURL,
-            )
-            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
-            self.updateRows()
-            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+        alert.addAction(UIAlertAction(title: "Sign In with Google", style: .default) { [weak self] _ in
+            guard let self, let clientID = alert.textFields?.first?.text, !clientID.isEmpty else { return }
+            self.runGoogleSignIn(clientID: clientID, service: "Google Script") { [weak self] token in
+                guard let self else { return }
+                self.config.googleScript = GoogleScriptServiceConfig(
+                    scriptID: self.config.googleScript?.scriptID,
+                    accessToken: token,
+                    googleClientID: clientID,
+                )
+                ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                self.updateRows()
+                self.presentGoogleScriptProjectPicker(accessToken: token)
+            }
         })
         present(alert, animated: true)
+    }
+
+    private func presentGoogleScriptProjectPicker(accessToken: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let client = GoogleScriptServiceClient(accessToken: accessToken)
+                let projects = try await client.listProjects()
+                guard !projects.isEmpty else {
+                    SPIndicator.present(title: "No projects found", preset: .error, haptic: .error)
+                    return
+                }
+                await MainActor.run {
+                    let alert = UIAlertController(title: "Select Script Project", message: nil, preferredStyle: .actionSheet)
+                    for project in projects {
+                        alert.addAction(UIAlertAction(title: project.title ?? project.id, style: .default) { [weak self] _ in
+                            guard let self else { return }
+                            self.config.googleScript?.scriptID = project.id
+                            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                            self.updateRows()
+                            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                        })
+                    }
+                    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                    self.present(alert, animated: true)
+                }
+            } catch {
+                await MainActor.run {
+                    SPIndicator.present(title: "Failed to load projects", message: error.localizedDescription, preset: .error, haptic: .error)
+                }
+            }
+        }
     }
 
     // MARK: - Telegram
@@ -300,7 +392,7 @@ final class ServicesSettingsController: TableController {
     private func presentTelegramConfig() {
         let alert = UIAlertController(
             title: "Telegram Configuration",
-            message: "Enter the Telegram bot token and chat ID for this project.",
+            message: "Enter the Telegram bot token.",
             preferredStyle: .alert,
         )
         alert.addTextField { field in
@@ -308,7 +400,7 @@ final class ServicesSettingsController: TableController {
             field.text = self.config.telegram?.botToken
         }
         alert.addTextField { field in
-            field.placeholder = "Chat ID"
+            field.placeholder = "Chat ID (optional)"
             field.text = self.config.telegram?.chatID
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
@@ -316,14 +408,43 @@ final class ServicesSettingsController: TableController {
             guard let self else { return }
             let botToken = alert.textFields?[0].text
             let chatID = alert.textFields?[1].text
-            self.config.telegram = TelegramServiceConfig(
-                botToken: botToken?.isEmpty == true ? nil : botToken,
-                chatID: chatID?.isEmpty == true ? nil : chatID,
-            )
-            ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
-            self.updateRows()
-            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+            guard let token = botToken, !token.isEmpty else { return }
+            self.validateTelegramToken(token, chatID: chatID)
         })
         present(alert, animated: true)
+    }
+
+    private func validateTelegramToken(_ token: String, chatID: String?) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let client = TelegramServiceClient(botToken: token)
+                let botInfo = try await client.getMe()
+                await MainActor.run {
+                    self.config.telegram = TelegramServiceConfig(
+                        botToken: token,
+                        chatID: chatID?.isEmpty == true ? nil : chatID,
+                        botUsername: botInfo.username,
+                    )
+                    ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                    self.updateRows()
+                    SPIndicator.present(title: "Saved", message: botInfo.username ?? "Bot validated", preset: .done, haptic: .success)
+                }
+            } catch {
+                await MainActor.run {
+                    SPIndicator.present(title: "Invalid bot token", message: error.localizedDescription, preset: .error, haptic: .error)
+                }
+            }
+        }
+    }
+
+    // MARK: - Google Sign-In Helper
+
+    private func runGoogleSignIn(clientID: String, service: String, completion: @escaping (String) -> Void) {
+        let controller = GoogleLoginController(clientID: clientID)
+        controller.onSignedIn = { token in
+            completion(token)
+        }
+        navigationController?.pushViewController(controller, animated: true)
     }
 }

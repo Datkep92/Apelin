@@ -140,6 +140,11 @@ final class MemoryEditorController: TableController, UITextViewDelegate {
             title: titleField.text ?? "",
             body: bodyField.text ?? "",
             projectID: record?.projectID,
+            kind: record?.kind,
+            status: record?.status,
+            affectedFiles: record?.affectedFiles,
+            commit: record?.commit,
+            nextSteps: record?.nextSteps,
         )
         perform { [store, record, revision] in try store.save(value, replacing: record?.id, revision: revision) }
     }

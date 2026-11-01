@@ -65,7 +65,11 @@ final class MemoriesController: TableController {
             var content = UIListContentConfiguration.stackedValueCell()
             if case let .memory(id) = row, let record = self?.memories?.records.first(where: { $0.id == id }) {
                 content.text = record.title
-                content.secondaryText = record.body
+                let kind = record.kind ?? "memory"
+                var parts: [String] = [kind == "handoff" ? "Handoff" : "Memory"]
+                if let status = record.status { parts.append(status) }
+                if let body = record.body, !body.isEmpty { parts.append(body) }
+                content.secondaryText = parts.joined(separator: " • ")
                 content.secondaryTextProperties.numberOfLines = 2
                 cell.accessoryType = .disclosureIndicator
                 cell.selectionStyle = .default
