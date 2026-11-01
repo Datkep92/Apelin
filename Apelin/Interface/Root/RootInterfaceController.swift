@@ -417,6 +417,7 @@ final class RootInterfaceController: UIViewController {
     private func open(_ chat: ChatSummary?, picked: Bool) {
         defer { syncViewedChat() }
         guard let chat else {
+            if isDrawer {
                 sidebar.startNewChat(picked: picked)
             } else if !(navigator.viewControllers.first is NothingSelectedController) {
                 navigator.show(NothingSelectedController())
