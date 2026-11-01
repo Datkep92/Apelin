@@ -857,6 +857,12 @@ extension ChatController: ComposerView.Delegate {
         importer()?.web()
     }
 
+    func onComposerHTMLTapped() {
+        guard let chat else { return }
+        let controller = HTMLPlaygroundController(chatID: chat.id)
+        navigationController?.pushViewController(controller, animated: true)
+    }
+
     func onComposerPasteAsAttachmentTapped() {
         importer()?.paste()
     }

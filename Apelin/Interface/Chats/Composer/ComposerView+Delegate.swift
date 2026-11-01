@@ -17,6 +17,7 @@ extension ComposerView {
         func onComposerPhotoTapped()
         func onComposerFileTapped()
         func onComposerWebTapped()
+        func onComposerHTMLTapped()
         func onComposerPreviewAttachment(_ attachment: ComposerAttachment)
         func onComposerPasteAsAttachmentTapped()
         /// A paste past `ComposerBehavior.longPasteThreshold`, kept out of
