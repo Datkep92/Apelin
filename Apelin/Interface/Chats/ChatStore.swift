@@ -257,7 +257,6 @@ actor ChatStore {
         revisions[id] = Int.max
     }
 }
-
 // Appended during CI fix to ensure ComposerModelSelection is in a registered source file.
 
 import ApelinProtocol
