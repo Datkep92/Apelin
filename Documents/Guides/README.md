@@ -15,6 +15,7 @@ Thư mục này là tài liệu chi tiết để hiểu nhanh dự án Apelin fo
 9. [Agent và công cụ](09-agent-tooling.md)
 10. [Cá nhân hoá/fork](10-personalization.md)
 11. [Quy tắc phát triển](11-development-rules.md)
+12. [Quy trình build (GitHub Actions)](12-build-process.md)
 
 Tài liệu chung thêm:
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) — bản đồ tổng quan root-level.
