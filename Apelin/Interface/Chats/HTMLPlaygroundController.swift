@@ -125,14 +125,15 @@ final class HTMLPlaygroundController: UIViewController {
 
     @objc private func loadFileTapped() {
         let path = HTMLPlaygroundController.sharedFilePath
-        if let content = try? String(contentsOfFile: path, encoding: .utf8) {
+        do {
+            let content = try String(contentsOfFile: path, encoding: .utf8)
             editor.text = content
             saveContent()
             webView.loadHTMLString(content, baseURL: nil)
-        } else {
+        } catch {
             let alert = UIAlertController(
                 title: String(localized: "No AI content"),
-                message: String(localized: "The AI hasn't written to the shared file yet. Ask the AI to generate HTML and save it to: \(path)"),
+                message: String(localized: "Could not read \(path): \(error.localizedDescription)"),
                 preferredStyle: .alert
             )
             alert.addAction(UIAlertAction(title: "OK", style: .default))
