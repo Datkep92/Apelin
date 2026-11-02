@@ -832,9 +832,15 @@ public actor AgentSession {
             await recordOutput(messageEnded: true)
             await record(.messageFinished(text: Self.text(of: assistant.content)))
             if assistant.stopReason == .error {
+                let raw = assistant.errorMessage ?? ""
+                let isRateLimited = raw.localizedCaseInsensitiveContains("429")
+                    || raw.localizedCaseInsensitiveContains("rate limit")
+                    || raw.localizedCaseInsensitiveContains("quota")
                 await record(.error(
-                    message: assistant.errorMessage.map(ErrorDescription.localized)
-                        ?? "The model provider returned an error. Try again.",
+                    message: isRateLimited
+                        ? "Rate limit / quota reached for this model. Try again, or switch models."
+                        : (assistant.errorMessage.map(ErrorDescription.localized)
+                            ?? "The model provider returned an error. Try again."),
                 ))
             }
         case .streamRewind:
