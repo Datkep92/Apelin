@@ -157,6 +157,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 13 | 2026-11-01 | Bản vá (reasoning_content sentinel) | Sentinel thinking text changed from a single space to `r` so it survives kwwk's whitespace-trimming thinking-block filter; normalization now runs for **every** OpenAI-compatible turn (not only DeepSeek/compat-flag models), so relays serving DeepSeek-style endpoints under unrelated names (e.g. `beam`) also get `reasoning_content` on all earlier assistant messages. |  | Giữ thay đổi trong `AgentSession.normalizeReasoningContext(for:in:)`. |
 | 14 | 2026-11-02 | Cá nhân hoá | Sửa bảng gợi ý slash command trong composer có thể tap được; thêm màn Settings ▸ Commands để thêm/sửa/xoá file lệnh Markdown. | `7433bc6` | Giữ override hitTest/point(inside) trong `ComposerView`, `CommandsController`, `CommandEditorController`, và các key catalog mới. |
 | 15 | 2026-11-02 | Cá nhân hoá | Vuốt trái ở vùng trống sidebar hoặc tên dự án dưới cùng mở danh sách dự án; giữ nguyên swipe ghim/xóa trên hàng hội thoại. | `bca91d1` | Giữ gesture UISwipeGestureRecognizer và backgroundView trong `SidebarController`. |
+| 16 | 2026-11-02 | Bản vá | Chọn model trong phiên chat cập nhật tên model ngay lần đầu thay vì phải chọn lại. | `f500fa0` | Sắp xếp lại `pick(...)` và gọi `updateModelSelection()` trong `ChatController.showModelPicker`. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
