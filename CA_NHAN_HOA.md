@@ -158,6 +158,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 14 | 2026-11-02 | Cá nhân hoá | Sửa bảng gợi ý slash command trong composer có thể tap được; thêm màn Settings ▸ Commands để thêm/sửa/xoá file lệnh Markdown. | `7433bc6` | Giữ override hitTest/point(inside) trong `ComposerView`, `CommandsController`, `CommandEditorController`, và các key catalog mới. |
 | 15 | 2026-11-02 | Cá nhân hoá | Vuốt trái ở vùng trống sidebar hoặc tên dự án dưới cùng mở danh sách dự án; giữ nguyên swipe ghim/xóa trên hàng hội thoại. | `bca91d1` | Giữ gesture UISwipeGestureRecognizer và backgroundView trong `SidebarController`. |
 | 16 | 2026-11-02 | Bản vá | Chọn model trong phiên chat cập nhật tên model ngay lần đầu thay vì phải chọn lại. | `f500fa0` | Sắp xếp lại `pick(...)` và gọi `updateModelSelection()` trong `ChatController.showModelPicker`. |
+| 17 | 2026-11-02 | Cá nhân hoá | Khi phiên chat chạy xong, hàng sidebar hiển thị chấm xanh; mở/xem phiên chat sẽ mất chấm xanh xác nhận đã xem. |  | Giữ `isCompleted` trong `ChatSummary`, logic trong `ChatRuntime`, và chấm xanh trong `SidebarController`. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).

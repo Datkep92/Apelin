@@ -56,7 +56,7 @@ final class SidebarController: UIViewController {
         }
         let changedRows = chats.compactMap { chat -> UUID? in
             guard let old = previous[chat.id],
-                  old.title != chat.title || old.isWorking != chat.isWorking
+                  old.title != chat.title || old.isWorking != chat.isWorking || old.isCompleted != chat.isCompleted
             else { return nil }
             return chat.id
         }
@@ -270,17 +270,28 @@ final class SidebarController: UIViewController {
         }
         cell.contentConfiguration = content
         let isWorking = summary?.isWorking == true
+        let isCompleted = summary?.showsCompleted == true
         if isWorking {
             let indicator = cell.accessoryView as? UIActivityIndicatorView ?? UIActivityIndicatorView(style: .medium)
             indicator.isAccessibilityElement = false
             indicator.startAnimating()
             cell.accessoryView = indicator
+        } else if isCompleted {
+            let dot = (cell.accessoryView as? UIImageView) ?? UIImageView()
+            dot.image = UIImage(systemName: "circle.fill")?
+                .withConfiguration(UIImage.SymbolConfiguration(pointSize: 10, weight: .regular))
+                .withTintColor(.systemGreen, renderingMode: .alwaysOriginal)
+            dot.contentMode = .scaleAspectFit
+            dot.frame = CGRect(x: 0, y: 0, width: 12, height: 12)
+            dot.isAccessibilityElement = false
+            cell.accessoryView = dot
         } else {
             (cell.accessoryView as? UIActivityIndicatorView)?.stopAnimating()
             cell.accessoryView = nil
         }
         cell.isAccessibilityElement = true
-        cell.accessibilityValue = isWorking ? String(localized: "Working") : nil
+        cell.accessibilityValue = isWorking ? String(localized: "Working")
+            : (isCompleted ? String(localized: "Completed") : nil)
         cell.configurationUpdateHandler = { cell, state in
             var background = UIBackgroundConfiguration.listGroupedCell().updated(for: state)
             if state.isSelected || state.isHighlighted {

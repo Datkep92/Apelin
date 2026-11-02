@@ -30,8 +30,11 @@ final class ChatRuntime {
     /// one reads it (`ChatUnread`).
     var viewedChat: UUID? {
         didSet {
-            guard let viewedChat, viewedChat != oldValue, records[viewedChat]?.summary.markRead() == true else { return }
-            changed(viewedChat)
+            guard let viewedChat, viewedChat != oldValue else { return }
+            var changedView = false
+            if records[viewedChat]?.summary.markRead() == true { changedView = true }
+            if records[viewedChat]?.summary.markCompletedViewed() == true { changedView = true }
+            if changedView { changed(viewedChat) }
         }
     }
     /// The saved conversations have been checked against the host's live
@@ -413,6 +416,7 @@ final class ChatRuntime {
             descriptors: descriptors,
         )
         records[id]?.summary.nameAfterFirstMessage(text: draft.text, attachmentName: draft.attachments.first?.name)
+        records[id]?.summary.isCompleted = false
         changed(id)
     }
 
@@ -592,6 +596,16 @@ final class ChatRuntime {
                     let wasWorking = records[id]?.summary.isWorking
                     let current = transcript(id)
                     let isWorking = current.isWorking || current.isCompacting
+                    // A turn that finished (not aborted) while the reader is
+                    // not looking at it leaves a green dot until viewed.
+                    let finishedTurn = fresh.contains {
+                        $0.kind == "finished" && $0.payload?["reason"]?.stringValue != "aborted"
+                    }
+                    if isWorking {
+                        records[id]?.summary.isCompleted = false
+                    } else if wasWorking == true, finishedTurn, id != viewedChat {
+                        records[id]?.summary.isCompleted = true
+                    }
                     // The row's state, never its place in the sidebar: only
                     // the reader's New Chat and messages move that
                     // (`lastInteraction`), however much the agent writes.

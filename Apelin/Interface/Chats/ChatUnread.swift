@@ -72,6 +72,12 @@ extension ChatSummary {
         isUnread && !isWorking
     }
 
+    /// What the sidebar's green dot shows: a turn finished while the reader
+    /// was not looking at it, and the conversation is at rest.
+    var showsCompleted: Bool {
+        isCompleted && !isWorking
+    }
+
     /// Takes `events`, just read from the conversation's task, and marks it
     /// unread when one is a reply (`ChatUnread.isReply`) and the reader is
     /// not looking at it. Returns whether that changed it.
@@ -86,7 +92,15 @@ extension ChatSummary {
     /// unread.
     @discardableResult
     mutating func markRead() -> Bool {
-        defer { isUnread = false }
+        defer { isUnread = false; isCompleted = false }
         return isUnread
+    }
+
+    /// The reader looked at it after it finished. Returns whether it was
+    /// completed.
+    @discardableResult
+    mutating func markCompletedViewed() -> Bool {
+        defer { isCompleted = false }
+        return isCompleted
     }
 }

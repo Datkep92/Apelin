@@ -25,6 +25,9 @@ struct ChatSummary: Hashable, Codable, Sendable {
     /// sidebar shows it once the conversation is at rest (`showsUnread`).
     /// Absent from older files, which read as read.
     var isUnread = false
+    /// A turn finished while the reader was not looking at it, and they have
+    /// not looked since: shown as a green dot until they open it.
+    var isCompleted = false
     /// Whether this conversation has a running turn.
     var isWorking = false
     /// The reader named it (`rename(to:)`), and a title the agent suggests
@@ -80,7 +83,7 @@ extension ChatSummary {
 
 extension ChatSummary {
     private enum CodingKeys: String, CodingKey {
-        case id, title, projectName, isPinned, isWorking, isUnread, isNamedByReader
+        case id, title, projectName, isPinned, isWorking, isUnread, isCompleted, isNamedByReader
         case lastInteraction = "updated"
     }
 
@@ -98,6 +101,7 @@ extension ChatSummary {
         isPinned = try container.decode(Bool.self, forKey: .isPinned)
         isWorking = try container.decode(Bool.self, forKey: .isWorking)
         isUnread = try container.decodeIfPresent(Bool.self, forKey: .isUnread) ?? false
+        isCompleted = try container.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
         isNamedByReader = try container.decodeIfPresent(Bool.self, forKey: .isNamedByReader)
         if isNamedByReader != true, Self.savedPlaceholders.contains(title) {
             title = ""
