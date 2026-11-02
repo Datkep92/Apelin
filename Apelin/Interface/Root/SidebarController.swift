@@ -375,6 +375,8 @@ final class SidebarController: UIViewController {
             action: #selector(openProjectPickerBySwipe),
         )
         openProjectsSwipe.direction = .left
+        openProjectsSwipe.delegate = self
+        openProjectsSwipe.cancelsTouchesInView = false
         sidebarBackground.addGestureRecognizer(openProjectsSwipe)
         tableView.backgroundView = sidebarBackground
 
@@ -384,6 +386,8 @@ final class SidebarController: UIViewController {
             action: #selector(openProjectPickerBySwipe),
         )
         openProjectsFooterSwipe.direction = .left
+        openProjectsFooterSwipe.delegate = self
+        openProjectsFooterSwipe.cancelsTouchesInView = false
         projectNameLabel.addGestureRecognizer(openProjectsFooterSwipe)
 
         applySnapshot()
@@ -446,7 +450,10 @@ final class SidebarController: UIViewController {
             || snapshot.itemIdentifiers.contains { current.sectionIdentifier(containingItem: $0) != snapshot.sectionIdentifier(containingItem: $0) }
         // Streamed text changes nothing here, and an unchanged row is never
         // rebuilt: its open swipe actions would close.
-        tableView.backgroundView?.isHidden = !shown.isEmpty
+        // Keep the background view (and its swipe gesture) active even when
+        // the list is populated: hiding it disabled the left-swipe-to-open-
+        // projects gesture on non-empty sidebars.
+        tableView.backgroundView?.isHidden = false
         guard tableView.isFilled else {
             pacing.begin()
             dataSource.applyFirst(snapshot, to: tableView) { [weak self] in self?.selectPicked() }
@@ -898,6 +905,32 @@ extension SidebarController: UITableViewDelegate {
                 attributes: .destructive,
             ) { [weak self] _ in self?.delete(id, from: .sidebarRow) }
         }
+    }
+}
+
+extension SidebarController: UIGestureRecognizerDelegate {
+    /// Let the left-swipe-to-open-projects gesture recognise at the same time
+    /// as the table view's vertical pan, so it is not cancelled by scrolling.
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer,
+    ) -> Bool {
+        if gestureRecognizer is UISwipeGestureRecognizer,
+           otherGestureRecognizer is UIPanGestureRecognizer {
+            return true
+        }
+        return false
+    }
+
+    /// Do not let the swipe fire from a touch that starts on a conversation
+    /// row, so row swipes (pin/delete) keep precedence.
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let swipe = gestureRecognizer as? UISwipeGestureRecognizer else { return true }
+        let location = swipe.location(in: tableView)
+        if let indexPath = tableView.indexPathForRow(at: location) {
+            return false
+        }
+        return true
     }
 }
 
