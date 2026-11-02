@@ -5,8 +5,8 @@ import UIKit
 /// a query nothing matched. The item identifier tells rows apart within a
 /// snapshot, which two configurations enabling the same model id need.
 private enum PickerRow: Equatable {
-    /// The configuration at this index: the title on the row, its mark, and
-    /// what the line under the title holds.
+    /// One provider group (possibly several configurations): the group index,
+    /// its title, provider mark, and the line under the title.
     case configuration(Int, String, AgentProvider, String?)
     /// One model of the configuration at this index: the model, what the
     /// line under it holds (a search result names its configuration there),
@@ -98,6 +98,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     /// The configurations as the composer's own list held them when the
     /// sheet opened: signed in, enabled, each with something to choose.
     private let accounts: [AgentAccount]
+    private let groups: [(provider: AgentProvider, indices: [Int])]
     private var selected: ComposerModelSelection?
     private var query = ""
     private var sections: [(Section, [PickerRow])] = []
@@ -115,6 +116,13 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         self.accounts = accounts
         self.selected = selected
         self.onPickModel = onPickModel
+        var seen: [AgentProvider] = []
+        var map: [AgentProvider: [Int]] = [:]
+        for (i, account) in accounts.enumerated() {
+            if !seen.contains(account.provider) { seen.append(account.provider) }
+            map[account.provider, default: []].append(i)
+        }
+        self.groups = seen.map { provider in (provider, map[provider]!) }
         super.init(style: .insetGrouped)
     }
 
@@ -160,9 +168,15 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     /// naming the configuration they belong to.
     private func regroup() {
         guard !query.isEmpty else {
-            let rows = accounts.indices.map { index -> PickerRow in
-                let account = accounts[index]
-                return .configuration(index, account.title, account.provider, pickerDetail(for: account))
+            let rows = groups.enumerated().map { groupIndex, group -> PickerRow in
+                let first = accounts[group.indices[0]]
+                let title = group.indices.count > 1
+                    ? group.provider.displayName
+                    : first.title
+                let detail: String? = group.indices.count > 1
+                    ? String(localized: "\(group.indices.count) configurations")
+                    : pickerDetail(for: first)
+                return .configuration(groupIndex, title, group.provider, detail)
             }
             sections = [(.configurations, rows.isEmpty ? [.empty] : rows)]
             dataSource.update(sections)
@@ -187,10 +201,11 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         switch dataSource.value(at: indexPath) {
-        case let .configuration(index, _, _, _):
+        case let .configuration(groupIndex, _, _, _):
+            let indices = groups[groupIndex].indices
             let page = ChatModelListController(
                 accounts: accounts,
-                index: index,
+                indices: indices,
                 selected: selected,
                 onPick: { [weak self] account, model in
                     guard let self else { return }
@@ -221,9 +236,11 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
 /// belongs to the page behind, which already reaches every configuration.
 private final class ChatModelListController: TableController {
     private let accounts: [AgentAccount]
-    private let index: Int
+    private let indices: [Int]
     private let selected: ComposerModelSelection?
     private let onPick: (AgentAccount, String) -> Void
+    /// For each model row, which account (index into `accounts`) provides it.
+    private var modelAccountIndex: [Int] = []
 
     private lazy var dataSource = TableDataSource<Int, String, PickerRow>(
         tableView: tableView,
@@ -234,12 +251,12 @@ private final class ChatModelListController: TableController {
 
     init(
         accounts: [AgentAccount],
-        index: Int,
+        indices: [Int],
         selected: ComposerModelSelection?,
         onPick: @escaping (AgentAccount, String) -> Void,
     ) {
         self.accounts = accounts
-        self.index = index
+        self.indices = indices
         self.selected = selected
         self.onPick = onPick
         super.init(style: .insetGrouped)
@@ -252,22 +269,31 @@ private final class ChatModelListController: TableController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = accounts[index].title
+        title = indices.count == 1
+            ? accounts[indices[0]].title
+            : (indices.isEmpty ? "" : accounts[indices[0]].provider.displayName)
         rewrite()
     }
 
-    /// Every model of this one configuration, the composer's own marked.
+    /// Every model across the selected configurations, each named once (first
+    /// configuration that offers it serves it), the composer's own marked.
     private func rewrite() {
-        let account = accounts[index]
-        let rows = pickerModels(account).map { model in
-            PickerRow.model(index, model, nil, pickerHolds(model, account, selected))
+        modelAccountIndex = []
+        var seenModels: Set<String> = []
+        var rows: [PickerRow] = []
+        for accountIndex in indices {
+            let account = accounts[accountIndex]
+            for model in pickerModels(account) where seenModels.insert(model).inserted {
+                modelAccountIndex.append(accountIndex)
+                rows.append(.model(accountIndex, model, nil, pickerHolds(model, account, selected)))
+            }
         }
         dataSource.update([(0, rows)])
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard case let .model(_, model, _, _) = dataSource.value(at: indexPath) else { return }
-        onPick(accounts[index], model)
+        guard case let .model(accountIndex, model, _, _) = dataSource.value(at: indexPath) else { return }
+        onPick(accounts[accountIndex], model)
     }
 }
