@@ -13,19 +13,30 @@ final class ComposerModelBar: ComposerSectionView {
         text: String(localized: "Stop"),
         image: UIImage(systemName: "stop.fill"),
     )
+    /// Answers a model that ran out of allowance with the next one, for the
+    /// reader who does not want to wait for the automatic tries.
+    private let retryButton = ComposerBlockButton(
+        text: String(localized: "Retry"),
+        image: UIImage(systemName: "arrow.clockwise"),
+    )
     var onEffortChanged: ((AgentReasoningEffort) -> Void)?
     var onTierChanged: ((AgentServiceTier?) -> Void)?
+    var onRetry: (() -> Void)?
     private var cancelOutput: (() -> Void)?
 
     override func initializeViews() {
         super.initializeViews()
-        for control in [button, effortButton, tierButton, stopButton] {
+        for control in [button, effortButton, tierButton, retryButton, stopButton] {
             addSubview(control)
         }
         effortButton.showsMenuAsPrimaryAction = true
         setControl(effortButton, visible: false)
         tierButton.showsMenuAsPrimaryAction = true
         setControl(tierButton, visible: false)
+        retryButton.tintColor = .systemOrange
+        retryButton.borderColor = .systemOrange.withAlphaComponent(0.5)
+        setControl(retryButton, visible: false)
+        retryButton.addAction(UIAction { [weak self] _ in self?.onRetry?() }, for: .touchUpInside)
         stopButton.tintColor = .systemRed
         stopButton.borderColor = .systemRed.withAlphaComponent(0.5)
         stopButton.accessibilityLabel = String(localized: "Stop Generating")
@@ -91,6 +102,12 @@ final class ComposerModelBar: ComposerSectionView {
         updateControls { [self] in setControl(stopButton, visible: cancel != nil) }
     }
 
+    /// Shown while a model is left to answer the reader's last message
+    /// again, and nothing is running that a second prompt would join.
+    func setRetry(_ available: Bool) {
+        updateControls { [self] in setControl(retryButton, visible: available) }
+    }
+
     private func setControl(_ control: UIButton, visible: Bool) {
         control.alpha = visible ? 1 : 0
         control.isUserInteractionEnabled = visible
@@ -132,7 +149,7 @@ final class ComposerModelBar: ComposerSectionView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let controls = [button, effortButton, tierButton, stopButton].filter(\.isUserInteractionEnabled)
+        let controls = [button, effortButton, tierButton, retryButton, stopButton].filter(\.isUserInteractionEnabled)
         let spacing: CGFloat = 10
         let otherWidth = controls.dropFirst().reduce(CGFloat.zero) { $0 + $1.intrinsicContentSize.width + spacing }
         let modelWidth = min(button.intrinsicContentSize.width, max(44, bounds.width - otherWidth))

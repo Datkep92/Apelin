@@ -21,6 +21,26 @@ struct ChatRecord: Codable, Sendable {
     /// which takes the reader's current one. Added per-conversation model
     /// support; absent from older files.
     var modelSelection: ComposerModelSelection?
+    /// Where an automatic retry after a rate-limit error stands. Absent from
+    /// older files.
+    var rateLimitRetry: RateLimitRetryState?
+}
+
+/// An automatic retry after a model answered with a spent allowance: the
+/// reader's message sent again with the next model of
+/// `ModelCandidates.fallbackList`, at most
+/// `RateLimitRetryPolicy.maximumRetries` times on its own. Kept with the
+/// conversation so a relaunch remembers what is left of the list and how
+/// many tries were spent.
+struct RateLimitRetryState: Codable, Sendable, Equatable {
+    /// Models left to try, in fallback order, the next one first: each is
+    /// removed as it is sent. Empty means the reader is the only one who
+    /// can ask again.
+    var remaining: [ComposerModelSelection]
+    /// The text sent again, taken from the message the error answered.
+    var text: String
+    /// How many retries were already sent for this run.
+    var attempts = 0
 }
 
 /// The replay a reopened session's task starts with: every event of the
@@ -126,6 +146,13 @@ extension ChatRecord {
         guard !recorded, draft.text.isEmpty, draft.attachments.isEmpty else { return false }
         draft = message
         return true
+    }
+
+    /// The text of the last message the reader sent: what an automatic retry
+    /// after a rate-limit error sends again.
+    var lastUserText: String? {
+        events.last { ChatTranscript.userMessageID(of: $0) != nil }?
+            .payload?["text"]?.stringValue
     }
 
     /// The session is now `task`. One that is not the task `events` came

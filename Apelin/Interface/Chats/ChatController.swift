@@ -55,6 +55,9 @@ final class ChatController: UIViewController {
     /// Approve does not ask again.
     private var checkingOwner: UUID?
     private var stoppableChat: UUID?
+    /// Whether the model bar shows the spent-allowance Retry now, so a
+    /// refresh that changes nothing does not relayout the bar.
+    private var showsRetry = false
     /// While `use(_:)` swaps another conversation in: nothing animates, and
     /// the list's opening scroll waits for its rows.
     private var isSwitchingChat = false
@@ -146,6 +149,10 @@ final class ChatController: UIViewController {
         }
         composer.modelBar.onEffortChanged = { ComposerModelPreferences.effort = $0 }
         composer.modelBar.onTierChanged = { ComposerModelPreferences.tier = $0 }
+        composer.modelBar.onRetry = { [weak self] in
+            guard let id = self?.chat?.id else { return }
+            Task { await self?.runtime.retrySpentAllowance(id) }
+        }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateModelSelection),
@@ -516,6 +523,13 @@ final class ChatController: UIViewController {
                     }
                 } : nil)
             }
+            // a model is left to answer the last message's spent allowance
+            // again, and nothing is running that a second prompt would join
+            let retryable = !summary.isWorking && runtime.hasSpentAllowanceRetry(chat.id)
+            if retryable != showsRetry {
+                showsRetry = retryable
+                composer.modelBar.setRetry(retryable)
+            }
         }
     }
 
@@ -692,17 +706,9 @@ final class ChatController: UIViewController {
 }
 
 extension ChatController {
-    /// `model` of `account` with what the catalog says it offers. The
-    /// reader's effort and speed are kept apart (`ComposerModelPreferences`),
-    /// so picking a model that lacks them does not lose them.
+    /// `model` of `account` with what the catalog says it offers.
     static func selection(of model: String, in account: AgentAccount) -> ComposerModelSelection {
-        ComposerModelSelection(
-            provider: account.provider,
-            model: model,
-            profileID: account.profileID,
-            supportedEfforts: (account.reasoningEfforts?[model] ?? []).filter { [.low, .high, .max].contains($0) },
-            supportedTiers: account.serviceTiers?[model] ?? [],
-        )
+        ModelCandidate(account: account, model: model).selection
     }
 
     /// With no model picked, or one no longer enabled, the first enabled

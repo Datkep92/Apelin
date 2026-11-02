@@ -47,7 +47,6 @@ final class ChatRuntime {
     private var opening: [UUID: Task<AgentOpenResponse, Error>] = [:]
     private var attachmentCache: [String: ComposerAttachment] = [:]
     private var transcripts = ChatTranscriptCache()
-    private var rateLimitedChats: Set<UUID> = []
     /// Conversations whose latest state is in memory only.
     private var unsaved: Set<UUID> = []
     /// Conversations being written, and those changed again meanwhile. A
@@ -344,7 +343,9 @@ final class ChatRuntime {
     func submit(_ draft: ComposerDraft, to id: UUID) -> Task<Void, Error> {
         guard records[id] != nil else { return Task {} }
         records[id]?.submit(draft)
-        rateLimitedChats.remove(id)
+        // The reader moved on: what an earlier message's spent allowance
+        // left to try is no longer theirs to answer.
+        records[id]?.rateLimitRetry = nil
         changed(id)
         return Task {
             do {
@@ -555,10 +556,11 @@ final class ChatRuntime {
                     let batch = try await ApelinService.app.attach(task, afterSeq: cursor)
                     guard !Task.isCancelled, records[id]?.task == task else { return }
                     let fresh = records[id]?.take(batch.events) ?? []
-                    if fresh.contains(where: { $0.kind == "error"
-                        && ($0.payload?["message"]?.stringValue ?? "").localizedCaseInsensitiveContains("Rate limit") }) {
-                        rateLimitedChats.insert(id)
+                    let spentAllowance = fresh.contains(where: Self.isSpentAllowance)
+                    if spentAllowance {
+                        Task { [weak self] in await self?.answerSpentAllowance(in: id) }
                     }
+                    settleSpentAllowance(in: id, against: spentAllowance)
                     settleSending(in: id, against: fresh)
                     let builds = CompletedBuilds.count(in: fresh)
                     if builds > 0 {
@@ -690,10 +692,108 @@ final class ChatRuntime {
         onUnsentReturned?(id, returned)
     }
 
-    /// `urgent`: written at once rather than after the interval; see `persist`.
-    func isRateLimited(_ id: UUID) -> Bool { rateLimitedChats.contains(id) }
-    func clearRateLimit(_ id: UUID) { rateLimitedChats.remove(id) }
+    // MARK: - A spent allowance
 
+    /// A model answered with a spent allowance. The reader's message goes
+    /// again with the next model of `ModelCandidates.fallbackList`, and the
+    /// model bar keeps a Retry while that list has one left.
+    private func answerSpentAllowance(in id: UUID) async {
+        guard records[id] != nil else { return }
+        let state: RateLimitRetryState
+        if let known = records[id]?.rateLimitRetry {
+            // later errors of the same run keep the tries and the list
+            state = known
+        } else {
+            state = RateLimitRetryState(
+                remaining: await fallbackCandidates(after: id),
+                text: records[id]?.lastUserText ?? "",
+            )
+        }
+        // With nothing to send again, or no model left, the conversation
+        // keeps the error alone: the reader is the one who acts.
+        guard !state.remaining.isEmpty, !state.text.isEmpty else {
+            if records[id]?.rateLimitRetry != nil {
+                records[id]?.rateLimitRetry = nil
+                changed(id)
+            }
+            return
+        }
+        records[id]?.rateLimitRetry = state
+        changed(id)
+        await sendNextModel(in: id, readerAsked: false)
+    }
+
+    /// The reader's Retry in the model bar: the next model, whether or not
+    /// the automatic tries are spent.
+    func retrySpentAllowance(_ id: UUID) async {
+        await sendNextModel(in: id, readerAsked: true)
+    }
+
+    /// Whether `id` has a model left to answer a spent allowance with: what
+    /// the model bar's Retry is shown for.
+    func hasSpentAllowanceRetry(_ id: UUID) -> Bool {
+        records[id]?.rateLimitRetry.map { !$0.remaining.isEmpty } ?? false
+    }
+
+    private func sendNextModel(in id: UUID, readerAsked: Bool) async {
+        guard var state = records[id]?.rateLimitRetry, let next = state.remaining.first,
+              RateLimitRetryPolicy.decision(
+                  attempts: state.attempts,
+                  candidatesLeft: state.remaining.count,
+                  hasText: !state.text.isEmpty,
+                  readerAsked: readerAsked,
+              ) == .sendNextModel
+        else { return }
+        state.remaining.removeFirst()
+        state.attempts += 1
+        records[id]?.rateLimitRetry = state
+        // this conversation runs on the model that answers from here on
+        records[id]?.modelSelection = next
+        let draft = ComposerDraft(text: state.text)
+        records[id]?.submit(draft)
+        changed(id)
+        do {
+            try await send(draft, to: id)
+        } catch {
+            takeBack(draft, from: id)
+        }
+    }
+
+    /// The models to fall back to after the one `id` runs on, in
+    /// `ModelCandidates`' order, as the selections a prompt sends with.
+    private func fallbackCandidates(after id: UUID) async -> [ComposerModelSelection] {
+        guard let listed = try? await ApelinService.app.agentAccountList().accounts else { return [] }
+        let current = records[id]?.modelSelection ?? ComposerModelSelection.current
+        return ModelCandidates.fallbackList(current: current, accounts: listed).map(\.selection)
+    }
+
+    /// The conversation answered again after a spent allowance — a message
+    /// finished past its last error, and the turn ended — so the retry has
+    /// done what it could. A turn that ends on an error of its own never
+    /// clears it: its message came before that error, not after.
+    private func settleSpentAllowance(in id: UUID, against spentAllowance: Bool) {
+        guard !spentAllowance, records[id]?.rateLimitRetry != nil,
+              let events = records[id]?.events,
+              let anchor = events.last(where: Self.isSpentAllowance)?.seq,
+              events.contains(where: {
+                  $0.kind == "message" && $0.seq > anchor
+              }),
+              events.contains(where: {
+                  $0.kind == "finished" && $0.seq > anchor
+                      && $0.payload?["reason"]?.stringValue != "aborted"
+              })
+        else { return }
+        records[id]?.rateLimitRetry = nil
+        changed(id)
+    }
+
+    /// The host words a spent allowance as a sentence of its own
+    /// (`AgentSession`); an older host passes the provider's text through.
+    private static func isSpentAllowance(_ event: TaskEvent) -> Bool {
+        event.kind == "error" && RateLimitSignal.matches(event.payload?["message"]?.stringValue ?? "")
+    }
+
+    /// `urgent`: written at once rather than after the interval; see `persist`.
     private func changed(_ id: UUID, urgent: Bool = true) {
         persist(id, urgent: urgent); onChange?()
     }

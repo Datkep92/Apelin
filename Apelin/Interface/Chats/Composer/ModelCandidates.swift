@@ -9,6 +9,22 @@ struct ModelCandidate: Equatable {
     let model: String
 }
 
+extension ModelCandidate {
+    /// This model as the selection a prompt sends with, with what the
+    /// catalog says it offers. The reader's effort and speed are kept apart
+    /// (`ComposerModelPreferences`), so a model that lacks them does not
+    /// lose them.
+    var selection: ComposerModelSelection {
+        ComposerModelSelection(
+            provider: account.provider,
+            model: model,
+            profileID: account.profileID,
+            supportedEfforts: (account.reasoningEfforts?[model] ?? []).filter { [.low, .high, .max].contains($0) },
+            supportedTiers: account.serviceTiers?[model] ?? [],
+        )
+    }
+}
+
 enum ModelCandidates {
     /// Builds the fallback order starting after `current`. `current` itself is
     /// excluded; if nothing else is available the list is empty (caller keeps

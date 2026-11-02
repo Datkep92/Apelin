@@ -473,6 +473,11 @@ harness:
 		cp -p "$$harness_dir/executable-watch" "$$harness_dir/$$mode" && "$$harness_dir/$$mode" "$$mode" \
 			|| { echo "error: ExecutableWatch failed in mode $$mode" >&2; exit 1; }; \
 	done && echo "ok: ExecutableWatch" && \
+	xcrun --sdk macosx swiftc -swift-version 5 \
+		"$(ROOT_DIR)/Apelin/Interface/Chats/RateLimitRetry.swift" \
+		"$(ROOT_DIR)/Tests/RateLimitRetry/main.swift" \
+		-o "$$harness_dir/rate-limit-retry" && \
+	"$$harness_dir/rate-limit-retry" && echo "ok: RateLimitRetry" && \
 	swift test --package-path "$(APELINKIT)" --scratch-path "$(SWIFTPM_SCRATCH)" && echo "ok: ApelinKit tests" && \
 	$(foreach package,$(HARNESS_PACKAGES),swift test --package-path "$(ROOT_DIR)/Packages/$(package)" --scratch-path "$(call package_scratch,$(package))" && echo "ok: $(package) tests" && ) \
 	"$(ROOT_DIR)/Scripts/check-system-only.py" "$(APELINKIT)" --scratch-path "$(SWIFTPM_SCRATCH)" \
