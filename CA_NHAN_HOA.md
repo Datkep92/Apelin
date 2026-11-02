@@ -168,6 +168,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 24 | 2026-11-03 | Bản vá | Phát hiện 429/rate-limit trong follow() của ChatRuntime: đánh dấu hội thoại `rateLimitedChats` để UI retry với model tiếp theo. |  | Giữ `isRateLimited(_:)`/`clearRateLimit(_:)` và detection trong `follow()`. |
 | 25 | 2026-11-03 | Bản vá | Khi mở phiên chat cũ, tự cuộn xuống cuối: cho phép lượt layout ban đầu chạy sau khi hoán đổi hội thoại (tắt `isSwitchingChat` trước `setNeedsLayout`). |  | Giữ thay đổi trong `ChatController.use(_:)`. |
 | 26 | 2026-11-03 | Bản vá | Khởi động không tự mở HTML playground từ file cũ: baseline `lastHTMLFileModification` khi bắt đầu theo dõi file. |  | Giữ thay đổi trong `ChatController.startHTMLFileWatch()`. |
+| 27 | 2026-11-03 | Cá nhân hoá | Di chuyển nút danh sách dự án từ thanh trên xuống footer sidebar (tái dùng projectMenuButton), mở danh sách dự án bằng push từ phải thay vì modal sheet. | `07374c8` | Giữ projectMenuButton trong footer, openProjectPicker dùng pushViewController, ProjectPickerController pop về sidebar. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
