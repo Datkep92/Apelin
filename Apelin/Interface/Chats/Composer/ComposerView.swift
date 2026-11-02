@@ -420,7 +420,25 @@ extension ComposerView: ComposerInputView.Delegate {
 
 }
 
-extension ComposerView: UITableViewDataSource, UITableViewDelegate {
+extension ComposerView {
+    /// The command suggestions table is laid out above the composer, outside
+    /// its bounds, so UIKit's default hit-testing never reaches it. Route
+    /// touches there explicitly so a row can be tapped.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        if super.point(inside: point, with: event) { return true }
+        let tablePoint = convert(point, to: commandSuggestionsTable)
+        return commandSuggestionsTable.point(inside: tablePoint, with: event)
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let tablePoint = convert(point, to: commandSuggestionsTable)
+        if let hit = commandSuggestionsTable.hitTest(tablePoint, with: event) {
+            return hit
+        }
+        return super.hitTest(point, with: event)
+    }
+}
+
     func hideCommandSuggestions() {
         commandSuggestionsTable.isHidden = true
         setNeedsLayout()

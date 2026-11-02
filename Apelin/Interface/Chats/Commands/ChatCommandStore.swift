@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// A chat slash command loaded from `~/Documents/wiki.qaq.apelin/commands/`.
 struct ChatCommand {
@@ -41,6 +42,12 @@ final class ChatCommandStore {
             try? content.write(to: url, atomically: true, encoding: .utf8)
         }
     }
+
+    /// Public access to the commands directory for management UI.
+    var directoryURL: URL { directory }
+
+    /// Parses a command file for display/editing.
+    func command(at url: URL) -> ChatCommand? { parse(url) }
 
     /// All available commands, sorted by name.
     func all() -> [ChatCommand] {
@@ -169,4 +176,187 @@ final class ChatCommandStore {
         """)
         ,
     ]
+}
+
+// MARK: - Command management UI
+
+final class CommandsController: TableController {
+    private var files: [URL] = []
+    private let fm = FileManager.default
+
+    init() {
+        super.init(style: .insetGrouped)
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("Use init()")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = String(localized: "Commands")
+        navigationItem.backButtonDisplayMode = .minimal
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            systemItem: .add,
+            primaryAction: UIAction { [weak self] _ in self?.create() },
+        ).then { $0.accessibilityLabel = String(localized: "Add Command") }
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "command")
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        load()
+    }
+
+    private var directory: URL { ChatCommandStore.shared.directoryURL }
+
+    private func load() {
+        ChatCommandStore.shared.ensureDefaults()
+        files = ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "md" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        tableView.reloadData()
+    }
+
+    override func numberOfSections(in _: UITableView) -> Int { 1 }
+
+    override func tableView(_: UITableView, numberOfRowsInSection _: Int) -> Int {
+        files.isEmpty ? 1 : files.count
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "command", for: indexPath)
+        if files.isEmpty {
+            var content = UIListContentConfiguration.cell()
+            content.text = String(localized: "No commands yet")
+            content.textProperties.color = .secondaryLabel
+            cell.contentConfiguration = content
+            cell.selectionStyle = .none
+            cell.accessoryType = .none
+            return cell
+        }
+        let url = files[indexPath.row]
+        let command = ChatCommandStore.shared.command(at: url)
+        var content = UIListContentConfiguration.stackedValueCell()
+        content.text = "/" + (command?.name ?? url.deletingPathExtension().lastPathComponent)
+        content.secondaryText = command?.description.isEmpty == false ? command?.description : url.lastPathComponent
+        cell.contentConfiguration = content
+        cell.accessoryType = .disclosureIndicator
+        cell.selectionStyle = .default
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        guard !files.isEmpty else { return }
+        openEditor(for: files[indexPath.row])
+    }
+
+    override func tableView(
+        _: UITableView,
+        trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
+    ) -> UISwipeActionsConfiguration? {
+        guard !files.isEmpty else { return nil }
+        let url = files[indexPath.row]
+        let delete = UIContextualAction(
+            style: .destructive,
+            title: String(localized: "Delete"),
+        ) { [weak self] _, _, completion in
+            completion(false)
+            self?.confirmDelete(url)
+        }
+        delete.image = UIImage(systemName: "trash")
+        return UISwipeActionsConfiguration(actions: [delete])
+    }
+
+    private func confirmDelete(_ url: URL) {
+        presentConfirmation(
+            title: String(localized: "Delete \(url.deletingPathExtension().lastPathComponent)?"),
+            message: String(localized: "The command file is removed from the commands folder."),
+            confirmTitle: String(localized: "Delete"),
+            destructive: true,
+        ) { [weak self] in
+            try? self?.fm.removeItem(at: url)
+            self?.load()
+        }
+    }
+
+    private func create() {
+        let alert = UIAlertController(
+            title: String(localized: "New Command"),
+            message: nil,
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = String(localized: "Name")
+            field.autocapitalizationType = .none
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Create"), style: .default) { [weak self] _ in
+            guard let self else { return }
+            let name = alert.textFields?.first?.text?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !name.isEmpty else { return }
+            let url = self.directory.appendingPathComponent("\(name).md")
+            let template = """
+            ---
+            name: \(name)
+            description:
+            ---
+
+            Your prompt here with {{content}}
+            """
+            try? template.write(to: url, atomically: true, encoding: .utf8)
+            self.load()
+            self.openEditor(for: url)
+        })
+        present(alert, animated: true)
+    }
+
+    private func openEditor(for url: URL) {
+        navigationController?.pushViewController(CommandEditorController(url: url), animated: true)
+    }
+}
+
+final class CommandEditorController: UIViewController {
+    let url: URL
+    private let textView = UITextView()
+
+    init(url: URL) {
+        self.url = url
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("Use init(url:)")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = url.lastPathComponent
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: String(localized: "Save"),
+            style: .done,
+            target: self,
+            action: #selector(save),
+        )
+        textView.text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        textView.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        textView.alwaysBounceVertical = true
+        textView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(textView)
+        NSLayoutConstraint.activate([
+            textView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            textView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            textView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            textView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+    }
+
+    @objc private func save() {
+        try? textView.text.write(to: url, atomically: true, encoding: .utf8)
+        navigationController?.popViewController(animated: true)
+    }
 }
