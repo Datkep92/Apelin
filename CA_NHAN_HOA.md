@@ -159,6 +159,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 15 | 2026-11-02 | Cá nhân hoá | Vuốt trái ở vùng trống sidebar hoặc tên dự án dưới cùng mở danh sách dự án; giữ nguyên swipe ghim/xóa trên hàng hội thoại. | `bca91d1` | Giữ gesture UISwipeGestureRecognizer và backgroundView trong `SidebarController`. |
 | 16 | 2026-11-02 | Bản vá | Chọn model trong phiên chat cập nhật tên model ngay lần đầu thay vì phải chọn lại. | `f500fa0` | Sắp xếp lại `pick(...)` và gọi `updateModelSelection()` trong `ChatController.showModelPicker`. |
 | 17 | 2026-11-02 | Cá nhân hoá | Khi phiên chat chạy xong, hàng sidebar hiển thị chấm xanh; mở/xem phiên chat sẽ mất chấm xanh xác nhận đã xem. |  | Giữ `isCompleted` trong `ChatSummary`, logic trong `ChatRuntime`, và chấm xanh trong `SidebarController`. |
+| 18 | 2026-11-02 | Cá nhân hoá | Cho **mọi** nhà cung cấp mô hình hỗ trợ nhiều cấu hình (nhiều khoá API/endpoint): mở rộng `AgentProfileID` trong `ApelinKit` cho toàn bộ `AgentProvider` (store id khớp `AgentProvider.storeID`); trước đây chỉ Anthropic và OpenAI-compatible. |  | Giữ mapping store id trong `AgentProfileID` (`canonicalID`/`make`/`kind`/`pairs`) khớp `SignInProviders.storeID`; không xoá. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).

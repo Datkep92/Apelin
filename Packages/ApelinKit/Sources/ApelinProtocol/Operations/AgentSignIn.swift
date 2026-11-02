@@ -175,16 +175,51 @@ public extension AgentAccount {
 /// usable beside the others. A provider with one sign-in has none; its
 /// configuration is the provider itself.
 public enum AgentProfileID {
+    public static let githubCopilotPrefix = "github-copilot"
+    public static let anthropicOAuthPrefix = "anthropic"
     public static let anthropicPrefix = "anthropic-api-key"
     public static let openAICompatiblePrefix = "openai-compatible"
+    public static let openAICodexPrefix = "openai-codex"
+    public static let cursorPrefix = "cursor"
+    public static let devinPrefix = "devin"
+    public static let kiroPrefix = "kiro"
+    public static let qoderPrefix = "qoder"
+    public static let qoderCNPrefix = "qoder-cn"
+    public static let workBuddyPrefix = "workbuddy"
+    public static let workBuddyAIPrefix = "workbuddy-ai"
+    public static let kimiCodingPrefix = "kimi-coding"
+    public static let xaiPrefix = "xai"
+    public static let zaiPrefix = "zai"
+    public static let zaiCodingCNPrefix = "zai-coding-cn"
+    public static let openRouterPrefix = "openrouter"
+    public static let openAIPrefix = "openai-api-key"
+    public static let googlePrefix = "google-api-key"
+    public static let deepSeekPrefix = "deepseek-api-key"
 
     /// The provider's first configuration — the keychain id a single
     /// sign-in has always used; nil for a provider that keeps one sign-in.
     public static func canonicalID(for provider: AgentProvider) -> String? {
         switch provider {
+        case .githubCopilot: githubCopilotPrefix
+        case .anthropicOAuth: anthropicOAuthPrefix
         case .anthropic: anthropicPrefix
         case .openAICompatible: openAICompatiblePrefix
-        default: nil
+        case .openAICodex: openAICodexPrefix
+        case .cursor: cursorPrefix
+        case .devin: devinPrefix
+        case .kiro: kiroPrefix
+        case .qoder: qoderPrefix
+        case .qoderCN: qoderCNPrefix
+        case .workBuddy: workBuddyPrefix
+        case .workBuddyAI: workBuddyAIPrefix
+        case .kimiCoding: kimiCodingPrefix
+        case .xai: xaiPrefix
+        case .zai: zaiPrefix
+        case .zaiCodingCN: zaiCodingCNPrefix
+        case .openRouter: openRouterPrefix
+        case .openAI: openAIPrefix
+        case .google: googlePrefix
+        case .deepSeek: deepSeekPrefix
         }
     }
 
@@ -212,8 +247,26 @@ public enum AgentProfileID {
     }
 
     private static let pairs: [(String, AgentProvider)] = [
-        (anthropicPrefix, .anthropic),
-        (openAICompatiblePrefix, .openAICompatible),
+        ("github-copilot", .githubCopilot),
+        ("anthropic-api-key", .anthropic),
+        ("anthropic", .anthropicOAuth),
+        ("openai-compatible", .openAICompatible),
+        ("openai-codex", .openAICodex),
+        ("cursor", .cursor),
+        ("devin", .devin),
+        ("kiro", .kiro),
+        ("qoder-cn", .qoderCN),
+        ("qoder", .qoder),
+        ("workbuddy-ai", .workBuddyAI),
+        ("workbuddy", .workBuddy),
+        ("kimi-coding", .kimiCoding),
+        ("xai", .xai),
+        ("zai-coding-cn", .zaiCodingCN),
+        ("zai", .zai),
+        ("openrouter", .openRouter),
+        ("openai-api-key", .openAI),
+        ("google-api-key", .google),
+        ("deepseek-api-key", .deepSeek),
     ]
 }
 
