@@ -354,6 +354,27 @@ final class SidebarController: UIViewController {
         // an empty or short one still gives way to the pull
         setContentScrollView(tableView)
         tableView.alwaysBounceVertical = true
+        // A left swipe on empty sidebar space (or the project name at the
+        // bottom) opens the project list, without disturbing the row swipes
+        // (pin/delete) on conversation rows.
+        let sidebarBackground = UIView()
+        sidebarBackground.backgroundColor = .clear
+        let openProjectsSwipe = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(openProjectPickerBySwipe),
+        )
+        openProjectsSwipe.direction = .left
+        sidebarBackground.addGestureRecognizer(openProjectsSwipe)
+        tableView.backgroundView = sidebarBackground
+
+        projectNameLabel.isUserInteractionEnabled = true
+        let openProjectsFooterSwipe = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(openProjectPickerBySwipe),
+        )
+        openProjectsFooterSwipe.direction = .left
+        projectNameLabel.addGestureRecognizer(openProjectsFooterSwipe)
+
         applySnapshot()
     }
 
@@ -680,6 +701,10 @@ final class SidebarController: UIViewController {
         if let firstPrompt {
             onSendPrompt?(firstPrompt)
         }
+    }
+
+    @objc private func openProjectPickerBySwipe() {
+        openProjectPicker()
     }
 
     private func openProjectPicker() {
