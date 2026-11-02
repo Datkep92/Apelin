@@ -64,6 +64,8 @@ final class ChatController: UIViewController {
     /// once the reader sees them (`sayUnsent`).
     private var unsent: [UUID: (messages: Int, attachmentsLeftOut: Int)] = [:]
     private var needsInitialScroll = false
+    private var htmlFileWatchTimer: Timer?
+    private var lastHTMLFileModification: Date?
     /// Whether the reader was at the latest message when the page last
     /// changed width — the sidebar opening or closing. The rows wrap again
     /// and the content's height changes under the list, so the list is put
@@ -331,6 +333,13 @@ final class ChatController: UIViewController {
             composer.beginEditing()
         }
         sayUnsent()
+        startHTMLFileWatch()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        htmlFileWatchTimer?.invalidate()
+        htmlFileWatchTimer = nil
     }
 
     override func viewWillLayoutSubviews() {
@@ -859,6 +868,25 @@ extension ChatController: ComposerView.Delegate {
 
     func onComposerWebTapped() {
         importer()?.web()
+    }
+
+    private func startHTMLFileWatch() {
+        htmlFileWatchTimer?.invalidate()
+        htmlFileWatchTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.checkSharedHTMLFile()
+        }
+    }
+
+    private func checkSharedHTMLFile() {
+        let path = HTMLPlaygroundController.sharedFilePath
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let modified = attributes[.modificationDate] as? Date else { return }
+        guard modified != lastHTMLFileModification else { return }
+        lastHTMLFileModification = modified
+        // Auto-open preview when AI writes HTML, unless it is already open.
+        if !(navigationController?.topViewController is HTMLPlaygroundController) {
+            onComposerHTMLTapped()
+        }
     }
 
     func onComposerHTMLTapped() {
