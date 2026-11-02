@@ -289,7 +289,6 @@ final class ServicesSettingsController: TableController {
             guard let self else { return }
             do {
                 let client = CloudflareServiceClient(apiToken: token)
-                _ = try await client.validateToken()
                 let accounts = try await client.listAccounts()
                 await MainActor.run {
                     self.config.cloudflare = CloudflareServiceConfig(apiToken: token)
