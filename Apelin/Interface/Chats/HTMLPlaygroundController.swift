@@ -177,6 +177,7 @@ final class HTMLPlaygroundController: UIViewController {
         if modified != lastFileModification {
             lastFileModification = modified
             if let content = try? String(contentsOfFile: path, encoding: .utf8) {
+                guard content != editor.text else { return }
                 editor.text = content
                 saveContent()
                 webView.loadHTMLString(content, baseURL: nil)

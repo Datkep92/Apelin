@@ -74,6 +74,9 @@ final class ChatController: UIViewController {
     /// back at its end, and kept there as the rows above are measured again,
     /// until the reader drags it.
     private var holdsLatestMessage = false
+    /// A refresh requested while the reader was scrolling: applied once the
+    /// list stops, so streaming does not fight the scroll.
+    private var refreshPending = false
     /// Where a reader elsewhere in the conversation was when the page last
     /// changed width: the row at the top of what they saw, under the bar,
     /// and how far into it. The rows wrap again, and a long reply grows or
@@ -491,6 +494,11 @@ final class ChatController: UIViewController {
 
     func refreshRuntime() {
         guard let chat else { return }
+        if messageList.isTracking || messageList.isDecelerating {
+            refreshPending = true
+            return
+        }
+        refreshPending = false
         if let summary = runtime.records[chat.id]?.summary {
             self.chat = summary
             if title != summary.displayTitle {
@@ -899,6 +907,10 @@ extension ChatController: ComposerView.Delegate {
             let text = message.text + "\n" + message.detail
             for candidate in Self.extractPreviewCandidates(from: text) {
                 guard candidate != lastAutoPreviewedPath else { continue }
+                // The shared playground file is meant to be opened in the
+                // playground, not auto-previewed as a browser sheet.
+                guard candidate != HTMLPlaygroundController.sharedFilePath else { continue }
+                guard !(candidate as NSString).lastPathComponent == "playground.html" else { continue }
                 let url: URL?
                 if candidate.hasPrefix("http://") || candidate.hasPrefix("https://") {
                     url = URL(string: candidate)
@@ -988,6 +1000,24 @@ extension ChatController: UIScrollViewDelegate {
         readingPlace = nil
         // The reader has the list: only the next turn is followed again.
         followedTurn = nil
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate { flushPendingRefresh() }
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        flushPendingRefresh()
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        flushPendingRefresh()
+    }
+
+    private func flushPendingRefresh() {
+        guard refreshPending else { return }
+        refreshPending = false
+        refreshRuntime()
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {

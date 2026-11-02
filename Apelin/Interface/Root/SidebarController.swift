@@ -389,6 +389,11 @@ final class SidebarController: UIViewController {
         openProjectsFooterSwipe.delegate = self
         openProjectsFooterSwipe.cancelsTouchesInView = false
         projectNameLabel.addGestureRecognizer(openProjectsFooterSwipe)
+        let openProjectsFooterTap = UITapGestureRecognizer(
+            target: self,
+            action: #selector(openProjectPickerBySwipe),
+        )
+        projectNameLabel.addGestureRecognizer(openProjectsFooterTap)
 
         applySnapshot()
     }
