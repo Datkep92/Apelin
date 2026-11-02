@@ -3,18 +3,16 @@
 > Log làm việc để người tiếp theo biết “đang ở đâu”. Cập nhật mỗi buổi làm việc.
 
 ## Last update
-- Date: 2026-11-01 (UTC+07)
+- Date: 2026-11-02 (UTC+07)
 - Branch: `main`
-- HEAD: `41f6e58` (docs push completed)
-- State: tài liệu kiến trúc & hướng dẫn đã được commit/push.
+- HEAD: `b0769a3` (green completion dot)
+- State: added green completion dot for finished chat sessions; not device-tested yet.
 
 ## Current active task
-- Không có coding task đang dở. Chủ yếu đã hoàn thành tài liệu và publication docs.
-- Nếu tiếp tục phát triển tính năng, thêm:
-  - mô tả task,
-  - file bị affected,
-  - commit hiện tại,
-  - blocker/tests.
+- Cá nhân hoá: chấm xanh khi phiên chat chạy xong; mở/xem phiên chat sẽ mất chấm.
+- Affected: `ChatSummary.swift`, `ChatUnread.swift`, `ChatRuntime.swift`, `SidebarController.swift`.
+- Commit: `b0769a3`.
+- Blocker/tests: chưa build Swift (không có toolchain on-device); cần CI build và kiểm tra trên thiết bị.
 
 ## Next likely step
 1. Chọn tính năng/fix tiếp theo.
