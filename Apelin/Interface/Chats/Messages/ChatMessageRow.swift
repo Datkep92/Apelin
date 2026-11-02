@@ -114,7 +114,7 @@ final class ChatMessageRow: ListRowView {
                 return
             }
             if ["https", "http", "file"].contains(url.scheme?.lowercased() ?? "") {
-                if let onOpenURL {
+                if let onOpenURL = self?.onOpenURL {
                     onOpenURL(url)
                 } else {
                     UIApplication.shared.open(url)

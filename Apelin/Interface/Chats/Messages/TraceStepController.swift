@@ -80,8 +80,8 @@ extension TraceStepController: TextLabelViewDelegate {
         suggestedActions: [UIMenuElement],
     ) -> UIMenu? {
         var actions = suggestedActions
-        if let selected = label.attributedText.attributedSubstring(from: selection).string.trimmingCharacters(in: .whitespacesAndNewlines),
-           let url = Self.previewURL(from: selected) {
+        let selected = label.attributedText.attributedSubstring(from: selection).string.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = Self.previewURL(from: selected) {
             let open = UIAction(title: String(localized: "Open"), image: UIImage(systemName: "arrow.up.right.square")) { [weak self] _ in
                 self?.presentPageAsFormSheet(WebBrowserController(url: url))
             }

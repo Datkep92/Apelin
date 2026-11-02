@@ -73,6 +73,6 @@ extension WebBrowserController: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFail _: WKNavigation!, withError error: Error) {
         progress.isHidden = true
-        presentNotice(title: String(localized: "Unable to Load Page"), message: error.localizedDescription)
+        presentNotice(title: "Unable to Load Page", message: error.localizedDescription)
     }
 }

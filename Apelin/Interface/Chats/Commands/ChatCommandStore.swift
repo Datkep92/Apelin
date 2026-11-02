@@ -272,9 +272,9 @@ final class CommandsController: TableController {
 
     private func confirmDelete(_ url: URL) {
         presentConfirmation(
-            title: String(localized: "Delete \(url.deletingPathExtension().lastPathComponent)?"),
-            message: String(localized: "The command file is removed from the commands folder."),
-            confirmTitle: String(localized: "Delete"),
+            title: String.LocalizationValue("Delete \(url.deletingPathExtension().lastPathComponent)?"),
+            message: "The command file is removed from the commands folder.",
+            confirmTitle: "Delete",
             destructive: true,
         ) { [weak self] in
             try? self?.fm.removeItem(at: url)
