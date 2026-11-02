@@ -165,6 +165,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 21 | 2026-11-03 | Bản vá | Nút `+` trong Model Providers chỉ hiển thị Anthropic và OpenAI-compatible (các nhà cung cấp typed-key) thay vì mọi provider. | d3ef76d | Giữ `AgentProfileID.canonicalID(for:)` chỉ trả store id cho `.anthropic` và `.openAICompatible`. |
 | 22 | 2026-11-03 | Cá nhân hoá | Gộp cấu hình trong bộ chọn model theo nhà cung cấp: một nhà cung cấp nhiều khoá hiển thị một hàng; mở ra thấy danh sách model gộp, khử trùng. | a9f0e6c | Giữ grouping trong `ChatModelPickerController`/`ChatModelListController`. |
 | 23 | 2026-11-03 | Cá nhân hoá | Gộp provider cùng thương hiệu trong bộ chọn model: Qoder/Qoder CN, WorkBuddy/WorkBuddy AI, Z.ai/BigModel hiển thị một hàng theo family (`modelFamily`), giữ nguyên case enum wire-stable. |  | Giữ `AgentProvider.modelFamily` và grouping theo family trong `ChatModelPickerController`. |
+| 24 | 2026-11-03 | Bản vá | Phát hiện 429/rate-limit trong follow() của ChatRuntime: đánh dấu hội thoại `rateLimitedChats` để UI retry với model tiếp theo. |  | Giữ `isRateLimited(_:)`/`clearRateLimit(_:)` và detection trong `follow()`. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).

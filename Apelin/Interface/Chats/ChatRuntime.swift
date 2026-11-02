@@ -47,6 +47,7 @@ final class ChatRuntime {
     private var opening: [UUID: Task<AgentOpenResponse, Error>] = [:]
     private var attachmentCache: [String: ComposerAttachment] = [:]
     private var transcripts = ChatTranscriptCache()
+    private var rateLimitedChats: Set<UUID> = []
     /// Conversations whose latest state is in memory only.
     private var unsaved: Set<UUID> = []
     /// Conversations being written, and those changed again meanwhile. A
@@ -343,6 +344,7 @@ final class ChatRuntime {
     func submit(_ draft: ComposerDraft, to id: UUID) -> Task<Void, Error> {
         guard records[id] != nil else { return Task {} }
         records[id]?.submit(draft)
+        rateLimitedChats.remove(id)
         changed(id)
         return Task {
             do {
@@ -553,6 +555,10 @@ final class ChatRuntime {
                     let batch = try await ApelinService.app.attach(task, afterSeq: cursor)
                     guard !Task.isCancelled, records[id]?.task == task else { return }
                     let fresh = records[id]?.take(batch.events) ?? []
+                    if fresh.contains(where: { $0.kind == "error"
+                        && ($0.payload?["message"]?.stringValue ?? "").localizedCaseInsensitiveContains("Rate limit") }) {
+                        rateLimitedChats.insert(id)
+                    }
                     settleSending(in: id, against: fresh)
                     let builds = CompletedBuilds.count(in: fresh)
                     if builds > 0 {
@@ -685,6 +691,9 @@ final class ChatRuntime {
     }
 
     /// `urgent`: written at once rather than after the interval; see `persist`.
+    func isRateLimited(_ id: UUID) -> Bool { rateLimitedChats.contains(id) }
+    func clearRateLimit(_ id: UUID) { rateLimitedChats.remove(id) }
+
     private func changed(_ id: UUID, urgent: Bool = true) {
         persist(id, urgent: urgent); onChange?()
     }
