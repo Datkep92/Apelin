@@ -66,6 +66,8 @@ final class ChatController: UIViewController {
     private var needsInitialScroll = false
     private var htmlFileWatchTimer: Timer?
     private var lastHTMLFileModification: Date?
+    private var seenToolMessageIDs: Set<UUID> = []
+    private var lastAutoPreviewedPath: String?
     /// Whether the reader was at the latest message when the page last
     /// changed width — the sidebar opening or closing. The rows wrap again
     /// and the content's height changes under the list, so the list is put
@@ -562,6 +564,7 @@ final class ChatController: UIViewController {
         let revealsCompaction = followedTurn == nil && distanceFromLatestMessage <= 2
             && items.last?.role == .compaction && items.last?.id != messages.last?.id
         messages = items
+        autoPreviewCreatedFiles(in: items)
         let message = TurnFollowing.turnMessage(in: items)
         if message != turnMessage {
             turnMessage = message
@@ -886,6 +889,52 @@ extension ChatController: ComposerView.Delegate {
         // Auto-open preview when AI writes HTML, unless it is already open.
         if !(navigationController?.topViewController is HTMLPlaygroundController) {
             onComposerHTMLTapped()
+        }
+    }
+
+    private func autoPreviewCreatedFiles(in items: [ChatMessage]) {
+        for message in items where message.role == .tool {
+            guard !seenToolMessageIDs.contains(message.id) else { continue }
+            seenToolMessageIDs.insert(message.id)
+            let text = message.text + "\n" + message.detail
+            for candidate in Self.extractPreviewCandidates(from: text) {
+                guard candidate != lastAutoPreviewedPath else { continue }
+                let url: URL?
+                if candidate.hasPrefix("http://") || candidate.hasPrefix("https://") {
+                    url = URL(string: candidate)
+                } else if candidate.hasPrefix("/") {
+                    guard FileManager.default.fileExists(atPath: candidate) else { continue }
+                    guard Self.isPreviewablePath(candidate) else { continue }
+                    url = URL(fileURLWithPath: candidate)
+                } else {
+                    continue
+                }
+                guard let url else { continue }
+                lastAutoPreviewedPath = candidate
+                presentPageAsFormSheet(WebBrowserController(url: url))
+                return
+            }
+        }
+    }
+
+    private static func isPreviewablePath(_ path: String) -> Bool {
+        if path.contains("/Documents/") { return true }
+        let ext = (path as NSString).pathExtension.lowercased()
+        return ["html", "htm", "md", "txt", "json", "csv", "png", "jpg", "jpeg", "pdf", "swift", "m", "h"].contains(ext)
+    }
+
+    private static func extractPreviewCandidates(from text: String) -> [String] {
+        // Absolute local paths or http(s) URLs; trim trailing punctuation.
+        let pattern = #"(https?://[^\s"'<>]+|/[^\s"'<>]+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.matches(in: text, range: range).compactMap { match in
+            guard let r = Range(match.range, in: text) else { return nil }
+            var value = String(text[r])
+            while let last = value.last, ".,;:!?)]}".contains(last) {
+                value.removeLast()
+            }
+            return value.isEmpty ? nil : value
         }
     }
 
