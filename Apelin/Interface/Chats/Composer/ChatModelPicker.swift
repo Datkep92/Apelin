@@ -174,7 +174,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
                     ? group.provider.displayName
                     : first.title
                 let detail: String? = group.indices.count > 1
-                    ? String(localized: "\(group.indices.count) configurations")
+                    ? "\(group.indices.count) configurations"
                     : pickerDetail(for: first)
                 return .configuration(groupIndex, title, group.provider, detail)
             }
