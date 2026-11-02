@@ -260,10 +260,18 @@ extension ProjectPickerController: UICollectionViewDelegate {
         guard let project = dataSource.itemIdentifier(for: indexPath) else { return }
         let onPick = self.onPick
         if presentingViewController != nil {
+            searchController.isActive = false
             dismiss(animated: true) { onPick?(project) }
         } else {
-            navigationController?.popViewController(animated: true)
-            DispatchQueue.main.async { onPick?(project) }
+            searchController.isActive = false
+            if let navigation = navigationController {
+                CATransaction.begin()
+                CATransaction.setCompletionBlock { onPick?(project) }
+                navigation.popViewController(animated: true)
+                CATransaction.commit()
+            } else {
+                onPick?(project)
+            }
         }
     }
 }
