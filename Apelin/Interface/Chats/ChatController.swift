@@ -874,6 +874,12 @@ extension ChatController: ComposerView.Delegate {
     }
 
     private func startHTMLFileWatch() {
+        // Baseline the existing shared HTML file so a leftover from a
+        // previous session does not auto-open the playground on launch.
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: HTMLPlaygroundController.sharedFilePath),
+           let modified = attributes[.modificationDate] as? Date {
+            lastHTMLFileModification = modified
+        }
         htmlFileWatchTimer?.invalidate()
         htmlFileWatchTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.checkSharedHTMLFile()
