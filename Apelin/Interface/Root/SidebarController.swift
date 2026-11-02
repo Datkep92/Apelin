@@ -417,7 +417,7 @@ final class SidebarController: UIViewController {
         }
         let order = SidebarOrder.sections(of: shown)
         let activeOthers = runtime.summaries.filter {
-            $0.isWorking &&
+            ($0.isWorking || $0.showsCompleted) &&
             $0.projectName != nil &&
             $0.projectName != project?.name &&
             (query.isEmpty || $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil)
