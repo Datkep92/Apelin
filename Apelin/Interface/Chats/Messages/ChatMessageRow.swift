@@ -79,6 +79,7 @@ final class ChatMessageRow: ListRowView {
     var onAttachmentLayoutChanged: (() -> Void)?
     var onPreview: ((ComposerAttachment) -> Void)?
     var onPreviewImages: (([ComposerAttachment], UUID) -> Void)?
+    var onOpenURL: ((URL) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -113,7 +114,11 @@ final class ChatMessageRow: ListRowView {
                 return
             }
             if ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
-                UIApplication.shared.open(url)
+                if let onOpenURL {
+                    onOpenURL(url)
+                } else {
+                    UIApplication.shared.open(url)
+                }
             }
         }
         attachmentsView.onPreview = { [weak self] item in self?.onPreview?(item) }
@@ -154,6 +159,7 @@ final class ChatMessageRow: ListRowView {
         onAttachmentLayoutChanged = nil
         onPreview = nil
         onPreviewImages = nil
+        onOpenURL = nil
     }
 
     /// A long press ended on the message bubble: only a user message's

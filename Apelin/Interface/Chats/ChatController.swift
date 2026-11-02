@@ -295,6 +295,9 @@ final class ChatController: UIViewController {
                             self?.presentNotice(title: "Unable to Preview Attachment", message: error.readableMessage)
                         }
                     }
+                    row.onOpenURL = { [weak self] url in
+                        self?.presentPageAsFormSheet(WebBrowserController(url: url))
+                    }
                 }
         }
         view.insertSubview(messageList, at: 0)
