@@ -209,8 +209,8 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     private func pick(_ model: String, in account: AgentAccount) {
         let choice = ChatController.selection(of: model, in: account)
         selected = choice
-        ComposerModelSelection.current = choice
         onPickModel?(choice)
+        ComposerModelSelection.current = choice
         navigationController?.dismiss(animated: !UIAccessibility.isReduceMotionEnabled)
     }
 }

@@ -665,6 +665,7 @@ final class ChatController: UIViewController {
                 let page = ChatModelPickerController(accounts: accounts, selected: chat.flatMap { runtime.modelSelection(for: $0.id) } ?? ComposerModelSelection.current, onPickModel: { [weak self] selection in
                     guard let self, let id = self.chat?.id else { return }
                     self.runtime.setModelSelection(selection, for: id)
+                    self.updateModelSelection()
                 })
                 presentPageAsFormSheet(page)
             } catch {
