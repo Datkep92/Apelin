@@ -90,6 +90,7 @@ final class HTMLPlaygroundController: UIViewController {
 
         loadContent()
         webView.loadHTMLString(editor.text ?? "", baseURL: nil)
+        startFileWatch()
     }
 
     private func configureButton(_ button: UIButton, title: String, color: UIColor) {
@@ -140,6 +141,9 @@ final class HTMLPlaygroundController: UIViewController {
         }
     }
 
+    private var fileWatchTimer: Timer?
+    private var lastFileModification: Date?
+
     private var defaultHTML: String {
         """
         <!DOCTYPE html>
@@ -159,8 +163,31 @@ final class HTMLPlaygroundController: UIViewController {
         """
     }
 
+    private func startFileWatch() {
+        fileWatchTimer?.invalidate()
+        fileWatchTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.checkSharedFile()
+        }
+    }
+
+    private func checkSharedFile() {
+        let path = HTMLPlaygroundController.sharedFilePath
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let modified = attributes[.modificationDate] as? Date else { return }
+        if modified != lastFileModification {
+            lastFileModification = modified
+            if let content = try? String(contentsOfFile: path, encoding: .utf8) {
+                editor.text = content
+                saveContent()
+                webView.loadHTMLString(content, baseURL: nil)
+            }
+        }
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        fileWatchTimer?.invalidate()
+        fileWatchTimer = nil
         saveContent()
     }
 }
