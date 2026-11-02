@@ -210,12 +210,11 @@ final class SettingsViewController: TableController {
             Task { [weak self] in
                 let projects = (try? await ProjectSummary.load()) ?? []
                 let picker = ProjectPickerController(projects: projects, current: nil)
-                let nav = UINavigationController(rootViewController: picker)
                 picker.onPick = { [weak self] project in
                     let services = ServicesSettingsController(projectName: project.name)
                     self?.navigationController?.pushViewController(services, animated: true)
                 }
-                self?.present(nav, animated: true)
+                self?.navigationController?.pushViewController(picker, animated: true)
             }
             return
         case .licenses: page = LicensesViewController()

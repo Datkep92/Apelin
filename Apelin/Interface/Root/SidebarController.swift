@@ -33,6 +33,7 @@ final class SidebarController: UIViewController {
     var onProjectsLoaded: (() -> Void)?
     /// A message to send in the conversation just picked, as if typed.
     var onSendPrompt: ((String) -> Void)?
+    var onOpenProjectBrowser: ((ProjectPickerController) -> Void)?
     private(set) var hasLoadedProjects = false
     var runtime: ChatRuntime!
 
@@ -746,7 +747,11 @@ final class SidebarController: UIViewController {
             showProject()
             NotificationCenter.default.post(name: .apelinProjectsChanged, object: nil)
         }
-        presentPageAsFormSheet(picker)
+        if let onOpenProjectBrowser {
+            onOpenProjectBrowser(picker)
+        } else {
+            presentPageAsFormSheet(picker)
+        }
     }
 }
 
