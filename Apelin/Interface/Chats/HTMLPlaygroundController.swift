@@ -13,6 +13,7 @@ final class HTMLPlaygroundController: UIViewController {
     private let pasteButton = UIButton(type: .system)
     private let loadFileButton = UIButton(type: .system)
     private let storageKey: String
+    private var userHasEdited = false
 
     /// Shared file path the AI agent can write HTML to for display.
     static let sharedFilePath = "/var/mobile/Documents/wiki.qaq.apelin/playground.html"
@@ -35,6 +36,7 @@ final class HTMLPlaygroundController: UIViewController {
 
         editor.font = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         editor.autocapitalizationType = .none
+        editor.delegate = self
         editor.autocorrectionType = .no
         editor.smartDashesType = .no
         editor.smartQuotesType = .no
@@ -103,6 +105,7 @@ final class HTMLPlaygroundController: UIViewController {
     private func loadContent() {
         let saved = UserDefaults.standard.string(forKey: storageKey) ?? defaultHTML
         editor.text = saved
+        userHasEdited = false
     }
 
     private func saveContent() {
@@ -118,6 +121,7 @@ final class HTMLPlaygroundController: UIViewController {
     @objc private func pasteTapped() {
         if let text = UIPasteboard.general.string {
             editor.text = text
+            userHasEdited = true
             saveContent()
             webView.loadHTMLString(text, baseURL: nil)
         }
@@ -128,6 +132,7 @@ final class HTMLPlaygroundController: UIViewController {
         do {
             let content = try String(contentsOfFile: path, encoding: .utf8)
             editor.text = content
+            userHasEdited = false
             saveContent()
             webView.loadHTMLString(content, baseURL: nil)
         } catch {
@@ -176,6 +181,7 @@ final class HTMLPlaygroundController: UIViewController {
               let modified = attributes[.modificationDate] as? Date else { return }
         if modified != lastFileModification {
             lastFileModification = modified
+            guard !userHasEdited else { return }
             if let content = try? String(contentsOfFile: path, encoding: .utf8) {
                 guard content != editor.text else { return }
                 editor.text = content
@@ -190,5 +196,13 @@ final class HTMLPlaygroundController: UIViewController {
         fileWatchTimer?.invalidate()
         fileWatchTimer = nil
         saveContent()
+    }
+}
+
+extension HTMLPlaygroundController: UITextViewDelegate {
+    func textViewDidChange(_ textView: UITextView) {
+        if textView === editor {
+            userHasEdited = true
+        }
     }
 }
