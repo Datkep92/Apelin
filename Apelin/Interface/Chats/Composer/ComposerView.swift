@@ -439,6 +439,7 @@ extension ComposerView {
     }
 }
 
+extension ComposerView: UITableViewDataSource, UITableViewDelegate {
     func hideCommandSuggestions() {
         commandSuggestionsTable.isHidden = true
         setNeedsLayout()
