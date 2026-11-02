@@ -79,6 +79,28 @@ extension TraceStepController: TextLabelViewDelegate {
         editMenuForSelection selection: NSRange,
         suggestedActions: [UIMenuElement],
     ) -> UIMenu? {
-        ChatSelectionMenu.menu(for: label, selection: selection, suggestedActions: suggestedActions)
+        var actions = suggestedActions
+        if let selected = label.attributedText.attributedSubstring(from: selection).string.trimmingCharacters(in: .whitespacesAndNewlines),
+           let url = Self.previewURL(from: selected) {
+            let open = UIAction(title: String(localized: "Open"), image: UIImage(systemName: "arrow.up.right.square")) { [weak self] _ in
+                self?.presentPageAsFormSheet(WebBrowserController(url: url))
+            }
+            actions.insert(open, at: 0)
+        }
+        return UIMenu(children: actions)
+    }
+
+    private static func previewURL(from text: String) -> URL? {
+        if let url = URL(string: text), url.scheme != nil {
+            return url
+        }
+        // Treat an existing absolute local path as a file URL.
+        if text.hasPrefix("/") {
+            let url = URL(fileURLWithPath: text)
+            if FileManager.default.fileExists(atPath: text) {
+                return url
+            }
+        }
+        return nil
     }
 }

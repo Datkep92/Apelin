@@ -113,7 +113,7 @@ final class ChatMessageRow: ListRowView {
             if ApelinLinkRouter.open(url, in: self?.window?.windowScene) {
                 return
             }
-            if ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
+            if ["https", "http", "file"].contains(url.scheme?.lowercased() ?? "") {
                 if let onOpenURL {
                     onOpenURL(url)
                 } else {

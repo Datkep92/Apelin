@@ -42,7 +42,11 @@ final class WebBrowserController: UIViewController {
         ])
 
         webView.addObserver(self, forKeyPath: "estimatedProgress", options: .new, context: nil)
-        webView.load(URLRequest(url: url))
+        if url.isFileURL {
+            webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        } else {
+            webView.load(URLRequest(url: url))
+        }
     }
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
