@@ -460,7 +460,6 @@ final class ChatController: UIViewController {
         needsInitialScroll = true
         holdsLatestMessage = false
         readingPlace = nil
-        defer { isSwitchingChat = false }
         replaceMessageList()
 
         if let previous {
@@ -478,6 +477,7 @@ final class ChatController: UIViewController {
         messageList.scrollToBottom(animated: false)
         updateLatestMessageButton()
         // the opening pass, now that the rows are in (`viewDidLayoutSubviews`)
+        isSwitchingChat = false
         view.setNeedsLayout()
         sayUnsent()
     }
