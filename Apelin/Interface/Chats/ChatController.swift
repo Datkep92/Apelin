@@ -910,7 +910,7 @@ extension ChatController: ComposerView.Delegate {
                 // The shared playground file is meant to be opened in the
                 // playground, not auto-previewed as a browser sheet.
                 guard candidate != HTMLPlaygroundController.sharedFilePath else { continue }
-                guard !(candidate as NSString).lastPathComponent == "playground.html" else { continue }
+                guard (candidate as NSString).lastPathComponent != "playground.html" else { continue }
                 let url: URL?
                 if candidate.hasPrefix("http://") || candidate.hasPrefix("https://") {
                     url = URL(string: candidate)
