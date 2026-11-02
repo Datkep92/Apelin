@@ -119,10 +119,11 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         var seen: [AgentProvider] = []
         var map: [AgentProvider: [Int]] = [:]
         for (i, account) in accounts.enumerated() {
-            if !seen.contains(account.provider) { seen.append(account.provider) }
-            map[account.provider, default: []].append(i)
+            let family = account.provider.modelFamily
+            if !seen.contains(family) { seen.append(family) }
+            map[family, default: []].append(i)
         }
-        self.groups = seen.map { provider in (provider, map[provider]!) }
+        self.groups = seen.map { family in (family, map[family]!) }
         super.init(style: .insetGrouped)
     }
 
@@ -271,7 +272,7 @@ private final class ChatModelListController: TableController {
         super.viewDidLoad()
         title = indices.count == 1
             ? accounts[indices[0]].title
-            : (indices.isEmpty ? "" : accounts[indices[0]].provider.displayName)
+            : (indices.isEmpty ? "" : accounts[indices[0]].provider.modelFamily.displayName)
         rewrite()
     }
 

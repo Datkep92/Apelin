@@ -33,8 +33,19 @@ extension AgentProvider {
         }
     }
 
-    var icon: UIImage? {
+    /// Providers that are the same brand under different regional sites are
+    /// shown as one family in the model picker (same row, "N configurations").
+    /// The enum cases stay wire-stable; this only affects grouping/display.
+    var modelFamily: AgentProvider {
         switch self {
+        case .qoderCN: return .qoder
+        case .workBuddyAI: return .workBuddy
+        case .zaiCodingCN: return .zai
+        default: return self
+        }
+    }
+
+    var icon: UIImage? {
         case .githubCopilot: UIImage(named: "ProviderGitHubCopilot")
         case .anthropicOAuth: UIImage(named: "ProviderClaude")
         case .anthropic: UIImage(named: "ProviderAnthropicAPI")
