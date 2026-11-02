@@ -17,6 +17,13 @@ final class ProjectPickerController: UIViewController {
 
     private var projects: [ProjectSummary]
     private var current: String?
+    private var query = ""
+
+    private lazy var searchController = UISearchController(searchResultsController: nil).then {
+        $0.searchResultsUpdater = self
+        $0.obscuresBackgroundDuringPresentation = false
+        $0.searchBar.placeholder = String(localized: "Search projects")
+    }
 
     private lazy var collectionView = FirstFillCollectionView(
         frame: .zero,
@@ -106,6 +113,8 @@ final class ProjectPickerController: UIViewController {
         )
         title = String(localized: "Projects")
         navigationItem.backButtonDisplayMode = .minimal
+        navigationItem.searchController = searchController
+        navigationItem.hidesSearchBarWhenScrolling = false
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             image: UIImage(systemName: "plus"),
             primaryAction: UIAction { [weak self] _ in self?.openNewProject() },
@@ -155,7 +164,9 @@ final class ProjectPickerController: UIViewController {
         var snapshot = NSDiffableDataSourceSnapshot<String, ProjectSummary>()
         let kinds: [DevelopmentExtensionKind] = [.workspace, .app, .tweak, .commandLineTool, .preferenceBundle]
         for kind in kinds {
-            let matches = projects.filter { $0.kind == kind }
+            let matches = projects.filter { project in
+                query.isEmpty || project.displayTitle.localizedStandardContains(query)
+            }.filter { $0.kind == kind }
                 .sorted { $0.displayTitle.localizedStandardCompare($1.displayTitle) == .orderedAscending }
             guard !matches.isEmpty else { continue }
             snapshot.appendSections([kind.rawValue])
@@ -205,6 +216,15 @@ final class ProjectPickerController: UIViewController {
                 } catch { self.presentNotice(title: "Unable to Delete Project", message: error.readableMessage) }
             }
         }
+    }
+}
+
+extension ProjectPickerController: UISearchResultsUpdating {
+    func updateSearchResults(for searchController: UISearchController) {
+        let text = (searchController.searchBar.text ?? "").trimmingCharacters(in: .whitespaces)
+        guard text != query else { return }
+        query = text
+        applySnapshot()
     }
 }
 
