@@ -168,9 +168,10 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
             dataSource.update(sections)
             return
         }
+        var seenModels: Set<String> = []
         let matched = accounts.indices.compactMap { index -> (Section, [PickerRow])? in
             let account = accounts[index]
-            let models = pickerModels(account).filter { $0.localizedStandardContains(query) }
+            let models = pickerModels(account).filter { $0.localizedStandardContains(query) && seenModels.insert($0).inserted }
             guard !models.isEmpty else { return nil }
             let rows = models.map { model in
                 PickerRow.model(index, model, nil, pickerHolds(model, account, selected))
