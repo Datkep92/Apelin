@@ -92,11 +92,6 @@ final class RootInterfaceController: UIViewController {
         sidebar.onProjectsLoaded = { [weak self] in self?.restoreChatIfReady() }
         // startNewChat has just put that conversation on the page
         sidebar.onSendPrompt = { [weak self] text in self?.chatController.sendPrompt(text) }
-        sidebar.onOpenProjectBrowser = { [weak self] picker in
-            guard let self else { return }
-            self.setDrawerOpen(false)
-            self.navigator.pushViewController(picker, animated: true)
-        }
         chatRuntime.onChange = { [weak self] in
             guard let self else { return }
             sidebar.refresh()

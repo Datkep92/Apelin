@@ -160,8 +160,6 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 16 | 2026-11-02 | Bản vá | Chọn model trong phiên chat cập nhật tên model ngay lần đầu thay vì phải chọn lại. | `f500fa0` | Sắp xếp lại `pick(...)` và gọi `updateModelSelection()` trong `ChatController.showModelPicker`. |
 | 17 | 2026-11-02 | Cá nhân hoá | Khi phiên chat chạy xong, hàng sidebar hiển thị chấm xanh; mở/xem phiên chat sẽ mất chấm xanh xác nhận đã xem. |  | Giữ `isCompleted` trong `ChatSummary`, logic trong `ChatRuntime`, và chấm xanh trong `SidebarController`. |
 
-| 18 | 2026-11-02 | Cá nhân hoá | Thanh sidebar có nút dự án lớn ở cuối mở All Projects; bộ chọn dự án có tìm kiếm; playground Load AI hiển thị lỗi đọc file và không còn ghi đè code người dùng tự sửa/paste. | `71f78b8`, `1334bd4`, `b55617b`, `73ced52`, `f15c0bb` | Giữ `projectFooter`/`projectIconView`/`projectChevronLabel` trong `SidebarController`, search trong `ProjectPickerController`, và cờ `userHasEdited` trong `HTMLPlaygroundController`. |
-
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
 2. Bổ sung **1 dòng** vào bảng 6.1: `Số | Ngày (YYYY-MM-DD) | Cá nhân hoá/Bản vá | Tóm tắt | Hash commit | Yêu cầu giữ lại`.

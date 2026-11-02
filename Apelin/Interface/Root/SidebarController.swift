@@ -33,7 +33,6 @@ final class SidebarController: UIViewController {
     var onProjectsLoaded: (() -> Void)?
     /// A message to send in the conversation just picked, as if typed.
     var onSendPrompt: ((String) -> Void)?
-    var onOpenProjectBrowser: ((ProjectPickerController) -> Void)?
     private(set) var hasLoadedProjects = false
     var runtime: ChatRuntime!
 
@@ -220,23 +219,10 @@ final class SidebarController: UIViewController {
 
     /// The system's inset grouped list, cells, headers and selection as
     /// they come.
-    private let projectIconView = UIImageView().then {
-        $0.image = UIImage(systemName: "folder.fill")
-        $0.tintColor = .secondaryLabel
-        $0.contentMode = .scaleAspectFit
-    }
-
-    private let projectChevronLabel = UILabel().then {
-        $0.font = UIFont.preferredFont(forTextStyle: .footnote)
-        $0.textColor = .tertiaryLabel
-        $0.text = "›"
-        $0.textAlignment = .right
-    }
-
     private let projectNameLabel = UILabel().then {
-        $0.font = UIFont.preferredFont(forTextStyle: .body)
-        $0.textColor = .label
-        $0.textAlignment = .left
+        $0.font = UIFont.preferredFont(forTextStyle: .footnote)
+        $0.textColor = .secondaryLabel
+        $0.textAlignment = .center
         $0.text = String(localized: "General Chat")
         $0.adjustsFontForContentSizeCategory = true
         $0.numberOfLines = 1
@@ -350,13 +336,8 @@ final class SidebarController: UIViewController {
         // a row that arrives fades in where it belongs, rather than sliding
         dataSource.defaultRowAnimation = UITableView.RowAnimation.fade
         let projectFooter = UIView()
-        projectFooter.backgroundColor = .secondarySystemBackground
-        projectFooter.layer.cornerRadius = 12
-        projectFooter.layer.cornerCurve = .continuous
-        projectFooter.isUserInteractionEnabled = true
-        projectFooter.addSubview(projectIconView)
+        projectFooter.backgroundColor = .panelBackground
         projectFooter.addSubview(projectNameLabel)
-        projectFooter.addSubview(projectChevronLabel)
         let separator = UIView()
         separator.backgroundColor = UIColor.separator
         projectFooter.addSubview(separator)
@@ -365,30 +346,20 @@ final class SidebarController: UIViewController {
             x.left.right.equalToSuperview()
             x.height.equalTo(1)
         }
-        projectIconView.snp.makeConstraints { x in
-            x.leading.equalToSuperview().offset(12)
-            x.centerY.equalToSuperview()
-            x.width.height.equalTo(18)
-        }
         projectNameLabel.snp.makeConstraints { x in
-            x.leading.equalTo(projectIconView.snp.trailing).offset(8)
-            x.trailing.lessThanOrEqualTo(projectChevronLabel.snp.leading).offset(-8)
-            x.top.bottom.equalToSuperview().inset(10)
-        }
-        projectChevronLabel.snp.makeConstraints { x in
-            x.trailing.equalToSuperview().inset(12)
-            x.centerY.equalToSuperview()
-            x.width.equalTo(12)
+            x.left.right.equalToSuperview().inset(8)
+            x.top.equalTo(separator.snp.bottom).offset(8)
+            x.bottom.equalTo(projectFooter.safeAreaLayoutGuide)
         }
         view.addSubview(tableView)
         view.addSubview(projectFooter)
         projectFooter.snp.makeConstraints { x in
-            x.left.right.bottom.equalToSuperview().inset(12)
-            x.height.greaterThanOrEqualTo(48)
+            x.left.right.bottom.equalToSuperview()
+            x.height.greaterThanOrEqualTo(44)
         }
         tableView.snp.makeConstraints { x in
             x.left.right.top.equalToSuperview()
-            x.bottom.equalTo(projectFooter.snp.top).offset(-8)
+            x.bottom.equalTo(projectFooter.snp.top)
         }
         // the list the bar watches, for the pull that brings out the search;
         // an empty or short one still gives way to the pull
@@ -404,25 +375,16 @@ final class SidebarController: UIViewController {
             action: #selector(openProjectPickerBySwipe),
         )
         openProjectsSwipe.direction = .left
-        openProjectsSwipe.delegate = self
-        openProjectsSwipe.cancelsTouchesInView = false
         sidebarBackground.addGestureRecognizer(openProjectsSwipe)
         tableView.backgroundView = sidebarBackground
 
-        projectFooter.isUserInteractionEnabled = true
-        let openProjectsFooterTap = UITapGestureRecognizer(
-            target: self,
-            action: #selector(openProjectPickerBySwipe),
-        )
-        projectFooter.addGestureRecognizer(openProjectsFooterTap)
+        projectNameLabel.isUserInteractionEnabled = true
         let openProjectsFooterSwipe = UISwipeGestureRecognizer(
             target: self,
             action: #selector(openProjectPickerBySwipe),
         )
         openProjectsFooterSwipe.direction = .left
-        openProjectsFooterSwipe.delegate = self
-        openProjectsFooterSwipe.cancelsTouchesInView = false
-        projectFooter.addGestureRecognizer(openProjectsFooterSwipe)
+        projectNameLabel.addGestureRecognizer(openProjectsFooterSwipe)
 
         applySnapshot()
     }
@@ -484,10 +446,7 @@ final class SidebarController: UIViewController {
             || snapshot.itemIdentifiers.contains { current.sectionIdentifier(containingItem: $0) != snapshot.sectionIdentifier(containingItem: $0) }
         // Streamed text changes nothing here, and an unchanged row is never
         // rebuilt: its open swipe actions would close.
-        // Keep the background view (and its swipe gesture) active even when
-        // the list is populated: hiding it disabled the left-swipe-to-open-
-        // projects gesture on non-empty sidebars.
-        tableView.backgroundView?.isHidden = false
+        tableView.backgroundView?.isHidden = !shown.isEmpty
         guard tableView.isFilled else {
             pacing.begin()
             dataSource.applyFirst(snapshot, to: tableView) { [weak self] in self?.selectPicked() }
@@ -656,11 +615,6 @@ final class SidebarController: UIViewController {
         projectMenuButton.accessibilityValue = project?.displayTitle ?? String(localized: "General Chat")
 
         projectNameLabel.text = project?.displayTitle ?? String(localized: "General Chat")
-        projectIconView.image = project.flatMap { ProjectIcon.image(for: $0) } ?? UIImage(systemName: "folder.fill")
-        projectNameLabel.isAccessibilityElement = true
-        projectNameLabel.accessibilityTraits = .button
-        projectNameLabel.accessibilityLabel = String(localized: "Projects")
-        projectNameLabel.accessibilityValue = project?.displayTitle ?? String(localized: "General Chat")
     }
 
     private func projectActiveChatTitle(for projectName: String?) -> String? {
@@ -765,7 +719,6 @@ final class SidebarController: UIViewController {
     }
 
     private func openProjectPicker() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let picker = ProjectPickerController(projects: projects, current: project?.name)
         picker.onPick = { [weak self] project in self?.switchProject(to: project) }
         picker.onCreate = { [weak self] project, firstPrompt in
@@ -781,11 +734,7 @@ final class SidebarController: UIViewController {
             showProject()
             NotificationCenter.default.post(name: .apelinProjectsChanged, object: nil)
         }
-        if let onOpenProjectBrowser {
-            onOpenProjectBrowser(picker)
-        } else {
-            presentPageAsFormSheet(picker)
-        }
+        presentPageAsFormSheet(picker)
     }
 }
 
@@ -949,32 +898,6 @@ extension SidebarController: UITableViewDelegate {
                 attributes: .destructive,
             ) { [weak self] _ in self?.delete(id, from: .sidebarRow) }
         }
-    }
-}
-
-extension SidebarController: UIGestureRecognizerDelegate {
-    /// Let the left-swipe-to-open-projects gesture recognise at the same time
-    /// as the table view's vertical pan, so it is not cancelled by scrolling.
-    func gestureRecognizer(
-        _ gestureRecognizer: UIGestureRecognizer,
-        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer,
-    ) -> Bool {
-        if gestureRecognizer is UISwipeGestureRecognizer,
-           otherGestureRecognizer is UIPanGestureRecognizer {
-            return true
-        }
-        return false
-    }
-
-    /// Do not let the swipe fire from a touch that starts on a conversation
-    /// row, so row swipes (pin/delete) keep precedence.
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard let swipe = gestureRecognizer as? UISwipeGestureRecognizer else { return true }
-        let location = swipe.location(in: tableView)
-        if let indexPath = tableView.indexPathForRow(at: location) {
-            return false
-        }
-        return true
     }
 }
 

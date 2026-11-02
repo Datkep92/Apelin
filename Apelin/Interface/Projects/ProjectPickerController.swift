@@ -17,13 +17,6 @@ final class ProjectPickerController: UIViewController {
 
     private var projects: [ProjectSummary]
     private var current: String?
-    private var query = ""
-
-    private lazy var searchController = UISearchController(searchResultsController: nil).then {
-        $0.searchResultsUpdater = self
-        $0.obscuresBackgroundDuringPresentation = false
-        $0.searchBar.placeholder = String(localized: "Search projects")
-    }
 
     private lazy var collectionView = FirstFillCollectionView(
         frame: .zero,
@@ -113,8 +106,6 @@ final class ProjectPickerController: UIViewController {
         )
         title = String(localized: "Projects")
         navigationItem.backButtonDisplayMode = .minimal
-        navigationItem.searchController = searchController
-        navigationItem.hidesSearchBarWhenScrolling = false
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             image: UIImage(systemName: "plus"),
             primaryAction: UIAction { [weak self] _ in self?.openNewProject() },
@@ -164,9 +155,7 @@ final class ProjectPickerController: UIViewController {
         var snapshot = NSDiffableDataSourceSnapshot<String, ProjectSummary>()
         let kinds: [DevelopmentExtensionKind] = [.workspace, .app, .tweak, .commandLineTool, .preferenceBundle]
         for kind in kinds {
-            let matches = projects.filter { project in
-                query.isEmpty || project.displayTitle.localizedStandardContains(query)
-            }.filter { $0.kind == kind }
+            let matches = projects.filter { $0.kind == kind }
                 .sorted { $0.displayTitle.localizedStandardCompare($1.displayTitle) == .orderedAscending }
             guard !matches.isEmpty else { continue }
             snapshot.appendSections([kind.rawValue])
@@ -219,15 +208,6 @@ final class ProjectPickerController: UIViewController {
     }
 }
 
-extension ProjectPickerController: UISearchResultsUpdating {
-    func updateSearchResults(for searchController: UISearchController) {
-        let text = (searchController.searchBar.text ?? "").trimmingCharacters(in: .whitespaces)
-        guard text != query else { return }
-        query = text
-        applySnapshot()
-    }
-}
-
 extension ProjectPickerController: UICollectionViewDelegate {
     func collectionView(
         _: UICollectionView,
@@ -258,20 +238,6 @@ extension ProjectPickerController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: true)
         guard let project = dataSource.itemIdentifier(for: indexPath) else { return }
-        let onPick = self.onPick
-        if presentingViewController != nil {
-            searchController.isActive = false
-            dismiss(animated: true) { onPick?(project) }
-        } else {
-            searchController.isActive = false
-            if let navigation = navigationController {
-                CATransaction.begin()
-                CATransaction.setCompletionBlock { onPick?(project) }
-                navigation.popViewController(animated: true)
-                CATransaction.commit()
-            } else {
-                onPick?(project)
-            }
-        }
+        dismiss(animated: true) { [onPick] in onPick?(project) }
     }
 }
