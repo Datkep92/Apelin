@@ -163,6 +163,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 19 | 2026-11-02 | Bản vá | Cloudflare token không có quyền `user/tokens/verify`: bỏ gọi verify, kiểm tra token bằng `listAccounts`. | 548a713 | Bỏ `_ = try await client.validateToken()` trong `ServicesSettingsController.validateCloudflareToken`; giữ `listAccounts()`. |
 | 20 | 2026-11-02 | Cá nhân hoá | Gộp danh sách model trong `ChatModelPicker`: khi tìm kiếm, tên model đã được cấu hình trước không lặp lại ở cấu hình sau (một hàng cho mỗi tên model, khoá thêm trước phục vụ). | b823c05 | Giữ `seenModels` trong `regroup()` của `ChatModelPicker.swift`. |
 | 21 | 2026-11-03 | Bản vá | Nút `+` trong Model Providers chỉ hiển thị Anthropic và OpenAI-compatible (các nhà cung cấp typed-key) thay vì mọi provider. | d3ef76d | Giữ `AgentProfileID.canonicalID(for:)` chỉ trả store id cho `.anthropic` và `.openAICompatible`. |
+| 22 | 2026-11-03 | Cá nhân hoá | Gộp cấu hình trong bộ chọn model theo nhà cung cấp: một nhà cung cấp nhiều khoá hiển thị một hàng; mở ra thấy danh sách model gộp, khử trùng. | a9f0e6c | Giữ grouping trong `ChatModelPickerController`/`ChatModelListController`. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
