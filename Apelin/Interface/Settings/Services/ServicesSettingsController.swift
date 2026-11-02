@@ -204,7 +204,18 @@ final class ServicesSettingsController: TableController {
     // MARK: - Firebase
 
     private func presentFirebaseConfig() {
-        // Ask for Google Client ID first
+        let alert = UIAlertController(title: "Firebase Configuration", message: nil, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: "Sign in with Google", style: .default) { [weak self] _ in
+            self?.presentFirebaseGoogleSignIn()
+        })
+        alert.addAction(UIAlertAction(title: "Paste access token", style: .default) { [weak self] _ in
+            self?.presentFirebaseTokenInput()
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func presentFirebaseGoogleSignIn() {
         let alert = UIAlertController(
             title: "Firebase Configuration",
             message: "Enter your Google OAuth Client ID for Firebase (from Google Cloud Console).",
@@ -230,6 +241,52 @@ final class ServicesSettingsController: TableController {
             }
         })
         present(alert, animated: true)
+    }
+
+    private func presentFirebaseTokenInput() {
+        let alert = UIAlertController(
+            title: "Firebase Configuration",
+            message: "Paste a Google OAuth access token with Firebase scope.",
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = "Access token"
+            field.text = self.config.firebase?.accessToken
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Validate", style: .default) { [weak self] _ in
+            guard let self, let token = alert.textFields?.first?.text, !token.isEmpty else { return }
+            self.validateFirebaseToken(token)
+        })
+        present(alert, animated: true)
+    }
+
+    private func validateFirebaseToken(_ token: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let client = FirebaseServiceClient(accessToken: token)
+                let projects = try await client.listProjects()
+                await MainActor.run {
+                    self.config.firebase = FirebaseServiceConfig(
+                        projectID: self.config.firebase?.projectID,
+                        accessToken: token,
+                        googleClientID: self.config.firebase?.googleClientID,
+                    )
+                    try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                    self.updateRows()
+                    if projects.isEmpty {
+                        SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                    } else {
+                        self.presentFirebaseProjectPicker(accessToken: token)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    SPIndicator.present(title: "Invalid token", message: error.localizedDescription, preset: .error, haptic: .error)
+                }
+            }
+        }
     }
 
     private func presentFirebaseProjectPicker(accessToken: String) {
@@ -327,6 +384,18 @@ final class ServicesSettingsController: TableController {
     // MARK: - Google Script
 
     private func presentGoogleScriptConfig() {
+        let alert = UIAlertController(title: "Google Script Configuration", message: nil, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: "Sign in with Google", style: .default) { [weak self] _ in
+            self?.presentGoogleScriptGoogleSignIn()
+        })
+        alert.addAction(UIAlertAction(title: "Paste access token", style: .default) { [weak self] _ in
+            self?.presentGoogleScriptTokenInput()
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func presentGoogleScriptGoogleSignIn() {
         let alert = UIAlertController(
             title: "Google Script Configuration",
             message: "Enter your Google OAuth Client ID for Apps Script (from Google Cloud Console).",
@@ -352,6 +421,52 @@ final class ServicesSettingsController: TableController {
             }
         })
         present(alert, animated: true)
+    }
+
+    private func presentGoogleScriptTokenInput() {
+        let alert = UIAlertController(
+            title: "Google Script Configuration",
+            message: "Paste a Google OAuth access token with Apps Script scope.",
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = "Access token"
+            field.text = self.config.googleScript?.accessToken
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Validate", style: .default) { [weak self] _ in
+            guard let self, let token = alert.textFields?.first?.text, !token.isEmpty else { return }
+            self.validateGoogleScriptToken(token)
+        })
+        present(alert, animated: true)
+    }
+
+    private func validateGoogleScriptToken(_ token: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let client = GoogleScriptServiceClient(accessToken: token)
+                let projects = try await client.listProjects()
+                await MainActor.run {
+                    self.config.googleScript = GoogleScriptServiceConfig(
+                        scriptID: self.config.googleScript?.scriptID,
+                        accessToken: token,
+                        googleClientID: self.config.googleScript?.googleClientID,
+                    )
+                    try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                    self.updateRows()
+                    if projects.isEmpty {
+                        SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                    } else {
+                        self.presentGoogleScriptProjectPicker(accessToken: token)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    SPIndicator.present(title: "Invalid token", message: error.localizedDescription, preset: .error, haptic: .error)
+                }
+            }
+        }
     }
 
     private func presentGoogleScriptProjectPicker(accessToken: String) {
