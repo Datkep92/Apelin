@@ -200,26 +200,9 @@ public enum AgentProfileID {
     /// sign-in has always used; nil for a provider that keeps one sign-in.
     public static func canonicalID(for provider: AgentProvider) -> String? {
         switch provider {
-        case .githubCopilot: githubCopilotPrefix
-        case .anthropicOAuth: anthropicOAuthPrefix
         case .anthropic: anthropicPrefix
         case .openAICompatible: openAICompatiblePrefix
-        case .openAICodex: openAICodexPrefix
-        case .cursor: cursorPrefix
-        case .devin: devinPrefix
-        case .kiro: kiroPrefix
-        case .qoder: qoderPrefix
-        case .qoderCN: qoderCNPrefix
-        case .workBuddy: workBuddyPrefix
-        case .workBuddyAI: workBuddyAIPrefix
-        case .kimiCoding: kimiCodingPrefix
-        case .xai: xaiPrefix
-        case .zai: zaiPrefix
-        case .zaiCodingCN: zaiCodingCNPrefix
-        case .openRouter: openRouterPrefix
-        case .openAI: openAIPrefix
-        case .google: googlePrefix
-        case .deepSeek: deepSeekPrefix
+        default: nil
         }
     }
 
