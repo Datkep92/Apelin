@@ -238,6 +238,11 @@ extension ProjectPickerController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: true)
         guard let project = dataSource.itemIdentifier(for: indexPath) else { return }
-        dismiss(animated: true) { [onPick] in onPick?(project) }
+        if let nav = navigationController {
+            nav.popViewController(animated: true)
+            onPick?(project)
+        } else {
+            dismiss(animated: true) { [onPick] in onPick?(project) }
+        }
     }
 }

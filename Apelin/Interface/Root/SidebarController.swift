@@ -312,7 +312,7 @@ final class SidebarController: UIViewController {
         // Top row: four actions (no project name here). The project name lives
         // at the bottom of the sidebar.
         navigationItem.style = .editor
-        navigationItem.leftBarButtonItems = [settingsBarButton, projectMenuButton]
+        navigationItem.leftBarButtonItems = [settingsBarButton]
         navigationItem.hidesBackButton = true
         navigationItem.preferredSearchBarPlacement = .stacked
         navigationItem.hidesSearchBarWhenScrolling = true
@@ -338,6 +338,12 @@ final class SidebarController: UIViewController {
         let projectFooter = UIView()
         projectFooter.backgroundColor = .panelBackground
         projectFooter.addSubview(projectNameLabel)
+        let projectToolbar = UIToolbar()
+        projectToolbar.setBackgroundImage(UIImage(), forToolbarPosition: .any, barMetrics: .default)
+        projectToolbar.setShadowImage(UIImage(), forToolbarPosition: .any)
+        projectToolbar.isTranslucent = true
+        projectToolbar.items = [UIBarButtonItem.flexibleSpace(), projectMenuButton]
+        projectFooter.addSubview(projectToolbar)
         let separator = UIView()
         separator.backgroundColor = UIColor.separator
         projectFooter.addSubview(separator)
@@ -350,6 +356,11 @@ final class SidebarController: UIViewController {
             x.left.right.equalToSuperview().inset(8)
             x.top.equalTo(separator.snp.bottom).offset(8)
             x.bottom.equalTo(projectFooter.safeAreaLayoutGuide)
+        }
+        projectToolbar.snp.makeConstraints { x in
+            x.trailing.equalToSuperview().inset(8)
+            x.centerY.equalTo(projectNameLabel)
+            x.height.equalTo(44)
         }
         view.addSubview(tableView)
         view.addSubview(projectFooter)
@@ -734,7 +745,11 @@ final class SidebarController: UIViewController {
             showProject()
             NotificationCenter.default.post(name: .apelinProjectsChanged, object: nil)
         }
-        presentPageAsFormSheet(picker)
+        if let nav = navigationController {
+            nav.pushViewController(picker, animated: true)
+        } else {
+            presentPageAsFormSheet(picker)
+        }
     }
 }
 
