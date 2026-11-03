@@ -62,6 +62,7 @@ sources=(
     "$root/Tests/SessionHost/AgentOpenChecks.swift"
     "$root/Tests/SessionHost/AgentHostRunChecks.swift"
     "$root/Tests/SessionHost/RootRunChecks.swift"
+    "$root/Tests/SessionHost/CodeRunChecks.swift"
     "$root/Tests/SessionHost/ScreenConsentChecks.swift"
     "$root/Tests/SessionHost/ToolchainEndToEnd.swift"
     "$root/Tests/SessionHost/ToolchainPruneChecks.swift"
