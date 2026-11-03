@@ -28,8 +28,8 @@ final class ChatWidgetPublisher {
     /// Set once a quit has ended the activity: a change queued behind the
     /// quit must not bring one back.
     private static var isClosedForQuit = false
-    private let writer = DispatchQueue(label: "wiki.qaq.apelin.widgets.writer", qos: .utility)
-    private let log = Logger(subsystem: "wiki.qaq.apelin", category: "widgets")
+    private let writer = DispatchQueue(label: "wiki.qaq.apelin.cn.widgets.writer", qos: .utility)
+    private let log = Logger(subsystem: "wiki.qaq.apelin.cn", category: "widgets")
 
     /// The most often the widgets are looked at.
     private static let interval: TimeInterval = 1

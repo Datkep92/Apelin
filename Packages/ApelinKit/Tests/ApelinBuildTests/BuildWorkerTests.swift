@@ -89,9 +89,9 @@ final class BuildWorkerTests: XCTestCase {
         let worker = BuildWorker(installRoot: "/var/jb", home: home.path, registry: registry, extensionDirectory: Repository.extensions)
 
         let list = worker.extensionList()
-        XCTAssertTrue(list.extensions.contains { $0.id == "wiki.qaq.apelin.dev.tweak" && $0.kind == .tweak && $0.problems.isEmpty })
-        let tweak = try XCTUnwrap(list.extensions.first { $0.id == "wiki.qaq.apelin.dev.tweak" }?.templates.first)
-        XCTAssertEqual(tweak.id, "wiki.qaq.apelin.dev.tweak/objc-hook")
+        XCTAssertTrue(list.extensions.contains { $0.id == "wiki.qaq.apelin.cn.dev.tweak" && $0.kind == .tweak && $0.problems.isEmpty })
+        let tweak = try XCTUnwrap(list.extensions.first { $0.id == "wiki.qaq.apelin.cn.dev.tweak" }?.templates.first)
+        XCTAssertEqual(tweak.id, "wiki.qaq.apelin.cn.dev.tweak/objc-hook")
         XCTAssertEqual(tweak.parameters.first { $0.name == "filterBundles" }?.defaultValue, .array([.string("com.apple.springboard")]))
 
         let created = try worker.projectCreate(ProjectCreateRequest(templateID: tweak.id, name: "Worker Tweak", values: ["displayName": .string("Worker Tweak")]))
@@ -101,7 +101,7 @@ final class BuildWorkerTests: XCTestCase {
         // what the host reads off the wire, by name
         let createdJSON = try JSONValue(encoding: created)
         XCTAssertNotNil(createdJSON["descriptionDigests"]?["build"]?.stringValue)
-        XCTAssertEqual(created.path, home.path + "/Documents/wiki.qaq.apelin/Projects/Worker Tweak")
+        XCTAssertEqual(created.path, home.path + "/Documents/wiki.qaq.apelin.cn/Projects/Worker Tweak")
         let check = try worker.projectCheck(ProjectCheckRequest(projectID: created.projectID))
         XCTAssertTrue(check.passed, "\(check.diagnostics)")
         XCTAssertEqual(check.descriptionDigests, created.descriptionDigests)
@@ -122,7 +122,7 @@ final class BuildWorkerTests: XCTestCase {
         XCTAssertEqual(artifact.projectID, created.projectID)
         XCTAssertEqual(artifact.packagingDigest, created.descriptionDigests?.packaging)
         let debPath = try XCTUnwrap(artifact.path)
-        XCTAssertTrue(debPath.hasPrefix(home.path + "/Documents/wiki.qaq.apelin/Builds/"), debPath)
+        XCTAssertTrue(debPath.hasPrefix(home.path + "/Documents/wiki.qaq.apelin.cn/Builds/"), debPath)
         XCTAssertEqual(try CanonicalJSON.sha256Tag(Data(contentsOf: URL(fileURLWithPath: debPath))), artifact.digest)
         let members = try DebArchiveReader.contents(of: .path(debPath), contentsLimit: 0).members
         XCTAssertTrue(members.contains("control.tar.gz"), "\(members)")
@@ -162,7 +162,7 @@ final class BuildWorkerTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, _) = try makeHome(in: scratch)
         let worker = BuildWorker(installRoot: "/var/jb", home: home.path, registry: registry, extensionDirectory: Repository.extensions)
-        let project = try worker.projectCreate(ProjectCreateRequest(templateID: "wiki.qaq.apelin.dev.cli/c", name: "Approved"))
+        let project = try worker.projectCreate(ProjectCreateRequest(templateID: "wiki.qaq.apelin.cn.dev.cli/c", name: "Approved"))
         let approved = try XCTUnwrap(project.descriptionDigests?.build)
 
         let stale = Events()
@@ -186,7 +186,7 @@ final class BuildWorkerTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, _) = try makeHome(in: scratch)
         let worker = BuildWorker(installRoot: "/var/jb", home: home.path, registry: registry, extensionDirectory: Repository.extensions)
-        let created = try worker.projectCreate(ProjectCreateRequest(templateID: "wiki.qaq.apelin.dev.app/uikit-objc", name: "Shipping"))
+        let created = try worker.projectCreate(ProjectCreateRequest(templateID: "wiki.qaq.apelin.cn.dev.app/uikit-objc", name: "Shipping"))
         func codes() throws -> Set<String> {
             let check = try worker.projectCheck(ProjectCheckRequest(projectID: created.projectID, purpose: .distribution))
             XCTAssertTrue(check.passed, "\(check.diagnostics)")
@@ -228,7 +228,7 @@ final class BuildWorkerTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, _) = try makeHome(in: scratch)
         let worker = BuildWorker(installRoot: "/var/jb", home: home.path, registry: registry, extensionDirectory: Repository.extensions)
-        let project = try worker.projectCreate(ProjectCreateRequest(templateID: "wiki.qaq.apelin.dev.cli/c", name: "Distribution"))
+        let project = try worker.projectCreate(ProjectCreateRequest(templateID: "wiki.qaq.apelin.cn.dev.cli/c", name: "Distribution"))
         var digests = Set<String>()
         for target in BuildBootstrap.allCases {
             let events = Events()

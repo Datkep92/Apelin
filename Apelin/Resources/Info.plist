@@ -29,7 +29,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>CFBundleURLName</key>
-			<string>wiki.qaq.apelin.link</string>
+			<string>wiki.qaq.apelin.cn.link</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>apelin</string>
@@ -58,7 +58,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>wiki.qaq.apelin.toolchain-package</string>
+				<string>wiki.qaq.apelin.cn.toolchain-package</string>
 			</array>
 		</dict>
 		<dict>
@@ -70,7 +70,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>wiki.qaq.apelin.sdk-package</string>
+				<string>wiki.qaq.apelin.cn.sdk-package</string>
 			</array>
 		</dict>
 		<dict>
@@ -82,7 +82,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>wiki.qaq.apelin.project-package</string>
+				<string>wiki.qaq.apelin.cn.project-package</string>
 			</array>
 		</dict>
 	</array>
@@ -90,7 +90,7 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>wiki.qaq.apelin.toolchain-package</string>
+			<string>wiki.qaq.apelin.cn.toolchain-package</string>
 			<key>UTTypeDescription</key>
 			<string>Apelin Toolchain</string>
 			<key>UTTypeConformsTo</key>
@@ -108,7 +108,7 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>wiki.qaq.apelin.sdk-package</string>
+			<string>wiki.qaq.apelin.cn.sdk-package</string>
 			<key>UTTypeDescription</key>
 			<string>Apelin SDK</string>
 			<key>UTTypeConformsTo</key>
@@ -126,7 +126,7 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>wiki.qaq.apelin.project-package</string>
+			<string>wiki.qaq.apelin.cn.project-package</string>
 			<key>UTTypeDescription</key>
 			<string>Apelin Project</string>
 			<key>UTTypeConformsTo</key>

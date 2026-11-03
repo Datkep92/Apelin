@@ -29,7 +29,7 @@ struct PlaceholderIdentifierBackendTests {
         fixture.host.on(.projectCreate, reply: ProjectCreateResponse(projectID: "p-1", name: name, path: folder.path))
         return try await fixture.backend.createProject(ProjectCreateToolRequest(
             context: fixture.context(),
-            templateID: "wiki.qaq.apelin.dev.app/uikit-objc",
+            templateID: "wiki.qaq.apelin.cn.dev.app/uikit-objc",
             name: name,
         ))
     }

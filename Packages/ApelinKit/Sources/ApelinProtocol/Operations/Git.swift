@@ -12,7 +12,7 @@
 //
 // `projectID` is the `projectID` in a project's apelin-project.json, or, for
 // a folder that has none yet (a fresh clone), the project's folder name.
-// The worker resolves it to `~/Documents/wiki.qaq.apelin/Projects/<name>/`
+// The worker resolves it to `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/`
 // with realpath and a component compare, and every path is relative to it.
 // A commit's author is the request's, else Settings/git.json in the data
 // folder ({"authorName", "authorEmail"}), else the repository's own config.

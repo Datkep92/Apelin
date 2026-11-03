@@ -103,19 +103,19 @@ apelind (root, 按需拉起)                瘦 proxy：鉴权、转发，不链
 
 | 范围 | 读取 | 写入 |
 |---|---|---|
-| 项目根，固定为 `~/Documents/wiki.qaq.apelin/Projects/<name>/` | app、agent、build 按 mobile 权限访问；宿主绑定项目 ID | 项目编辑与构建以 mobile 完成，不经 root 代开写 fd |
+| 项目根，固定为 `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/` | app、agent、build 按 mobile 权限访问；宿主绑定项目 ID | 项目编辑与构建以 mobile 完成，不经 root 代开写 fd |
 | 已注册 SDK/工具链、已安装扩展根 | 按 ID 解析的只读 scope | 仅环境导入或安装事务写入，普通文件操作不接受该范围 |
 | 系统崩溃目录与日志 | 宿主枚举出 report ID/受限日志流，再交只读 fd 或数据 | 无文件写接口 |
 | bootstrap 安装根内、mobile 无权写的普通文件 | app 发起的受保护编辑；mobile 已可读写的文件直接按自身权限处理 | 只允许 app 的手动编辑流程：只改已有文件的内容，单文件单次授权；agent/build/environment/扩展均不可调用 |
 
-**项目位置（owner 2026-10-16 决定）**：项目根写死在 `~/Documents/wiki.qaq.apelin/Projects/<name>/`，不支持登记任意目录。`<name>` 即项目名：单个路径组件，拒绝 `/`、NUL、`.`、`..` 和以 `.` 开头的名字，同名已存在时创建失败。项目 ID 存在 `apelin-project.json` 里，改名只是移动目录，不改 ID。`Projects` 由 app 以 mobile 身份创建；宿主判断"是否在项目内"时，先 realpath 再按组件比较是否落在 `Projects/<name>/` 下。
+**项目位置（owner 2026-10-16 决定）**：项目根写死在 `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/`，不支持登记任意目录。`<name>` 即项目名：单个路径组件，拒绝 `/`、NUL、`.`、`..` 和以 `.` 开头的名字，同名已存在时创建失败。项目 ID 存在 `apelin-project.json` 里，改名只是移动目录，不改 ID。`Projects` 由 app 以 mobile 身份创建；宿主判断"是否在项目内"时，先 realpath 再按组件比较是否落在 `Projects/<name>/` 下。
 
 受保护编辑只复用 Fila 的 `AtomicSave` 机制，`openPath` / `replaceItem` 按本计划的 scope/grant 模型重写。app 的手动选取产生限定文件的读取授权；用户在编辑器里点保存即为确认，由宿主生成绑定文件身份、版本和拟写内容的短期写入 `grantID`，提交复核并消费授权。普通配置文件须通过格式、路径、文件身份与链接检查；agent 无权创建或消费这类手动授权。路径核对遵循 `AGENTS.md`，新文件使用验证后的父目录 fd；`fileRead` 同样由宿主解析 scope。
 
 **编辑范围（owner 2026-10-16 委托决定）**：原则是不打扰手动编辑，但任何出错都不能变成删文件或越界写。
 - 范围是 `hello` 给出的 bootstrap 安装根内的普通文件，`LaunchDaemons`、`Library/Preferences` 都在内。安装根外的 `/var` 区域只读；系统卷是只读的签名卷，本来就写不了，也不提供入口。
 - 只有“替换已有文件内容”一种写法：不新建、不删除、不改名、不改所有者和权限位；保存后保留原文件的 uid/gid/mode。接口里没有删除操作，出错的最坏结果是一次可撤销的内容替换。
-- 每次替换前，宿主把原内容备份到 `~/Documents/wiki.qaq.apelin/backups/`（按时间和规范化路径命名，保留最近若干份），编辑器提供“恢复上一版”。
+- 每次替换前，宿主把原内容备份到 `~/Documents/wiki.qaq.apelin.cn/backups/`（按时间和规范化路径命名，保留最近若干份），编辑器提供“恢复上一版”。
 - 拒绝 Mach-O、脚本可执行文件（任一执行位）、硬链接数大于 1 的文件、符号链接，以及 dpkg 状态数据库等包管理器自己的记录。
 - 点保存就是确认，不再弹窗；唯一的额外确认是 `LaunchDaemons` 下的 plist（改的是 root 下次启动执行什么），卡片显示 diff，且只保存，不自动加载或重启服务。
 - Relaxed/Confirm 不影响这里；agent 没有这个接口，所以模型出错既不能借用也不能绕过它。
@@ -164,7 +164,7 @@ clangd 不进 v1（owner 2026-10-16 决定），闭包不包含它，见 §10。
 
 ### 3.4 存放、升级与恢复 [设计]
 
-- 下载缓存、staging、日志、注册元数据放在 `~/Documents/wiki.qaq.apelin/` 下；可执行工具链的最终安装目录约定为 `<install-root>/usr/lib/apelin/toolchains/<id>/`。采用包管理的 root-owned 目录，以便安装适配、签名和卸载归同一事务管理；mobile 可写的 `var` 数据目录只作暂存，不作为最终工具来源。该布局在 roothide 真机上的安装后重签与执行仍须 B 验证。`install-root` 来自 `hello`。
+- 下载缓存、staging、日志、注册元数据放在 `~/Documents/wiki.qaq.apelin.cn/` 下；可执行工具链的最终安装目录约定为 `<install-root>/usr/lib/apelin/toolchains/<id>/`。采用包管理的 root-owned 目录，以便安装适配、签名和卸载归同一事务管理；mobile 可写的 `var` 数据目录只作暂存，不作为最终工具来源。该布局在 roothide 真机上的安装后重签与执行仍须 B 验证。`install-root` 来自 `hello`。
 - 工具链 ID 由来源摘要与改造方案版本生成；注册记录保存组件、包标识、版本、内容摘要、冒烟结果和最终路径。项目绑定该 ID，不随“默认工具链”升级而偷偷切换。
 - 新版本使用独立 ID 和可共存的本地包标识/目录，验证后再切换默认值。旧版本仍被项目或运行中任务引用时，不直接删除；界面列出引用者并要求先迁移或结束任务。卸载经 Irisin，更新注册表，不能只删目录而留下包记录。
 - 设置任务记录 `downloading → extracting → adapting → packaging → installing → validating → ready` 及失败阶段。app 被杀后可重新附着；进程中断后只恢复可验证的阶段。安装中的取消由 Irisin 的事务语义处理，不能强杀到一半再标成已撤销；不支持事务取消时等待安装结束再处理清理。
@@ -188,7 +188,7 @@ B 阶段必须从干净环境通过界面完成下载到注册；覆盖取消、
 - 设置里可以加其他社区来源；默认来源只有 `owngoal-dev/iOS-SDKs`。
 - **[现状，owner 2026-10-19]** 已建立 `owngoal-dev/iOS-SDKs`，按 SDK 实际身份每版一个独立分支，致谢上游，默认启用；只提供完整的 14.5+ SDK，13.0–14.4 因缺 C++ 标准库头文件已排除。工具链安装缺少兼容 SDK 时自动下载最新可用版本。SDK 的权利仍属 Apple，建仓决定不表示获得额外许可。
 
-**存放 [设计]**：`~/Documents/wiki.qaq.apelin/SDKs/<CanonicalName>-<sha8>/`。SDK 作为编译输入处理，不执行或 dlopen 其中的内容。v1 拒绝含 `MH_EXECUTE` 的文件（含 fat 镜像各切片及归档内成员）；允许作为链接输入的 `MH_DYLIB`、`MH_OBJECT` 和静态 `.a`，校验格式、架构与路径后登记。`MH_BUNDLE` 及其他未支持类型拒绝并解释原因；不用 Unix 可执行权限位代替 Mach-O 类型判断。真实 dylib 不被复制为工具链运行库，也不因 SDK 注册获得运行信任。
+**存放 [设计]**：`~/Documents/wiki.qaq.apelin.cn/SDKs/<CanonicalName>-<sha8>/`。SDK 作为编译输入处理，不执行或 dlopen 其中的内容。v1 拒绝含 `MH_EXECUTE` 的文件（含 fat 镜像各切片及归档内成员）；允许作为链接输入的 `MH_DYLIB`、`MH_OBJECT` 和静态 `.a`，校验格式、架构与路径后登记。`MH_BUNDLE` 及其他未支持类型拒绝并解释原因；不用 Unix 可执行权限位代替 Mach-O 类型判断。真实 dylib 不被复制为工具链运行库，也不因 SDK 注册获得运行信任。
 
 **识别和校验**
 - 身份一律从 `SDKSettings.json` 读（`CanonicalName`、`Version`），不看目录名。[调研] Theos 的 `iPhoneOS16.5.sdk` 实际是 16.4。
@@ -213,10 +213,10 @@ B 阶段必须从干净环境通过界面完成下载到注册；覆盖取消、
 
 | 扩展 | 拟定包 ID | 模板与产物 | 验收 |
 |---|---|---|---|
-| 应用开发 | `wiki.qaq.apelin.dev.app` | UIKit/ObjC 应用；Swift 在对应工具链可用时提供；产物 `.app` + deb | 安装后注册、启动、显示模板界面，升级与卸载正常 |
-| 插件开发 | `wiki.qaq.apelin.dev.tweak` | ObjC dylib、目标过滤文件、包元数据；默认不要求 Logos | 编译、安装、respring，日志与实际效果确认加载 |
-| 命令行工具开发 | `wiki.qaq.apelin.dev.cli` | C/ObjC 命令行程序，可选 Swift；产物可执行文件 + deb | 安装后从终端运行，输出和退出码正确 |
-| 设置面板开发 | `wiki.qaq.apelin.dev.preferences` | preference bundle、资源和注册文件 | 安装后设置中可见，修改与重新读取配置正常 |
+| 应用开发 | `wiki.qaq.apelin.cn.dev.app` | UIKit/ObjC 应用；Swift 在对应工具链可用时提供；产物 `.app` + deb | 安装后注册、启动、显示模板界面，升级与卸载正常 |
+| 插件开发 | `wiki.qaq.apelin.cn.dev.tweak` | ObjC dylib、目标过滤文件、包元数据；默认不要求 Logos | 编译、安装、respring，日志与实际效果确认加载 |
+| 命令行工具开发 | `wiki.qaq.apelin.cn.dev.cli` | C/ObjC 命令行程序，可选 Swift；产物可执行文件 + deb | 安装后从终端运行，输出和退出码正确 |
+| 设置面板开发 | `wiki.qaq.apelin.cn.dev.preferences` | preference bundle、资源和注册文件 | 安装后设置中可见，修改与重新读取配置正常 |
 
 tweak 包的注入框架依赖按 bootstrap 中实际支持的虚拟包/包名声明，不在 IDE 中硬编码某个实现。设置面板模板如果使用额外的面板加载器，依赖写在该扩展与生成包中，不能从主包隐式取得。App、CLI 不因为缺少注入框架而被禁用。代理工具扩展是 §6 的第五类能力，不混入这四类构建模板。
 
@@ -244,7 +244,7 @@ app 启动、从安装界面返回和手动刷新时重新扫描，通过 daemon
 - 构建扩展包时从已审阅的乌龙模板仓库固定 commit 导入，保留许可和必要文件头。仓库 URL、commit、模板目录及适配改动在 D 阶段登记；当前仓库尚无四类模板的完整来源清单，不能把名称相似的模板视为已经选定。
 - 模板包包含创建项目所需的文件，创建时不联网。模板升级只影响之后的新项目，已有项目不被覆盖；保留来源 ID、版本与摘要，后续迁移单独设计。
 - 参数至少包含项目名称、bundle/package ID、语言、部署目标、目标架构和 bootstrap。插件增加目标 bundle/process 过滤参数。按字段类型校验并按文件格式转义，不把用户输入拼成 shell 源码。
-- 目标目录就是 `~/Documents/wiki.qaq.apelin/Projects/<name>/`（§2），必须不存在；先在同一文件系统的临时目录生成，通过检查后原子落盘。拒绝绝对模板路径、`..` 逃逸、越界符号链接和冲突文件；创建失败只删除本次临时目录。
+- 目标目录就是 `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/`（§2），必须不存在；先在同一文件系统的临时目录生成，通过检查后原子落盘。拒绝绝对模板路径、`..` 逃逸、越界符号链接和冲突文件；创建失败只删除本次临时目录。
 - 不执行模板附带的 `postCreate` 脚本。模板可以携带作为项目产物的 maintainer 脚本，但安装前展示其内容和能力，不能用“模板可信”跳过 §7 的审批规则。
 
 ### 5.4 项目契约与自查 [设计]
@@ -302,7 +302,7 @@ agent 能调用的工具，除了 §7 的内置本地工具，其余都做成"�
 **模型与凭证**
 - Anthropic 原生接口，加 OpenAI 兼容接口。
 - 凭证存钥匙串：本机，不同步，Apelin 自己的条目。**[设计，待实测]** 首选 app 与 agent 共用专属 keychain access group；A 阶段验证两个进程在支持的 bootstrap 上的读写和锁屏行为。若不可行，由 app 通过已鉴权连接按会话递送凭证，仅放进 agent 内存，不能放在 argv、环境变量、日志或会话文件中。无可用凭证时会话等待重新授权，不默认落盘。accessibility 使用适合后台会话的 ThisDeviceOnly 策略并验证重启后首次解锁边界。
-- 不读 `~/.kwwk`，不和 kk 共享；会话目录是 `~/Documents/wiki.qaq.apelin/sessions`。
+- 不读 `~/.kwwk`，不和 kk 共享；会话目录是 `~/Documents/wiki.qaq.apelin.cn/sessions`。
 - 登录状态的导出放到以后。
 
 **本地工具**（owner 指定的基础清单，加上实现完整工作流所需的构建、安装与诊断提案）
@@ -346,7 +346,7 @@ agent 能调用的工具，除了 §7 的内置本地工具，其余都做成"�
 
 **MCP**：只支持 HTTP。stdio 在 iOS 上被上游关掉了，要等上游 PR，里程碑 1 不做。
 
-**skills**：内置 `tweak-development`、`packaging-and-install`、`crash-triage`；用户目录 `~/Documents/wiki.qaq.apelin/skills` 也读。system prompt 只列名字和描述，正文由 `read_skill` 按需读取（pi 的渐进披露）。
+**skills**：内置 `tweak-development`、`packaging-and-install`、`crash-triage`；用户目录 `~/Documents/wiki.qaq.apelin.cn/skills` 也读。system prompt 只列名字和描述，正文由 `read_skill` 按需读取（pi 的渐进披露）。
 
 ## 8. 构建、打包、安装
 
@@ -537,7 +537,7 @@ owner 的原则：优先用乌龙工作室现有产品里的轮子。审批前�
 - §1/§10：界面参照 FlowDown，用 ListViewKit、Litext、MarkdownView、DisplayLink；FlowDown 只参照不复制。
 - §2：apelind 按需拉起，有工作不退出，去掉 `KeepAlive`。
 - §2/§9/§11：诊断与 UI 操作能用 icli 的都用 icli。
-- §2/§5.3：项目根固定在 `~/Documents/wiki.qaq.apelin/Projects/<name>/`。
+- §2/§5.3：项目根固定在 `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/`。
 - §3.2：工具链安装完成时自动自检。
 - §3.2/§10/§13：clangd 不进 v1；编辑器只做基于 `Runestone.xcframework` 的基础编辑。
 - §4/§12：SDK fork 到 `owngoal-dev/iOS-SDKs` 并 detach、自维护、致谢原作者；托管条款列为待定。

@@ -73,11 +73,11 @@ struct EventReplayTests {
 
     @Test
     func `the keychain items are this-device-only, unsynchronised, Apelin's own`() {
-        let source = KeychainCredentialSource(accessGroup: "TEAMID.wiki.qaq.apelin")
+        let source = KeychainCredentialSource(accessGroup: "TEAMID.wiki.qaq.apelin.cn")
         let query = source.itemQuery(CredentialProviderID.githubCopilot)
-        #expect(query[kSecAttrService as String] as? String == "wiki.qaq.apelin.agent")
+        #expect(query[kSecAttrService as String] as? String == "wiki.qaq.apelin.cn.agent")
         #expect(query[kSecAttrAccount as String] as? String == "github-copilot")
-        #expect(query[kSecAttrAccessGroup as String] as? String == "TEAMID.wiki.qaq.apelin")
+        #expect(query[kSecAttrAccessGroup as String] as? String == "TEAMID.wiki.qaq.apelin.cn")
         #expect((query[kSecAttrSynchronizable as String] as? Bool) == false)
         let write = source.writeAttributes(Data())
         #expect(write[kSecAttrAccessible as String] as? String == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)

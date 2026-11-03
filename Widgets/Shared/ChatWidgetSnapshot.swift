@@ -106,9 +106,9 @@ struct ChatWidgetSnapshot: Codable, Hashable, Sendable {
 /// is sandboxed and cannot read mobile's Documents, and the app has no
 /// container of its own to share.
 enum ChatWidgetStore {
-    static let appGroup = "group.wiki.qaq.apelin"
+    static let appGroup = "group.wiki.qaq.apelin.cn"
     /// The kind WidgetKit reloads after a write.
-    static let widgetKind = "wiki.qaq.apelin.chats"
+    static let widgetKind = "wiki.qaq.apelin.cn.chats"
 
     static var fileURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)?

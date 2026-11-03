@@ -588,10 +588,10 @@ do {
     let tap = UIAction.tap(x: 200, y: 4)
     let agent = Caller.worker(.agent, instance: "s")
     for sent: [String]? in [nil, [], ["com.apple.springboard"]] {
-        let action = try forwarded(UIActionRequest(targetID: "wiki.qaq.apelin", action: tap, refusedBundleIDs: sent), from: agent)
+        let action = try forwarded(UIActionRequest(targetID: "wiki.qaq.apelin.cn", action: tap, refusedBundleIDs: sent), from: agent)
             .decode(UIActionRequest.self)
-        check(action.refusedBundleIDs == ["wiki.qaq.apelin"], "an agent's UI action refuses Apelin whatever it sent (\(String(describing: sent)))")
-        check(action.targetID == "wiki.qaq.apelin" && action.action == tap, "and is otherwise as it was sent")
+        check(action.refusedBundleIDs == ["wiki.qaq.apelin.cn"], "an agent's UI action refuses Apelin whatever it sent (\(String(describing: sent)))")
+        check(action.targetID == "wiki.qaq.apelin.cn" && action.action == tap, "and is otherwise as it was sent")
     }
     let app = try forwarded(UIActionRequest(action: tap), from: .app)
     let appAction = try app.decode(UIActionRequest.self)
@@ -1082,7 +1082,7 @@ do {
     let root = scratchPath + "/root"
     let home = root + "/var/mobile"
     try FileManager.default.createDirectory(
-        atPath: home + "/Documents/wiki.qaq.apelin",
+        atPath: home + "/Documents/wiki.qaq.apelin.cn",
         withIntermediateDirectories: true,
     )
     write(root + "/etc/hosts", "127.0.0.1 localhost\n")
@@ -1125,7 +1125,7 @@ do {
     stat(root + "/etc/hosts", &after)
     check(after.st_mode & 0o7777 == 0o640, "the mode is kept")
     check(saved.version.inode != opened.version.inode, "the replace is a new inode (atomic rename)")
-    let backup = home + "/Documents/wiki.qaq.apelin/backups/" + saved.backupID
+    let backup = home + "/Documents/wiki.qaq.apelin.cn/backups/" + saved.backupID
     check(String(data: FileManager.default.contents(atPath: backup) ?? Data(), encoding: .utf8) == "127.0.0.1 localhost\n", "the old contents are backed up first")
     await expectErrorAsync("a grant is spent once", code: .notFound) { _ = try await editor.commit(commit, descriptors: []) }
 
@@ -1179,7 +1179,7 @@ do {
     let trap = scratchPath + "/trap-home"
     try FileManager.default.createDirectory(atPath: trap, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(
-        atPath: scratchPath + "/elsewhere/wiki.qaq.apelin",
+        atPath: scratchPath + "/elsewhere/wiki.qaq.apelin.cn",
         withIntermediateDirectories: true,
     )
     symlink(scratchPath + "/elsewhere", trap + "/Documents")
@@ -1188,9 +1188,9 @@ do {
     // fileRead scopes.
     let folder = DataFolder(home: home)
     let scopes = FileScopes(installRoot: root, dataFolder: folder)
-    write(home + "/Documents/wiki.qaq.apelin/Projects/Hello/apelin-project.json", "{\"projectID\": \"p-1\"}")
-    write(home + "/Documents/wiki.qaq.apelin/Projects/Hello/Tweak.x", "%hook\n")
-    symlink(scratchPath + "/outside", home + "/Documents/wiki.qaq.apelin/Projects/Hello/escape")
+    write(home + "/Documents/wiki.qaq.apelin.cn/Projects/Hello/apelin-project.json", "{\"projectID\": \"p-1\"}")
+    write(home + "/Documents/wiki.qaq.apelin.cn/Projects/Hello/Tweak.x", "%hook\n")
+    symlink(scratchPath + "/outside", home + "/Documents/wiki.qaq.apelin.cn/Projects/Hello/escape")
     if case let .directory(path) = try scopes.resolve("p-1", caller: .worker(.agent, instance: "s")) {
         let (file, resolved) = try FileScopes.open("Tweak.x", inside: path)
         check(resolved.hasSuffix("/Projects/Hello/Tweak.x") && file.rawValue >= 0, "a project ID scope reads its file")
@@ -1268,7 +1268,7 @@ do {
     """)
     check(installed.count == 5 && installed["bash"]?.priority == "required" && installed["com.example.gone"]?.isInstalled == false, "the dpkg status file parses")
 
-    for reserved in ["wiki.qaq.apelin", "wiki.qaq.apelin.dev.tweak", "wiki.qaq.irisin", "dpkg", "apt", "firmware", "gsc.ipad", "cy+cpu.arm64", "com.example.essential"] {
+    for reserved in ["wiki.qaq.apelin.cn", "wiki.qaq.apelin.cn.dev.tweak", "wiki.qaq.irisin", "dpkg", "apt", "firmware", "gsc.ipad", "cy+cpu.arm64", "com.example.essential"] {
         expectError("installing \(reserved)", code: .denied) { try ManagedPackagePolicy.checkInstall(packageID: reserved, installed: installed, records: []) }
     }
     expectError("a bad package ID", code: .badRequest) { try ManagedPackagePolicy.checkInstall(packageID: "Bad ID", installed: installed, records: []) }
@@ -1652,7 +1652,7 @@ do {
 
 do {
     let base = scratchPath + "/install"
-    let data = base + "/home/Documents/wiki.qaq.apelin"
+    let data = base + "/home/Documents/wiki.qaq.apelin.cn"
     let state = URL(fileURLWithPath: base + "/state")
     try FileManager.default.createDirectory(atPath: data + "/Projects/Hello/.build", withIntermediateDirectories: true)
     let deb = data + "/Projects/Hello/.build/hello.deb"
@@ -1819,7 +1819,7 @@ do {
     try FileManager.default.createDirectory(atPath: artifactsFolder, withIntermediateDirectories: true)
     makeDeb(
         at: artifactsFolder + "/toolchain-abc123.deb",
-        package: "wiki.qaq.apelin.toolchain.abc123",
+        package: "wiki.qaq.apelin.cn.toolchain.abc123",
         version: "16.0+abc123",
     )
     let toolchainDigest = sha256(artifactsFolder + "/toolchain-abc123.deb")
@@ -1845,7 +1845,7 @@ do {
     )
     let toolchainBatch = try await waitForEnd(registry, toolchainHandle)
     let toolchainResult = try toolchainBatch.events.first { $0.kind == "result" }?.payload?.decode(InstallResult.self)
-    check(toolchainBatch.state == .succeeded && toolchainResult?.packageID == "wiki.qaq.apelin.toolchain.abc123", "a toolchain package installs from Environment/Artifacts")
+    check(toolchainBatch.state == .succeeded && toolchainResult?.packageID == "wiki.qaq.apelin.cn.toolchain.abc123", "a toolchain package installs from Environment/Artifacts")
     makeDeb(at: artifactsFolder + "/toolchain-evil.deb", package: "bash", version: "9")
     await expectErrorAsync("a toolchain artifact that is another package", code: .conflict) {
         _ = try await install.install(
@@ -1858,7 +1858,7 @@ do {
     }
     expectError("a toolchain-family package from a project", code: .denied) {
         try ManagedPackagePolicy.checkInstall(
-            packageID: "wiki.qaq.apelin.toolchain.abc123",
+            packageID: "wiki.qaq.apelin.cn.toolchain.abc123",
             origin: .build,
             installed: [:],
             records: [],
@@ -1986,10 +1986,10 @@ do {
         caller: environmentCaller,
     ))
     let toolchainForAgent = try await install.list(
-        InstallationListRequest(packageID: "wiki.qaq.apelin.toolchain.abc123"),
+        InstallationListRequest(packageID: "wiki.qaq.apelin.cn.toolchain.abc123"),
         caller: lister,
     )
-    let toolchainForApp = try await install.list(InstallationListRequest(packageID: "wiki.qaq.apelin.toolchain.abc123"), caller: .app)
+    let toolchainForApp = try await install.list(InstallationListRequest(packageID: "wiki.qaq.apelin.cn.toolchain.abc123"), caller: .app)
     check(toolchainForAgent.installations.first.map { !$0.removable && ($0.reason ?? "").contains("Settings") } == true, "the agent sees a toolchain as not its to remove")
     check(toolchainForApp.installations.first?.removable == true, "the app sees the toolchain as removable")
     await expectErrorAsync("the agent removing a toolchain", code: .denied) {
@@ -2023,7 +2023,7 @@ do {
 
 do {
     let base = scratchPath + "/conflicts"
-    let data = base + "/home/Documents/wiki.qaq.apelin"
+    let data = base + "/home/Documents/wiki.qaq.apelin.cn"
     let state = URL(fileURLWithPath: base + "/state")
     try FileManager.default.createDirectory(atPath: data + "/Builds", withIntermediateDirectories: true)
     let irisin = FakeIrisin(root: base)
@@ -2279,7 +2279,7 @@ do {
 /// bound to the older SDK. The records carry an installation ID and an
 /// origin with a credential in it, neither of which may reach a variable.
 let developmentHome = scratchPath + "/development-home"
-let developmentData = developmentHome + "/Documents/wiki.qaq.apelin"
+let developmentData = developmentHome + "/Documents/wiki.qaq.apelin.cn"
 let developmentToolchain = scratchPath + "/development-jb/usr/lib/apelin/toolchains/clt-27.0"
 let developmentBin = developmentToolchain + "/usr/bin"
 let developmentNewSDK = developmentData + "/SDKs/iphoneos27.0-1a2b3c4d"
@@ -2375,14 +2375,14 @@ do {
 let lookupHome = scratchPath + "/lookup-home"
 let lookupToolchain = scratchPath + "/lookup-jb/toolchains/clt-27.0"
 let lookupBin = lookupToolchain + "/usr/bin"
-let lookupProject = lookupHome + "/Documents/wiki.qaq.apelin/Projects/Lookup"
+let lookupProject = lookupHome + "/Documents/wiki.qaq.apelin.cn/Projects/Lookup"
 write(lookupBin + "/apelin-cc", "#!/bin/sh\necho compiled\n", mode: 0o755)
 write(lookupBin + "/git", "#!/bin/sh\necho the toolchain's git\n", mode: 0o755)
 try FileManager.default.createSymbolicLink(atPath: lookupBin + "/apelin-c++", withDestinationPath: "/bin/bash")
 write(lookupProject + "/build.sh", "#!/bin/sh\necho built\n", mode: 0o755)
 write(lookupProject + "/notes.txt", "not a program\n")
 write(
-    lookupHome + "/Documents/wiki.qaq.apelin/Environment/Toolchains/registry.json",
+    lookupHome + "/Documents/wiki.qaq.apelin.cn/Environment/Toolchains/registry.json",
     #"{"defaultID":"clt-27.0","toolchains":[{"id":"clt-27.0","version":"27.0","components":[{"kind":"c","selfCheckPassed":true}],"path":"\#(lookupToolchain)","contentDigest":"ab"}]}"#,
 )
 
@@ -2814,7 +2814,7 @@ do {
         let entry = await AgentSessionTable.Entry(
             sessionID: id,
             task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
-            project: ResolvedProject(id: "p-rename-mine", name: "Mine", path: homePath + "/Documents/wiki.qaq.apelin/Projects/Mine"),
+            project: ResolvedProject(id: "p-rename-mine", name: "Mine", path: homePath + "/Documents/wiki.qaq.apelin.cn/Projects/Mine"),
             mode: mode,
             createdAt: Date(),
         )
@@ -2896,7 +2896,7 @@ do {
         }
     }
     let theirs = try? AgentProjectDeleteRules.target(ProjectDeleteRequest(projectID: "p-delete-theirs"), home: homePath)
-    check(theirs?.name == "Theirs" && theirs?.path == homePath + "/Documents/wiki.qaq.apelin/Projects/Theirs", "a project is found by its id, in its own folder")
+    check(theirs?.name == "Theirs" && theirs?.path == homePath + "/Documents/wiki.qaq.apelin.cn/Projects/Theirs", "a project is found by its id, in its own folder")
     check(code(ProjectDeleteRequest(projectID: "temporary:\(temporary)")) == .badRequest, "a temporary chat's folder is no project to delete")
     check(code(ProjectDeleteRequest(projectID: "p-delete-outside")) == .notFound, "nor a project behind a link out of Projects/, by its id")
     check(code(ProjectDeleteRequest(projectID: "p-delete-outside", projectName: "Linked")) == .notFound, "or by the link's name")
@@ -2910,7 +2910,7 @@ do {
         let entry = await AgentSessionTable.Entry(
             sessionID: id,
             task: registry.create(kind: .agent, owner: .agent, ownerKey: id),
-            project: project ?? ResolvedProject(id: "p-delete-mine", name: "Mine", path: homePath + "/Documents/wiki.qaq.apelin/Projects/Mine"),
+            project: project ?? ResolvedProject(id: "p-delete-mine", name: "Mine", path: homePath + "/Documents/wiki.qaq.apelin.cn/Projects/Mine"),
             mode: mode,
             createdAt: Date(),
         )
@@ -4797,7 +4797,7 @@ do {
     let root = scratchPath + "/backup-root"
     let home = root + "/var/mobile"
     try FileManager.default.createDirectory(
-        atPath: home + "/Documents/wiki.qaq.apelin",
+        atPath: home + "/Documents/wiki.qaq.apelin.cn",
         withIntermediateDirectories: true,
     )
     write(root + "/etc/a_b", "underscore\n")

@@ -221,7 +221,7 @@ final class TransferTests: XCTestCase {
         XCTAssertEqual(imported.installationID, "inst-1")
         XCTAssertEqual(imported.path, second.layout.installRoot + "/usr/lib/apelin/toolchains/" + FakeBackend.id)
         XCTAssertEqual(imported.components, [ToolchainComponent(kind: .c, selfCheckPassed: true)])
-        XCTAssertEqual(installer.installed.map(\.packageID), ["wiki.qaq.apelin.toolchain.\(FakeBackend.id)"])
+        XCTAssertEqual(installer.installed.map(\.packageID), ["wiki.qaq.apelin.cn.toolchain.\(FakeBackend.id)"])
         let stages = log.events.filter { $0.0 == "stage" }.compactMap { $0.1?["stage"]?.stringValue }
         XCTAssertEqual(stages, ["reading", "packaging", "installing", "validating"])
         XCTAssertEqual(ToolchainService(layout: second.layout, backend: FakeBackend()).status(activeTasks: []).toolchains.map(\.id), [record.id])
@@ -295,7 +295,7 @@ final class TransferTests: XCTestCase {
         _ = try await transfers.runImport(prepared, staging: layout.makeStaging("i"), taskID: TaskID("i"), installer: installer, reporter: log.reporter)
         XCTAssertEqual(installer.installed.count, 1)
         // The deb this device built: roothide's architecture.
-        XCTAssertEqual(log.last("artifact")?["packageID"]?.stringValue, "wiki.qaq.apelin.toolchain.\(FakeBackend.id)")
+        XCTAssertEqual(log.last("artifact")?["packageID"]?.stringValue, "wiki.qaq.apelin.cn.toolchain.\(FakeBackend.id)")
     }
 
     func testAToolchainOfAReleaseThisApelinDoesNotSupportIsRefusedBeforeReading() async throws {

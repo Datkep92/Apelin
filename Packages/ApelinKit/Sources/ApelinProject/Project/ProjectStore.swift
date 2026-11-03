@@ -3,7 +3,7 @@ import ApelinProtocol
 import Darwin
 import Foundation
 
-/// Projects under `~/Documents/wiki.qaq.apelin/Projects/<name>/`, nowhere
+/// Projects under `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/`, nowhere
 /// else: creating one from a template, finding one by its ID.
 public struct ProjectStore: Sendable {
     public static let projectFileName = "apelin-project.json"

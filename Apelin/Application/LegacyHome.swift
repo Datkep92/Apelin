@@ -1,7 +1,7 @@
 import ApelinCore
 import Foundation
 
-/// The data folder the package's postinst made, `~/Documents/wiki.qaq.apelin`
+/// The data folder the package's postinst made, `~/Documents/wiki.qaq.apelin.cn`
 /// on mobile's home — the one apelind, the session host and the workers all
 /// read. The system may instead have given the app a data container, so
 /// `NSHomeDirectory()` answers inside `Containers/Data/Application/<uuid>` and

@@ -40,7 +40,7 @@ struct DebianControlFileTests {
 
     @Test func `parses A template and round trips`() throws {
         let template = """
-        Package: wiki.qaq.apelin
+        Package: wiki.qaq.apelin.cn
         Name: Apelin
         Version: 1.0
         Architecture: iphoneos-arm64e

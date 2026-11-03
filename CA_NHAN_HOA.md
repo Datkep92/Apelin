@@ -53,7 +53,7 @@ và biết mình không được phá cái gì.
 2. **Cá nhân hoá = commit riêng, dễ tách.** Một ý một commit, tiêu đề nêu đúng
    hành động (kiểu "Keep several configurations of one provider…"). Không trộn
    việc cá nhân hoá vào commit merge.
-3. **Không đổi định danh:** package id `wiki.qaq.apelin`, bundle id, `projectID`
+3. **Không đổi định danh:** package id `wiki.qaq.apelin.cn`, bundle id, `projectID`
    của folder — đổi một lần là thành gói/du án khác.
 4. **Không tự làm `.deb` bằng tay** (dpkg-deb/ar/tar ngoài CI): gói phải đi ra
    từ CI để qua được mọi bước kiểm tra.
@@ -68,7 +68,7 @@ và biết mình không được phá cái gì.
 
 ### 4.1 Đồng bộ base với upstream
 ```sh
-cd <repo>                       # /var/mobile/Documents/wiki.qaq.apelin/Projects/Apelin
+cd <repo>                       # /var/mobile/Documents/wiki.qaq.apelin.cn/Projects/Apelin
 export TMPDIR=/tmp              # mọi lệnh gh trên máy này cần thế
 git fetch upstream main
 git merge upstream/main          # giữ nguyên commit ở mục 6; xem lại mục 3.7 khi có conflict
@@ -94,8 +94,8 @@ Chỉ giữ `.deb` **`iphoneos-arm64`**, copy vào `Downloads` làm lưu trữ.
 # chạy bằng root (shell_run root:true) — nhà cài KHÔNG chạy maintainer script của gói
 icli pkg install <đường dẫn .deb>
 # sau khi cài xong, để app đọc binary mới:
-icli app kill wiki.qaq.apelin --force
-icli app launch wiki.qaq.apelin
+icli app kill wiki.qaq.apelin.cn --force
+icli app launch wiki.qaq.apelin.cn
 ```
 - **Không bao giờ** để `postinst` chạy: nó sẽ `bootout apelind` và giết luôn phiên
   agent đang nói chuyện. Không restart `apelind` khi chưa có đồng ý của người dùng.
@@ -143,7 +143,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | --- | --- | --- | --- | --- | --- |
 | 1 | 2026-10-29 | Cá nhân hoá | Một nhà cung cấp có **nhiều cấu hình**: mỗi cấu hình một khoá API riêng và dải model riêng; chọn model từ sheet cấu hình có tìm kiếm; giữ cấu hình đã đặt tên cho tới khi lưu khoá, xoá bằng cách vuốt. | `c186bec`, `de402d3`, `1709e94`, `0bd7d73`, `14ca882`, `1c49e95` | `ModelProvidersController.swift`, `EnabledModels.swift`, `AccountDesk.swift`, `SessionModelChoice.swift`, khoá catalog mới trong `Localizable.xcstrings` (qua được `check-catalog-keys.py`). |
 | 2 | 2026-10-30 | Bản vá đồng bộ | Hấp thụ upstream `v0.1.8..v0.3.0` (152 commit) và thêm workflow `sync-upstream.yml`. | `0428636` (merge) | Base là upstream; giữ cấu hình model của dòng 1 khi resolve conflict. |
-| 3 | 2026-10-31 | Bản vá (data-home) | Hai "home" tách nhau: home của container iOS vs home mobile thật → 0.3.0 ra mở app **danh sách dự án trống**. Sửa bằng `DataFolder` đi từ container sang home của mobile, import hộ file một lần. | `dfe14b9`, `ee4fc4a`, `ec2727a` (`AppDelegate.swift`, `LegacyHome.swift`, `ApelinService.swift`) | Bản build mới phải nhận đúng data home `~/Documents/wiki.qaq.apelin`; **không** đặt dữ liệu về lại container. |
+| 3 | 2026-10-31 | Bản vá (data-home) | Hai "home" tách nhau: home của container iOS vs home mobile thật → 0.3.0 ra mở app **danh sách dự án trống**. Sửa bằng `DataFolder` đi từ container sang home của mobile, import hộ file một lần. | `dfe14b9`, `ee4fc4a`, `ec2727a` (`AppDelegate.swift`, `LegacyHome.swift`, `ApelinService.swift`) | Bản build mới phải nhận đúng data home `~/Documents/wiki.qaq.apelin.cn`; **không** đặt dữ liệu về lại container. |
 | 5 | 2026-10-31 | Bản vá (bỏ xác minh model) | Provider **custom (OpenAI-compatible)** không còn bắt buộc xác minh model khi thêm: endpoint miễn phí/relay thường quảng cáo model nhưng từ chối completion (hết hạn mức `:free`), khiến Apelin chặn thêm model dù model dùng được. Provider chính thức (OpenRouter, Anthropic, Copilot…) vẫn xác minh như cũ. | `260a73d` | Giữ nhánh `request.provider == .openAICompatible` trong `activateModels` (`AccountDesk.swift`); không bật lại `verifyKey` cho custom provider. |
 | 4 | 2026-10-31 | Bản vá (danh sách dự án) | Danh sách dự án hiển thị thiếu/lẫn; đã sửa và kiểm chứng trên máy: Home hiện đủ dự án, dự án không có `apelin-project.json` bị loại đúng. | nằm trong nhóm `dfe14b9..ec2727a` | Giữ nguyên; kiểm tra lại sau mỗi lần merge: Home và bộ chọn dự án phải cùng số dự án. |
 
@@ -214,13 +214,13 @@ chat biến mất khỏi máy (không vào thùng rác). Mã nguồn **không m�
 lên GitHub. Khôi phục:
 ```sh
 git clone https://github.com/Datkep92/Apelin.git \
-  /var/mobile/Documents/wiki.qaq.apelin/Projects/Apelin
+  /var/mobile/Documents/wiki.qaq.apelin.cn/Projects/Apelin
 git remote add upstream https://github.com/owngoal-dev/Apelin.git
 ```
 Nguồn sao lưu phụ trên máy (bản cũ hơn 30/10 22:51–22:53):
-- `/var/mobile/Library/Filza/.Trash/wiki.qaq.apelin/Projects/Apelin`
+- `/var/mobile/Library/Filza/.Trash/wiki.qaq.apelin.cn/Projects/Apelin`
 - `/var/mobile/Library/Filza/.Trash/wiki.qaq.30-thg 10-2026-22-53-45.apelin/Projects/Apelin`
-- container iOS cũ `.../Containers/Data/Application/EA842577-.../Documents/wiki.qaq.apelin/`
+- container iOS cũ `.../Containers/Data/Application/EA842577-.../Documents/wiki.qaq.apelin.cn/`
 
 **Quy tắc rút ra:** commit + push ngay sau mỗi thay đổi; bản `.deb` quan trọng
 lưu vào `Downloads`; đừng để repo chỉ tồn tại một nơi.

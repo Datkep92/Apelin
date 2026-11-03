@@ -42,6 +42,6 @@
 6. distribution publish from release artifacts.
 
 ## G. Data/home repair + import
-1. mobile `~/Documents/wiki.qaq.apelin`.
+1. mobile `~/Documents/wiki.qaq.apelin.cn`.
 2. one-time import from iOS container path.
 3. ensure no secondary home confusion on upgrades.

@@ -1,7 +1,7 @@
 import Foundation
 import UIKit
 
-/// A chat slash command loaded from `~/Documents/wiki.qaq.apelin/commands/`.
+/// A chat slash command loaded from `~/Documents/wiki.qaq.apelin.cn/commands/`.
 struct ChatCommand {
     let name: String
     let description: String
@@ -25,7 +25,7 @@ final class ChatCommandStore {
         } else {
             self.directory = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
                 .appendingPathComponent("Documents", isDirectory: true)
-                .appendingPathComponent("wiki.qaq.apelin", isDirectory: true)
+                .appendingPathComponent("wiki.qaq.apelin.cn", isDirectory: true)
                 .appendingPathComponent("commands", isDirectory: true)
         }
     }

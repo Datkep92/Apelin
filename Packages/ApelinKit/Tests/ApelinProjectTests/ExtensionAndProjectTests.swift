@@ -13,23 +13,23 @@ final class ExtensionAndProjectTests: XCTestCase {
         // The repository folder also holds Packaging/, which no package
         // installs; the scanner sets it aside like any folder without a manifest.
         XCTAssertEqual(catalog.extensions.map(\.folderName).sorted(), [
-            "Packaging", "wiki.qaq.apelin.dev.app", "wiki.qaq.apelin.dev.cli", "wiki.qaq.apelin.dev.preferences", "wiki.qaq.apelin.dev.tweak",
+            "Packaging", "wiki.qaq.apelin.cn.dev.app", "wiki.qaq.apelin.cn.dev.cli", "wiki.qaq.apelin.cn.dev.preferences", "wiki.qaq.apelin.cn.dev.tweak",
         ])
         XCTAssertFalse(try XCTUnwrap(catalog.extensions.first { $0.folderName == "Packaging" }?.isUsable))
         for item in catalog.extensions where item.folderName != "Packaging" {
             XCTAssertEqual(item.problems, [], item.folderName)
         }
-        XCTAssertNotNil(catalog.template("wiki.qaq.apelin.dev.tweak/objc-hook"))
-        XCTAssertNil(catalog.template("wiki.qaq.apelin.dev.tweak/nope"))
+        XCTAssertNotNil(catalog.template("wiki.qaq.apelin.cn.dev.tweak/objc-hook"))
+        XCTAssertNil(catalog.template("wiki.qaq.apelin.cn.dev.tweak/nope"))
     }
 
     /// A bad manifest isolates only itself; a duplicate id isolates both.
     func testIsolation() throws {
         let scratch = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
-        let tweak = Repository.extensions.appendingPathComponent("wiki.qaq.apelin.dev.tweak")
-        try FileManager.default.copyItem(at: tweak, to: scratch.appendingPathComponent("wiki.qaq.apelin.dev.tweak"))
-        try FileManager.default.copyItem(at: Repository.extensions.appendingPathComponent("wiki.qaq.apelin.dev.cli"), to: scratch.appendingPathComponent("wiki.qaq.apelin.dev.cli"))
+        let tweak = Repository.extensions.appendingPathComponent("wiki.qaq.apelin.cn.dev.tweak")
+        try FileManager.default.copyItem(at: tweak, to: scratch.appendingPathComponent("wiki.qaq.apelin.cn.dev.tweak"))
+        try FileManager.default.copyItem(at: Repository.extensions.appendingPathComponent("wiki.qaq.apelin.cn.dev.cli"), to: scratch.appendingPathComponent("wiki.qaq.apelin.cn.dev.cli"))
         // a copy under another folder name claims the same id
         try FileManager.default.copyItem(at: tweak, to: scratch.appendingPathComponent("com.example.copy"))
         // broken JSON
@@ -37,14 +37,14 @@ final class ExtensionAndProjectTests: XCTestCase {
         try FileManager.default.createDirectory(at: broken, withIntermediateDirectories: true)
         try Data("{".utf8).write(to: broken.appendingPathComponent("manifest.json"))
         // an undeclared template file
-        let cli = scratch.appendingPathComponent("wiki.qaq.apelin.dev.cli")
+        let cli = scratch.appendingPathComponent("wiki.qaq.apelin.cn.dev.cli")
         try Data("x".utf8).write(to: cli.appendingPathComponent("templates/c/Sources/extra.c"))
 
         let catalog = ExtensionCatalog(directory: scratch)
         let byName = Dictionary(uniqueKeysWithValues: catalog.extensions.map { ($0.folderName, $0) })
         XCTAssertFalse(try XCTUnwrap(byName["com.example.broken"]?.isUsable))
-        XCTAssertTrue(try XCTUnwrap(byName["wiki.qaq.apelin.dev.cli"]?.problems.contains { $0.contains("extra.c is not listed") }))
-        XCTAssertTrue(try XCTUnwrap(byName["wiki.qaq.apelin.dev.tweak"]?.problems.contains { $0.contains("both are set aside") }))
+        XCTAssertTrue(try XCTUnwrap(byName["wiki.qaq.apelin.cn.dev.cli"]?.problems.contains { $0.contains("extra.c is not listed") }))
+        XCTAssertTrue(try XCTUnwrap(byName["wiki.qaq.apelin.cn.dev.tweak"]?.problems.contains { $0.contains("both are set aside") }))
         XCTAssertTrue(try XCTUnwrap(byName["com.example.copy"]?.problems.contains { $0.contains("differs from the folder name") }))
         XCTAssertTrue(catalog.usable.isEmpty)
     }
@@ -52,8 +52,8 @@ final class ExtensionAndProjectTests: XCTestCase {
     func testStaleDigestAndSymlinkIsolate() throws {
         let scratch = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
-        let root = scratch.appendingPathComponent("wiki.qaq.apelin.dev.tweak")
-        try FileManager.default.copyItem(at: Repository.extensions.appendingPathComponent("wiki.qaq.apelin.dev.tweak"), to: root)
+        let root = scratch.appendingPathComponent("wiki.qaq.apelin.cn.dev.tweak")
+        try FileManager.default.copyItem(at: Repository.extensions.appendingPathComponent("wiki.qaq.apelin.cn.dev.tweak"), to: root)
         let source = root.appendingPathComponent("templates/objc-hook/Sources/Tweak.m")
         try (String(contentsOf: source, encoding: .utf8) + "\n// edited\n").write(to: source, atomically: true, encoding: .utf8)
         XCTAssertTrue(ExtensionCatalog(directory: scratch).extensions[0].problems.contains { $0.contains("digest is") })
@@ -72,7 +72,7 @@ final class ExtensionAndProjectTests: XCTestCase {
                 let scratch = try scratchDirectory()
                 defer { try? FileManager.default.removeItem(at: scratch) }
                 let home = scratch.appendingPathComponent("home")
-                try FileManager.default.createDirectory(at: home.appendingPathComponent("Documents/wiki.qaq.apelin"), withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(at: home.appendingPathComponent("Documents/wiki.qaq.apelin.cn"), withIntermediateDirectories: true)
                 let store = ProjectStore(dataFolder: DataFolder(home: home.path))
                 let projectID = "00000000-0000-4000-8000-000000000001"
                 let name = "Sample \(template.id)"
@@ -157,10 +157,10 @@ final class ExtensionAndProjectTests: XCTestCase {
     func testCreationRules() throws {
         let scratch = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
-        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin.cn"), withIntermediateDirectories: true)
         let store = ProjectStore(dataFolder: DataFolder(home: scratch.path))
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let template = "wiki.qaq.apelin.dev.tweak/objc-hook"
+        let template = "wiki.qaq.apelin.cn.dev.tweak/objc-hook"
         for name in ["", ".", "..", ".hidden", "a/b", "a\u{0}b"] {
             XCTAssertThrowsError(try store.create(templateID: template, name: name, values: [:], catalog: catalog, registry: sampleRegistry()), name)
         }
@@ -187,10 +187,10 @@ final class ExtensionAndProjectTests: XCTestCase {
     func testTheProductIsNamedAfterTheProject() throws {
         let scratch = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
-        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin.cn"), withIntermediateDirectories: true)
         let store = ProjectStore(dataFolder: DataFolder(home: scratch.path))
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let template = "wiki.qaq.apelin.dev.tweak/objc-hook"
+        let template = "wiki.qaq.apelin.cn.dev.tweak/objc-hook"
         func productName(_ name: String, _ values: [String: JSONDocument] = [:]) throws -> String? {
             let created = try store.create(templateID: template, name: name, values: values, catalog: catalog, registry: sampleRegistry())
             return try store.locate(created.projectID).project.products.first?.name
@@ -208,10 +208,10 @@ final class ExtensionAndProjectTests: XCTestCase {
     func testAnOlderToolchainBindsAnSDKItReads() throws {
         let scratch = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
-        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin.cn"), withIntermediateDirectories: true)
         let store = ProjectStore(dataFolder: DataFolder(home: scratch.path))
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let template = "wiki.qaq.apelin.dev.tweak/objc-hook"
+        let template = "wiki.qaq.apelin.cn.dev.tweak/objc-hook"
         let toolchain = RegisteredToolchain(id: "clt-16.4", digest: "sha256:" + String(repeating: "1", count: 64), version: "16.4", path: "/nonexistent", components: ["c-family"], newestSDK: "18.5")
         func sdk(_ version: String) -> RegisteredSDK {
             RegisteredSDK(id: "iPhoneOS\(version)-00000000", digest: "sha256:" + String(repeating: "2", count: 64), version: version, path: "/nonexistent")
@@ -249,7 +249,7 @@ final class ExtensionAndProjectTests: XCTestCase {
     func testACandidateBindingIsCheckedBeforeASwitch() throws {
         let scratch = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
-        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin.cn"), withIntermediateDirectories: true)
         let store = ProjectStore(dataFolder: DataFolder(home: scratch.path))
         let catalog = ExtensionCatalog(directory: Repository.extensions)
         let toolchain = RegisteredToolchain(id: "clt-16.4", digest: "sha256:" + String(repeating: "1", count: 64), version: "16.4", path: "/nonexistent", components: ["c-family"], newestSDK: "18.5")
@@ -257,7 +257,7 @@ final class ExtensionAndProjectTests: XCTestCase {
             RegisteredSDK(id: "iPhoneOS\(version)-00000000", digest: "sha256:" + String(repeating: fill, count: 64), version: version, path: "/nonexistent")
         }
         let registry = StaticEnvironmentRegistry(toolchains: [toolchain], sdks: [sdk("27.0", "3"), sdk("18.2", "2")])
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.tweak/objc-hook", name: "Switching", values: [:], catalog: catalog, registry: registry)
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.tweak/objc-hook", name: "Switching", values: [:], catalog: catalog, registry: registry)
         let check = ProjectCheck(store: store, catalog: catalog, registry: registry)
         let current = try store.locate(created.projectID).project.environment
         XCTAssertEqual(current.sdk.id, "iPhoneOS18.2-00000000")
@@ -281,7 +281,7 @@ final class ExtensionAndProjectTests: XCTestCase {
     func testSwiftProjectsAreWarnedAboutTheirSDK() throws {
         let scratch = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
-        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin.cn"), withIntermediateDirectories: true)
         let store = ProjectStore(dataFolder: DataFolder(home: scratch.path))
         let catalog = ExtensionCatalog(directory: Repository.extensions)
         let sdkRoot = scratch.appendingPathComponent("iPhoneOS18.5.sdk")
@@ -291,7 +291,7 @@ final class ExtensionAndProjectTests: XCTestCase {
         let toolchain = RegisteredToolchain(id: "clt-27.0-swift", digest: "sha256:" + String(repeating: "1", count: 64), version: "27.0", path: "/nonexistent", components: ["c-family", "swift"], newestSDK: "27.0")
         let sdk = RegisteredSDK(id: "iPhoneOS18.5-00000000", digest: "sha256:" + String(repeating: "2", count: 64), version: "18.5", path: sdkRoot.path)
         let registry = StaticEnvironmentRegistry(toolchains: [toolchain], sdks: [sdk])
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.app/uikit-swift", name: "Swifty", values: [:], catalog: catalog, registry: registry)
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.app/uikit-swift", name: "Swifty", values: [:], catalog: catalog, registry: registry)
         let diagnostics = ProjectCheck(store: store, catalog: catalog, registry: registry).run(projectID: created.projectID).diagnostics
         XCTAssertTrue(diagnostics.contains { $0.code == "environment.sdk.swiftMacros" && $0.severity == .warning }, "\(diagnostics)")
         let architectures = diagnostics.filter { $0.code == "environment.sdk.noSwiftArchitecture" }
@@ -301,10 +301,10 @@ final class ExtensionAndProjectTests: XCTestCase {
     func testProjectCheck() throws {
         let scratch = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
-        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: scratch.appendingPathComponent("Documents/wiki.qaq.apelin.cn"), withIntermediateDirectories: true)
         let store = ProjectStore(dataFolder: DataFolder(home: scratch.path))
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.tweak/objc-hook", name: "Checked", values: [:], catalog: catalog, registry: sampleRegistry())
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.tweak/objc-hook", name: "Checked", values: [:], catalog: catalog, registry: sampleRegistry())
         // The sample registry's toolchain path does not exist: the check says so.
         var result = ProjectCheck(store: store, catalog: catalog, registry: sampleRegistry()).run(projectID: created.projectID)
         XCTAssertFalse(result.passed)
@@ -313,7 +313,7 @@ final class ExtensionAndProjectTests: XCTestCase {
 
         // A real toolchain and SDK (the Mac's), and the check passes.
         if let registry = try? macRegistry() {
-            let rebound = try store.create(templateID: "wiki.qaq.apelin.dev.tweak/objc-hook", name: "Bound", values: [:], catalog: catalog, registry: registry)
+            let rebound = try store.create(templateID: "wiki.qaq.apelin.cn.dev.tweak/objc-hook", name: "Bound", values: [:], catalog: catalog, registry: registry)
             result = ProjectCheck(store: store, catalog: catalog, registry: registry).run(projectID: rebound.projectID)
             XCTAssertTrue(result.passed, "\(result.diagnostics)")
         }

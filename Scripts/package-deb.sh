@@ -50,7 +50,7 @@ worker_runtime_libraries=(libswiftCompatibilitySpan.dylib)
 packaging_root="$(cd "$(dirname "$control_template")/.." && pwd -P)"
 # Sourced by the bootstrap's /etc/profile after it sets PATH anew: puts the
 # toolchain Apelin's terminal named in APELIN_TOOLCHAIN_BIN back in front.
-login_profile="$packaging_root/profile.d/wiki.qaq.apelin.sh"
+login_profile="$packaging_root/profile.d/wiki.qaq.apelin.cn.sh"
 [[ -f "$login_profile" ]] || { echo "error: missing packaging input: $login_profile" >&2; exit 66; }
 /bin/sh -n "$login_profile" || { echo "error: $login_profile is not valid sh" >&2; exit 65; }
 
@@ -58,9 +58,9 @@ login_profile="$packaging_root/profile.d/wiki.qaq.apelin.sh"
 # with Packaging/ApelinWidgets.entitlements, sharing one App Group with the
 # app and nothing else.
 widget_appex=ApelinWidgets.appex
-widget_bundle_identifier=wiki.qaq.apelin.widgets
+widget_bundle_identifier=wiki.qaq.apelin.cn.widgets
 widget_entitlements="$packaging_root/ApelinWidgets.entitlements"
-app_group=group.wiki.qaq.apelin
+app_group=group.wiki.qaq.apelin.cn
 
 [[ -d "$app_bundle" && -f "$app_bundle/Info.plist" ]] || { echo "error: $app_bundle is not a complete app bundle; expected a directory containing Info.plist" >&2; exit 66; }
 [[ -x "$daemon_binary" ]] || { echo "error: daemon binary is missing" >&2; exit 66; }
@@ -140,8 +140,8 @@ for native_binary in "${native_binaries[@]}"; do
 done
 
 bundle_identifier="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_bundle/Info.plist")"
-[[ "$bundle_identifier" == wiki.qaq.apelin && -x "$app_bundle/$app_executable" ]] || {
-    echo "error: $app_bundle is not the Apelin app; expected bundle ID wiki.qaq.apelin and an executable $app_executable" >&2
+[[ "$bundle_identifier" == wiki.qaq.apelin.cn && -x "$app_bundle/$app_executable" ]] || {
+    echo "error: $app_bundle is not the Apelin app; expected bundle ID wiki.qaq.apelin.cn and an executable $app_executable" >&2
     exit 65
 }
 
@@ -214,9 +214,9 @@ debian="$staging/DEBIAN"
 installed_root="$staging$install_prefix"
 installed_app="$installed_root/Applications/Apelin.app"
 installed_daemon="$installed_root/usr/libexec/apelind"
-installed_plist="$installed_root/Library/LaunchDaemons/wiki.qaq.apelind.plist"
+installed_plist="$installed_root/Library/LaunchDaemons/wiki.qaq.apelind.cn.plist"
 installed_workers="$installed_root/usr/libexec/apelin"
-installed_profile="$installed_root/etc/profile.d/wiki.qaq.apelin.sh"
+installed_profile="$installed_root/etc/profile.d/wiki.qaq.apelin.cn.sh"
 mkdir -p "$debian" "$(dirname "$installed_app")" "$(dirname "$installed_daemon")" "$(dirname "$installed_plist")" "$installed_workers" \
     "$(dirname "$installed_profile")"
 cp "$login_profile" "$installed_profile"
@@ -350,7 +350,7 @@ require_app_group() {
 # every ad-hoc signed app needs before system frameworks draw. Spawning is the
 # daemon's alone — the app has no process API.
 ldid -e "$installed_app/$app_executable" >"$app_signed_entitlements"
-for key in wiki.qaq.apelin.client \
+for key in wiki.qaq.apelin.cn.client \
     platform-application \
     com.apple.private.security.no-sandbox \
     com.apple.private.security.storage.AppBundles \
@@ -361,7 +361,7 @@ done
     echo "error: app is missing the GPU iokit-user-client-class list" >&2
     exit 65
 }
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.exception.mach-lookup.global-name:0' "$app_signed_entitlements")" == wiki.qaq.apelin.service ]] || {
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.exception.mach-lookup.global-name:0' "$app_signed_entitlements")" == wiki.qaq.apelin.cn.service ]] || {
     echo "error: app is missing the daemon mach lookup entitlement" >&2
     exit 65
 }
@@ -401,7 +401,7 @@ require_app_group "$app_signed_entitlements" "the app"
 widget_signed_entitlements="$scratch/widget-entitlements.plist"
 ldid -e "$installed_widget/$widget_executable" >"$widget_signed_entitlements"
 require_app_group "$widget_signed_entitlements" "$widget_appex"
-for key in wiki.qaq.apelin.client \
+for key in wiki.qaq.apelin.cn.client \
     wiki.qaq.irisin.client \
     platform-application \
     com.apple.private.security.no-sandbox \
@@ -431,7 +431,7 @@ done
     echo "error: apelind is missing the usernotifications bundle-identifiers entitlement for $bundle_identifier" >&2
     exit 65
 }
-require_absent "$daemon_signed_entitlements" wiki.qaq.apelin.client apelind
+require_absent "$daemon_signed_entitlements" wiki.qaq.apelin.cn.client apelind
 require_absent "$daemon_signed_entitlements" com.apple.security.iokit-user-client-class apelind
 
 # The workers: platform and unsandboxed, and never a way into the public
@@ -443,7 +443,7 @@ for worker in "${workers[@]}"; do
     for key in platform-application com.apple.private.security.no-sandbox; do
         require_true "$worker_signed_entitlements" "$key"
     done
-    require_absent "$worker_signed_entitlements" wiki.qaq.apelin.client "$worker"
+    require_absent "$worker_signed_entitlements" wiki.qaq.apelin.cn.client "$worker"
     require_absent "$worker_signed_entitlements" wiki.qaq.irisin.client "$worker"
     require_absent "$worker_signed_entitlements" com.apple.private.usernotifications.bundle-identifiers "$worker"
     require_absent "$worker_signed_entitlements" com.apple.security.exception.mach-lookup.global-name "$worker"
@@ -482,7 +482,7 @@ dpkg-deb --root-owner-group -Zzstd -b "$staging" "$temporary_deb"
 # default and removing one is not an error; it never depends on one, and
 # never depends on, recommends or suggests an agent tool extension (some
 # are GPL, and the user installs them on purpose).
-[[ "$(dpkg-deb -f "$temporary_deb" Recommends)" == "wiki.qaq.apelin.dev.app, wiki.qaq.apelin.dev.tweak, wiki.qaq.apelin.dev.cli, wiki.qaq.apelin.dev.preferences" ]] || {
+[[ "$(dpkg-deb -f "$temporary_deb" Recommends)" == "wiki.qaq.apelin.cn.dev.app, wiki.qaq.apelin.cn.dev.tweak, wiki.qaq.apelin.cn.dev.cli, wiki.qaq.apelin.cn.dev.preferences" ]] || {
     echo "error: Recommends must name exactly the four development extensions" >&2
     exit 65
 }
@@ -490,7 +490,7 @@ if dpkg-deb -f "$temporary_deb" Depends Pre-Depends | grep -qE 'wiki\.qaq\.apeli
     echo "error: the IDE must not depend on an extension; list development extensions under Recommends and leave agent tools out" >&2
     exit 65
 fi
-if dpkg-deb -f "$temporary_deb" Recommends Suggests | grep -qF 'wiki.qaq.apelin.agent-tools.'; then
+if dpkg-deb -f "$temporary_deb" Recommends Suggests | grep -qF 'wiki.qaq.apelin.cn.agent-tools.'; then
     echo "error: the IDE recommends or suggests an agent tool extension" >&2
     exit 65
 fi
@@ -511,8 +511,8 @@ done
 for library in "${worker_runtime_libraries[@]}"; do
     grep -F ".$install_prefix/usr/libexec/apelin/$library" <<<"$contents" >/dev/null
 done
-grep -F ".$install_prefix/Library/LaunchDaemons/wiki.qaq.apelind.plist" <<<"$contents" >/dev/null
-grep -F ".$install_prefix/etc/profile.d/wiki.qaq.apelin.sh" <<<"$contents" >/dev/null
+grep -F ".$install_prefix/Library/LaunchDaemons/wiki.qaq.apelind.cn.plist" <<<"$contents" >/dev/null
+grep -F ".$install_prefix/etc/profile.d/wiki.qaq.apelin.cn.sh" <<<"$contents" >/dev/null
 
 mv -f "$temporary_deb" "$output_deb"
 echo "Packaged Apelin ($flavor): $output_deb"

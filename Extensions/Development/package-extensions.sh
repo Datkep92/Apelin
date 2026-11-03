@@ -55,7 +55,7 @@ manifest = apelin_schema.load_json(sys.argv[2])
 field = sys.argv[3]
 if field == "depends":
     flavor = sys.argv[4]
-    relations = [f"wiki.qaq.apelin (>= {manifest['apelinCompatibility']['minimumAppVersion']})"]
+    relations = [f"wiki.qaq.apelin.cn (>= {manifest['apelinCompatibility']['minimumAppVersion']})"]
     relations += manifest["requirements"].get("runtimeDependencies", {}).get(flavor, [])
     for component in manifest.get("support", {}).values():
         for relation in component.get("runtimeDependencies", {}).get(flavor, []):

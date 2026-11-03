@@ -14,7 +14,7 @@ import Foundation
 /// again after it restarted (`resumed`) keeps its build ID and starts over:
 /// the artifact record and folder the lost run left are removed first.
 public final class BuildWorker: @unchecked Sendable {
-    private static let emptyWorkspaceTemplateID = "wiki.qaq.apelin.workspace/empty"
+    private static let emptyWorkspaceTemplateID = "wiki.qaq.apelin.cn.workspace/empty"
 
     public let installRoot: String
     public let home: String
@@ -114,7 +114,7 @@ public final class BuildWorker: @unchecked Sendable {
         ExtensionListResponse(
             extensions: [
                 DevelopmentExtension(
-                    id: "wiki.qaq.apelin.workspace",
+                    id: "wiki.qaq.apelin.cn.workspace",
                     version: "1",
                     kind: .workspace,
                     displayName: "Workspace",

@@ -4,7 +4,7 @@ import Darwin
 import Foundation
 
 /// A project's folder, found as mobile by the `projectID` in its
-/// `apelin-project.json`, under `~/Documents/wiki.qaq.apelin/Projects/` and
+/// `apelin-project.json`, under `~/Documents/wiki.qaq.apelin.cn/Projects/` and
 /// nowhere else. Canonical paths, compared by component.
 enum ProjectFolders {
     /// Where a project's dSYMs are: apelin-build keeps each build's outputs in

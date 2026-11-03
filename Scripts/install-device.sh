@@ -5,7 +5,7 @@
 # local port to its sshd. A vphone VM answers on its own address, port 22
 # (`make vphone`, which finds it). `Scripts/device.py` runs console scripts there.
 #
-#   Scripts/install-device.sh build/Packages/wiki.qaq.apelin_0.1.0_iphoneos-arm64.deb
+#   Scripts/install-device.sh build/Packages/wiki.qaq.apelin.cn_0.1.0_iphoneos-arm64.deb
 #
 # With --app it puts a built Apelin.app over the installed one instead
 # (`make vphone-app`, the inner loop while working on the app): signed as
@@ -160,7 +160,7 @@ fi
 # bootstrap from dpkg instead of guessing a rootless or roothide prefix.
 remote_directory="$(run_sudo '
     set -eu
-    if ! daemon="$(dpkg -L wiki.qaq.apelin | grep "/usr/libexec/apelind$")" || [ ! -f "$daemon" ]; then
+    if ! daemon="$(dpkg -L wiki.qaq.apelin.cn | grep "/usr/libexec/apelind$")" || [ ! -f "$daemon" ]; then
         echo "error: cannot locate the installed Apelin daemon; install Apelin before using this updater" >&2
         exit 1
     fi
@@ -212,7 +212,7 @@ if [[ $mode == app ]]; then
     # goes aside by a rename on the same volume and comes back if the new
     # one cannot take its place.
     run_sudo "directory=$(shell_quote "$remote_directory"); "'set -eu
-        app="$(dpkg -L wiki.qaq.apelin | grep "/Applications/Apelin.app$")"
+        app="$(dpkg -L wiki.qaq.apelin.cn | grep "/Applications/Apelin.app$")"
         cd "$directory"
         tar -xf app.tar
         rm -f app.tar
@@ -245,9 +245,9 @@ staging=
 # previous build's Info.plist from the record. Register this bundle by its
 # path, which is what uikittools' trigger would not do for an installed app.
 echo "==> registering the app"
-run_sudo 'app="$(dpkg -L wiki.qaq.apelin | grep "/Applications/Apelin.app$")" && uicache -p "$app"'
+run_sudo 'app="$(dpkg -L wiki.qaq.apelin.cn | grep "/Applications/Apelin.app$")" && uicache -p "$app"'
 
 if $launch; then
     echo "==> opening Apelin"
-    run_remote "uiopen --bundleid wiki.qaq.apelin"
+    run_remote "uiopen --bundleid wiki.qaq.apelin.cn"
 fi

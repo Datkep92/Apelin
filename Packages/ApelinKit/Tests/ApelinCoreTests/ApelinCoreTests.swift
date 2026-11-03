@@ -51,8 +51,8 @@ final class ProjectNameTests: XCTestCase {
 
     func testProjectDirectory() {
         let folder = DataFolder(home: "/var/mobile")
-        XCTAssertEqual(folder.root.path, "/var/mobile/Documents/wiki.qaq.apelin")
-        XCTAssertEqual(folder.project(named: "Hello")?.path, "/var/mobile/Documents/wiki.qaq.apelin/Projects/Hello")
+        XCTAssertEqual(folder.root.path, "/var/mobile/Documents/wiki.qaq.apelin.cn")
+        XCTAssertEqual(folder.project(named: "Hello")?.path, "/var/mobile/Documents/wiki.qaq.apelin.cn/Projects/Hello")
         XCTAssertNil(folder.project(named: "../x"))
     }
 

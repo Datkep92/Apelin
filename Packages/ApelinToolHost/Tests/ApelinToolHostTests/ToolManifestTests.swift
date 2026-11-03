@@ -7,7 +7,7 @@ import XCTest
 /// the test's user, so the policy asks for that owner instead of root.
 final class ToolManifestTests: XCTestCase {
     private var root = ""
-    private let id = "wiki.qaq.apelin.agent-tools.sample"
+    private let id = "wiki.qaq.apelin.cn.agent-tools.sample"
     private var policy: ToolManifestPolicy {
         ToolManifestPolicy(requiredOwner: getuid())
     }
@@ -108,9 +108,9 @@ final class ToolManifestTests: XCTestCase {
 
     func testDiscoveryIsolatesABadManifest() throws {
         var broken = manifest()
-        broken.id = "wiki.qaq.apelin.agent-tools.broken"
+        broken.id = "wiki.qaq.apelin.cn.agent-tools.broken"
         broken.executable = "usr/libexec/missing"
-        try writeManifest(broken, id: "wiki.qaq.apelin.agent-tools.broken")
+        try writeManifest(broken, id: "wiki.qaq.apelin.cn.agent-tools.broken")
         let found = ToolManifestValidator.discover(installRoot: root, policy: policy)
         XCTAssertEqual(found.count, 2)
         XCTAssertEqual(found.compactMap { try? $0.get().manifest.id }, [id])
@@ -121,12 +121,12 @@ final class ToolManifestTests: XCTestCase {
                 nil
             }
         },
-        ["wiki.qaq.apelin.agent-tools.broken"])
+        ["wiki.qaq.apelin.cn.agent-tools.broken"])
     }
 
     func testClientStartsFromAValidatedManifest() async throws {
         var fake = manifest()
-        fake.id = "wiki.qaq.apelin.agent-tools.fake"
+        fake.id = "wiki.qaq.apelin.cn.agent-tools.fake"
         fake.licenseFiles = nil
         try writeManifest(fake, id: fake.id)
         let validated = try ToolManifestValidator.validate(installRoot: root, id: fake.id, policy: policy)

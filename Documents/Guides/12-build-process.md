@@ -23,15 +23,15 @@
 1. Xác nhận run status = success và artifact `apelin-<full sha>` đã tạo.
 2. Tải artifact về máy:
    - `TMPDIR=/tmp gh run download <run-id> -R Datkep92/Apelin -n apelin-<sha> -D /tmp/apelin-art`
-3. Chỉ giữ file `.deb` rootless cho máy này: `wiki.qaq.apelin_<version>_iphoneos-arm64.deb`.
+3. Chỉ giữ file `.deb` rootless cho máy này: `wiki.qaq.apelin.cn_<version>_iphoneos-arm64.deb`.
 4. Copy vào `~/Downloads/` để lưu trữ.
 5. Kiểm tra SHA256 (đối chiếu với artifact).
 6. Cài đặt bản deb mới:
    - Chạy root: `icli pkg install /var/mobile/Downloads/<file>.deb`
    - Đảm bảo `scripts_not_run` gồm postinst/postrm/prerm (không chạy maintainer script).
 7. Đóng app cũ và mở lại:
-   - `icli app kill wiki.qaq.apelin --force`
-   - `icli app launch wiki.qaq.apelin`
+   - `icli app kill wiki.qaq.apelin.cn --force`
+   - `icli app launch wiki.qaq.apelin.cn`
 8. Không restart `apelind` nếu chưa có đồng ý (tránh ngắt phiên).
 
 ## 4. Nếu build thất bại

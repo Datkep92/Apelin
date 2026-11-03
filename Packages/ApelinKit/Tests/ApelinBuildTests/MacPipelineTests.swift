@@ -34,7 +34,7 @@ final class MacPipelineTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, store) = try makeHome(in: scratch)
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.tweak/objc-hook", name: "Hello Tweak", values: [
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.tweak/objc-hook", name: "Hello Tweak", values: [
             "packageID": .string("com.example.hellotweak"),
         ], catalog: catalog, registry: registry)
 
@@ -104,7 +104,7 @@ final class MacPipelineTests: XCTestCase {
             XCTAssertEqual(control.package, "com.example.hellotweak")
             XCTAssertEqual(control.architecture, record.architecture)
             XCTAssertEqual(control["Depends"], "firmware (>= 16.0), mobilesubstrate")
-            let icon = "https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.dev.tweak.png"
+            let icon = "https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.cn.dev.tweak.png"
             XCTAssertEqual(control["Icon"], icon, "the template's package icon")
             let prefix = bootstrap == .rootless ? "/var/jb" : ""
             let paths = Set(contents.entries.map(\.path))
@@ -166,7 +166,7 @@ final class MacPipelineTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, store) = try makeHome(in: scratch)
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.cli/c", name: "Broken", values: [:], catalog: catalog, registry: registry)
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.cli/c", name: "Broken", values: [:], catalog: catalog, registry: registry)
         let source = created.root.appendingPathComponent("Sources/main.c")
         try (String(contentsOf: source, encoding: .utf8) + "\nint broken(void) { return undeclared_name; }\n").write(to: source, atomically: true, encoding: .utf8)
         let lineCount = try String(contentsOf: source, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false).count - 1
@@ -192,7 +192,7 @@ final class MacPipelineTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, store) = try makeHome(in: scratch)
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.cli/objc", name: "Tool", values: [:], catalog: catalog, registry: registry)
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.cli/objc", name: "Tool", values: [:], catalog: catalog, registry: registry)
         let inputs = try BuildInputs.resolve(buildID: "tool-build", projectID: created.projectID, configuration: .debug, store: store, catalog: catalog, registry: registry, installRoot: "/var/jb", home: home.path, bootstrap: .rootless)
         let result = try BuildService.build(inputs: inputs, store: store, reporter: Collector(), cancellation: BuildCancellation())
         let product = try XCTUnwrap(result.products.products.first)
@@ -220,7 +220,7 @@ final class MacPipelineTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, store) = try makeHome(in: scratch)
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.preferences/objc-bundle", name: "Coded Pane", values: [:], catalog: catalog, registry: registry)
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.preferences/objc-bundle", name: "Coded Pane", values: [:], catalog: catalog, registry: registry)
         try Data(Self.codedPane.utf8).write(to: created.root.appendingPathComponent("Sources/CodedListController.m"))
 
         for bootstrap in [Bootstrap.roothide, .rootless] {
@@ -286,7 +286,7 @@ final class MacPipelineTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, store) = try makeHome(in: scratch)
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.cli/c", name: "Changing", values: [:], catalog: catalog, registry: registry)
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.cli/c", name: "Changing", values: [:], catalog: catalog, registry: registry)
         let manifest = created.root.appendingPathComponent("apelin-project.json")
         var document = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: manifest)) as? [String: Any])
         var build = try XCTUnwrap(document["build"] as? [String: Any])
@@ -317,7 +317,7 @@ final class MacPipelineTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let (home, store) = try makeHome(in: scratch)
         let catalog = ExtensionCatalog(directory: Repository.extensions)
-        let created = try store.create(templateID: "wiki.qaq.apelin.dev.cli/c", name: "Moving", values: [:], catalog: catalog, registry: registry)
+        let created = try store.create(templateID: "wiki.qaq.apelin.cn.dev.cli/c", name: "Moving", values: [:], catalog: catalog, registry: registry)
         let manifest = created.root.appendingPathComponent("apelin-project.json")
         func edit(_ change: (inout [String: Any]) -> Void) throws {
             var document = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: manifest)) as? [String: Any])

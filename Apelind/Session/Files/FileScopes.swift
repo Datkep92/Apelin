@@ -11,8 +11,8 @@ import Foundation
 ///
 /// | scope | root |
 /// |---|---|
-/// | a project ID, or `project:<name>` | `~/Documents/wiki.qaq.apelin/Projects/<name>/` |
-/// | `sdk:<id>` | `~/Documents/wiki.qaq.apelin/SDKs/<id>/` |
+/// | a project ID, or `project:<name>` | `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/` |
+/// | `sdk:<id>` | `~/Documents/wiki.qaq.apelin.cn/SDKs/<id>/` |
 /// | `extension:<id>` | `<install root>/usr/share/apelin/development/<id>/` |
 /// | `agent-tools:<id>` | `<install root>/usr/share/apelin/agent-tools/<id>/` |
 /// | `grant:<grantID>` | the one file a protected-edit grant names (app only) |

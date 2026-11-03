@@ -19,7 +19,7 @@ import Foundation
 struct HostDigestLedger: ApprovalDigestStore {
     let service: ApelinService
     let projectURL: URL
-    /// `~/Documents/wiki.qaq.apelin`, whose `Builds/artifacts/` apelin-build
+    /// `~/Documents/wiki.qaq.apelin.cn`, whose `Builds/artifacts/` apelin-build
     /// records each package in.
     let dataFolder: URL
 

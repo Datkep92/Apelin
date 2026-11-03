@@ -3,7 +3,7 @@
 
 The device half of "where things get tested". Everything privileged is
 proven through the console (Documents/Console.md): a script dropped into
-`~/Documents/wiki.qaq.apelin/console/inbox/`, the app brought to the front,
+`~/Documents/wiki.qaq.apelin.cn/console/inbox/`, the app brought to the front,
 the result read from `console/out/<runID>.jsonl`. This tool does those three
 things over ssh, follows the run as it writes, and does what a person at the
 device used to do around it: the root setup a script lists, killing the
@@ -51,7 +51,7 @@ RESULTS = ROOT / 'build' / 'Device'
 INSTALLER = ROOT / 'Scripts' / 'install-device.sh'
 LAUNCHPAD = Path('/Applications/vphone-launchpad.app/Contents/MacOS/vphone-launchpad-cli')
 
-BUNDLE_ID = 'wiki.qaq.apelin'
+BUNDLE_ID = 'wiki.qaq.apelin.cn'
 APP_PROCESS = 'Apelin'
 CRASH_PREFIXES = ('Apelin', 'apelind', 'apelin-', 'panic-')
 
@@ -532,13 +532,13 @@ class Target:
     def gather(self):
         """Reads what the harness decides by: where things are, what is installed."""
         output = self.text(r'''
-data="$HOME/Documents/wiki.qaq.apelin"
+data="$HOME/Documents/wiki.qaq.apelin.cn"
 echo; echo "@@home"; printf '%s\n' "$HOME"
 echo; echo "@@arch"; dpkg --print-architecture 2>/dev/null
 echo; echo "@@root"
-daemon=$(dpkg -L wiki.qaq.apelin 2>/dev/null | grep '/usr/libexec/apelind$' | head -1)
+daemon=$(dpkg -L wiki.qaq.apelin.cn 2>/dev/null | grep '/usr/libexec/apelind$' | head -1)
 [ -n "$daemon" ] && (cd -P "${daemon%/usr/libexec/apelind}/" 2>/dev/null && pwd -P)
-echo; echo "@@app"; dpkg -L wiki.qaq.apelin 2>/dev/null | grep '/Applications/Apelin.app$' | head -1
+echo; echo "@@app"; dpkg -L wiki.qaq.apelin.cn 2>/dev/null | grep '/Applications/Apelin.app$' | head -1
 echo; echo "@@packages"; dpkg-query -W -f='${db:Status-Abbrev}\t${Package}\t${Version}\t${Provides}\n' 2>/dev/null | grep '^ii'
 echo; echo "@@toolchains"; cat "$data/Environment/Toolchains/registry.json" 2>/dev/null
 echo; echo "@@sdks"; ls -A "$data/SDKs" 2>/dev/null
@@ -588,7 +588,7 @@ echo; echo "@@end"
         install_root = one('root')
         self.facts = {
             'home': home,
-            'data': f'{home}/Documents/wiki.qaq.apelin',
+            'data': f'{home}/Documents/wiki.qaq.apelin.cn',
             'arch': one('arch'),
             'root': install_root,
             'jb': install_root.rstrip('/'),
@@ -1111,11 +1111,11 @@ def command_status(target, arguments):
     say(f'{Style.bold("Apelin    ")}{version}, build {build or "?"}{same if build and local else ""}; '
         f'app {"running" if facts["appRunning"] else "not running"}')
     interesting = [(package, v) for package, v in sorted(facts['packages'].items())
-                   if package.startswith('wiki.qaq.apelin.') or package in ('wiki.qaq.irisin', 'ellekit', 'wiki.qaq.icli')
+                   if package.startswith('wiki.qaq.apelin.cn.') or package in ('wiki.qaq.irisin', 'ellekit', 'wiki.qaq.icli')
                    or package.startswith('local.apelin.') or package == 'com.example.apelin-smoke']
     say(f'{Style.bold("Packages  ")}' + (', '.join(f'{p} {v}' for p, v in interesting) or 'none beside Apelin'))
     daemon = target.text(r'''
-launchctl print system/wiki.qaq.apelind 2>/dev/null | awk -F' = ' '/^\t(state|pid) = /{printf "%s %s ", $1, $2}' | tr -d '\t'
+launchctl print system/wiki.qaq.apelind.cn 2>/dev/null | awk -F' = ' '/^\t(state|pid) = /{printf "%s %s ", $1, $2}' | tr -d '\t'
 pid=$(cat "$JB/var/lib/apelin/session.pid" 2>/dev/null) && kill -0 "$pid" 2>/dev/null && echo "session-host $pid"
 ''', root=True, check=False)
     say(f'{Style.bold("Daemon    ")}{" ".join(daemon.split()) or "not running (it starts on demand)"}')

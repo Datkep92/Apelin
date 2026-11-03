@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 
 /// Copies of what a write replaces, kept outside the project so a rollback
-/// never lands in the user's repository: `~/Documents/wiki.qaq.apelin/
+/// never lands in the user's repository: `~/Documents/wiki.qaq.apelin.cn/
 /// backups/<project>/`, beside `Projects/`.
 ///
 /// A copy's name carries what finds it again — `<epoch-ms>-<path hash>-

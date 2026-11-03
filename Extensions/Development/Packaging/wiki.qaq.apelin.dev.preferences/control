@@ -1,4 +1,4 @@
-Package: wiki.qaq.apelin.dev.preferences
+Package: wiki.qaq.apelin.cn.dev.preferences
 Name: Apelin Preference Bundle Development
 Version: @VERSION@
 Architecture: @ARCHITECTURE@
@@ -8,12 +8,12 @@ Description: Settings pane templates for Apelin, for @FLAVOR@ jailbreaks
  shows it in Settings, and declarations for the private Preferences
  framework. Needs PreferenceLoader, which your preferred package manager
  installs with it.
-Icon: https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.dev.preferences.png
+Icon: https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.cn.dev.preferences.png
 Depiction: https://owngoal-dev.github.io/Apelin/
 Maintainer: OwnGoal Studio <not-gonna-reply@owngoal.dev>
 Author: OwnGoal Studio <not-gonna-reply@owngoal.dev>
 Section: Development
 Priority: optional
 Depends: @DEPENDS@
-Enhances: wiki.qaq.apelin
+Enhances: wiki.qaq.apelin.cn
 Installed-Size: @INSTALLED_SIZE@

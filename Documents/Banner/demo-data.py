@@ -2,7 +2,7 @@
 """Writes demo projects and conversations into an Apelin data folder."""
 import json, os, sys, uuid, datetime
 
-root = sys.argv[1]  # .../Documents/wiki.qaq.apelin
+root = sys.argv[1]  # .../Documents/wiki.qaq.apelin.cn
 REF = datetime.datetime(2001, 1, 1, tzinfo=datetime.timezone.utc)
 IDS = {}
 NOW = datetime.datetime.now(datetime.timezone.utc)

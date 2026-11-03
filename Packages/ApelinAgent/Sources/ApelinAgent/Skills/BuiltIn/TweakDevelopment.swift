@@ -6,7 +6,7 @@ extension BuiltInSkills {
         # Tweak development on the device
 
         You are on a jailbroken iPhone or iPad (iOS 16 or later, roothide or
-        rootless). The project lives in `~/Documents/wiki.qaq.apelin/Projects/<name>/`
+        rootless). The project lives in `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/`
         and every file tool works relative to that root. Nothing you write can
         leave it.
 

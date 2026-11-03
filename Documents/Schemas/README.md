@@ -4,7 +4,7 @@ Two documents, both JSON, both versioned, both read and never executed:
 
 | File | Lives at | Schema |
 |---|---|---|
-| `apelin-project.json` | `~/Documents/wiki.qaq.apelin/Projects/<name>/` | [`apelin-project.schema.json`](apelin-project.schema.json) |
+| `apelin-project.json` | `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/` | [`apelin-project.schema.json`](apelin-project.schema.json) |
 | development extension `manifest.json` | `<install-root>/usr/share/apelin/development/<id>/` | [`extension-manifest.schema.json`](extension-manifest.schema.json) |
 
 The schemas are JSON Schema draft 2020-12. This file is the specification:
@@ -224,7 +224,7 @@ Members, after Milestone 1 §5.2:
 |---|---|
 | `schemaVersion`, `id`, `version`, `kind` | `1`; reverse-DNS id equal to the package id and the folder name; `x.y.z` version equal to the package version; one of the four kinds. |
 | `displayName`, `summary` | English source text, resolved against the app's catalogue. |
-| `apelinCompatibility` | `{minimumAppVersion, projectSchemaVersions, manifestSchemaVersion: 1}`. The packager turns `minimumAppVersion` into `Depends: wiki.qaq.apelin (>= …)`. |
+| `apelinCompatibility` | `{minimumAppVersion, projectSchemaVersions, manifestSchemaVersion: 1}`. The packager turns `minimumAppVersion` into `Depends: wiki.qaq.apelin.cn (>= …)`. |
 | `requirements` | `{toolchainComponents, languages, sdkFrameworks?, bootstraps, architectures, runtimeDependencies?}`. `architectures` has exactly the `bootstraps` (beyond the schema). `runtimeDependencies` are what packages built from the templates need on the device, per bootstrap, as virtual package names; the extension package depends on them too, so a template that builds also runs. |
 | `support` | Named components: `{summary, includeDirectories?, linkStubDirectories?, libraries?, frameworks?, rpaths?, installNames?, symbols?, architectures, runtimeDependencies?, spdx, license}`. Stubs are hand-written `.tbd` link inputs, never loaded. `rpaths` may start with `@PREFIX@`, which the build replaces. `symbols` is the declared compatible set; the stubs declare exactly those and the install names in `installNames`. |
 | `templates` | `{id, directory: "templates/<id>", displayName, summary, language, toolchainComponents?, project: "apelin-project.json", parameters, files, digest}`. |

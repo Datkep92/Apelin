@@ -1,7 +1,7 @@
 import ApelinCore
 
 // Development extensions, templates, projects under
-// ~/Documents/wiki.qaq.apelin/Projects/<name>/ and their checks.
+// ~/Documents/wiki.qaq.apelin.cn/Projects/<name>/ and their checks.
 // Served by apelin-build (Workers/Build; ApelinProject).
 
 public enum DevelopmentExtensionKind: String, Codable, Sendable {

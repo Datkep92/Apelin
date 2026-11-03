@@ -24,7 +24,7 @@ find_tool() {
 # can then make nothing beside it. A level that exists is left as it is, and
 # a symlink is never followed: mobile could plant one to have root hand it
 # some other directory.
-app_data=/var/mobile/Documents/wiki.qaq.apelin
+app_data=/var/mobile/Documents/wiki.qaq.apelin.cn
 mobile_dir() {
     if [ -L "$1" ]; then
         return 1
@@ -45,7 +45,7 @@ done
 # space before a redirect turns `system/<id> 2>/dev/null` into
 # `system/<id>2>/dev/null`: still valid sh, so `sh -n` passes, but launchctl is
 # handed the wrong label and its errors are no longer silenced.
-label=wiki.qaq.apelind
+label=wiki.qaq.apelind.cn
 launch_plist="@PREFIX@/Library/LaunchDaemons/$label.plist"
 # A successful bootstrap reply alone does not prove a job was registered.
 loaded() {

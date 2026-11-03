@@ -86,7 +86,7 @@ Apelin 环境任务 ID：
 
 Apelin installation ID：`80cc46ea-15a6-454d-982d-f15f7473939b`
 
-目标包：`wiki.qaq.apelin.toolchain.b7c9ecde91f0cca89ea0594f`
+目标包：`wiki.qaq.apelin.cn.toolchain.b7c9ecde91f0cca89ea0594f`
 
 版本：`27.0+b7c9ecde`
 

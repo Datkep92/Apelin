@@ -13,7 +13,7 @@ ROOT=${HERE:h:h}
 WORK=$ROOT/build/Banner
 DERIVED=/private/tmp/apelin-banner-deriveddata
 SIMULATOR=${SIMULATOR:-iPhone 18 Pro}
-BUNDLE=wiki.qaq.apelin
+BUNDLE=wiki.qaq.apelin.cn
 # One screenshot per slot, in slot order: Screenshot 1 is the largest.
 CHATS=("Frosted Dock" "Choosing a Toolchain" "Battery Health" "Heart Rate Chart"
     "Why Did SpringBoard Crash?" "Publish to My Repository")

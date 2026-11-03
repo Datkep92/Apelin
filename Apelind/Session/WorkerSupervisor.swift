@@ -53,7 +53,7 @@ actor WorkerSupervisor {
 
     private let installRoot: String
     private let home: String
-    private let queue = DispatchQueue(label: "wiki.qaq.apelind.workers")
+    private let queue = DispatchQueue(label: "wiki.qaq.apelind.cn.workers")
     private var workers: [Key: WorkerProcess] = [:]
     private var starting: [Key: Task<WorkerProcess, Error>] = [:]
 

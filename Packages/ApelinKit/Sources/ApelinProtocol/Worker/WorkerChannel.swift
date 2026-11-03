@@ -144,7 +144,7 @@ public final class WorkerChannel: @unchecked Sendable {
 
     public func start() {
         let thread = Thread { [self] in readLoop() }
-        thread.name = "wiki.qaq.apelin.channel"
+        thread.name = "wiki.qaq.apelin.cn.channel"
         thread.start()
     }
 

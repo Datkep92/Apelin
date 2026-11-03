@@ -3,7 +3,7 @@
 ## Identity
 - Upstream: `owngoal-dev/Apelin`.
 - Fork: `Datkep92/Apelin`.
-- Package id and bundle id unchanged (`wiki.qaq.apelin`).
+- Package id and bundle id unchanged (`wiki.qaq.apelin.cn`).
 - Main branch main current upstream base + personalization.
 
 ## MUST maintain

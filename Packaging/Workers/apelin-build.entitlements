@@ -4,8 +4,8 @@
 	apelin-build, started by apelind's session host as mobile.
 	Compiles, links, signs and packages one build inside the project folder.
 
-	Never `wiki.qaq.apelin.client` and never the Mach-lookup of
-	`wiki.qaq.apelin.service`: a worker reaches the session host only
+	Never `wiki.qaq.apelin.cn.client` and never the Mach-lookup of
+	`wiki.qaq.apelin.cn.service`: a worker reaches the session host only
 	through the socketpair it was spawned with, and the packager refuses
 	either key here. Add what the domain needs, with the reason, in this
 	file only.

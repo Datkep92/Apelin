@@ -16,7 +16,7 @@ final class HTMLPlaygroundController: UIViewController {
 
     /// Shared file path the AI agent can write HTML to for display.
     static let sharedFilePath = (NSHomeDirectory() as NSString)
-        .appendingPathComponent("Documents/wiki.qaq.apelin/playground.html")
+        .appendingPathComponent("Documents/wiki.qaq.apelin.cn/playground.html")
 
     init(chatID: UUID) {
         self.chatID = chatID

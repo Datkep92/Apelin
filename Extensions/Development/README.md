@@ -8,12 +8,12 @@ reads the manifest and copies template files, the build reads headers and
 link stubs. The formats are specified in
 [`Documents/Schemas/README.md`](../../Documents/Schemas/README.md).
 
-| Package | Templates | Support | Depends (beyond `wiki.qaq.apelin (>= 0.1.0)`) |
+| Package | Templates | Support | Depends (beyond `wiki.qaq.apelin.cn (>= 0.1.0)`) |
 |---|---|---|---|
-| `wiki.qaq.apelin.dev.app` | `uikit-objc`, `uikit-swift` (Swift component required) | — | `uikittools` |
-| `wiki.qaq.apelin.dev.tweak` | `objc-hook` | `substrate`: `substrate.h`, `libsubstrate.tbd` per bootstrap | `mobilesubstrate` |
-| `wiki.qaq.apelin.dev.cli` | `c`, `objc` | — | — |
-| `wiki.qaq.apelin.dev.preferences` | `objc-bundle` | `preferences`: `Preferences/PSListController.h`, `Preferences.framework/Preferences.tbd` | `preferenceloader` |
+| `wiki.qaq.apelin.cn.dev.app` | `uikit-objc`, `uikit-swift` (Swift component required) | — | `uikittools` |
+| `wiki.qaq.apelin.cn.dev.tweak` | `objc-hook` | `substrate`: `substrate.h`, `libsubstrate.tbd` per bootstrap | `mobilesubstrate` |
+| `wiki.qaq.apelin.cn.dev.cli` | `c`, `objc` | — | — |
+| `wiki.qaq.apelin.cn.dev.preferences` | `objc-bundle` | `preferences`: `Preferences/PSListController.h`, `Preferences.framework/Preferences.tbd` | `preferenceloader` |
 
 An extension depends on what the packages built from its templates need at
 run time (`requirements.runtimeDependencies` and its support components'),
@@ -54,7 +54,7 @@ as the app's `ProjectIconPreferences` image set draws it, which the entry's
 
 ## The hook API
 
-`wiki.qaq.apelin.dev.tweak` ships its own header and stubs; it does not
+`wiki.qaq.apelin.cn.dev.tweak` ships its own header and stubs; it does not
 assume the SDK has substrate interfaces.
 
 - `support/include/substrate.h` — MIT, written for Apelin from the published
@@ -78,7 +78,7 @@ rootless and roothide stubs link against (read from
 was copied). They are checked on the Mac by linking; on a device only
 by the D-stage acceptance run.
 
-`wiki.qaq.apelin.dev.preferences` does the same for the private Preferences
+`wiki.qaq.apelin.cn.dev.preferences` does the same for the private Preferences
 framework: its own declarations and a stub with the install name
 `/System/Library/PrivateFrameworks/Preferences.framework/Preferences`
 exporting `PSListController` (and its `_specifiers` ivar), `PSSpecifier` and
@@ -132,7 +132,7 @@ copy passes the manifest, template and digest checks. Output is
 **`Packaging/DEBIAN/control`** — add, after `Depends:`:
 
 ```
-Recommends: wiki.qaq.apelin.dev.app, wiki.qaq.apelin.dev.tweak, wiki.qaq.apelin.dev.cli, wiki.qaq.apelin.dev.preferences
+Recommends: wiki.qaq.apelin.cn.dev.app, wiki.qaq.apelin.cn.dev.tweak, wiki.qaq.apelin.cn.dev.cli, wiki.qaq.apelin.cn.dev.preferences
 ```
 
 The IDE stays free of any injection framework: only the tweak extension

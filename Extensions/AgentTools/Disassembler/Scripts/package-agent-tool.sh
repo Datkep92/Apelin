@@ -211,7 +211,7 @@ if [[ -f "$entitlements" ]]; then
             exit 65
         }
     done
-    for key in wiki.qaq.apelin.client com.apple.private.security.storage.AppDataContainers \
+    for key in wiki.qaq.apelin.cn.client com.apple.private.security.storage.AppDataContainers \
         com.apple.security.get-task-allow task_for_pid-allow; do
         [[ -z "$(/usr/libexec/PlistBuddy -c "Print :$key" "$signed_entitlements" 2>/dev/null || true)" ]] || {
             echo "error: an agent tool must not carry $key" >&2

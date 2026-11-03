@@ -12,7 +12,7 @@ extension ApelinService {
 }
 
 extension DataFolder {
-    /// `~/Documents/wiki.qaq.apelin` as the app sees it: the app has no
+    /// `~/Documents/wiki.qaq.apelin.cn` as the app sees it: the app has no
     /// container, so its home is mobile's.
     static let app = DataFolder(home: mobileHome)
 

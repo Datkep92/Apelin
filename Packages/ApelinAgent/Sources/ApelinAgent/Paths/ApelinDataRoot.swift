@@ -1,14 +1,14 @@
 import Foundation
 
-/// `~/Documents/wiki.qaq.apelin` and the folders the agent uses inside it.
+/// `~/Documents/wiki.qaq.apelin.cn` and the folders the agent uses inside it.
 ///
 /// The home directory is mobile's (the app and `apelin-agent` have no
 /// container). Nothing here writes an install prefix: the home comes from the
 /// process, and tests pass their own.
 public struct ApelinDataRoot: Sendable, Hashable {
-    public static let bundleIdentifier = "wiki.qaq.apelin"
+    public static let bundleIdentifier = "wiki.qaq.apelin.cn"
 
-    /// `<home>/Documents/wiki.qaq.apelin`.
+    /// `<home>/Documents/wiki.qaq.apelin.cn`.
     public let url: URL
 
     public init(home: URL) {

@@ -72,7 +72,7 @@ Apelin là IDE on-device trên iOS/iPadOS 16+ jailbroken (roothide/rootless). Ag
 - Normalize DeepSeek/OpenAI-compatible reasoning context at stream boundary (`AgentSession`).
 
 ### 4.3 Data home
-- App data `~/Documents/wiki.qaq.apelin` (not container path after dfe14b9 fix).
+- App data `~/Documents/wiki.qaq.apelin.cn` (not container path after dfe14b9 fix).
 - Import from old container one-time.
 
 ### 4.4 Git/publish

@@ -15,7 +15,7 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>wiki.qaq.apelind</string>
+	<string>wiki.qaq.apelind.cn</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>@PREFIX@/usr/libexec/apelind</string>
@@ -29,7 +29,7 @@
 	<integer>18</integer>
 	<key>MachServices</key>
 	<dict>
-		<key>wiki.qaq.apelin.service</key>
+		<key>wiki.qaq.apelin.cn.service</key>
 		<true/>
 	</dict>
 	<key>SoftResourceLimits</key>

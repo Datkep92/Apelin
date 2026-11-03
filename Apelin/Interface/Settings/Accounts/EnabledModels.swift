@@ -2,7 +2,7 @@ import ApelinProtocol
 import Foundation
 
 extension Notification.Name {
-    static let enabledModelsChanged = Notification.Name("wiki.qaq.apelin.enabledModelsChanged")
+    static let enabledModelsChanged = Notification.Name("wiki.qaq.apelin.cn.enabledModelsChanged")
 }
 
 /// A device preference, separate from the provider's credentials and catalog.

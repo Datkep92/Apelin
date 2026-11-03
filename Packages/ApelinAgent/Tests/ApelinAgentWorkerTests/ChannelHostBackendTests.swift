@@ -101,7 +101,7 @@ struct Fixture {
         HostCallContext(sessionID: backend.sessionID, project: project, toolCallID: "call-1", approval: approval)
     }
 
-    /// Stands in for `~/Documents/wiki.qaq.apelin`: the project's parent.
+    /// Stands in for `~/Documents/wiki.qaq.apelin.cn`: the project's parent.
     var dataFolder: URL {
         projectURL.deletingLastPathComponent()
     }
@@ -282,8 +282,8 @@ struct ChannelHostBackendTests {
     func `a list template value is listed and sent as a JSON array`() async throws {
         let fixture = try Fixture()
         fixture.host.on(.extensionList, reply: ExtensionListResponse(extensions: [
-            DevelopmentExtension(id: "wiki.qaq.apelin.dev.tweak", version: "0.1.0", kind: .tweak, displayName: "Tweak Development", templates: [
-                TemplateSummary(id: "wiki.qaq.apelin.dev.tweak/objc-hook", displayName: "Objective-C Tweak", parameters: [
+            DevelopmentExtension(id: "wiki.qaq.apelin.cn.dev.tweak", version: "0.1.0", kind: .tweak, displayName: "Tweak Development", templates: [
+                TemplateSummary(id: "wiki.qaq.apelin.cn.dev.tweak/objc-hook", displayName: "Objective-C Tweak", parameters: [
                     TemplateParameter(name: "filterBundles", kind: "bundleIDList", defaultValue: .array([.string("com.apple.springboard")])),
                     TemplateParameter(name: "mixed", kind: "bundleIDList", defaultValue: .array([.string("a.b"), .number(1)])),
                 ]),
@@ -295,7 +295,7 @@ struct ChannelHostBackendTests {
         fixture.host.on(.projectCreate, reply: ProjectCreateResponse(projectID: "p-1", name: "Settings Tweak", path: "/p"))
         _ = try await fixture.backend.createProject(ProjectCreateToolRequest(
             context: fixture.context(),
-            templateID: "wiki.qaq.apelin.dev.tweak/objc-hook",
+            templateID: "wiki.qaq.apelin.cn.dev.tweak/objc-hook",
             name: "Settings Tweak",
             values: ["filterBundles": .list(["com.apple.springboard", "com.apple.Preferences"]), "displayName": .string("X")],
         ))
@@ -733,7 +733,7 @@ struct ChannelHostBackendTests {
             ("artifact", ApelinCore.JSONValue(encoding: ApelinProtocol.BuildArtifact(
                 artifactID: "art-1", digest: "sha256:ab", packageID: "wiki.qaq.hello", version: "0.0.1",
                 buildID: "B-7", bootstrap: "rootless", packagingDigest: "sha256:cd",
-                path: "/var/mobile/Documents/wiki.qaq.apelin/Builds/p/B-7/wiki.qaq.hello_0.0.1_iphoneos-arm64.deb", projectID: "p",
+                path: "/var/mobile/Documents/wiki.qaq.apelin.cn/Builds/p/B-7/wiki.qaq.hello_0.0.1_iphoneos-arm64.deb", projectID: "p",
             ))),
             stateEvent(.succeeded),
         ]))

@@ -30,7 +30,7 @@
       "infoPlist": "Resources/Info.plist",
       "objcARC": true,
       "frameworks": ["Foundation", "UIKit", "Preferences"],
-      "extensionSupport": [{ "extension": "wiki.qaq.apelin.dev.preferences", "component": "preferences" }]
+      "extensionSupport": [{ "extension": "wiki.qaq.apelin.cn.dev.preferences", "component": "preferences" }]
     }
   ],
   "build": {
@@ -49,7 +49,7 @@
     "name": "{{displayName}}",
     "version": "0.0.1",
     "description": "{{summary}}",
-    "icon": "https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.dev.preferences.png",
+    "icon": "https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.cn.dev.preferences.png",
     "author": "{{author}}",
     "section": "Addons",
     "depends": ["preferenceloader"],

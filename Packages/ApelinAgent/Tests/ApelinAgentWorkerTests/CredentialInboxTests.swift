@@ -90,7 +90,7 @@ struct CredentialInboxTests {
 
     @Test
     func `the inbox lives in the console's inbox folder in mobile's data folder`() {
-        #expect(CredentialInbox(home: "/var/mobile").directory.path == "/var/mobile/Documents/wiki.qaq.apelin/console/inbox/credentials")
+        #expect(CredentialInbox(home: "/var/mobile").directory.path == "/var/mobile/Documents/wiki.qaq.apelin.cn/console/inbox/credentials")
     }
 }
 

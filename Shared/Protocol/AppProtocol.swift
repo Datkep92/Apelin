@@ -4,8 +4,8 @@
 /// the workers and the Mac tests share them; this is what only the two XPC
 /// peers need.
 enum AppProtocol {
-    static let serviceName = "wiki.qaq.apelin.service"
-    static let clientEntitlement = "wiki.qaq.apelin.client"
+    static let serviceName = "wiki.qaq.apelin.cn.service"
+    static let clientEntitlement = "wiki.qaq.apelin.cn.client"
     /// Executables allowed to connect, relative to the install root. The app
     /// is the only public peer: workers reach the session host through the
     /// socketpair it made for them, never through this service.

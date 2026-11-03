@@ -187,7 +187,7 @@ struct SkillAndPromptTests {
     /// On a device, a VideoToolbox converter the agent built in shell_run
     /// failed `CVPixelBufferCreate` with -6662 until the user had it signed
     /// with the template's entitlements; unsigned, such a program exits 137.
-    /// From wiki.qaq.apelin.dev.cli 0.1.1 both cli templates carry the app
+    /// From wiki.qaq.apelin.cn.dev.cli 0.1.1 both cli templates carry the app
     /// template's GPU classes (owner, 2026-10-29), so the skill's file is
     /// theirs key for key.
     @Test(.timeLimit(.minutes(1)))
@@ -202,12 +202,12 @@ struct SkillAndPromptTests {
         let entitlements = try plist(Data(file.utf8))
         let templates = Self.repository.appendingPathComponent("Extensions/Development", isDirectory: true)
         let app = try plist(Data(contentsOf: templates.appendingPathComponent(
-            "wiki.qaq.apelin.dev.app/templates/uikit-objc/Packaging/App.entitlements",
+            "wiki.qaq.apelin.cn.dev.app/templates/uikit-objc/Packaging/App.entitlements",
         )))
         let gpuKeys = ["com.apple.security.iokit-user-client-class", "com.apple.security.exception.iokit-user-client-class"]
         for template in ["c", "objc"] {
             let tool = try plist(Data(contentsOf: templates.appendingPathComponent(
-                "wiki.qaq.apelin.dev.cli/templates/\(template)/Packaging/Tool.entitlements",
+                "wiki.qaq.apelin.cn.dev.cli/templates/\(template)/Packaging/Tool.entitlements",
             )))
             #expect(Set(entitlements.keys) == Set(tool.keys), "the keys are not the \(template) template's")
             for (key, value) in tool {
@@ -391,7 +391,7 @@ struct SkillAndPromptTests {
         }
         // The file the prompt names is the tweak template's.
         let template = Self.repository.appendingPathComponent(
-            "Extensions/Development/wiki.qaq.apelin.dev.tweak/templates/objc-hook/Sources/Tweak.m",
+            "Extensions/Development/wiki.qaq.apelin.cn.dev.tweak/templates/objc-hook/Sources/Tweak.m",
         )
         let source = try String(contentsOf: template, encoding: .utf8)
         #expect(source.contains("MSHookMessageEx"))
@@ -403,7 +403,7 @@ struct SkillAndPromptTests {
     @Test
     func `the apelin-preference-bundle skill names the Preferences header where the read tools reach it`() throws {
         let skill = try #require(BuiltInSkills.all.first { $0.name == "apelin-preference-bundle" })
-        let installed = "wiki.qaq.apelin.dev.preferences/support/include/Preferences/PSListController.h"
+        let installed = "wiki.qaq.apelin.cn.dev.preferences/support/include/Preferences/PSListController.h"
         #expect(skill.body.contains("`<install root>/usr/share/apelin/development/\(installed)`"))
         let words = skill.body.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         #expect(words.contains("Read it with file_read"))

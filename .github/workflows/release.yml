@@ -92,20 +92,20 @@ jobs:
             fi
             echo "${matches[0]}"
           }
-          files=("wiki.qaq.apelin_${version}_iphoneos-arm64e.deb"
-                 "wiki.qaq.apelin_${version}_iphoneos-arm64.deb")
-          for id in wiki.qaq.apelin.dev.app wiki.qaq.apelin.dev.tweak \
-                    wiki.qaq.apelin.dev.cli wiki.qaq.apelin.dev.preferences \
-                    wiki.qaq.apelin.agent-tools.disassembler wiki.qaq.apelin.agent-tools.assembler; do
+          files=("wiki.qaq.apelin.cn_${version}_iphoneos-arm64e.deb"
+                 "wiki.qaq.apelin.cn_${version}_iphoneos-arm64.deb")
+          for id in wiki.qaq.apelin.cn.dev.app wiki.qaq.apelin.cn.dev.tweak \
+                    wiki.qaq.apelin.cn.dev.cli wiki.qaq.apelin.cn.dev.preferences \
+                    wiki.qaq.apelin.cn.agent-tools.disassembler wiki.qaq.apelin.cn.agent-tools.assembler; do
             for architecture in iphoneos-arm64e iphoneos-arm64; do
               files+=("$(one "${id}_*_${architecture}.deb")")
             done
           done
           # The assembler's corresponding source, for the version its debs carry.
-          assembler="$(one "wiki.qaq.apelin.agent-tools.assembler_*_iphoneos-arm64.deb")"
-          assembler_version="${assembler#wiki.qaq.apelin.agent-tools.assembler_}"
+          assembler="$(one "wiki.qaq.apelin.cn.agent-tools.assembler_*_iphoneos-arm64.deb")"
+          assembler_version="${assembler#wiki.qaq.apelin.cn.agent-tools.assembler_}"
           assembler_version="${assembler_version%_iphoneos-arm64.deb}"
-          files+=("$(one "wiki.qaq.apelin.agent-tools.assembler_${assembler_version}_source.tar.xz")")
+          files+=("$(one "wiki.qaq.apelin.cn.agent-tools.assembler_${assembler_version}_source.tar.xz")")
           files+=("Apelin_${version}_dSYMs.zip" "Apelin_${version}_Templates.tar.zst")
           for file in "${files[@]}"; do
             [ -f "$file" ] || { echo "::error::$file is missing from CI's packages"; exit 1; }

@@ -2,7 +2,7 @@ import ApelinCore
 import ApelinProtocol
 import Foundation
 
-/// Finds projects in `~/Documents/wiki.qaq.apelin/Projects/<name>/`, the only
+/// Finds projects in `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/`, the only
 /// place one lives, and reads what they are bound to.
 ///
 /// A project is named on the wire by the `projectID` in its

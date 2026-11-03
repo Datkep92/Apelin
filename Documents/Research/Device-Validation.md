@@ -3,7 +3,7 @@
 What the milestone 1 data layer has been proven to do on a device, where,
 and what is still to run. Every Apelin step below ran through the console
 (`Documents/Console.md`): a script dropped into
-`~/Documents/wiki.qaq.apelin/console/inbox/`, the app brought to the front,
+`~/Documents/wiki.qaq.apelin.cn/console/inbox/`, the app brought to the front,
 the result read from `console/out/<runID>.jsonl`. Since 2026-10-18 that is
 `Scripts/device.py` (`make device-test`; `Documents/Console.md` ▸ From the
 Mac), which also does each script's setup, kills and checks, and keeps the
@@ -184,7 +184,7 @@ console now goes on after a restart only past a successful respring.
 ## Still to run on the owner's devices
 
 - [ ] A preference bundle's Settings row with its icon (2026-10-30, issue
-      #19, `wiki.qaq.apelin.dev.preferences` 0.1.3), on a device where
+      #19, `wiki.qaq.apelin.cn.dev.preferences` 0.1.3), on a device where
       PreferenceLoader shows panes (the owner's iOS 17.3.1 iPhone): a new
       project from the template, built and installed, shows the plate
       beside its name in Settings.
@@ -477,7 +477,7 @@ console now goes on after a restart only past a successful respring.
       sessions; none of it has run on a device; needs a model provider).
       With Apelin in front, apelin_screen_interact's tap, swipe and typed
       text are refused, nothing on Apelin's screen changing, in Relaxed,
-      in Full and in Strict after Approve; target_id wiki.qaq.apelin is
+      in Full and in Strict after Approve; target_id wiki.qaq.apelin.cn is
       refused too; with Settings in front the same tap goes through; the
       console's `diagnostics` script, whose tap is the app's, still runs.
       In General Chat and in a tweak project's chat, "import <an HTTPS
@@ -577,7 +577,7 @@ console now goes on after a restart only past a successful respring.
       (2026-10-29, AGENTS.md ▸ Agent sessions; none of it has run on a
       device). Under Strict, in a preference bundle project's chat:
       file_read of
-      `<install root>/usr/share/apelin/development/wiki.qaq.apelin.dev.preferences/support/include/Preferences/PSListController.h`
+      `<install root>/usr/share/apelin/development/wiki.qaq.apelin.cn.dev.preferences/support/include/Preferences/PSListController.h`
       and file_grep of an SDK's `usr/include` by the path `# Environment`
       names, each with no card; file_find there naming whole paths that
       file_read takes back; file_edit of the header refused. On both
@@ -615,7 +615,7 @@ console now goes on after a restart only past a successful respring.
       the dark (2026-10-26, build 77). On the iOS 27.0.1 iPad vphone
       (roothide, Irisin 5.0.0, icli 0.9.2), 0.1.8 → 0.2.0 went in through
       irisind with the new `com.icli.icli` dependency satisfied, and the app
-      launched; `icli app network get wiki.qaq.apelin` read both policies
+      launched; `icli app network get wiki.qaq.apelin.cn` read both policies
       allowed and the journal had no `Network` line, as it should when
       nothing needs opening. `uiopen 'apelin://chat?prompt=…'` with the app
       running, and again from a cold launch: a new General Chat each time
@@ -733,7 +733,7 @@ console now goes on after a restart only past a successful respring.
       $IPHONEOS_DEPLOYMENT_TARGET'` answers the prepared ones and
       `clang -arch arm64 hello.c` builds; and the project's terminal, a login
       shell, keeps the toolchain first on `PATH` through
-      `etc/profile.d/wiki.qaq.apelin.sh` on roothide and on rootless.
+      `etc/profile.d/wiki.qaq.apelin.cn.sh` on roothide and on rootless.
 - [ ] Transfer files (`.apetc`, `.apesdk`, `.apeproj`): `transfer` and
       `transfer-project` on both vphones, `transfer-toolchain` by name on a
       roothide one (the export undoes RootHide's runtime brand), then a
@@ -924,7 +924,7 @@ console now goes on after a restart only past a successful respring.
       run (a card for ldid and one for the run) and does not rewrite its
       decoder over -6662.
 - [ ] The cli templates' GPU list (2026-10-29, AGENTS.md ▸ Live chat and
-      project UI ▸ the templates, `wiki.qaq.apelin.dev.cli` 0.1.1; none
+      project UI ▸ the templates, `wiki.qaq.apelin.cn.dev.cli` 0.1.1; none
       has run on a device). With the 0.1.1 extension installed, on the
       iOS 26.4 and iOS 27.0.1 iPhone vphones (roothide) and a rootless
       device: a new project from the C template, `CoreFoundation` and
@@ -2012,7 +2012,7 @@ placeholder for this test.
   External Manifest Check; the visible sidebar title refreshed without an app
   restart (the element wait reported 108 ms).
 - Open in iGhostVT used version 1.6.19 (156). The new terminal's actual
-  `pwd -P` was `/var/mobile/Documents/wiki.qaq.apelin/Projects/Distribution UI Check`.
+  `pwd -P` was `/var/mobile/Documents/wiki.qaq.apelin.cn/Projects/Distribution UI Check`.
   Open in Fila showed that directory, its Sources folder and project manifest.
 - Export produced a real `Distribution UI Check.apeproj` (Zstandard archive)
   and reached the native share sheet. No destination was selected and nothing
@@ -2178,7 +2178,7 @@ session reached the app only through `apelin://conversation/<session ID>`
 (`apps.open_url` and `uiopen`), which took each one in (`ChatAdoption`) and
 selected it in its project.
 
-- **App Group**: containermanagerd made `group.wiki.qaq.apelin` for the
+- **App Group**: containermanagerd made `group.wiki.qaq.apelin.cn` for the
   ad hoc signed app and the sandboxed extension; the snapshot the app wrote
   there read back in the order and states the design has (waiting
   `run_code`, working, working, failed, done; 2 working, 1 waiting).

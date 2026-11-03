@@ -156,13 +156,13 @@ final class DiagnosticsTests: XCTestCase {
 
     func testSubsystemGoesToIcliBeforeItsCap() throws {
         let icli = try FakeIcli()
-        let result = try Diagnostics(icli: icli).readLogs(LogFilter(subsystem: "wiki.qaq.apelin.hello", duration: 3))
+        let result = try Diagnostics(icli: icli).readLogs(LogFilter(subsystem: "wiki.qaq.apelin.cn.hello", duration: 3))
         // The fixture is icli unfiltered; Apelin's own check still holds.
         XCTAssertEqual(result.entries.map(\.message), ["ApelinHello: alert shown", "ApelinHello: second line"])
         XCTAssertEqual(result.source, .icli)
         XCTAssertFalse(result.truncated)
         // icli filters the subsystem itself, so its cap counts only those.
-        XCTAssertEqual(icli.calls, ["captureSyslog seconds=3.0 process=- subsystem=wiki.qaq.apelin.hello message=- level=debug maxLines=501"])
+        XCTAssertEqual(icli.calls, ["captureSyslog seconds=3.0 process=- subsystem=wiki.qaq.apelin.cn.hello message=- level=debug maxLines=501"])
     }
 
     func testProcessIsExactWhileIcliMatchesSubstrings() throws {
@@ -351,7 +351,7 @@ final class DiagnosticsTests: XCTestCase {
     func testTheTreeWaitsForTheForegroundToSettle() throws {
         let icli = try FakeIcli()
         let unverified: [String: Any] = ["bundle_id": "com.apple.springboard", "verified": false, "source": "unavailable"]
-        let apelin: [String: Any] = ["bundle_id": "wiki.qaq.apelin", "verified": true, "source": "runningboard"]
+        let apelin: [String: Any] = ["bundle_id": "wiki.qaq.apelin.cn", "verified": true, "source": "runningboard"]
         let settings: [String: Any] = ["bundle_id": "com.apple.Preferences", "verified": true, "source": "runningboard"]
         icli.frontmostAnswers = [unverified, settings, unverified, apelin, apelin]
         var diagnostics = Diagnostics(icli: icli)
@@ -361,7 +361,7 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(asked, Array(repeating: "frontmostApp", count: 5) + ["uiElements max=250"])
         XCTAssertEqual(
             diagnostics.settledForegroundApp(),
-            ForegroundApp(bundleIdentifier: "wiki.qaq.apelin", verified: true, source: "runningboard"),
+            ForegroundApp(bundleIdentifier: "wiki.qaq.apelin.cn", verified: true, source: "runningboard"),
         )
     }
 
@@ -371,7 +371,7 @@ final class DiagnosticsTests: XCTestCase {
     /// that one.
     func testASettleThatExpectsAnAppWaitsForIt() throws {
         let icli = try FakeIcli()
-        let apelin: [String: Any] = ["bundle_id": "wiki.qaq.apelin", "verified": true, "source": "runningboard"]
+        let apelin: [String: Any] = ["bundle_id": "wiki.qaq.apelin.cn", "verified": true, "source": "runningboard"]
         let fila: [String: Any] = ["bundle_id": "wiki.qaq.fila", "verified": true, "source": "runningboard"]
         icli.frontmostAnswers = [apelin, apelin, fila, fila]
         var diagnostics = Diagnostics(icli: icli)
@@ -380,14 +380,14 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(icli.calls.filter { $0 == "frontmostApp" }.count, 4)
 
         icli.frontmostAnswers = [apelin, apelin, fila, fila]
-        XCTAssertEqual(diagnostics.settledForegroundApp().bundleIdentifier, "wiki.qaq.apelin", "any app settles a plain read")
+        XCTAssertEqual(diagnostics.settledForegroundApp().bundleIdentifier, "wiki.qaq.apelin.cn", "any app settles a plain read")
 
         icli.frontmostAnswers = [apelin]
         diagnostics.settleTimeout = 0.05
         diagnostics.settleInterval = 0.01
         XCTAssertEqual(
             diagnostics.settledForegroundApp(expecting: "wiki.qaq.fila").bundleIdentifier,
-            "wiki.qaq.apelin",
+            "wiki.qaq.apelin.cn",
             "an app that never comes answers the last read once the time is up",
         )
     }
@@ -545,7 +545,7 @@ final class DiagnosticsTests: XCTestCase {
     func testAppsAndRespringDecode() throws {
         let diagnostics = try Diagnostics(icli: FakeIcli())
         XCTAssertEqual(diagnostics.foregroundApp(), ForegroundApp(bundleIdentifier: "com.apple.springboard", verified: true, source: "runningboard"))
-        XCTAssertEqual(try diagnostics.runningApps().first?.bundleIdentifier, "wiki.qaq.apelin")
+        XCTAssertEqual(try diagnostics.runningApps().first?.bundleIdentifier, "wiki.qaq.apelin.cn")
         XCTAssertEqual(try diagnostics.respring(), RespringResult(method: "frontboard_relaunch", previousPID: 800, pid: 1200))
     }
 

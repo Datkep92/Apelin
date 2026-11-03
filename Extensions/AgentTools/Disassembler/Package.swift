@@ -2,9 +2,9 @@
 //
 // Two agent-tool extensions from one source tree, shipped as two packages:
 //
-// - apelin-disassembler (wiki.qaq.apelin.agent-tools.disassembler):
+// - apelin-disassembler (wiki.qaq.apelin.cn.agent-tools.disassembler):
 //   Capstone (BSD-3-Clause) and MachOReader (MIT). `disassemble`, `symbols`.
-// - apelin-assembler (wiki.qaq.apelin.agent-tools.assembler): Keystone
+// - apelin-assembler (wiki.qaq.apelin.cn.agent-tools.assembler): Keystone
 //   (GPL-2.0). `assemble`. Nothing else links Keystone, so the disassembler
 //   package carries no GPL code.
 //

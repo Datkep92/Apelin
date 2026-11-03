@@ -62,10 +62,10 @@ extension BuiltInSkills {
         - `extensionSupport`: `[{extension, component}]`, the headers, link
           stubs and rpaths an installed development extension provides, the
           build picking each bootstrap's own. A tweak hooking with substrate
-          has `{"extension": "wiki.qaq.apelin.dev.tweak", "component":
+          has `{"extension": "wiki.qaq.apelin.cn.dev.tweak", "component":
           "substrate"}`, `libraries: ["substrate"]` and depends on
           `mobilesubstrate`; a preference bundle has
-          `{"extension": "wiki.qaq.apelin.dev.preferences", "component":
+          `{"extension": "wiki.qaq.apelin.cn.dev.preferences", "component":
           "preferences"}`, `frameworks` with `Preferences`, and depends on
           `preferenceloader`.
 
@@ -93,7 +93,7 @@ extension BuiltInSkills {
           control `Icon`: an `https://` URL in printable ASCII, at most 2048
           bytes. Every template writes its extension's icon on Apelin's
           Pages, such as
-          `https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.dev.tweak.png`.
+          `https://owngoal-dev.github.io/Apelin/icons/wiki.qaq.apelin.cn.dev.tweak.png`.
           Keep it, or put in an https image the user gives as their own. It
           is not an app's own icon, which its Info.plist names.
         - Relations: `depends`, `recommends`, `suggests`, `conflicts`,
@@ -149,7 +149,7 @@ extension BuiltInSkills {
           "id": "tweak", "type": "dylib", "name": "MyTweak",
           "sources": ["Sources/*.m"], "objcARC": true,
           "frameworks": ["Foundation", "UIKit"], "libraries": ["substrate"],
-          "extensionSupport": [{"extension": "wiki.qaq.apelin.dev.tweak", "component": "substrate"}]
+          "extensionSupport": [{"extension": "wiki.qaq.apelin.cn.dev.tweak", "component": "substrate"}]
         }],
         "build": {"steps": [
           {"type": "compile", "product": "tweak"}, {"type": "link", "product": "tweak"},

@@ -2,7 +2,7 @@
 import struct ApelinProtocol.ApelinError
 import Foundation
 
-/// A throwaway home with `Documents/wiki.qaq.apelin/Projects/<name>/`.
+/// A throwaway home with `Documents/wiki.qaq.apelin.cn/Projects/<name>/`.
 struct TemporaryHome {
     let home: URL
     let dataRoot: ApelinDataRoot
@@ -359,7 +359,7 @@ actor MockBackend: AgentHostBackend {
 
     func projectTemplates() -> ProjectTemplateListResponse {
         ProjectTemplateListResponse(templates: [
-            ProjectTemplate(id: "wiki.qaq.apelin.dev.tweak/tweak", name: "Tweak", kind: "tweak", parameters: [
+            ProjectTemplate(id: "wiki.qaq.apelin.cn.dev.tweak/tweak", name: "Tweak", kind: "tweak", parameters: [
                 ProjectTemplate.Parameter(name: "filter", kind: "string", defaultValue: .string("com.apple.springboard")),
             ]),
         ])

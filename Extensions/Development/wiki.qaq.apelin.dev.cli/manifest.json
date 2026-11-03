@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "wiki.qaq.apelin.dev.cli",
+  "id": "wiki.qaq.apelin.cn.dev.cli",
   "version": "0.1.2",
   "kind": "cli",
   "displayName": "Command-Line Tool Development",

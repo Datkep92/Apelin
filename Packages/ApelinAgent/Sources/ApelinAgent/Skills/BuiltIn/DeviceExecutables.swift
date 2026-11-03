@@ -65,7 +65,7 @@ extension BuiltInSkills {
 
     /// Every key of the cli templates' `Packaging/Tool.entitlements`, the
     /// app template's IOKit user-client lists among them since
-    /// wiki.qaq.apelin.dev.cli 0.1.1; `Scripts/check-gpu-entitlements.py`
+    /// wiki.qaq.apelin.cn.dev.cli 0.1.1; `Scripts/check-gpu-entitlements.py`
     /// holds those lists for the app itself and its app and cli templates.
     /// A test holds the keys to the cli templates and the lists to the app
     /// template; change them there first.

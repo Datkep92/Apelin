@@ -292,7 +292,7 @@ import ApelinProtocol
 import Foundation
 
 extension Notification.Name {
-    static let composerModelSelectionChanged = Notification.Name("wiki.qaq.apelin.composerModelSelectionChanged")
+    static let composerModelSelectionChanged = Notification.Name("wiki.qaq.apelin.cn.composerModelSelectionChanged")
 }
 
 /// The model every composer sends with, restored before the catalog loads.

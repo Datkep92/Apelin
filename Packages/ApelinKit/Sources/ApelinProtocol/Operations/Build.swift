@@ -25,7 +25,7 @@ public struct BuildArtifact: Codable, Sendable, Equatable {
     /// The packaging description's digest at build time, for the host's
     /// Confirm decision on install (Documents/Schemas/README.md ▸ Approval digests).
     public var packagingDigest: String?
-    /// The deb, absolute, inside `~/Documents/wiki.qaq.apelin/Builds/`; the
+    /// The deb, absolute, inside `~/Documents/wiki.qaq.apelin.cn/Builds/`; the
     /// host copies it to private staging and checks `digest` there.
     public var path: String?
     public var projectID: String?
@@ -68,7 +68,7 @@ public struct BuildArtifact: Codable, Sendable, Equatable {
 /// §8 "respring 与确认加载"): the marker the template's constructor logs,
 /// the subsystem it logs under, and where the dylib and its filter will be
 /// once installed. apelin-build writes it into the artifact record
-/// (`~/Documents/wiki.qaq.apelin/Builds/artifacts/<artifactID>.json`,
+/// (`~/Documents/wiki.qaq.apelin.cn/Builds/artifacts/<artifactID>.json`,
 /// member `loadCheck`; artifactID is the build ID); the diagnostics side reads it by build ID.
 public struct BuildLoadCheck: Codable, Sendable, Equatable {
     public var buildID: String

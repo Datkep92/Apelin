@@ -69,7 +69,7 @@ the same executable in session mode; the workers are its children.
   reads as a crash. Quit, and any other exit the app chooses, is
   `QuietExit.run`: leave for the home screen, wait for the animation, run the
   cleanup `exit` would skip, then exit.
-- **The app's data folder is `~/Documents/wiki.qaq.apelin`, and the package
+- **The app's data folder is `~/Documents/wiki.qaq.apelin.cn`, and the package
   makes it.** The app has no container, so its home is mobile's —
   `<jbroot>/var/mobile` on roothide, `/var/mobile` on rootless — shared with
   every other app without one. Anything it keeps there goes in a folder named
@@ -258,7 +258,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   worker's handler.
 - **The authenticator** (`Apelind/PeerAuthenticator.swift`) decides before a
   request field is decoded, in this order: the kernel audit token; pid > 1;
-  euid 0 or 501; the entitlements `wiki.qaq.apelin.client`,
+  euid 0 or 501; the entitlements `wiki.qaq.apelin.cn.client`,
   `com.apple.private.security.no-sandbox` and `platform-application`, each
   strictly true (the app carries `platform-application`, so it is required;
   drop it from both or neither); `proc_pidpath` realpath-equal to
@@ -388,10 +388,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     `packageID`, `version`, `projectID`, `packagingDigest`, `packageFiles`) —, a toolchain
     package `toolchain-<id>` from apelin-environment:
     `Environment/Artifacts/<artifactID>.deb`, which must be
-    `wiki.qaq.apelin.toolchain.<id>` (the one Apelin-prefixed family a
+    `wiki.qaq.apelin.cn.toolchain.<id>` (the one Apelin-prefixed family a
     non-IDE source may install, and only that source; the environment
     worker removes only its own records) — or, from the app only,
-    `file:<path inside ~/Documents/wiki.qaq.apelin>`. A writer for the
+    `file:<path inside ~/Documents/wiki.qaq.apelin.cn>`. A writer for the
     bridge sets `DebPackageWriter.controlCompression = .gzip`: a zstd
     control member is judged by the ID its source promised and failed
     loudly if irisind reports another. The host
@@ -513,7 +513,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     expectedVersion, confirmed}`: existing regular files inside the install
     root only; no symlink, hard link, execute bit, Mach-O, package-manager
     or Apelin record; a LaunchDaemons plist needs `confirmed`; the old
-    contents are backed up to `~/Documents/wiki.qaq.apelin/backups/` (every
+    contents are backed up to `~/Documents/wiki.qaq.apelin.cn/backups/` (every
     level opened `O_NOFOLLOW`, the file handed to mobile, the newest ten
     per file) and replaced through `AtomicReplace` (Fila's AtomicSave:
     temporary beside it, owner, group, mode, ACLs, xattrs and creation time
@@ -529,7 +529,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     the development environment of the terminal's project (none: the
     defaults), the one shell_run gets (Agent sessions ▸ `agentRunCode`). A login
     shell's `/etc/profile` sets `PATH` anew, so the package ships
-    `etc/profile.d/wiki.qaq.apelin.sh` (`Packaging/profile.d/`), which puts
+    `etc/profile.d/wiki.qaq.apelin.cn.sh` (`Packaging/profile.d/`), which puts
     `APELIN_TOOLCHAIN_BIN` back in front when it is set and does nothing
     anywhere else;
     the host then reads the shell's credentials from the kernel
@@ -588,7 +588,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
     sends a message.
     Two declarations, or authorization stays false with no error but the
     device log's: `com.apple.private.usernotifications.bundle-identifiers`
-    naming `wiki.qaq.apelin` on apelind and on the app, and
+    naming `wiki.qaq.apelin.cn` on apelind and on the app, and
     `SBAppUsesLocalNotifications` in the app's Info.plist; the packager
     requires all three. A tap in Notification Center or on the Lock Screen
     that only slides the row aside to show Open is SpringBoard's rule for
@@ -623,7 +623,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   not a failed task — then runs in `Environment/staging/<taskID>/` and ends
   with `state`.
   *SDKs*: imported from an HTTPS archive, a descriptor, a folder or archive
-  in `~/Documents/wiki.qaq.apelin/inbox/`, or one branch of a
+  in `~/Documents/wiki.qaq.apelin.cn/inbox/`, or one branch of a
   one-SDK-per-branch repository (shallow clone, HTTPS only); archives are
   unpacked entry by entry through libarchive (no `..`, absolute or repeated
   names, no directory through a link, no special files, bounded); identity
@@ -685,7 +685,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   branch when the import fails; any other `.git` is `conflict`. Credentials are one per
   host (lowercased, with `:port` when named): a username and a token
   (`GitCredentialStore`, keychain service and access group
-  `wiki.qaq.apelin.git`, `keychain-access-groups` on apelin-environment
+  `wiki.qaq.apelin.cn.git`, `keychain-access-groups` on apelin-environment
   only, after first unlock, this device only, never synchronised), offered
   through libgit2's credential callback only to an HTTPS remote whose host
   is exactly that one, once per operation; an authentication failure is
@@ -761,7 +761,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   and the installation ID of an install not yet registered or rolled back)
   per source and components and resumes from it; one setup per key runs at
   a time. The retargeted tree becomes `Environment/Artifacts/toolchain-<id>.deb`
-  (`wiki.qaq.apelin.toolchain.<id>`, the bootstrap's architecture and
+  (`wiki.qaq.apelin.cn.toolchain.<id>`, the bootstrap's architecture and
   layout, no Depends, no maintainer scripts, `control.tar.gz`; every entry
   root's, folders and executables 0755, other files 0644, links relative and
   inside the tree), handed to the host's `installPackage` as artifact
@@ -879,7 +879,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   registered SDK (`.apesdk`) or a project (`.apeproj`) goes from one device
   to another as one file, user to own device: nothing is uploaded, and the
   export's confirmation says so in a line. The app declares the exported
-  types `wiki.qaq.apelin.toolchain-package`, `…sdk-package` and
+  types `wiki.qaq.apelin.cn.toolchain-package`, `…sdk-package` and
   `…project-package` (conforming to `public.data` and `public.archive`, by
   extension) and owns them in `CFBundleDocumentTypes`, in the partial
   `Apelin/Resources/Info.plist` merged with the generated one (kept out of
@@ -974,9 +974,9 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   file).
 - **The console** (format in `Documents/Console.md`) runs the app headless
   from a JSON script: `-apelin-console <path>`, or
-  `~/Documents/wiki.qaq.apelin/console/inbox/*.json` at launch and on every
+  `~/Documents/wiki.qaq.apelin.cn/console/inbox/*.json` at launch and on every
   foreground; results as JSON lines in `console/out/<runID>.jsonl` and the
-  unified log (`wiki.qaq.apelin`, `console`). It calls `ApelinService`, the
+  unified log (`wiki.qaq.apelin.cn`, `console`). It calls `ApelinService`, the
   one typed surface — one async method per operation — that the UI and the
   agent's tools (over `ChannelTransport`) call too; `ApelinService.app`
   (`Apelin/Service/`) binds it to `DaemonClient`. The runner is the
@@ -1239,7 +1239,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   they are; a project's chat makes one only for work that is a project of
   its own, when the user asks or agrees. A repository is imported as New
   Project imports one, whatever it holds: an Empty workspace
-  (`wiki.qaq.apelin.workspace/empty`), then its conversation opened with
+  (`wiki.qaq.apelin.cn.workspace/empty`), then its conversation opened with
   the URL and branch in the prompt, whose git_clone takes it in; the
   prompt, apelin_project_create's and git_clone's descriptions and
   `apelin-git-workflow` say so. apelin_project_delete {project} →
@@ -1732,10 +1732,10 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   fails on an old name in the prompt, a tool's description, a built-in
   skill or any source of the agent.
 - **Agent credentials** are the keychain's: `KeychainCredentialSource`,
-  service `wiki.qaq.apelin.agent`, access group `wiki.qaq.apelin.agent`
+  service `wiki.qaq.apelin.cn.agent`, access group `wiki.qaq.apelin.cn.agent`
   (`keychain-access-groups` on apelin-agent only), after first unlock, this
   device only, never synchronised. The owner provisions one with no UI by
-  dropping a file in `~/Documents/wiki.qaq.apelin/console/inbox/credentials/`
+  dropping a file in `~/Documents/wiki.qaq.apelin.cn/console/inbox/credentials/`
   — `<store id>.json` in kwwk's credential shape (any store id a provider
   below is kept under: `github-copilot`, `anthropic`, `anthropic-api-key`,
   `openai-compatible`, `openai-codex`, `kimi-coding`, …) or a kwwk `auth.json`
@@ -1967,7 +1967,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   tells the agent never to run. IcliKit 0.9.0 already has the press and the
   wake, with the same iOS code as 0.11.0, so the pin stays. An agent's
   action never reaches Apelin itself (`AgentUIActionRules`): the host sets
-  its `refusedBundleIDs` to `wiki.qaq.apelin`, whatever the agent sent, and
+  its `refusedBundleIDs` to `wiki.qaq.apelin.cn`, whatever the agent sent, and
   apelin-diagnostics answers `denied` for a target on that list, before
   reading anything, and for an app on it in front — on the settled read
   the action is then bound to, verified or not, with no target too. It
@@ -2139,7 +2139,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   the title is "Apelin" alone, with no subtitle (owner, 2026-10-21) and
   no menu, and New Chat starts a temporary
   conversation, as ChatGPT's temporary chat: it belongs to no project and
-  is kept in `~/Documents/wiki.qaq.apelin/Temporary/<conversation>/`,
+  is kept in `~/Documents/wiki.qaq.apelin.cn/Temporary/<conversation>/`,
   its working folder too. `agentOpen.temporaryID` names that UUID; the host and worker both check the canonical direct child before using it. Below the bar
   the conversations in the system's inset grouped table, cells and
   headers as they come (owner, 2026-10-21: simple and native), a picked
@@ -2379,7 +2379,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   Not taken: SDWebImage and ScribbleLetterView, which nothing needs yet,
   and GlyphixTextFx (owner, 2026-10-17): Litext's animated text covers
   the same `numericText`-style transition.
-  **Dog's journal** is `~/Documents/wiki.qaq.apelin/Journal/Dog_<date>_<id>.log`:
+  **Dog's journal** is `~/Documents/wiki.qaq.apelin.cn/Journal/Dog_<date>_<id>.log`:
   `AppJournal.start()` calls `Dog.shared.initialization(writableDir:
   DataFolder.app.root)` once, early in `didFinishLaunching`, after making
   `Journal/` with `makeLevels` (so a missing data folder is an NSLog line,
@@ -2460,7 +2460,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `APELIN_BUILD_ID`, the artifact ID and what `confirmLoaded` takes. Its
   layout comes from the assignment — mobile's home inside the install root
   is roothide, otherwise rootless — and it builds only that one. Outputs live
-  in `~/Documents/wiki.qaq.apelin/Builds/<projectID>/<buildID>/` (objects,
+  in `~/Documents/wiki.qaq.apelin.cn/Builds/<projectID>/<buildID>/` (objects,
   slices, products, dSYMs, `build.log`, the deb), never in the project. Tools
   are the registered toolchain's `usr/bin/<tool>`, posix_spawn'd by argv,
   stdin `/dev/null`, `POSIX_SPAWN_CLOEXEC_DEFAULT`, a process group each
@@ -2479,11 +2479,11 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
 - **Its task events**: `stage {stage, product?}`, `log {line}`, `diagnostic`
   (a `ProjectDiagnostic`; clang and ld lines parsed to file, line, column,
   severity), `artifact` (a `BuildArtifact` with `path` — the deb, inside
-  `~/Documents/wiki.qaq.apelin/Builds/` —, `projectID` and
+  `~/Documents/wiki.qaq.apelin.cn/Builds/` —, `projectID` and
   `packagingDigest`, which the host's ArtifactRegistry records), and a final `state` that, on
   success, also carries `artifactID`, `digest`, `buildID`, `packageID`,
   `version` and `bootstrap`.
-- **The artifact** is registered at `~/Documents/wiki.qaq.apelin/Builds/artifacts/<artifactID>.json`
+- **The artifact** is registered at `~/Documents/wiki.qaq.apelin.cn/Builds/artifacts/<artifactID>.json`
   (`ArtifactRecord`): the deb's path and `sha256:` digest, both description
   digests as built, the products with their digests and UUIDs, the dSYMs,
   the regular files and links the deb installs as dpkg lists them
@@ -2799,7 +2799,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
 - **In v1**: everything that can be wired in, the terminal and git included.
   Not clangd: the editor is basic editing on Runestone (vendored,
   `Packages/Runestone`), with no completion, hints or jump-to-definition.
-- **Projects** live in `~/Documents/wiki.qaq.apelin/Projects/<name>/`, nowhere
+- **Projects** live in `~/Documents/wiki.qaq.apelin.cn/Projects/<name>/`, nowhere
   else.
 - **Diagnostics** use `owngoal-dev/icli` for everything it can do — logs,
   crash reports, screenshots, the UI tree and actions, respring — and gaps are
@@ -3045,7 +3045,7 @@ adding a dated record beside it.
   for keyboard-interactive, which sshpass answers.
 - **"Unable to register" from uicache is not always a failure.** On the
   iOS 27 iPad vphone, uikittools' trigger and `uicache -p` both print it for
-  `Apelin.app`, and `uicache -i wiki.qaq.apelin` still shows the app
+  `Apelin.app`, and `uicache -i wiki.qaq.apelin.cn` still shows the app
   registered at the bundle's path, and it opens. Check the record before
   chasing the message. `install-device.sh` runs `uicache -p` after every
   install anyway, for the install-from-a-file case above.
@@ -3124,9 +3124,9 @@ adding a dated record beside it.
 - Working state comes from session events, never a late send acknowledgement. Completed zero-second, zero-tool thought rows are omitted. A positive duration without tools shows only the duration; tools without a positive duration show only their count; “and” joins the clauses only when both values are positive. Thought headers use Litext numeric transitions, with reduced motion respected. User messages and reply text are selectable.
 - The conversation alternates a single thinking summary with response content. Consecutive thinking steps merge across tools and approvals. Tool calls and completed approvals stay out of the main transcript; tapping the summary opens their ordered trace in a form sheet, a list of the steps, provider-supplied thinking included, each opening its own plain text. Headers use body-size 50% primary text aligned to the body margin, with a sentence for duration and tool count. Pending approval still replaces the composer.
 - Every agent tool, MCP tools included, requires a short `reason` (`ToolReason`), stripped from the arguments before the approval gate, the fingerprint, the tool or the host sees them; the `toolCall` event keeps it. The file tools end their result's first line with `+a -b` lines added and removed. While a turn runs, its trailing summary stays unfinished across calls and approvals, the run's received tokens climbing at the trailing end of its title line (and of the summary above the reply while the reply streams). Once the summary has a call, `ToolCallBannerView` shows one line under it, at the reading width, between hairlines on a 5% grey ground drawn out to the row's edges: the newest call in its trace (`ToolCallBanner`), by its reason, or its title for a call made without one, and for a file tool (`ToolCallBanner.fileTools`) the file's name first, then the lines added in green and removed in red once its result is in, read from the result's first line (a failed call has none), so truncation takes the end of the reason, never the numbers. Thinking after a call leaves that call there; nothing of the thinking shows (owner, 2026-10-24: no thinking tail, typing or character fade). On the same summary, a new call, or its counts coming in, fades in over 0.2 s; the line's first call, a row taken over by another summary and everything under Reduce Motion show at once. VoiceOver reads the line after the title: the reason, then the file and its counts in words as its value. Only the running summary in the transcript has it; the trace sheet lists every call and opens each whole. The running summary reads “Reconnecting…” after a `reconnecting`, until the request made again streams or the run moves on, else “Executing N tools…” only while N calls await a result, “Thinking…” otherwise, and its title changes at most once a second: the first change at once, the latest of the rest when the second is up. A running summary stands in under a prompt, or under images a tool returned, until the turn shows something, with the id its next thought takes, and `toolCallPreparing` starts one while the model writes a call's arguments, so a turn never shows a gap. One stands in under the turn's last reply (or error) too once the running turn has gone `ChatTranscript.quietInterval` (1.5 s) without an event — the model may be writing a call it has not announced, or the provider has stalled —, never under a running summary or a waiting approval. The transcript is given the time (`now`) and answers `quietDeadline`; the page builds its rows again once, then (`ChatQuietWatch`), and nothing polls. The reply's next thought, call or message start takes the stand-in's id, so it becomes that row with no flash, and more of the reply ends it. A `messageDiscarded` takes back the rows its message made, while it was still streaming, and leaves unanswered again what it answered, so the stand-in comes back under the same id and the retried reply is drawn once, never under the partial one. Transcript content is centred in at most 730 pt, the composer card's widest, so the two edges line up; the list itself spans the page's safe area side to side, so its margins scroll, and stops at a vertical bar's strip, which is the bar's (iPhone Duo at the 27.1 SDK tier: a trailing safe-area inset on one side only).
-- `ProjectPickerController` lists real projects; `NewProjectController` chooses a catalog template, using its default parameters and calls `projectCreate`. Settings includes a read-only Templates catalog with single-line names with source-file byte counts at the trailing edge, no subtitles and no disclosure navigation. The built-in `wiki.qaq.apelin.workspace/empty` template creates only a workspace identity manifest, atomically and without SDK/toolchain requirements. It supplies no build or install baseline; a build requires a real build description.
+- `ProjectPickerController` lists real projects; `NewProjectController` chooses a catalog template, using its default parameters and calls `projectCreate`. Settings includes a read-only Templates catalog with single-line names with source-file byte counts at the trailing edge, no subtitles and no disclosure navigation. The built-in `wiki.qaq.apelin.cn.workspace/empty` template creates only a workspace identity manifest, atomically and without SDK/toolchain requirements. It supplies no build or install baseline; a build requires a real build description.
 
-- Templates are a single read-only release catalog, with additions and corrections submitted as repository pull requests. There is no create/delete action or separate user template library. `make template-archive` validates and reproducibly packs sources, support files and licenses as `Apelin_<version>_Templates.tar.zst`; CI records its checksum and Release publishes that exact artifact without rebuilding. The command-line tool templates' `Tool.entitlements` carry the app templates' GPU and IOSurface IOKit user-client list under both keys from `wiki.qaq.apelin.dev.cli` 0.1.1 (owner, 2026-10-29; `make check` holds the app's entitlements and every app and cli template's to `Scripts/check-gpu-entitlements.py`, while a tweak or preference bundle, a library, runs with its host process's), and a project keeps the entitlements its template wrote, so a cli project made from 0.1.0 has no list until one is added, a build description change Strict reviews. Every template writes its extension's package manager icon on Pages, `https://owngoal-dev.github.io/Apelin/icons/<extension id>.png`, as `package.icon` (owner, 2026-10-29; app and tweak 0.1.1, cli and preferences 0.1.2), which the build writes as the deb's `Icon`, so a package manager shows it beside the installed package and in the user's package repository; the user keeps it or names their own https image, a packaging description change Strict reviews. It is not an app's own icon, nor a Settings row's: the preference bundle template carries that one in its bundle from `wiki.qaq.apelin.dev.preferences` 0.1.3 (owner, 2026-10-30, issue #19), `Resources/icon.png` with its @2x and @3x at 29 points, the extension's plate scaled from the `ProjectIconPreferences` image set, named by the PreferenceLoader entry's `icon`, for the developer to replace. A project made before has none and keeps its digests.
+- Templates are a single read-only release catalog, with additions and corrections submitted as repository pull requests. There is no create/delete action or separate user template library. `make template-archive` validates and reproducibly packs sources, support files and licenses as `Apelin_<version>_Templates.tar.zst`; CI records its checksum and Release publishes that exact artifact without rebuilding. The command-line tool templates' `Tool.entitlements` carry the app templates' GPU and IOSurface IOKit user-client list under both keys from `wiki.qaq.apelin.cn.dev.cli` 0.1.1 (owner, 2026-10-29; `make check` holds the app's entitlements and every app and cli template's to `Scripts/check-gpu-entitlements.py`, while a tweak or preference bundle, a library, runs with its host process's), and a project keeps the entitlements its template wrote, so a cli project made from 0.1.0 has no list until one is added, a build description change Strict reviews. Every template writes its extension's package manager icon on Pages, `https://owngoal-dev.github.io/Apelin/icons/<extension id>.png`, as `package.icon` (owner, 2026-10-29; app and tweak 0.1.1, cli and preferences 0.1.2), which the build writes as the deb's `Icon`, so a package manager shows it beside the installed package and in the user's package repository; the user keeps it or names their own https image, a packaging description change Strict reviews. It is not an app's own icon, nor a Settings row's: the preference bundle template carries that one in its bundle from `wiki.qaq.apelin.cn.dev.preferences` 0.1.3 (owner, 2026-10-30, issue #19), `Resources/icon.png` with its @2x and @3x at 29 points, the extension's plate scaled from the `ProjectIconPreferences` image set, named by the PreferenceLoader entry's `icon`, for the developer to replace. A project made before has none and keeps its digests.
 
 
 ## Project display names and external project actions
@@ -3394,7 +3394,7 @@ enforcement of the mode is unchanged; the block only tells the model. The
 project's `AGENTS.md`, else `CLAUDE.md` — a regular file inside the project, at most
 16 KB — is added as project instructions that never override the prompt or the
 approval mode. Skills are pi's progressive disclosure: the prompt lists each
-built-in and user skill (`~/Documents/wiki.qaq.apelin/skills`) by name and
+built-in and user skill (`~/Documents/wiki.qaq.apelin.cn/skills`) by name and
 description only, and `apelin_skill_read{name, file?}` reads the body, or a file in a
 user skill's own folder (no link out of it), on demand; it is a read preset.
 The built-ins are one Swift file each under `ApelinAgent/Skills/BuiltIn/`,
@@ -3450,7 +3450,7 @@ package is installed. `apelin-device-executables` (2026-10-29) is a program
 the agent compiles and runs itself through shell_run: `ldid -S` with the
 skill's `Tool.entitlements` after every link (unsigned, it exits 137), the
 file the cli templates' keys, which carry the app template's IOKit
-user-client lists from `wiki.qaq.apelin.dev.cli` 0.1.1 (a test holds the keys
+user-client lists from `wiki.qaq.apelin.cn.dev.cli` 0.1.1 (a test holds the keys
 to the cli templates and the lists to the app template), since a VideoToolbox
 tool signed without them failed `CVPixelBufferCreate` with -6662 on a device;
 it says a cli project made from 0.1.0 needs both lists copied into its own.
@@ -3759,7 +3759,7 @@ fragment. The chat's ListViewKit keeps its own update mechanism.
 - **The snapshot.** The extension is sandboxed and cannot read mobile's
   Documents, and the app has no container, so the app writes
   `ChatWidgetSnapshot` to `Widgets/chats.json` in the App Group container
-  `group.wiki.qaq.apelin`, which both targets carry — the way Fila's save
+  `group.wiki.qaq.apelin.cn`, which both targets carry — the way Fila's save
   action shares Fila's. `make check` and the packager require exactly that
   group on both, and nothing privileged on the extension (no `no-sandbox`,
   `platform-application`, storage, container or client keys, no Mach
@@ -3820,7 +3820,7 @@ Quy tắc ngắn của fork:
   phát hành bằng tag `v...` của riêng fork → `release.yml`.
 - **Cài đặt:** `icli pkg install <deb>` chạy bằng root (maintainer script
   **không** chạy — để nguyên, `postinst` sẽ bootout `apelind`); sau đó
-  `icli app kill wiki.qaq.apelin --force` + `icli app launch wiki.qaq.apelin`.
+  `icli app kill wiki.qaq.apelin.cn --force` + `icli app launch wiki.qaq.apelin.cn`.
 - **Push qua lệnh**, vì công cụ push của Apelin không tới repo ngoài dự án:
   `TOK=$(gh auth token); B64=$(printf "x-access-token:%s" "$TOK" | base64 | tr -d "\n"); git -c "http.extraHeader=Authorization: Basic $B64" push origin main`
 - **Bẫy trên máy này:** mọi lệnh `gh` cần `TMPDIR=/tmp`; shell mặc định là

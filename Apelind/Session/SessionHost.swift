@@ -15,7 +15,7 @@ final class SessionHost: @unchecked Sendable {
     let stateDirectory: URL
     let registry: TaskRegistry
     let workers: WorkerSupervisor
-    /// `~/Documents/wiki.qaq.apelin`, as mobile's home spells it.
+    /// `~/Documents/wiki.qaq.apelin.cn`, as mobile's home spells it.
     let dataFolder: DataFolder
     /// Confirm-mode digests and agent session modes (host-private).
     let approvals: ApprovalLedger
@@ -214,7 +214,7 @@ final class SessionHost: @unchecked Sendable {
         proxy.start()
 
         // Report work to apelind as it changes, and stop idle workers.
-        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "wiki.qaq.apelind.session.report"))
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "wiki.qaq.apelind.cn.session.report"))
         timer.schedule(deadline: .now(), repeating: .seconds(2))
         timer.setEventHandler { [self] in
             Task { await reportWork() }

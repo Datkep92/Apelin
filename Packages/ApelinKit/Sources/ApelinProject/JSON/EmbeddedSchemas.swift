@@ -8,7 +8,7 @@ enum EmbeddedSchemas {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://owngoal-dev.github.io/Apelin/schemas/apelin-project-1.json",
   "title": "Apelin project description, version 1",
-  "description": "apelin-project.json at the root of ~/Documents/wiki.qaq.apelin/Projects/<name>/. The one build entry the UI, the agent and apelin-build all read. Documents/Schemas/README.md is the prose specification; it also fixes which members form the build and packaging descriptions whose digests drive Confirm-mode approval.",
+  "description": "apelin-project.json at the root of ~/Documents/wiki.qaq.apelin.cn/Projects/<name>/. The one build entry the UI, the agent and apelin-build all read. Documents/Schemas/README.md is the prose specification; it also fixes which members form the build and packaging descriptions whose digests drive Confirm-mode approval.",
   "type": "object",
   "additionalProperties": false,
   "required": [
