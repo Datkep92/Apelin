@@ -571,6 +571,9 @@ final class ChatRuntime {
                     if builds > 0 {
                         onBuildsCompleted?(builds)
                     }
+                    // the launch journal's trail of screen actions and
+                    // failed tools, from events read here and nowhere else
+                    ScreenActionJournal.note(fresh)
                     for event in fresh where event.kind == AgentConversations.openedEventKind {
                         if let parent = records[id] {
                             adopt(ChatAdoption.record(

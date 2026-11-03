@@ -1087,6 +1087,8 @@ checkDeletedProjects()
 
 checkCompletedBuilds()
 
+checkScreenActionLog()
+
 checkStarPromptState()
 
 try checkSidebarOrder()
