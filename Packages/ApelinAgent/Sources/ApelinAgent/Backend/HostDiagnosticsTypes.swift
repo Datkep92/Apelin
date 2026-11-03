@@ -243,10 +243,26 @@ public struct ReadUITreeRequest: Sendable, Hashable, Codable {
     public var context: HostCallContext
     public var targetID: String?
     public var maxDepth: Int
-    public init(context: HostCallContext, targetID: String?, maxDepth: Int) {
+    /// Narrowing the model asked for, applied to the tree the device has
+    /// already sent: the device is asked once, whatever is filtered out
+    /// afterwards (`UITreeFilter`). None of the three goes on the wire.
+    public var match: String?
+    public var clickableOnly: Bool
+    public var maxElements: Int?
+    public init(
+        context: HostCallContext,
+        targetID: String?,
+        maxDepth: Int,
+        match: String? = nil,
+        clickableOnly: Bool = false,
+        maxElements: Int? = nil,
+    ) {
         self.context = context
         self.targetID = targetID
         self.maxDepth = maxDepth
+        self.match = match
+        self.clickableOnly = clickableOnly
+        self.maxElements = maxElements
     }
 }
 
@@ -277,8 +293,25 @@ public struct UIElementNode: Sendable, Hashable, Codable {
 
 public struct ReadUITreeResponse: Sendable, Hashable, Codable {
     public var root: UIElementNode
-    public init(root: UIElementNode) {
+    /// How many elements the read asked for matches, and how many the device
+    /// sent, when a filter was used: a narrowed read says what it left out, so
+    /// a model that filtered too far reads again instead of calling a page
+    /// empty. Both nil when no filter ran.
+    public var elementsTotal: Int?
+    public var elementsMatched: Int?
+    /// A limit that bit, or a tree the device itself cut short; nil when the
+    /// answer came as the device listed it.
+    public var truncated: Bool?
+    public init(
+        root: UIElementNode,
+        elementsTotal: Int? = nil,
+        elementsMatched: Int? = nil,
+        truncated: Bool? = nil,
+    ) {
         self.root = root
+        self.elementsTotal = elementsTotal
+        self.elementsMatched = elementsMatched
+        self.truncated = truncated
     }
 }
 

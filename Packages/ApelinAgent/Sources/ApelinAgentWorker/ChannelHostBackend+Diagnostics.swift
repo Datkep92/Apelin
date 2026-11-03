@@ -111,7 +111,19 @@ public extension ChannelHostBackend {
 
     func readUITree(_ request: ApelinAgent.ReadUITreeRequest) async throws -> ApelinAgent.ReadUITreeResponse {
         let response = try await service.readUITree(targetID: request.targetID)
-        return ApelinAgent.ReadUITreeResponse(root: Self.tree(response.tree))
+        // Narrowed here, on the tree the device has already answered: one read
+        // is still one consent, and the model pays for a filtered page instead
+        // of a whole one (UITreeFilter). The device is never asked twice.
+        let tree = UITreeFilter.applying(
+            UITreeFilter.Options(match: request.match, clickableOnly: request.clickableOnly, limit: request.maxElements),
+            to: response.tree,
+        )
+        return ApelinAgent.ReadUITreeResponse(
+            root: Self.tree(tree),
+            elementsTotal: tree["elementsTotal"]?.doubleValue.map { Int($0) },
+            elementsMatched: tree["elementsMatched"]?.doubleValue.map { Int($0) },
+            truncated: tree["truncated"]?.boolValue,
+        )
     }
 
     /// The diagnostics worker's flat element list as one root with children.

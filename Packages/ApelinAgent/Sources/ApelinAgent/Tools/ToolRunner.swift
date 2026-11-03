@@ -675,15 +675,18 @@ actor ToolRunner {
             return result
 
         case .screenReadTree:
-            var response = try await backend.readUITree(ReadUITreeRequest(
+            // The narrowing travels with the request into the worker, which
+            // applies it to the tree the device has already sent: no second
+            // read, no second consent (UITreeFilter).
+            let filter = Self.treeFilter(arguments)
+            return try await json(backend.readUITree(ReadUITreeRequest(
                 context: context,
                 targetID: arguments.argString("target_id"),
                 maxDepth: min(40, max(1, arguments.argInt("max_depth") ?? 12)),
-            ))
-            // Narrowed here, on the answer already paid for: no second read,
-            // no second consent (UITreeFilter).
-            response.tree = UITreeFilter.applying(Self.treeFilter(arguments), to: response.tree)
-            return json(response)
+                match: filter.match,
+                clickableOnly: filter.clickableOnly,
+                maxElements: filter.limit,
+            )))
 
         case .screenInteract:
             return try await json(backend.uiAction(UIActionRequest(

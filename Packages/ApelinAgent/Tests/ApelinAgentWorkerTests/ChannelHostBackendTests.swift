@@ -479,6 +479,50 @@ struct ChannelHostBackendTests {
     }
 
     @Test
+    func `a filtered screen read is narrowed in the worker and says what it left out`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.readUITree, reply: ApelinProtocol.ReadUITreeResponse(tree: .object([
+            "pid": .number(42),
+            "elements": .array([
+                .object(["identifier": .string("general"), "label": .string("General"), "role": .string("button"), "clickable": .bool(true)]),
+                .object(["identifier": .string("about"), "label": .string("About"), "role": .string("button"), "clickable": .bool(true)]),
+                .object(["identifier": .string("wifi"), "label": .string("Wi-Fi"), "role": .string("staticText"), "clickable": .bool(false)]),
+            ]),
+        ])))
+        func read(match: String? = nil, clickableOnly: Bool = false, maxElements: Int? = nil) async throws -> ApelinAgent.ReadUITreeResponse {
+            try await fixture.backend.readUITree(ApelinAgent.ReadUITreeRequest(
+                context: fixture.context(),
+                targetID: nil,
+                maxDepth: 4,
+                match: match,
+                clickableOnly: clickableOnly,
+                maxElements: maxElements,
+            ))
+        }
+
+        let whole = try await read()
+        #expect(whole.root.children.compactMap(\.label) == ["General", "About", "Wi-Fi"])
+        #expect(whole.elementsTotal == nil && whole.elementsMatched == nil && whole.truncated == nil,
+                "a read that asked for nothing says nothing about a filter")
+
+        let controls = try await read(clickableOnly: true)
+        #expect(controls.root.children.compactMap(\.label) == ["General", "About"])
+        #expect(controls.elementsTotal == 3 && controls.elementsMatched == 2)
+        #expect(controls.truncated == false)
+
+        let matched = try await read(match: "wI-fI")
+        #expect(matched.root.children.compactMap(\.label) == ["Wi-Fi"], "a match ignores case")
+
+        let capped = try await read(clickableOnly: true, maxElements: 1)
+        #expect(capped.root.children.compactMap(\.label) == ["General"])
+        #expect(capped.elementsTotal == 3 && capped.elementsMatched == 2 && capped.truncated == true,
+                "a limit that bit is cut short and says so")
+
+        // One read is one ask of the device, whatever was filtered out of it.
+        #expect(fixture.host.requests(ApelinProtocol.ReadUITreeRequest.self).count == 5)
+    }
+
+    @Test
     func `a wake says what it left, and a device still locked is the user's to unlock`() async throws {
         let fixture = try Fixture()
         let press = ApelinAgent.UIActionRequest(context: fixture.context(), targetID: nil, action: .pressButton("wake"))
