@@ -233,6 +233,12 @@ enum AgentRunCode {
         )
         let timeout = request.timeoutSeconds
         let session = request.sessionID
+        // mobile's identity is set in the kernel before exec, which only a
+        // root host may ask for: a session host that is not root is already
+        // the unprivileged user, and the kernel refuses the switch from
+        // there. `capture` takes the same rule for the tools the host runs
+        // itself, which is what lets these checks run on a test host.
+        let asMobile = !asRoot && geteuid() == 0
         return try await offThePool {
             try execute(
                 command.executable,
@@ -240,7 +246,7 @@ enum AgentRunCode {
                 environment: environment,
                 directory: directory,
                 timeoutSeconds: timeout,
-                asMobile: !asRoot,
+                asMobile: asMobile,
                 session: session,
                 stopsSeen: stopsSeen,
             )

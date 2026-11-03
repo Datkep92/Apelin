@@ -128,13 +128,19 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
             stopsSeen: 0,
         )
     }
+    /// What a run answered, and — when it answered nothing — the host's own
+    /// refusal, which a failing check prints rather than "it did not run".
     func ran(
         _ spec: RunCodeSpec,
         in directory: String = ".",
         timeout: Int = 10,
         as identity: AgentRunCode.Identity = .mobile(preset: nil),
-    ) async -> AgentRunCodeResponse? {
-        try? await attempt(spec, in: directory, timeout: timeout, as: identity)
+    ) async -> (response: AgentRunCodeResponse?, why: String) {
+        do {
+            return (try await attempt(spec, in: directory, timeout: timeout, as: identity), "")
+        } catch {
+            return (nil, String(describing: error))
+        }
     }
     func refused(
         _ spec: RunCodeSpec,
@@ -234,29 +240,32 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
 
     // MARK: What actually runs, as mobile, in the project
 
-    let hello = await ran(.script(interpreter: "sh", source: "echo hi"))
-    check(hello?.exitCode == 0 && trimmed(hello) == "hi", "a script runs: echo hi printed hi")
+    let (hello, helloWhy) = await ran(.script(interpreter: "sh", source: "echo hi"))
+    check(hello?.exitCode == 0 && trimmed(hello) == "hi", "a script runs: echo hi printed hi \(helloWhy)")
 
-    let status = await ran(.script(interpreter: "sh", source: "exit 3"))
-    check(status?.exitCode == 3, "the script's own exit status comes back")
+    let (status, statusWhy) = await ran(.script(interpreter: "sh", source: "exit 3"))
+    check(status?.exitCode == 3, "the script's own exit status comes back \(statusWhy)")
 
-    let printedDirectory = await ran(.script(interpreter: "sh", source: "pwd -P"), in: "Sources")
+    let (printedDirectory, directoryWhy) = await ran(.script(interpreter: "sh", source: "pwd -P"), in: "Sources")
     check(
         trimmed(printedDirectory) == canonicalSources,
-        "a script runs in the working directory in the project: \(trimmed(printedDirectory))",
+        "a script runs in the working directory in the project: \(trimmed(printedDirectory)) \(directoryWhy)",
     )
 
-    let named = await ran(.script(interpreter: "sh", source: "echo $APELIN_PROJECT_ROOT"))
-    check(trimmed(named) == projectPath, "a script sees the project at APELIN_PROJECT_ROOT")
+    let (named, namedWhy) = await ran(.script(interpreter: "sh", source: "echo $APELIN_PROJECT_ROOT"))
+    check(trimmed(named) == projectPath, "a script sees the project at APELIN_PROJECT_ROOT \(namedWhy)")
 
-    let killed = await ran(.script(interpreter: "sh", source: "sleep 5"), timeout: 1)
-    check(killed?.timedOut == true && killed?.exitCode == -1, "a script past its timeout is killed")
+    let (killed, killedWhy) = await ran(.script(interpreter: "sh", source: "sleep 5"), timeout: 1)
+    check(
+        killed?.timedOut == true && killed?.exitCode == -1,
+        "a script past its timeout is killed \(killedWhy)",
+    )
 
-    let loud = await ran(.script(interpreter: "sh", source: "yes x | head -c 400000"), timeout: 60)
+    let (loud, loudWhy) = await ran(.script(interpreter: "sh", source: "yes x | head -c 400000"), timeout: 60)
     let loudBytes = loud?.stdout.utf8.count ?? 0
     check(
         loud?.truncated == true && loudBytes >= 200_000 && loudBytes <= 256 * 1024,
-        "past 256 KiB of output the run is cut short and says so: \(loudBytes) bytes",
+        "past 256 KiB of output the run is cut short and says so: \(loudBytes) bytes \(loudWhy)",
     )
 
     // MARK: Never as root
@@ -270,10 +279,10 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
         rootPython?.contains("code_run never runs as root") == true,
         "python3 as root is refused, whatever the request said: \(rootPython ?? "it ran")",
     )
-    let rootShell = await ran(.script(interpreter: "sh", source: "echo root-text"), as: .root)
+    let (rootShell, rootShellWhy) = await ran(.script(interpreter: "sh", source: "echo root-text"), as: .root)
     check(
         rootShell?.exitCode == 0 && trimmed(rootShell) == "root-text",
-        "a root shell_run's own text still runs as root",
+        "a root shell_run's own text still runs as root \(rootShellWhy)",
     )
 
     // MARK: What the host lets through under each mode
