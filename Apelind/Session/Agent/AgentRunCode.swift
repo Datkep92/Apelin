@@ -11,10 +11,10 @@ private func spawnAddChdir(
     _ path: UnsafePointer<CChar>,
 ) -> Int32
 
-/// `agentRunCode`: the agent's `shell_run`, run by the session host as
-/// mobile (uid, gid and groups 501 set before exec) — or as root, only when
-/// `AgentApprovals.authorize` answered `.root` —, in the session's project,
-/// with stdin from /dev/null, every other descriptor closed, its own
+/// `agentRunCode`: the agent's `shell_run` and `code_run`, run by the session
+/// host as mobile (uid, gid and groups 501 set before exec) — or as root,
+/// only when `AgentApprovals.authorize` answered `.root` —, in the session's
+/// project, with stdin from /dev/null, every other descriptor closed, its own
 /// process group (killed whole when time runs out) and both output streams
 /// capped and read for at most `drainSeconds` after it exits. Never outside
 /// `Projects/<name>` or the chat's temporary folder.
@@ -197,19 +197,11 @@ enum AgentRunCode {
                 "timeoutSeconds must be \(timeoutRange.lowerBound)–\(timeoutRange.upperBound)",
             )
         }
-        // A run as root is a command line the user approved word by word, or
-        // `shell_run`'s own shell text, which the worker hands to `sh`.
-        // `code_run` never runs as root, and its interpreters are refused
-        // here whatever the request says — the agent refuses a root
-        // `code_run` before it is sent, and this catches one that got past
-        // it. A root request that spells its program as `sh` is
-        // indistinguishable from `shell_run`'s text mode on this wire.
-        if identity == .root, case let .script(interpreter, _) = request.spec, interpreter != "sh" {
-            throw ApelinError(
-                .denied,
-                "\(interpreter) is a code_run interpreter, and code_run never runs as root",
-            )
-        }
+        // A run as root is a command line the user approved word by word, a
+        // program they approved by its source, or `shell_run`'s own shell
+        // text, which the worker hands to `sh`. The interpreter table is what
+        // bounds it either way: `invocation` refuses one neither table names,
+        // whatever the request says.
         let preset: Preset? = if case let .mobile(preset) = identity {
             preset
         } else {

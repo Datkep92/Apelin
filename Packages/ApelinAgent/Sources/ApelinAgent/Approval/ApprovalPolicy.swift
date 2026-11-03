@@ -75,10 +75,10 @@ public struct InvocationFacts: Sendable, Hashable {
     /// For the git settings tools: what they change, in words, without a
     /// token ("the commit author", "the credential for github.com").
     public var gitSettings: String?
-    /// For shell_run: its working directory, relative to the project root,
-    /// which a preset's path arguments are read from.
+    /// For shell_run and code_run: its working directory, relative to the
+    /// project root, which a preset's path arguments are read from.
     public var workingDirectory: String
-    /// For shell_run: run as root (`root: true`).
+    /// For shell_run and code_run: run as root (`root: true`).
     public var runsAsRoot: Bool
     /// For apelin_toolchain_setup: the release, resolved in Apple's catalog before
     /// asking, and sent by product ID.
@@ -201,7 +201,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
         if let screen = evaluateScreen(facts) {
             return screen
         }
-        if case .local(.shellRun) = facts.tool, facts.runsAsRoot {
+        if facts.runsAsRoot, case let .local(name) = facts.tool, name == .shellRun || name == .codeRun {
             return evaluateRoot(facts)
         }
         if mode != .confirm {

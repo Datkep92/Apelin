@@ -39,15 +39,17 @@ extension ToolRunner {
             }
         case .codeRun:
             // Source for one interpreter and nothing else: no argv, no shell
-            // text, and never as root, whatever the call asks for.
+            // text. Root is the user's to give, as it is for shell_run: the
+            // program runs as root only where the mode allows it or after
+            // the card that names this exact program and directory.
             let invocation = try CommandClassifier.classifyCode(arguments)
             facts.command = invocation
-            facts.runsAsRoot = false
+            facts.runsAsRoot = arguments.argBool("root") ?? false
             let cwd = arguments.argString("cwd") ?? "."
             facts.pathCheck = root.mayReach(cwd) ? .inside : .outside(cwd)
             facts.workingDirectory = cwd
             if invocation.screenProgram != nil {
-                facts.screenControl = .command(invocation, asRoot: false)
+                facts.screenControl = .command(invocation, asRoot: facts.runsAsRoot)
             }
         // What the call does on the screen, as the host is asked for it:
         // what Ask Before Using the Screen's card names.

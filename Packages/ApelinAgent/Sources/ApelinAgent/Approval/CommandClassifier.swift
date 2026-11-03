@@ -40,7 +40,9 @@ public enum CommandClassifier {
     /// and that program runs and nothing else. There is no `argv` and no
     /// shell text here — a command line is `shell_run`'s to run and to be
     /// judged for — so a call that passes one is refused, never quietly
-    /// turned into a program.
+    /// turned into a program. Whether it runs as root is not decided here:
+    /// `root` is read as a fact by the caller, and the run asks for it
+    /// exactly as `shell_run` does.
     public static func classifyCode(_ arguments: JSONValue) throws -> RunCodeInvocation {
         if case let .object(fields) = arguments {
             if fields["source"] != nil, fields["code"] != nil {
@@ -66,14 +68,6 @@ public enum CommandClassifier {
             throw ToolArgumentError("the source is over \(RunCodeSpec.maximumSourceBytes / 1024) KB")
         }
         let interpreter = arguments.argString("interpreter") ?? RunCodeSpec.defaultInterpreter
-        // No root here at all. A call asking for it has mistaken this tool for
-        // shell_run, and running the program as mobile instead would leave it
-        // to fail for a reason it never learns.
-        if arguments.argBool("root") == true {
-            throw ToolArgumentError(
-                "code_run never runs as root: pass a program to run as mobile, or use shell_run when a step truly needs root.",
-            )
-        }
         guard RunCodeSpec.interpreters.contains(where: { $0.name == interpreter }) else {
             throw ToolArgumentError(
                 "\(interpreter) is not an interpreter code_run runs: \(RunCodeSpec.interpreterNames.joined(separator: ", "))",

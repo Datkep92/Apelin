@@ -271,7 +271,7 @@ enum AgentApprovals {
             throw ApelinError(.denied, "running as root needs the user's approval of this call, every time")
         }
         let asked = await requested(approvalID, entry: entry, registry: registry)
-        guard let asked, asked["tool"]?.stringValue == AgentToolName.shellRun.rawValue,
+        guard let asked, isRootTool(asked["tool"]?.stringValue),
               let approved = approvedSpec(asked, key: RunCodeApproval.rootCommandDetail), approved == run.spec,
               directoryName(asked["workingDirectory"]?.stringValue) == directoryName(run.workingDirectory)
         else {
@@ -294,6 +294,13 @@ enum AgentApprovals {
     /// for before approving it.
     static func isRootRequest(_ asked: JSONValue?) -> Bool {
         asked?["detail"]?[RunCodeApproval.rootCommandDetail] != nil
+    }
+
+    /// The tools whose card for root is a command line the user approves word
+    /// by word: `shell_run` and `code_run` both run one as root and both ask
+    /// with `rootCommand`. Any other tool's card is no root approval.
+    private static func isRootTool(_ name: String?) -> Bool {
+        name == AgentToolName.shellRun.rawValue || name == AgentToolName.codeRun.rawValue
     }
 
     /// The command a shell_run approval request showed the user, as the

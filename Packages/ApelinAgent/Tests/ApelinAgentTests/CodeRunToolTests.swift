@@ -6,13 +6,15 @@ import KWWKAI
 import Testing
 
 /// code_run from the agent's side: a program the model wrote, for one
-/// interpreter, as mobile, in the project — never a command line and never
-/// root. The session host runs the same table and checks the same fields
-/// (`AgentRunCodeChecks`); these pin that the two halves describe one call.
+/// interpreter, in the project — never a command line. It runs as mobile
+/// unless the call asks for root, which is the user's to give exactly as it
+/// is for `shell_run`. The session host runs the same table and checks the
+/// same fields (`AgentRunCodeChecks`); these pin that the two halves describe
+/// one call.
 @Suite("code_run")
 struct CodeRunToolTests {
     /// The tool's schema and sentence offer exactly the interpreters the host
-    /// looks up, and nothing that could ask for root.
+    /// looks up, and say root is the user's to give where it is passed.
     @Test
     func `the tool offers exactly the interpreters the host runs`() {
         let fields = AgentToolName.codeRun.parameters.objectValue
@@ -21,12 +23,14 @@ struct CodeRunToolTests {
         #expect(offered == RunCodeSpec.interpreterNames)
         #expect(fields?["required"]?.stringList == ["source"])
         #expect(properties?["argv"] == nil && properties?["command"] == nil, "no command line here")
-        #expect(properties?["root"] == nil, "there is no root here at all")
+        #expect(properties?["root"]?.objectValue?["type"] == .string("boolean"), "root is offered, and is the user's to give")
+        #expect(AgentToolName.codeRun.summary.contains("root: true runs the program as root"), "the sentence says what root does")
         #expect(AgentToolName.codeRun.summary.contains(RunCodeSpec.interpreterNames.joined(separator: ", ")))
     }
 
     /// Every shape the model may write arrives at the host as one `.script`
-    /// invocation for the interpreter it names, as mobile, in the project.
+    /// invocation for the interpreter it names, in the project, mobile
+    /// unless the call asks for root.
     @Test
     func `a program is sent as one script for the interpreter it names`() async throws {
         let cases: [(arguments: JSONValue, invocation: RunCodeInvocation)] = [
@@ -72,30 +76,52 @@ struct CodeRunToolTests {
         }
     }
 
-    /// Nothing here runs as root: a call that asks for it is refused and told
-    /// where to go, in every mode, and the odd shapes the model writes for
-    /// "yes" mean mobile here as they do for `shell_run`.
+    /// A call that asks for root is the user's to give, exactly as `shell_run`'s
+    /// is: the card names this program and this directory, and the odd shapes
+    /// the model writes for "yes" mean mobile here as they do there.
     @Test
-    func `a call that asks for root is refused, in every mode`() async throws {
+    func `a call that asks for root asks the user, and is read as shell_run reads it`() async throws {
         let mobile: [JSONValue] = [
             ["source": "print(1)", "root": false],
             ["source": "print(1)", "root": "true"],
             ["source": "print(1)", "root": 1],
             ["source": "print(1)", "root": .null],
         ]
-        for mode in [ApprovalMode.confirm, .relaxed, .full] {
+        for mode in [ApprovalMode.confirm, .relaxed] {
             let harness = try DigestApprovalTests.Harness(mode: mode)
             defer { harness.home.remove() }
-            await #expect(throws: ToolArgumentError.self) {
-                _ = try await harness.run(.codeRun, ["source": "print(1)", "root": true])
+            let invocation = RunCodeInvocation.script(interpreter: "python3", source: "print(1)")
+            let (_, asked) = try await harness.run(.codeRun, ["source": "print(1)", "root": true])
+            #expect(asked.count == 1, "\(mode): one card")
+            guard let card = asked.first else { continue }
+            #expect(card.detail == .rootCommand(invocation), "\(mode): \(card.detail)")
+            #expect(card.allowsSessionScope == false, "a root card never offers the session")
+            let shown = try JSONDecoder().decode(JSONValue.self, from: Data(card.arguments.utf8)).objectValue
+            #expect(shown?["root"] == .bool(true), "the card's arguments say root")
+            let sent = await harness.backend.runCodeRequests
+            #expect(sent.count == 1, "\(mode): the approved call ran")
+            #expect(sent.first?.invocation == invocation, "\(mode)")
+            #expect(sent.first?.asRoot == true, "\(mode)")
+            guard case let .user(requestID, _)? = sent.first?.context.approval else {
+                Issue.record("\(mode): moved without the user's approval"); continue
             }
+            #expect(requestID == card.id, "\(mode): sent with this card's approval")
             for shape in mobile {
                 _ = try await harness.run(.codeRun, shape)
             }
-            let sent = await harness.backend.runCodeRequests
-            #expect(sent.count == mobile.count, "\(mode): only the root call was refused: \(sent.count)")
-            #expect(sent.allSatisfy { !$0.asRoot }, "\(mode)")
+            let after = await harness.backend.runCodeRequests
+            #expect(after.count == mobile.count + 1, "\(mode): every call ran: \(after.count)")
+            #expect(after.dropFirst().allSatisfy { !$0.asRoot }, "\(mode): \(after)")
         }
+
+        let full = try DigestApprovalTests.Harness(mode: .full)
+        defer { full.home.remove() }
+        let (_, inFull) = try await full.run(.codeRun, ["source": "print(1)", "root": true])
+        #expect(inFull.isEmpty, "Full asks nothing")
+        let rootSent = await full.backend.runCodeRequests
+        #expect(rootSent.count == 1)
+        #expect(rootSent.first?.asRoot == true, "Full still sends the root request")
+        #expect(rootSent.first?.context.approval == .relaxed, "evidence the host does not take as approval")
     }
 
     /// A call that is not a program for one interpreter is refused by name,

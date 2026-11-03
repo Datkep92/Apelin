@@ -541,7 +541,7 @@ actor ToolRunner {
                 invocation: invocation,
                 workingDirectory: facts.workingDirectory,
                 timeoutSeconds: timeout,
-                asRoot: false,
+                asRoot: facts.runsAsRoot,
             )))
 
         case .projectBuild:

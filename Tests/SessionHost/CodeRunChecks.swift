@@ -4,12 +4,12 @@ import Foundation
 
 // code_run (Apelind/Session/Agent/AgentRunCode.swift, AgentApprovals.swift):
 // a program the model wrote, handed to one interpreter of the one table
-// (`RunCodeSpec.interpreters`) as mobile and in the session's project, under
-// the bounds a shell_run has — the interpreter looked up on the run's PATH
-// and refused by name when it is not there, the source's size and NUL bytes
-// checked, the timeout range checked, the working directory kept inside the
-// project — and never as root, which the agent refuses before it sends and
-// the host refuses again.
+// (`RunCodeSpec.interpreters`) in the session's project, under the bounds a
+// shell_run has — the interpreter looked up on the run's PATH and refused by
+// name when it is not there, the source's size and NUL bytes checked, the
+// timeout range checked, the working directory kept inside the project — as
+// mobile unless the user approved this exact program as root, as for
+// shell_run.
 
 func codeRunChecks(scratch: URL, scratchPath: String) async {
     let registry = TaskRegistry(directory: scratch.appendingPathComponent("code-tasks"))
@@ -60,13 +60,15 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
         source: String,
         sessionScope: Bool = false,
         workingDirectory: String = ".",
+        asRoot: Bool = false,
     ) async {
+        let key = asRoot ? RunCodeApproval.rootCommandDetail : "command"
         await registry.append(entry.task.taskID, kind: "approvalRequested", payload: .object([
             "approvalID": .string(approvalID),
             "tool": .string(tool),
             "workingDirectory": .string(workingDirectory),
             "allowsSessionScope": .bool(sessionScope),
-            "detail": .object(["command": scriptJSON(interpreter, source)]),
+            "detail": .object([key: scriptJSON(interpreter, source)]),
         ]))
     }
     @discardableResult
@@ -268,17 +270,26 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
         "past 256 KiB of output the run is cut short and says so: \(loudBytes) bytes \(loudWhy)",
     )
 
-    // MARK: Never as root
+    // MARK: Root, when the user approved this exact program
 
-    // The agent refuses `root: true` on a code_run before it sends it, and
-    // the host refuses the interpreters again here. `sh` is the one name
-    // both tables share — shell_run's own text mode — so a root `sh` script
-    // is what a root shell_run with a pipeline looks like on this wire.
-    let rootPython = await refused(.script(interpreter: "python3", source: "print(1)"), as: .root)
-    check(
-        rootPython?.contains("code_run never runs as root") == true,
-        "python3 as root is refused, whatever the request said: \(rootPython ?? "it ran")",
-    )
+    // A root code_run is an interpreter of the one table running as root —
+    // the same interpreter shell_run's own text mode reaches — and it is
+    // root because the request says so, which the host takes from the
+    // approval it checked, never from the request alone.
+    let rootSearched = AgentRunCode.searchPath(for: .root, environment: environment, installRoot: "/")
+    if AgentRunCode.findExecutable("python3", in: rootSearched) != nil {
+        let (rootPython, rootPythonWhy) = await ran(.script(interpreter: "python3", source: "print(1)"), as: .root)
+        check(
+            rootPython?.exitCode == 0 && trimmed(rootPython) == "1",
+            "an approved python3 runs as root \(rootPythonWhy)",
+        )
+    } else {
+        let message = await refused(.script(interpreter: "python3", source: "print(1)"), as: .root)
+        check(
+            message?.contains("python3") == true,
+            "python3 is not on root's PATH on this machine and is refused by name: \(message ?? "it ran")",
+        )
+    }
     let (rootShell, rootShellWhy) = await ran(.script(interpreter: "sh", source: "echo root-text"), as: .root)
     check(
         rootShell?.exitCode == 0 && trimmed(rootShell) == "root-text",
@@ -311,29 +322,62 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
     let elsewhere = await identity(strict, python, .user(approvalID: "code-elsewhere"))
     check(elsewhere == nil, "a script approved in another working directory is not the one sent")
 
-    // Root: a code_run card is no approval of a root request, and the
-    // session grant of a script is no root grant either.
+    // Root: a card that names a command is no root approval, and the session
+    // grant of a script is no root grant either. A card that names the
+    // program as root is, once, and only with the device owner's check.
     await ask(strict, "code-root", interpreter: "python3", source: "print(1)")
     await approve(strict, "code-root")
     let rootAsCard = await identity(strict, python, .user(approvalID: "code-root"), asRoot: true)
-    check(rootAsCard == nil, "a card for code_run authorises nothing as root")
+    check(rootAsCard == nil, "a card for code_run that named a plain command authorises nothing as root")
     let rootAsGrant = await identity(strict, python, .session, asRoot: true)
     check(rootAsGrant == nil, "nor does the session grant of a script")
 
-    // A card asked for by shell_run is a root approval; one asked for by
-    // code_run never is.
+    await ask(strict, "code-root-unchecked", interpreter: "python3", source: "print(1)", asRoot: true)
+    let unchecked = await approve(strict, "code-root-unchecked", ownerVerified: nil)
+    check(!unchecked, "a root code_run card is approved only where the app checked the device owner")
+
+    await ask(strict, "code-root-ok", interpreter: "python3", source: "print(1)", asRoot: true)
+    await approve(strict, "code-root-ok")
+    let rootByCard = await identity(strict, python, .user(approvalID: "code-root-ok"), asRoot: true)
+    check(rootByCard == .root, "the app's approval of this program as root runs exactly it, as root")
+    let otherAsRoot = await identity(
+        strict,
+        .script(interpreter: "python3", source: "print(2)"),
+        .user(approvalID: "code-root-ok"),
+        asRoot: true,
+    )
+    check(otherAsRoot == nil, "and not another program")
+    let spent = await identity(strict, python, .user(approvalID: "code-root-ok"), asRoot: true)
+    check(spent == nil, "the root card is spent by the run it approved")
+    let mobileOnRootCard = await identity(strict, python, .user(approvalID: "code-root-ok"))
+    check(mobileOnRootCard == nil, "a root card approves no ordinary run either")
+
+    // A card that names a command is no root approval, whoever asked: a
+    // root call's own card carries rootCommand, and code_run's — mobile or
+    // root — is read by the command it names.
     let codeAsked: JSONValue = .object([
         "tool": .string("code_run"),
         "detail": .object(["command": scriptJSON("sh", "echo hi")]),
     ])
     check(
         !AgentApprovals.isRootRequest(codeAsked),
-        "a code_run card is never read as a root request",
+        "a card that names a command is never read as a root request",
+    )
+    let codeAskedRoot: JSONValue = .object([
+        "tool": .string("code_run"),
+        "detail": .object([RunCodeApproval.rootCommandDetail: scriptJSON("sh", "echo hi")]),
+    ])
+    check(
+        AgentApprovals.isRootRequest(codeAskedRoot),
+        "and code_run's card for root is read as one, so the app checks the device owner",
     )
 
-    // Full mode: nothing asks, and a code_run is still mobile.
+    // Full mode: nothing asks, a code_run is mobile unless the call asked for
+    // root, and the root request is still marked as one.
     let full = await session("code-full", mode: .full)
     let relaxed = await identity(full, python, .relaxed)
     check(relaxed == .mobile(preset: nil), "Full runs a code_run as mobile, with no card")
+    let fullRoot = await identity(full, python, .relaxed, asRoot: true)
+    check(fullRoot == .root, "and as root when the call asked for it, with no card")
     await setMode(.confirm, "code-full")
 }
