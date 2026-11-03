@@ -58,6 +58,9 @@ final class ChatController: UIViewController {
     /// Whether the model bar shows the spent-allowance Retry now, so a
     /// refresh that changes nothing does not relayout the bar.
     private var showsRetry = false
+    /// The model the bar names, so a refresh that changed nothing does not
+    /// rebuild its menus; a retry after a spent allowance names another one.
+    private var shownModel: ComposerModelSelection?
     /// While `use(_:)` swaps another conversation in: nothing animates, and
     /// the list's opening scroll waits for its rows.
     private var isSwitchingChat = false
@@ -523,9 +526,17 @@ final class ChatController: UIViewController {
                     }
                 } : nil)
             }
+            // A retry after a spent allowance runs the conversation on the
+            // next model, and the bar names the one it runs on now.
+            if barSelection != shownModel {
+                updateModelSelection()
+            }
             // a model is left to answer the last message's spent allowance
-            // again, and nothing is running that a second prompt would join
-            let retryable = !summary.isWorking && runtime.hasSpentAllowanceRetry(chat.id)
+            // again, and nothing is running that a second prompt would join,
+            // and no message of the reader's is on its way
+            let retryable = !summary.isWorking
+                && (runtime.records[chat.id]?.sending ?? []).isEmpty
+                && runtime.hasSpentAllowanceRetry(chat.id)
             if retryable != showsRetry {
                 showsRetry = retryable
                 composer.modelBar.setRetry(retryable)
@@ -637,10 +648,18 @@ final class ChatController: UIViewController {
     }
 
     @objc private func updateModelSelection() {
-        let selection: ComposerModelSelection? = chat.flatMap { runtime.modelSelection(for: $0.id) } ?? ComposerModelSelection.current
+        let selection = barSelection
+        shownModel = selection
         composer.modelBar.setModelName(selection?.model)
         composer.modelBar.setEfforts(selection?.supportedEfforts ?? [], selected: selection?.effort)
         composer.modelBar.setTiers(selection?.supportedTiers ?? [], selected: selection?.tier)
+    }
+
+    /// The model this composer sends with: the conversation's own, which a
+    /// retry after a spent allowance changes, or the reader's current one
+    /// for a conversation that has none yet.
+    private var barSelection: ComposerModelSelection? {
+        chat.flatMap { runtime.modelSelection(for: $0.id) } ?? ComposerModelSelection.current
     }
 
     /// A model disabled in Settings stops being the one the next message uses.

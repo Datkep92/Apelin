@@ -70,6 +70,11 @@ final class ChatRuntime {
     private static let saveInterval: Duration = .seconds(3)
     /// Who waits for a conversation's compaction to end, by conversation.
     private var compactions: [UUID: CheckedContinuation<AgentCompactionResult, Error>] = [:]
+    /// Conversations whose spent allowance is being answered right now. Two
+    /// errors of one run, read in two batches, would otherwise each look up
+    /// the models to fall back to and each write the state: the slower one
+    /// would put back the model and the try the faster one spent.
+    private var answeringSpentAllowance: Set<UUID> = []
 
     var summaries: [ChatSummary] {
         records.values.map(\.summary)
@@ -707,7 +712,11 @@ final class ChatRuntime {
     /// again with the next model of `ModelCandidates.fallbackList`, and the
     /// model bar keeps a Retry while that list has one left.
     private func answerSpentAllowance(in id: UUID) async {
-        guard records[id] != nil else { return }
+        // One answer at a time: the models are looked up over the wire, and
+        // a second error read meanwhile would answer the same one twice.
+        guard records[id] != nil, !answeringSpentAllowance.contains(id) else { return }
+        answeringSpentAllowance.insert(id)
+        defer { answeringSpentAllowance.remove(id) }
         var state: RateLimitRetryState
         if let known = records[id]?.rateLimitRetry {
             // later errors of the same run keep the tries and the list
@@ -750,6 +759,9 @@ final class ChatRuntime {
 
     private func sendNextModel(in id: UUID, readerAsked: Bool) async {
         guard var state = records[id]?.rateLimitRetry, let next = state.remaining.first else { return }
+        // One retry at a time: the same message sent twice would run twice,
+        // and a send under way is a prompt the host already has.
+        guard (records[id]?.sending ?? []).isEmpty else { return }
         let draft = retryDraft(in: id, fallbackText: state.text)
         let step = RateLimitRetryPolicy.step(
             attempts: state.attempts,
