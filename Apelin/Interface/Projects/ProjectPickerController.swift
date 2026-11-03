@@ -129,6 +129,22 @@ final class ProjectPickerController: UIViewController {
         reloadProjects()
     }
 
+    /// The project ticked, as a drawer beside the page is opened on another.
+    func mark(_ name: String?) {
+        guard current != name else { return }
+        current = name
+        guard isViewLoaded else { return }
+        var snapshot = dataSource.snapshot()
+        snapshot.reconfigureItems(snapshot.itemIdentifiers)
+        dataSource.apply(snapshot, animatingDifferences: false)
+    }
+
+    /// Reads the catalogue again, as the drawer opens: a project made in
+    /// another page is listed without waiting for its notification.
+    func reloadNow() {
+        reloadProjects()
+    }
+
     @objc private func reloadProjects() {
         Task { [weak self] in
             guard let self else { return }

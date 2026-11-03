@@ -35,6 +35,11 @@ final class SidebarController: UIViewController {
     var onSendPrompt: ((String) -> Void)?
     private(set) var hasLoadedProjects = false
     var runtime: ChatRuntime!
+    /// Set by the root: narrow, this sidebar is a drawer under the page, so a
+    /// swipe puts it away and a pan from the leading edge opens Settings.
+    var isInDrawer = false
+    /// Puts the drawer away, as a swipe left across the sidebar does.
+    var onCloseDrawer: (() -> Void)?
 
     func select(_ summary: ChatSummary) {
         if project?.name != summary.projectName {
@@ -46,6 +51,37 @@ final class SidebarController: UIViewController {
         selectedID = summary.id
         applySnapshot()
         onSelect?(summary, false)
+    }
+
+    /// The project the list under the bar is about, for a project list drawn
+    /// out beside the page to tick.
+    var openProjectName: String? {
+        project?.name
+    }
+
+    /// Opens `project` as this sidebar's, as picking it in its own list does.
+    func open(_ project: ProjectSummary) {
+        switchProject(to: project)
+    }
+
+    /// Wires a project list drawn out beside the page
+    /// (`RootInterfaceController`): it picks, makes and deletes the same
+    /// projects the folder menu and this sidebar's own list do.
+    func connect(_ picker: ProjectPickerController) {
+        picker.onPick = { [weak self] project in self?.switchProject(to: project) }
+        picker.onCreate = { [weak self] project, firstPrompt in
+            self?.openCreatedProject(project, firstPrompt: firstPrompt)
+        }
+        picker.onDelete = { [weak self] project in
+            guard let self else { return }
+            try await runtime.deleteProject(project.name)
+            projects.removeAll { $0.name == project.name }
+            if self.project?.name == project.name {
+                switchProject(to: nil)
+            }
+            showProject()
+            NotificationCenter.default.post(name: .apelinProjectsChanged, object: nil)
+        }
     }
 
     func refresh() {
@@ -178,7 +214,7 @@ final class SidebarController: UIViewController {
     private lazy var settingsBarButton: UIBarButtonItem = {
         UIBarButtonItem(
             image: UIImage(systemName: "gearshape"),
-            primaryAction: UIAction { [weak self] _ in self?.presentPageAsFormSheet(SettingsViewController()) },
+            primaryAction: UIAction { [weak self] _ in self?.presentSettings() },
         ).then {
             $0.accessibilityLabel = String(localized: "Settings")
         }
@@ -396,6 +432,17 @@ final class SidebarController: UIViewController {
         )
         openProjectsFooterSwipe.direction = .left
         projectNameLabel.addGestureRecognizer(openProjectsFooterSwipe)
+
+        // As a drawer, a pan from the leading edge opens Settings, as the
+        // gear in the bar does. A swipe closed over the page or the empty
+        // space puts the sidebar away; the rows keep their own swipes.
+        let openSettingsEdge = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(openSettingsByEdgePan),
+        )
+        openSettingsEdge.edges = .left
+        openSettingsEdge.delegate = self
+        view.addGestureRecognizer(openSettingsEdge)
 
         applySnapshot()
     }
@@ -725,31 +772,43 @@ final class SidebarController: UIViewController {
         }
     }
 
+    /// A swipe left on empty space or the project name: as a drawer it puts
+    /// the sidebar away, beside the page it opens the project list as before.
     @objc private func openProjectPickerBySwipe() {
+        if isInDrawer {
+            onCloseDrawer?()
+            return
+        }
         openProjectPicker()
+    }
+
+    @objc private func openSettingsByEdgePan(_ pan: UIScreenEdgePanGestureRecognizer) {
+        guard pan.state == .ended, view.window != nil else { return }
+        let travel = pan.translation(in: view).x
+        guard travel > 40 || pan.velocity(in: view).x > 300 else { return }
+        presentSettings()
+    }
+
+    private func presentSettings() {
+        guard presentedViewController == nil, view.window != nil else { return }
+        presentPageAsFormSheet(SettingsViewController())
     }
 
     private func openProjectPicker() {
         let picker = ProjectPickerController(projects: projects, current: project?.name)
-        picker.onPick = { [weak self] project in self?.switchProject(to: project) }
-        picker.onCreate = { [weak self] project, firstPrompt in
-            self?.openCreatedProject(project, firstPrompt: firstPrompt)
-        }
-        picker.onDelete = { [weak self] project in
-            guard let self else { return }
-            try await runtime.deleteProject(project.name)
-            projects.removeAll { $0.name == project.name }
-            if self.project?.name == project.name {
-                switchProject(to: nil)
-            }
-            showProject()
-            NotificationCenter.default.post(name: .apelinProjectsChanged, object: nil)
-        }
+        connect(picker)
         if let nav = navigationController {
             nav.pushViewController(picker, animated: true)
         } else {
             presentPageAsFormSheet(picker)
         }
+    }
+}
+
+extension SidebarController: UIGestureRecognizerDelegate {
+    /// The leading-edge pan is the drawer's, and does nothing beside a page.
+    func gestureRecognizerShouldBegin(_: UIGestureRecognizer) -> Bool {
+        isInDrawer
     }
 }
 

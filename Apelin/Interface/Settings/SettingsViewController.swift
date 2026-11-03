@@ -206,16 +206,20 @@ final class SettingsViewController: TableController {
         case .templates: page = TemplatesController()
         case .git: page = GitSettingsController()
         case .services:
-            // Services config is per-project; present a project picker first.
+            // Services config is per-project, so the projects come first: in
+            // this sheet's own stack, not in a sheet over it, which would
+            // have covered the settings it goes on to open.
             Task { [weak self] in
                 let projects = (try? await ProjectSummary.load()) ?? []
+                guard let self, let navigation = self.navigationController else { return }
                 let picker = ProjectPickerController(projects: projects, current: nil)
-                let nav = UINavigationController(rootViewController: picker)
-                picker.onPick = { [weak self] project in
-                    let services = ServicesSettingsController(projectName: project.name)
-                    self?.navigationController?.pushViewController(services, animated: true)
+                picker.onPick = { [weak navigation] project in
+                    guard let navigation else { return }
+                    var stack = navigation.viewControllers.filter { !($0 is ProjectPickerController) }
+                    stack.append(ServicesSettingsController(projectName: project.name))
+                    navigation.setViewControllers(stack, animated: true)
                 }
-                self?.present(nav, animated: true)
+                navigation.pushViewController(picker, animated: true)
             }
             return
         case .licenses: page = LicensesViewController()

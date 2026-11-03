@@ -40,6 +40,28 @@ final class RootInterfaceController: UIViewController {
         return page
     }()
 
+    /// The project list, drawn out from the trailing side over the page, the
+    /// conversation staying between it and the sidebar. Its plus makes a
+    /// project, as the sidebar's does.
+    private lazy var projectPicker = ProjectPickerController(projects: [], current: nil).then {
+        sidebar.connect($0)
+        let pick = $0.onPick
+        $0.onPick = { [weak self] project in
+            // the conversation picked is the one to show, so the list goes
+            pick?(project)
+            self?.setProjectsOpen(false)
+        }
+    }
+    private lazy var projectNavigation = UINavigationController(rootViewController: projectPicker)
+
+    /// Narrow, how far the project list is out: 0 closed, 1 open.
+    private var projectsProgress: CGFloat = 0
+    /// The pan that draws out the project list, kept to know which side it
+    /// moves the page toward.
+    private var projectsEdgePan: UIScreenEdgePanGestureRecognizer?
+    /// Whether the pan running belongs to the project list.
+    private var panningProjects = false
+
     /// Beside the page, the sidebar is always this wide.
     private static let sidebarWidth: CGFloat = 340
     /// The narrowest page the sidebar goes beside: an iPhone's width.
@@ -89,6 +111,7 @@ final class RootInterfaceController: UIViewController {
         super.init(nibName: nil, bundle: nil)
         sidebar.runtime = chatRuntime
         sidebar.onSelect = { [weak self] chat, picked in self?.open(chat, picked: picked) }
+        sidebar.onCloseDrawer = { [weak self] in self?.setDrawerOpen(false) }
         sidebar.onProjectsLoaded = { [weak self] in self?.restoreChatIfReady() }
         // startNewChat has just put that conversation on the page
         sidebar.onSendPrompt = { [weak self] text in self?.chatController.sendPrompt(text) }
@@ -185,16 +208,18 @@ final class RootInterfaceController: UIViewController {
         } else {
             setOverrideTraitCollection(UITraitCollection(userInterfaceLevel: .elevated), forChild: navigator)
         }
-        for child in [sidebarNavigation, navigator] {
+        for child in [sidebarNavigation, projectNavigation, navigator] {
             addChild(child)
             view.addSubview(child.view)
             child.didMove(toParent: self)
         }
+        // out of the way until the trailing edge draws it out
+        projectNavigation.view.isHidden = true
         navigator.delegate = self
         navigator.view.layer.shadowColor = UIColor.black.cgColor
         navigator.view.layer.shadowRadius = 12
 
-        shade.onClose = { [weak self] in self?.setDrawerOpen(false) }
+        shade.onClose = { [weak self] in self?.closeOpenDrawer() }
         shade.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(panDrawer)).then {
             $0.delegate = self
         })
@@ -203,6 +228,13 @@ final class RootInterfaceController: UIViewController {
         navigator.view.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(panDrawer)).then {
             $0.delegate = self
         })
+        // the project list comes out when the page is panned from its
+        // trailing edge, the conversation left between the two
+        let projectsEdge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(panDrawer))
+        projectsEdge.edges = .trailing
+        projectsEdge.delegate = self
+        navigator.view.addGestureRecognizer(projectsEdge)
+        projectsEdgePan = projectsEdge
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -244,7 +276,8 @@ final class RootInterfaceController: UIViewController {
     /// in front. A sheet over the page does not count.
     @objc private func syncViewedChat() {
         let page = navigator.topViewController as? ChatController
-        let isLooking = UIApplication.shared.applicationState == .active && !(isDrawer && drawerProgress > 0)
+        let isLooking = UIApplication.shared.applicationState == .active
+            && !(isDrawer && (drawerProgress > 0 || projectsProgress > 0))
         chatRuntime.viewedChat = isLooking ? page?.chat?.id : nil
     }
 
@@ -269,6 +302,7 @@ final class RootInterfaceController: UIViewController {
             // with the drawer out, starts the other layout closed and shown
             laidOutAsDrawer = isDrawer
             drawerProgress = 0
+            projectsProgress = 0
             isSidebarHidden = false
             syncBarItems()
             syncVisibility()
@@ -277,6 +311,7 @@ final class RootInterfaceController: UIViewController {
                 DispatchQueue.main.async { [weak self] in self?.sidebar.startNewChat(picked: false) }
             }
         }
+        sidebar.isInDrawer = isDrawer
         layoutColumns()
     }
 
@@ -287,16 +322,25 @@ final class RootInterfaceController: UIViewController {
         let bounds = view.bounds
         if isDrawer {
             let width = drawerWidth
-            let shift = view.directionalOffset(width * drawerProgress)
+            let shift = view.directionalOffset(width * drawerProgress - width * projectsProgress)
             // the drawer comes out from under the page, a little behind it
             place(
                 sidebarNavigation.view,
                 in: view.directionalFrame(CGRect(x: 0, y: 0, width: width, height: bounds.height)),
                 shift: view.directionalOffset(-width * 0.25 * (1 - drawerProgress)),
             )
+            // the project list rests past the trailing edge and comes out
+            // from there, the page sliding the other way
+            place(
+                projectNavigation.view,
+                in: view.directionalFrame(
+                    CGRect(x: bounds.width, y: 0, width: width, height: bounds.height),
+                ),
+                shift: view.directionalOffset(-width * projectsProgress),
+            )
             place(navigator.view, in: bounds, shift: shift)
             place(shade, in: bounds, shift: shift)
-            shade.alpha = drawerProgress
+            shade.alpha = max(drawerProgress, projectsProgress)
             navigator.view.layer.shadowOpacity = 0.15
         } else {
             let width = isSidebarHidden ? 0 : Self.sidebarWidth
@@ -312,6 +356,7 @@ final class RootInterfaceController: UIViewController {
                 in: view.directionalFrame(CGRect(x: width, y: 0, width: bounds.width - width, height: bounds.height)),
                 shift: 0,
             )
+            place(projectNavigation.view, in: bounds, shift: 0)
             place(shade, in: bounds, shift: 0)
             shade.alpha = 0
             navigator.view.layer.shadowOpacity = 0
@@ -332,13 +377,15 @@ final class RootInterfaceController: UIViewController {
     /// hidden, and a page under an open drawer is not read.
     private func syncVisibility() {
         sidebarNavigation.view.isHidden = !isSidebarShown
-        shade.isHidden = !isDrawer || drawerProgress == 0
-        navigator.view.accessibilityElementsHidden = isDrawer && drawerProgress > 0
+        projectNavigation.view.isHidden = !isDrawer || projectsProgress == 0
+        shade.isHidden = !isDrawer || (drawerProgress == 0 && projectsProgress == 0)
+        navigator.view.accessibilityElementsHidden = isDrawer && (drawerProgress > 0 || projectsProgress > 0)
     }
 
     private func animateLayout(velocity: CGFloat = 0, completion: (() -> Void)? = nil) {
         // shown before it moves in; hidden only once it is out
         sidebarNavigation.view.isHidden = false
+        projectNavigation.view.isHidden = false
         shade.isHidden = !isDrawer
         UIView.animate(
             withDuration: 0.4,
@@ -361,9 +408,36 @@ final class RootInterfaceController: UIViewController {
         guard isDrawer else { return }
         // the keyboard goes with the column it typed into
         (open ? navigator.view : sidebarNavigation.view).endEditing(true)
+        if open {
+            projectsProgress = 0
+        }
         drawerProgress = open ? 1 : 0
         syncBarItems()
         animateLayout(velocity: velocity)
+    }
+
+    /// Draws out the project list from the trailing side, or puts it away.
+    func setProjectsOpen(_ open: Bool, velocity: CGFloat = 0) {
+        guard isDrawer else { return }
+        (open ? navigator.view : projectNavigation.view).endEditing(true)
+        if open {
+            drawerProgress = 0
+            projectPicker.mark(sidebar.openProjectName)
+            projectPicker.reloadNow()
+        }
+        projectsProgress = open ? 1 : 0
+        syncBarItems()
+        animateLayout(velocity: velocity)
+    }
+
+    /// Puts away whichever drawer is out.
+    private func closeOpenDrawer() {
+        if projectsProgress > 0 {
+            setProjectsOpen(false)
+        }
+        if drawerProgress > 0 {
+            setDrawerOpen(false)
+        }
     }
 
     private func toggleSidebar() {
@@ -381,28 +455,51 @@ final class RootInterfaceController: UIViewController {
         guard width > 0 else { return }
         switch pan.state {
         case .began:
-            panStart = drawerProgress
+            // the project list comes out the other way: from the trailing
+            // edge, and from the shade once it is out
+            panningProjects = pan === projectsEdgePan
+                || (projectsProgress > 0 && drawerProgress == 0)
+            panStart = panningProjects ? projectsProgress : drawerProgress
             navigator.view.endEditing(true)
             sidebarNavigation.view.isHidden = false
+            projectNavigation.view.isHidden = false
             shade.isHidden = false
         case .changed:
             let travel = view.directionalOffset(pan.translation(in: view).x)
-            drawerProgress = min(max(panStart + travel / width, 0), 1)
+            let progress = min(max(panStart + (panningProjects ? -travel : travel) / width, 0), 1)
+            if panningProjects {
+                projectsProgress = progress
+            } else {
+                drawerProgress = progress
+            }
             layoutColumns()
         case .ended:
-            // positive toward the trailing side, the way the drawer comes out
+            // positive toward the trailing side, the way the sidebar comes
+            // out; the project list comes out the other way
             let velocity = view.directionalOffset(pan.velocity(in: view).x)
-            let open = abs(velocity) > 300 ? velocity > 0 : drawerProgress > 0.5
-            let distance = abs((open ? 1 : 0) - drawerProgress) * width
-            setDrawerOpen(open, velocity: distance > 0 ? abs(velocity) / distance : 0)
+            let progress = panningProjects ? projectsProgress : drawerProgress
+            let open = abs(velocity) > 300
+                ? (panningProjects ? velocity < 0 : velocity > 0)
+                : progress > 0.5
+            let distance = abs((open ? 1 : 0) - progress) * width
+            let spring = distance > 0 ? abs(velocity) / distance : 0
+            if panningProjects {
+                setProjectsOpen(open, velocity: spring)
+            } else {
+                setDrawerOpen(open, velocity: spring)
+            }
         default:
-            setDrawerOpen(drawerProgress > 0.5)
+            if panningProjects {
+                setProjectsOpen(projectsProgress > 0.5)
+            } else {
+                setDrawerOpen(drawerProgress > 0.5)
+            }
         }
     }
 
     override func accessibilityPerformEscape() -> Bool {
-        guard isDrawer, drawerProgress > 0 else { return false }
-        setDrawerOpen(false)
+        guard isDrawer, drawerProgress > 0 || projectsProgress > 0 else { return false }
+        closeOpenDrawer()
         return true
     }
 
@@ -431,8 +528,8 @@ final class RootInterfaceController: UIViewController {
         } else if navigator.topViewController !== chatController {
             navigator.popToRootViewController(animated: false)
         }
-        if picked, drawerProgress > 0 {
-            setDrawerOpen(false)
+        if picked {
+            closeOpenDrawer()
         }
     }
 
@@ -563,11 +660,17 @@ extension RootInterfaceController: UIGestureRecognizerDelegate {
         guard let pan = gesture as? UIPanGestureRecognizer, isDrawer, presentedViewController == nil else {
             return false
         }
+        if pan === projectsEdgePan {
+            // the conversation, with nothing over it and neither drawer out
+            return projectsProgress == 0 && drawerProgress == 0
+                && navigator.viewControllers.count == 1
+        }
         let velocity = pan.velocity(in: view)
         guard abs(velocity.x) > abs(velocity.y) else { return false }
         let outward = view.directionalOffset(velocity.x)
         if pan.view === shade {
-            return outward < 0
+            // each drawer is put away toward the side it came from
+            return projectsProgress > 0 ? outward > 0 : outward < 0
         }
         let rightward = !view.laysOutRightToLeft
         var touched = navigator.view.hitTest(pan.location(in: navigator.view), with: nil)
