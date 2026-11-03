@@ -99,7 +99,11 @@ struct ChatAttachmentsTests {
         let faux = await registerFauxProvider()
         defer { faux.unregister() }
         let sent = SentImages()
-        faux.setResponses([.factory { context, _, _, _ in
+        // One reply for each of the two runs. The faux provider answers an
+        // error once its queue is dry ("No more faux responses queued"), so a
+        // single reply would leave the second run with no provider call at
+        // all, and the second send would show nothing about the picture.
+        let reply: FauxResponseStep = .factory { context, _, _, _ in
             for message in context.messages {
                 guard case let .user(user) = message else { continue }
                 for block in user.content {
@@ -107,7 +111,8 @@ struct ChatAttachmentsTests {
                 }
             }
             return fauxAssistantMessage("Seen.")
-        }])
+        }
+        faux.setResponses([reply, reply])
         let photo = try #require(FileReadImageTests.encoded(
             [FileReadImageTests.picture(width: 4000, height: 3000, noise: true)],
             as: "public.jpeg",
