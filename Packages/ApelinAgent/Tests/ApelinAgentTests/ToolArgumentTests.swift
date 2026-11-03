@@ -54,4 +54,77 @@ struct ToolArgumentTests {
         let slow = try ToolRunner.uiAction(["action": "swipe", "x": 10, "y": 20, "to_x": 10, "to_y": 400, "duration_ms": 1200])
         #expect(slow == .swipe(fromX: 10, fromY: 20, toX: 10, toY: 400, durationMilliseconds: 1200))
     }
+
+    @Test
+    func `a double tap and a long press take their durations, and the defaults when none`() throws {
+        #expect(try ToolRunner.uiAction(["action": "double_tap", "x": 30, "y": 40])
+            == .doubleTap(x: 30, y: 40, intervalMilliseconds: 100))
+        #expect(try ToolRunner.uiAction(["action": "double_tap", "x": 30, "y": 40, "interval_ms": 250])
+            == .doubleTap(x: 30, y: 40, intervalMilliseconds: 250))
+        #expect(try ToolRunner.uiAction(["action": "long_press", "x": 5, "y": 6])
+            == .longPress(x: 5, y: 6, durationMilliseconds: 700))
+        #expect(try ToolRunner.uiAction(["action": "long_press", "x": 5, "y": 6, "duration_ms": 1500])
+            == .longPress(x: 5, y: 6, durationMilliseconds: 1500))
+
+        let withoutAPoint: [JSONValue] = [
+            ["action": "double_tap", "y": 40],
+            ["action": "long_press", "x": 5],
+        ]
+        for arguments in withoutAPoint {
+            #expect(throws: ToolArgumentError.self) { try ToolRunner.uiAction(arguments) }
+        }
+    }
+
+    @Test
+    func `a drag takes its path, its duration and its hold, and needs two points with numbers in them`() throws {
+        let drag = try ToolRunner.uiAction([
+            "action": "drag",
+            "points": [[100, 400], [300, 400], [300, 700]],
+            "duration_ms": 800,
+            "hold_ms": 400,
+        ])
+        #expect(drag == .drag(
+            points: [
+                GesturePoint(x: 100, y: 400),
+                GesturePoint(x: 300, y: 400),
+                GesturePoint(x: 300, y: 700),
+            ],
+            durationMilliseconds: 800,
+            holdMilliseconds: 400,
+        ))
+        #expect(try ToolRunner.uiAction(["action": "drag", "points": [[0, 0], [10, 20]]])
+            == .drag(
+                points: [GesturePoint(x: 0, y: 0), GesturePoint(x: 10, y: 20)],
+                durationMilliseconds: 300,
+                holdMilliseconds: 500,
+            ))
+
+        let bad: [JSONValue] = [
+            ["action": "drag"],
+            ["action": "drag", "points": []],
+            ["action": "drag", "points": [[100, 400]]],
+            ["action": "drag", "points": [[100, 400], [300]]],
+            ["action": "drag", "points": [[100, 400], ["300", 400]]],
+        ]
+        for arguments in bad {
+            #expect(throws: ToolArgumentError.self) { try ToolRunner.uiAction(arguments) }
+        }
+    }
+
+    @Test
+    func `press_key and open_url take the text they are given, and need it`() throws {
+        #expect(try ToolRunner.uiAction(["action": "press_key", "key": "command+a"])
+            == .pressKey("command+a"))
+        #expect(try ToolRunner.uiAction(["action": "open_url", "url": "https://example.com/x"])
+            == .openURL("https://example.com/x"))
+
+        let bad: [JSONValue] = [
+            ["action": "press_key"],
+            ["action": "open_url"],
+            ["action": "double_click", "x": 1, "y": 2],
+        ]
+        for arguments in bad {
+            #expect(throws: ToolArgumentError.self) { try ToolRunner.uiAction(arguments) }
+        }
+    }
 }

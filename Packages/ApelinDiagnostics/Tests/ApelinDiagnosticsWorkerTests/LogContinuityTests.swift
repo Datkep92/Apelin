@@ -180,6 +180,26 @@ private final class TimelineIcli: IcliSurface, @unchecked Sendable {
         throw unused()
     }
 
+    func doubleTap(x _: Double, y _: Double, interval _: Double) throws -> [String: Any] {
+        throw unused()
+    }
+
+    func longPress(x _: Double, y _: Double, seconds _: Double) throws -> [String: Any] {
+        throw unused()
+    }
+
+    func drag(points _: [(x: Double, y: Double)], seconds _: Double, hold _: Double) throws -> [String: Any] {
+        throw unused()
+    }
+
+    func pressKey(_: String) throws -> [String: Any] {
+        throw unused()
+    }
+
+    func openURL(_: String) throws -> [String: Any] {
+        throw unused()
+    }
+
     func frontmostApp() -> [String: Any] {
         [:]
     }

@@ -55,6 +55,20 @@ public protocol IcliSurface: Sendable {
     /// checks no lock state itself; a wake answers `locked` and `screen_off`
     /// as they are after it.
     func pressButton(_ name: String) throws -> [String: Any]
+    /// icli's `doubleTap`: two taps `interval` seconds apart.
+    func doubleTap(x: Double, y: Double, interval: Double) throws -> [String: Any]
+    /// icli's `longPress`: holds the point for `seconds` and releases.
+    func longPress(x: Double, y: Double, seconds: Double) throws -> [String: Any]
+    /// icli's `drag`: presses at `points[0]`, moves through the rest and
+    /// releases, taking `seconds` over the whole path and pausing `hold`
+    /// before it starts moving.
+    func drag(points: [(x: Double, y: Double)], seconds: Double, hold: Double) throws -> [String: Any]
+    /// icli's `pressKey`: `command+a`, `return`, `escape`. The name goes as
+    /// it is: icli lowercases it itself, so either case is the same key.
+    func pressKey(_ name: String) throws -> [String: Any]
+    /// icli's `openURL`: hands the URL to the system, which opens it in
+    /// whatever app claims it.
+    func openURL(_ url: String) throws -> [String: Any]
     func frontmostApp() -> [String: Any]
     func lockState() -> [String: Any]
     func runningApps() throws -> [String: Any]

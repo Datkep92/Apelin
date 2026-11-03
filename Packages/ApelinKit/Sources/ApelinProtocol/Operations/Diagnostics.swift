@@ -178,6 +178,29 @@ public enum UIAction: Codable, Sendable, Equatable {
     /// `wake`, `home` or `lock` (the side button). Only a wake runs while
     /// the device is locked or its screen is off.
     case press(button: String)
+    /// Two taps `intervalMilliseconds` apart at one point: one gesture, not
+    /// two taps.
+    case doubleTap(x: Double, y: Double, intervalMilliseconds: Int)
+    /// Holds the point for `durationMilliseconds` and releases.
+    case longPress(x: Double, y: Double, durationMilliseconds: Int)
+    /// Presses at `points[0]`, moves through the rest and releases, over
+    /// `durationMilliseconds`, after pausing `holdMilliseconds`.
+    case drag(points: [GesturePoint], durationMilliseconds: Int, holdMilliseconds: Int)
+    /// One key, `command+a` or `return`.
+    case pressKey(key: String)
+    /// An http or https URL, handed to the system to open.
+    case openURL(url: String)
+}
+
+/// One point of a gesture, in screen points.
+public struct GesturePoint: Codable, Sendable, Equatable {
+    public var x: Double
+    public var y: Double
+
+    public init(x: Double, y: Double) {
+        self.x = x
+        self.y = y
+    }
 }
 
 /// What an action left. A wake says whether the device is still locked and

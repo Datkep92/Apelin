@@ -152,6 +152,39 @@
             try mapped { try IcliKit.pressButton(name) }
         }
 
+        public func doubleTap(x: Double, y: Double, interval: Double) throws -> [String: Any] {
+            try mapped { try IcliKit.doubleTap(x: x, y: y, interval: interval) }
+        }
+
+        public func longPress(x: Double, y: Double, seconds: Double) throws -> [String: Any] {
+            try mapped { try IcliKit.longPress(x: x, y: y, seconds: seconds) }
+        }
+
+        public func drag(points: [(x: Double, y: Double)], seconds: Double, hold: Double) throws -> [String: Any] {
+            try mapped {
+                try IcliKit.drag(
+                    points: points.map { (x: $0.x, y: $0.y) },
+                    seconds: seconds,
+                    hold: hold,
+                    steps: Self.dragSteps(for: points.count),
+                )
+            }
+        }
+
+        /// icli rejects a drag whose `steps` is below its number of segments,
+        /// so the steps cover the path and never fall under it.
+        private static func dragSteps(for pointCount: Int) -> Int {
+            max(20, pointCount)
+        }
+
+        public func pressKey(_ name: String) throws -> [String: Any] {
+            try mapped { try IcliKit.pressKey(name) }
+        }
+
+        public func openURL(_ url: String) throws -> [String: Any] {
+            try mapped { try IcliKit.openURL(url) }
+        }
+
         public func frontmostApp() -> [String: Any] {
             IcliLaunch.frontmostApp()
         }

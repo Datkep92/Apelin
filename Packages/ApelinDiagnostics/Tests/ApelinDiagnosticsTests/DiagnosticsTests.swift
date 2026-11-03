@@ -101,6 +101,26 @@ final class FakeIcli: IcliSurface, @unchecked Sendable {
         return name == "wake" ? wakeResponse : ["button": name]
     }
 
+    func doubleTap(x: Double, y: Double, interval: Double) throws -> [String: Any] {
+        answer("doubleTap", "\(x),\(y) \(interval)")
+    }
+
+    func longPress(x: Double, y: Double, seconds: Double) throws -> [String: Any] {
+        answer("longPress", "\(x),\(y) \(seconds)")
+    }
+
+    func drag(points: [(x: Double, y: Double)], seconds: Double, hold: Double) throws -> [String: Any] {
+        answer("drag", "\(points.map { "\($0.x),\($0.y)" }.joined(separator: " ")) \(seconds) hold \(hold)")
+    }
+
+    func pressKey(_ name: String) throws -> [String: Any] {
+        answer("pressKey", name)
+    }
+
+    func openURL(_ url: String) throws -> [String: Any] {
+        answer("openURL", url)
+    }
+
     func frontmostApp() -> [String: Any] {
         let fixture = answer("frontmostApp")
         return next(&frontmostAnswers) ?? fixture
@@ -265,6 +285,15 @@ final class DiagnosticsTests: XCTestCase {
         try diagnostics.perform(.type(text: "hi", delayMilliseconds: 30))
         XCTAssertNil(try diagnostics.perform(.press(.home)), "only a wake answers the lock state")
         try diagnostics.perform(.press(.lock))
+        try diagnostics.perform(.doubleTap(point: UIPoint(x: 30, y: 40), intervalSeconds: 0.1))
+        try diagnostics.perform(.longPress(point: UIPoint(x: 50, y: 60), seconds: 0.7))
+        try diagnostics.perform(.drag(
+            points: [UIPoint(x: 1, y: 2), UIPoint(x: 3, y: 4)],
+            seconds: 0.5,
+            holdSeconds: 0.2,
+        ))
+        try diagnostics.perform(.pressKey("Command+A"))
+        try diagnostics.perform(.openURL("https://example.com/x"))
         XCTAssertEqual(icli.calls.filter { !$0.hasPrefix("lockState") && $0 != "frontmostApp" }, [
             "tap 10.0,20.0",
             "waitForElement hello.ok exact 0 appear=true 3.0s every 0.3s",
@@ -277,6 +306,12 @@ final class DiagnosticsTests: XCTestCase {
             "uiElements max=2000",
             "pressButton home",
             "pressButton power",
+            "doubleTap 30.0,40.0 0.1",
+            "longPress 50.0,60.0 0.7",
+            "drag 1.0,2.0 3.0,4.0 0.5 hold 0.2",
+            // A key goes as the caller wrote it: icli lowercases it.
+            "pressKey Command+A",
+            "openURL https://example.com/x",
         ])
 
         for bad in [
@@ -288,6 +323,22 @@ final class DiagnosticsTests: XCTestCase {
             .type(text: "", delayMilliseconds: 0),
             .type(text: String(repeating: "a", count: 4097), delayMilliseconds: 0),
             .type(text: "a", delayMilliseconds: 501),
+            // Each new gesture, refused the way icli refuses it.
+            .doubleTap(point: UIPoint(x: 0, y: 0), intervalSeconds: 2),
+            .doubleTap(point: UIPoint(x: 0, y: 0), intervalSeconds: 0.001),
+            .longPress(point: UIPoint(x: 0, y: 0), seconds: 0),
+            .longPress(point: UIPoint(x: 0, y: 0), seconds: 61),
+            .drag(points: [UIPoint(x: 0, y: 0)], seconds: 0.3, holdSeconds: 0),
+            .drag(points: [UIPoint(x: 0, y: 0), UIPoint(x: 1, y: 1)], seconds: 0.3, holdSeconds: 61),
+            .drag(points: [UIPoint(x: 0, y: 0), UIPoint(x: 20_000, y: 1)], seconds: 0.3, holdSeconds: 0),
+            .pressKey(""),
+            .pressKey("menu"),
+            .pressKey("cmd+a+b"),
+            .pressKey("shift+"),
+            .pressKey(String(repeating: "a", count: 33)),
+            .openURL("file:///etc/passwd"),
+            .openURL("javascript:alert(1)"),
+            .openURL("https://"),
         ] {
             XCTAssertThrowsError(try diagnostics.perform(bad), "\(bad)")
         }
@@ -434,13 +485,24 @@ final class DiagnosticsTests: XCTestCase {
     func testALockedDeviceTakesNoInput() throws {
         let icli = try FakeIcli()
         icli.lockStateResponse = ["locked": true, "screen_off": false]
-        for action in [UIAction.tap(UIPoint(x: 1, y: 1)), .press(.home), .press(.lock)] {
+        for action in [
+            UIAction.tap(UIPoint(x: 1, y: 1)), .press(.home), .press(.lock),
+            .doubleTap(point: UIPoint(x: 1, y: 1), intervalSeconds: 0.1),
+            .longPress(point: UIPoint(x: 1, y: 1), seconds: 0.5),
+            .drag(points: [UIPoint(x: 1, y: 1), UIPoint(x: 2, y: 2)], seconds: 0.3, holdSeconds: 0),
+            .pressKey("return"),
+            .openURL("https://example.com"),
+        ] {
             XCTAssertThrowsError(try Diagnostics(icli: icli).perform(action), "\(action)") { error in
                 XCTAssertEqual(error as? DiagnosticsError, .locked(screenOff: false))
             }
         }
         XCTAssertThrowsError(try Diagnostics(icli: icli).uiTree())
-        XCTAssertFalse(icli.calls.contains { $0.hasPrefix("tap") || $0.hasPrefix("uiElements") || $0.hasPrefix("pressButton") })
+        XCTAssertFalse(icli.calls.contains {
+            $0.hasPrefix("tap") || $0.hasPrefix("uiElements") || $0.hasPrefix("pressButton")
+                || $0.hasPrefix("doubleTap") || $0.hasPrefix("longPress") || $0.hasPrefix("drag")
+                || $0.hasPrefix("pressKey") || $0.hasPrefix("openURL")
+        })
     }
 
     /// The refusal says which it is, a dark screen or a lit lock screen, and

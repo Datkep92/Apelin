@@ -87,6 +87,26 @@ extension DiagnosticsService {
                 throw ApelinError(.badRequest, "There is no \(button) button to press; the buttons are \(names).")
             }
             return .press(pressed)
+        case let .doubleTap(x, y, intervalMilliseconds):
+            return .doubleTap(
+                point: UIPoint(x: x, y: y),
+                intervalSeconds: Double(intervalMilliseconds) / 1000,
+            )
+        case let .longPress(x, y, durationMilliseconds):
+            return .longPress(
+                point: UIPoint(x: x, y: y),
+                seconds: Double(durationMilliseconds) / 1000,
+            )
+        case let .drag(points, durationMilliseconds, holdMilliseconds):
+            return .drag(
+                points: points.map { UIPoint(x: $0.x, y: $0.y) },
+                seconds: Double(durationMilliseconds) / 1000,
+                holdSeconds: Double(holdMilliseconds) / 1000,
+            )
+        case let .pressKey(key):
+            return .pressKey(key)
+        case let .openURL(url):
+            return .openURL(url)
         }
     }
 }

@@ -191,6 +191,18 @@ public extension ChannelHostBackend {
         case let .swipe(fromX, fromY, toX, toY, durationMilliseconds):
             return .swipe(fromX: fromX, fromY: fromY, toX: toX, toY: toY, durationMilliseconds: durationMilliseconds)
         case let .pressButton(button): return .press(button: button)
+        case let .doubleTap(x, y, intervalMilliseconds):
+            return .doubleTap(x: x, y: y, intervalMilliseconds: intervalMilliseconds)
+        case let .longPress(x, y, durationMilliseconds):
+            return .longPress(x: x, y: y, durationMilliseconds: durationMilliseconds)
+        case let .drag(points, durationMilliseconds, holdMilliseconds):
+            return .drag(
+                points: points.map { ApelinProtocol.GesturePoint(x: $0.x, y: $0.y) },
+                durationMilliseconds: durationMilliseconds,
+                holdMilliseconds: holdMilliseconds,
+            )
+        case let .pressKey(key): return .pressKey(key: key)
+        case let .openURL(url): return .openURL(url: url)
         }
     }
 }

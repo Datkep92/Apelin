@@ -76,7 +76,55 @@ extension ToolRunner {
                 throw ToolArgumentError("unknown button \(button); the buttons are wake, home and lock")
             }
             return .pressButton(button)
+        case "double_tap":
+            return try .doubleTap(
+                x: number("x"),
+                y: number("y"),
+                intervalMilliseconds: arguments.argInt("interval_ms") ?? UIAction.defaultDoubleTapMilliseconds,
+            )
+        case "long_press":
+            return try .longPress(
+                x: number("x"),
+                y: number("y"),
+                durationMilliseconds: arguments.argInt("duration_ms") ?? UIAction.defaultLongPressMilliseconds,
+            )
+        case "drag":
+            return try .drag(
+                points: gesturePoints(arguments),
+                durationMilliseconds: arguments.argInt("duration_ms") ?? UIAction.defaultSwipeMilliseconds,
+                holdMilliseconds: arguments.argInt("hold_ms") ?? UIAction.defaultDragHoldMilliseconds,
+            )
+        case "press_key": return try .pressKey(arguments.requireString("key"))
+        case "open_url": return try .openURL(arguments.requireString("url"))
         case let other: throw ToolArgumentError("unknown action \(other)")
+        }
+    }
+
+    /// A drag's path: a list of `[x, y]` pairs it presses at, moves through
+    /// and releases.
+    private static func gesturePoints(_ arguments: JSONValue) throws -> [GesturePoint] {
+        let shape = "points is a list of [x, y] pairs, such as [[100, 400], [300, 400]]"
+        guard case let .object(object) = arguments, case let .array(items)? = object["points"] else {
+            throw ToolArgumentError("missing list 'points': \(shape)")
+        }
+        guard items.count >= 2 else {
+            throw ToolArgumentError("points needs at least two points: \(shape)")
+        }
+        return try items.map { item in
+            guard case let .array(pair) = item, pair.count == 2,
+                  let x = coordinate(pair[0]), let y = coordinate(pair[1])
+            else {
+                throw ToolArgumentError("every point is an [x, y] pair of numbers: \(shape)")
+            }
+            return GesturePoint(x: x, y: y)
+        }
+    }
+
+    private static func coordinate(_ value: JSONValue) -> Double? {
+        switch value {
+        case let .int(number): return Double(number)
+        case let .double(number): return number
+        default: return nil
         }
     }
 }

@@ -73,6 +73,18 @@ extension BuiltInSkills {
         tree shows enough, and bring what you are testing to the front
         before a screenshot, so no other app is in it.
 
+        ## Gestures beyond a tap
+        `apelin_screen_interact` carries more than `tap` and `swipe`:
+        `double_tap` (two taps at one point, `interval_ms` apart, one
+        gesture rather than two taps), `long_press` (what opens a context
+        menu), `drag` (`points`, two or more `[x, y]` pairs it presses at,
+        moves through and releases, with `hold_ms` before the move and
+        `duration_ms` for the move), `press_key` (one key the on-screen
+        keyboard has not, such as `return`, `escape` or `command+a`) and
+        `open_url` (an http or https URL the system hands to whatever app
+        claims it, Safari for a web page). Read the tree, act, read it
+        again.
+
         ## A dark or locked screen
         While the device is locked or its screen is off, the UI tree and
         every screen action but a wake refuse, and say which it is.

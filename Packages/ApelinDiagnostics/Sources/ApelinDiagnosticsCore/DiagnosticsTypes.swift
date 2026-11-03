@@ -206,10 +206,46 @@ public enum UIAction: Codable, Hashable, Sendable {
     /// Typed one grapheme at a time into the focused field.
     case type(text: String, delayMilliseconds: Double)
     case press(HardwareButton)
+    /// Two taps `intervalSeconds` apart, which some controls (a zoom, a
+    /// select-a-word) need; a pair of separate `tap`s is not one.
+    case doubleTap(point: UIPoint, intervalSeconds: Double)
+    /// Holds `point` for `seconds` and releases: a context menu, a text
+    /// selection handle.
+    case longPress(point: UIPoint, seconds: Double)
+    /// Presses at the first point, moves through the rest and releases:
+    /// a slider, a dragged row. `holdSeconds` is the pause before the move,
+    /// which is what a long-press-then-drag control needs.
+    case drag(points: [UIPoint], seconds: Double, holdSeconds: Double)
+    /// One hardware key, `command+a` or `return`: what a keyboard-only
+    /// screen (a text field, a web form) answers to.
+    case pressKey(String)
+    /// Hands an http or https URL to the system, which opens it in whatever
+    /// app claims it (Safari for a web page).
+    case openURL(String)
 
     public static let maximumTextBytes = 4 * 1024
     public static let swipeSecondsRange: ClosedRange<Double> = 0.05 ... 5
     public static let typeDelayRange: ClosedRange<Double> = 0 ... 500
+    /// icli's own limits: its `doubleTap` takes at most a second, its
+    /// gestures at most a minute.
+    public static let doubleTapIntervalRange: ClosedRange<Double> = 0.02 ... 1
+    public static let gestureSecondsRange: ClosedRange<Double> = 0.05 ... 60
+    public static let dragHoldRange: ClosedRange<Double> = 0 ... 60
+    /// icli's `drag` takes 2–1000 points.
+    public static let dragPointRange: ClosedRange<Int> = 2 ... 1000
+    /// icli's `pressKey`: modifiers first, one key last. The names are its
+    /// own key table, plus a single letter a–z.
+    public static let keyModifiers: Set<String> = ["cmd", "command", "ctrl", "control", "shift", "alt", "option"]
+    public static let keyNames: Set<String> = [
+        "return", "enter", "delete", "backspace", "tab", "escape", "space",
+        "up", "down", "left", "right", "home", "end", "pageup", "pagedown",
+    ]
+    public static let maximumKeyBytes = 32
+    public static let maximumURLBytes = 2048
+    /// A URL is opened in another app, so it is limited to the two schemes a
+    /// web page uses: never a scheme that reaches a system setting or a
+    /// file.
+    public static let urlSchemes: Set<String> = ["http", "https"]
     /// icli's own pause between characters. Sent with none, a field dropped
     /// some of them ("Hello world" arrived as "Hello wrd").
     public static let defaultTypeDelayMilliseconds: Double = 30
@@ -267,6 +303,70 @@ public enum UIAction: Codable, Hashable, Sendable {
             }
         case .press:
             break
+        case let .doubleTap(point, interval):
+            try check(point)
+            guard interval.isFinite, Self.doubleTapIntervalRange.contains(interval) else {
+                let range = Self.doubleTapIntervalRange
+                throw DiagnosticsError.invalidParameter(
+                    String(format: "a double tap's interval must be %g–%g seconds", range.lowerBound, range.upperBound),
+                )
+            }
+        case let .longPress(point, seconds):
+            try check(point)
+            try checkGestureSeconds(seconds, "a long press")
+        case let .drag(points, seconds, hold):
+            guard Self.dragPointRange.contains(points.count) else {
+                let range = Self.dragPointRange
+                throw DiagnosticsError.invalidParameter("a drag needs \(range.lowerBound)–\(range.upperBound) points")
+            }
+            for point in points {
+                try check(point)
+            }
+            try checkGestureSeconds(seconds, "a drag")
+            guard hold.isFinite, Self.dragHoldRange.contains(hold) else {
+                let range = Self.dragHoldRange
+                throw DiagnosticsError.invalidParameter(
+                    String(format: "a drag's hold must be %g–%g seconds", range.lowerBound, range.upperBound),
+                )
+            }
+        case let .pressKey(key):
+            guard !key.isEmpty, key.utf8.count <= Self.maximumKeyBytes, !key.contains("\0") else {
+                throw DiagnosticsError.invalidParameter("a key must be 1–\(Self.maximumKeyBytes) bytes with no NUL")
+            }
+            let parts = key.lowercased().split(separator: "+").map(String.init)
+            guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty }), let name = parts.last else {
+                throw DiagnosticsError.invalidParameter("a key is written as modifiers and one key, such as command+a")
+            }
+            for modifier in parts.dropLast() {
+                guard Self.keyModifiers.contains(modifier) else {
+                    let names = Self.keyModifiers.sorted().joined(separator: ", ")
+                    throw DiagnosticsError.invalidParameter("\(modifier) is not a modifier; the modifiers are \(names)")
+                }
+            }
+            let isLetter = name.utf8.count == 1 && (name.utf8.first.map { (97 ... 122).contains($0) } ?? false)
+            guard Self.keyNames.contains(name) || isLetter else {
+                let names = Self.keyNames.sorted().joined(separator: ", ")
+                throw DiagnosticsError.invalidParameter("\(name) is not a key; the keys are \(names), or a letter a–z")
+            }
+        case let .openURL(url):
+            guard url.utf8.count <= Self.maximumURLBytes, !url.contains("\0"),
+                  let parsed = URL(string: url),
+                  let scheme = parsed.scheme?.lowercased(), Self.urlSchemes.contains(scheme),
+                  parsed.host?.isEmpty == false
+            else {
+                throw DiagnosticsError.invalidParameter(
+                    "a URL must be http or https, with a host, at most \(Self.maximumURLBytes) bytes",
+                )
+            }
+        }
+    }
+
+    private func checkGestureSeconds(_ seconds: Double, _ what: String) throws {
+        guard seconds.isFinite, Self.gestureSecondsRange.contains(seconds) else {
+            let range = Self.gestureSecondsRange
+            throw DiagnosticsError.invalidParameter(
+                String(format: "%@ must take %g–%g seconds", what, range.lowerBound, range.upperBound),
+            )
         }
     }
 }

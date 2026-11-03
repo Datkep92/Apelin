@@ -117,6 +117,29 @@ struct ScreenUseConsentTests {
     }
 
     @Test
+    func `the new gestures and keys are named in the sentence the card shows`() {
+        defer { home.remove() }
+        func phrase(_ action: UIAction) -> String {
+            var facts = InvocationFacts(tool: .local(.screenInteract))
+            facts.screenControl = .interact(targetID: nil, action: action)
+            return Self.reason(verdict(.full, facts))
+        }
+        let front = "in the app in front, whichever it is."
+        #expect(phrase(.doubleTap(x: 30, y: 40, intervalMilliseconds: 100)).hasPrefix("Double taps (30, 40), 100 ms apart \(front)"))
+        #expect(phrase(.longPress(x: 5, y: 6, durationMilliseconds: 700)).hasPrefix("Holds (5, 6) for 700 ms \(front)"))
+        let drag = phrase(.drag(
+            points: [GesturePoint(x: 100, y: 400), GesturePoint(x: 300, y: 700)],
+            durationMilliseconds: 300,
+            holdMilliseconds: 500,
+        ))
+        #expect(drag.hasPrefix("Drags through 2 points from (100, 400) to (300, 700), after 500 ms and over 300 ms \(front)"))
+        // A key and a link act on the device, not on one app, so neither names
+        // the app in front.
+        #expect(phrase(.pressKey("escape")) == "Types the key escape. \(ApprovalPolicy.screenNote)")
+        #expect(phrase(.openURL("https://example.com")).hasPrefix("Opens https://example.com on this device, in the app that handles it, which comes to the front. \(ApprovalPolicy.screenNote)"))
+    }
+
+    @Test
     func `a command that runs no screen program, and a screenshot, are decided as before`() {
         defer { home.remove() }
         for command: RunCodeInvocation in [.argv(["make", "all"]), .argv(["cat", "Sources/iclient.c"]), .shell("echo musicli | wc")] {

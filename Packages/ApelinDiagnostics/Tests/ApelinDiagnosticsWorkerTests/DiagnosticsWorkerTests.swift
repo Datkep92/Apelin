@@ -22,6 +22,8 @@ private final class FakeIcli: IcliSurface, @unchecked Sendable {
     /// What a wake answers; every press, by icli's name.
     var wakeAnswer: [String: Any] = ["button": "wake", "locked": false, "screen_off": false]
     var presses: [String] = []
+    /// Every double tap, long press, drag, key and URL, as one line each.
+    var gestures: [String] = []
     /// The dispatch queue each `frontmostApp` call ran on.
     var frontQueues: [String] = []
 
@@ -102,6 +104,27 @@ private final class FakeIcli: IcliSurface, @unchecked Sendable {
     func pressButton(_ name: String) throws -> [String: Any] {
         presses.append(name)
         return name == "wake" ? wakeAnswer : ["button": name]
+    }
+
+    func doubleTap(x: Double, y: Double, interval: Double) throws -> [String: Any] {
+        gestures.append("doubleTap \(x),\(y) \(interval)"); return [:]
+    }
+
+    func longPress(x: Double, y: Double, seconds: Double) throws -> [String: Any] {
+        gestures.append("longPress \(x),\(y) \(seconds)"); return [:]
+    }
+
+    func drag(points: [(x: Double, y: Double)], seconds: Double, hold: Double) throws -> [String: Any] {
+        let path = points.map { "\($0.x),\($0.y)" }.joined(separator: " ")
+        gestures.append("drag \(path) \(seconds) hold \(hold)"); return [:]
+    }
+
+    func pressKey(_ name: String) throws -> [String: Any] {
+        gestures.append("pressKey \(name)"); return [:]
+    }
+
+    func openURL(_ url: String) throws -> [String: Any] {
+        gestures.append("openURL \(url)"); return [:]
     }
 
     func frontmostApp() -> [String: Any] {
@@ -379,6 +402,36 @@ final class DiagnosticsWorkerTests: XCTestCase {
                 ApelinError(.conflict, "com.apple.Preferences is not the verified foreground app after 0 s (com.apple.springboard)"),
             )
         }
+    }
+
+    /// The app writes gestures in milliseconds; icli takes seconds. A key
+    /// goes as the caller wrote it — icli lowercases the name itself — and a
+    /// drag keeps every point of its path, in order.
+    func testGesturesReachIcliInSecondsAndKeysAsWritten() async throws {
+        let icli = FakeIcli()
+        icli.lockAnswer = ["locked": false, "screen_off": false]
+        let service = DiagnosticsService(diagnostics: Diagnostics(icli: icli), host: ApelinService(transport: NoHost()), home: "/nonexistent", installRoot: "/")
+        for action in [
+            ApelinProtocol.UIAction.doubleTap(x: 30, y: 40, intervalMilliseconds: 100),
+            .longPress(x: 50, y: 60, durationMilliseconds: 700),
+            .drag(
+                points: [.init(x: 1, y: 2), .init(x: 3, y: 4), .init(x: 5, y: 6)],
+                durationMilliseconds: 500,
+                holdMilliseconds: 200,
+            ),
+            .pressKey(key: "Command+A"),
+            .openURL(url: "https://example.com/x"),
+        ] {
+            let answer = try await service.uiAction(.init(action: action))
+            XCTAssertEqual(answer, ApelinProtocol.UIActionResponse(), "\(action)")
+        }
+        XCTAssertEqual(icli.gestures, [
+            "doubleTap 30.0,40.0 0.1",
+            "longPress 50.0,60.0 0.7",
+            "drag 1.0,2.0 3.0,4.0 5.0,6.0 0.5 hold 0.2",
+            "pressKey Command+A",
+            "openURL https://example.com/x",
+        ])
     }
 
     /// Characters sent with no gap were dropped: "Hello world" arrived as

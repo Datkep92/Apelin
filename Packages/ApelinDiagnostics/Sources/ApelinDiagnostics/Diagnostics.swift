@@ -357,6 +357,16 @@ public struct Diagnostics: LogEvidenceSource, LiveLogSource {
         case let .press(button):
             // Home and the side button; the wake went above.
             _ = try icli.pressButton(button.icliName)
+        case let .doubleTap(point, interval):
+            _ = try icli.doubleTap(x: point.x, y: point.y, interval: interval)
+        case let .longPress(point, seconds):
+            _ = try icli.longPress(x: point.x, y: point.y, seconds: seconds)
+        case let .drag(points, seconds, hold):
+            _ = try icli.drag(points: points.map { ($0.x, $0.y) }, seconds: seconds, hold: hold)
+        case let .pressKey(key):
+            _ = try icli.pressKey(key)
+        case let .openURL(url):
+            _ = try icli.openURL(url)
         }
         return nil
     }

@@ -74,6 +74,26 @@ struct UnavailableIcli: IcliSurface {
         throw missing()
     }
 
+    func doubleTap(x _: Double, y _: Double, interval _: Double) throws -> [String: Any] {
+        throw missing()
+    }
+
+    func longPress(x _: Double, y _: Double, seconds _: Double) throws -> [String: Any] {
+        throw missing()
+    }
+
+    func drag(points _: [(x: Double, y: Double)], seconds _: Double, hold _: Double) throws -> [String: Any] {
+        throw missing()
+    }
+
+    func pressKey(_: String) throws -> [String: Any] {
+        throw missing()
+    }
+
+    func openURL(_: String) throws -> [String: Any] {
+        throw missing()
+    }
+
     func frontmostApp() -> [String: Any] {
         [:]
     }

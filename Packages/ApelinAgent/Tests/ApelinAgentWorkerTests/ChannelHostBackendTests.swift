@@ -524,6 +524,39 @@ struct ChannelHostBackendTests {
         #expect(ChannelHostBackend.readBackMessage(ApelinProtocol.UIActionResponse()).isEmpty, "a tap says nothing")
     }
 
+    /// A gesture crosses the channel with its whole path and its durations,
+    /// and a key and a URL with the text as given: the agent's own case
+    /// becomes the protocol's, which is what the host decodes.
+    @Test
+    func `a double tap, a long press, a drag, a key and a URL cross the channel`() async throws {
+        let fixture = try Fixture()
+        fixture.host.on(.uiAction, reply: ApelinProtocol.UIActionResponse())
+        for action in [
+            ApelinAgent.UIAction.doubleTap(x: 3, y: 4, intervalMilliseconds: 100),
+            .longPress(x: 5, y: 6, durationMilliseconds: 700),
+            .drag(
+                points: [.init(x: 1, y: 2), .init(x: 3, y: 4)],
+                durationMilliseconds: 500,
+                holdMilliseconds: 200,
+            ),
+            .pressKey("command+a"),
+            .openURL("https://example.com/x"),
+        ] {
+            _ = try await fixture.backend.uiAction(ApelinAgent.UIActionRequest(context: fixture.context(), targetID: nil, action: action))
+        }
+        #expect(fixture.host.requests(ApelinProtocol.UIActionRequest.self).map(\.action) == [
+            .doubleTap(x: 3, y: 4, intervalMilliseconds: 100),
+            .longPress(x: 5, y: 6, durationMilliseconds: 700),
+            .drag(
+                points: [.init(x: 1, y: 2), .init(x: 3, y: 4)],
+                durationMilliseconds: 500,
+                holdMilliseconds: 200,
+            ),
+            .pressKey(key: "command+a"),
+            .openURL(url: "https://example.com/x"),
+        ])
+    }
+
     @Test
     func `shell_run is agentRunCode: a shell line becomes an sh script, the evidence is passed on`() async throws {
         let fixture = try Fixture()

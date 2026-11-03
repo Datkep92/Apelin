@@ -289,9 +289,38 @@ public enum UIAction: Sendable, Hashable, Codable {
     case typeText(String)
     case swipe(fromX: Double, fromY: Double, toX: Double, toY: Double, durationMilliseconds: Int)
     case pressButton(String)
+    /// Two taps `intervalMilliseconds` apart at one point.
+    case doubleTap(x: Double, y: Double, intervalMilliseconds: Int)
+    /// Holds the point for `durationMilliseconds` and releases.
+    case longPress(x: Double, y: Double, durationMilliseconds: Int)
+    /// Presses at `points[0]`, moves through the rest and releases, over
+    /// `durationMilliseconds`, after pausing `holdMilliseconds`.
+    case drag(points: [GesturePoint], durationMilliseconds: Int, holdMilliseconds: Int)
+    /// One key, `command+a` or `return`.
+    case pressKey(String)
+    /// An http or https URL, handed to the system to open.
+    case openURL(String)
 
     /// A swipe's duration when the call names none.
     public static let defaultSwipeMilliseconds = 300
+    /// A double tap's gap when the call names none: iOS's own 100 ms.
+    public static let defaultDoubleTapMilliseconds = 100
+    /// A long press when the call names none: long enough to open a context
+    /// menu, short enough not to look stuck.
+    public static let defaultLongPressMilliseconds = 700
+    /// A drag's pause before it moves when the call names none.
+    public static let defaultDragHoldMilliseconds = 500
+}
+
+/// One point of a gesture, in screen points.
+public struct GesturePoint: Sendable, Hashable, Codable {
+    public var x: Double
+    public var y: Double
+
+    public init(x: Double, y: Double) {
+        self.x = x
+        self.y = y
+    }
 }
 
 public struct UIActionRequest: Sendable, Hashable, Codable {

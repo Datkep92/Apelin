@@ -270,7 +270,12 @@ public struct ApprovalPolicy: Sendable, Hashable {
             let app = targetID.map { "the app \($0)" } ?? "the app in front, whichever it is"
             return "Reads what is on the screen: the text and controls of \(app)."
         case let .interact(targetID, action):
+            // A press acts on the whole device and a URL opens in whatever
+            // app claims it, so neither names the app in front.
             if case .pressButton = action {
+                return actionPhrase(action) + "."
+            }
+            if case .openURL = action {
                 return actionPhrase(action) + "."
             }
             let app = targetID.map { "the app \($0)" } ?? "the app in front, whichever it is"
@@ -297,7 +302,29 @@ public struct ApprovalPolicy: Sendable, Hashable {
             case "lock": "Presses the side button, which turns the screen off and locks the device"
             default: "Presses \(button)"
             }
+        case let .doubleTap(x, y, interval):
+            "Double taps \(point(x, y)), \(duration(interval)) apart"
+        case let .longPress(x, y, seconds):
+            "Holds \(point(x, y)) for \(duration(seconds))"
+        case let .drag(points, move, hold):
+            "Drags through \(points.count) points from \(points.first.map(gesturePoint) ?? "nowhere")"
+                + " to \(points.last.map(gesturePoint) ?? "nowhere"), after \(duration(hold)) and over \(duration(move))"
+        case let .pressKey(key):
+            "Types the key \(key)"
+        case let .openURL(url):
+            "Opens \(url) on this device, in the app that handles it, which comes to the front"
         }
+    }
+
+    /// A gesture's length: milliseconds under a second, seconds above.
+    private static func duration(_ seconds: Double) -> String {
+        guard seconds >= 1 else { return "\(Int((seconds * 1000).rounded())) ms" }
+        let rounded = (seconds * 10).rounded() / 10
+        return rounded == rounded.rounded() ? "\(Int(rounded)) s" : "\(rounded) s"
+    }
+
+    private static func gesturePoint(_ at: GesturePoint) -> String {
+        point(at.x, at.y)
     }
 
     private static func point(_ x: Double, _ y: Double) -> String {
