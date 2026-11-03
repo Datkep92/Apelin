@@ -55,11 +55,11 @@ final class ChatController: UIViewController {
     /// Approve does not ask again.
     private var checkingOwner: UUID?
     private var stoppableChat: UUID?
-    /// Whether the model bar shows the spent-allowance Retry now, so a
+    /// Whether the model bar shows the Retry now, so a
     /// refresh that changes nothing does not relayout the bar.
     private var showsRetry = false
     /// The model the bar names, so a refresh that changed nothing does not
-    /// rebuild its menus; a retry after a spent allowance names another one.
+    /// rebuild its menus; a retry names another model.
     private var shownModel: ComposerModelSelection?
     /// While `use(_:)` swaps another conversation in: nothing animates, and
     /// the list's opening scroll waits for its rows.
@@ -154,7 +154,7 @@ final class ChatController: UIViewController {
         composer.modelBar.onTierChanged = { ComposerModelPreferences.tier = $0 }
         composer.modelBar.onRetry = { [weak self] in
             guard let id = self?.chat?.id else { return }
-            Task { await self?.runtime.retrySpentAllowance(id) }
+            Task { await self?.runtime.retryFailedMessage(id) }
         }
         NotificationCenter.default.addObserver(
             self,
@@ -526,17 +526,17 @@ final class ChatController: UIViewController {
                     }
                 } : nil)
             }
-            // A retry after a spent allowance runs the conversation on the
-            // next model, and the bar names the one it runs on now.
+            // A retry runs the conversation on the next candidate, and the
+            // bar names the one it runs on now.
             if barSelection != shownModel {
                 updateModelSelection()
             }
-            // a model is left to answer the last message's spent allowance
-            // again, and nothing is running that a second prompt would join,
+            // a candidate is left to answer the last message's failure again,
+            // and nothing is running that a second prompt would join,
             // and no message of the reader's is on its way
             let retryable = !summary.isWorking
                 && (runtime.records[chat.id]?.sending ?? []).isEmpty
-                && runtime.hasSpentAllowanceRetry(chat.id)
+                && runtime.canRetryFailedMessage(chat.id)
             if retryable != showsRetry {
                 showsRetry = retryable
                 composer.modelBar.setRetry(retryable)
@@ -656,8 +656,8 @@ final class ChatController: UIViewController {
     }
 
     /// The model this composer sends with: the conversation's own, which a
-    /// retry after a spent allowance changes, or the reader's current one
-    /// for a conversation that has none yet.
+    /// retry changes, or the reader's current one for a conversation that has
+    /// none yet.
     private var barSelection: ComposerModelSelection? {
         chat.flatMap { runtime.modelSelection(for: $0.id) } ?? ComposerModelSelection.current
     }

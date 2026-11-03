@@ -70,11 +70,11 @@ final class ChatRuntime {
     private static let saveInterval: Duration = .seconds(3)
     /// Who waits for a conversation's compaction to end, by conversation.
     private var compactions: [UUID: CheckedContinuation<AgentCompactionResult, Error>] = [:]
-    /// Conversations whose spent allowance is being answered right now. Two
+    /// Conversations whose retry is being answered right now. Two
     /// errors of one run, read in two batches, would otherwise each look up
     /// the models to fall back to and each write the state: the slower one
     /// would put back the model and the try the faster one spent.
-    private var answeringSpentAllowance: Set<UUID> = []
+    private var answeringRetryableFailure: Set<UUID> = []
 
     var summaries: [ChatSummary] {
         records.values.map(\.summary)
@@ -348,9 +348,9 @@ final class ChatRuntime {
     func submit(_ draft: ComposerDraft, to id: UUID) -> Task<Void, Error> {
         guard records[id] != nil else { return Task {} }
         records[id]?.submit(draft)
-        // The reader moved on: what an earlier message's spent allowance
-        // left to try is no longer theirs to answer.
-        records[id]?.rateLimitRetry = nil
+        // The reader moved on: what an earlier message's failure left to try
+        // is no longer theirs to answer.
+        records[id]?.retryState = nil
         changed(id)
         return Task {
             do {
@@ -561,11 +561,11 @@ final class ChatRuntime {
                     let batch = try await ApelinService.app.attach(task, afterSeq: cursor)
                     guard !Task.isCancelled, records[id]?.task == task else { return }
                     let fresh = records[id]?.take(batch.events) ?? []
-                    let spentAllowance = fresh.contains(where: Self.isSpentAllowance)
-                    if spentAllowance {
-                        Task { [weak self] in await self?.answerSpentAllowance(in: id) }
+                    let retryable = fresh.contains(where: Self.isRetryableFailure)
+                    if retryable {
+                        Task { [weak self] in await self?.answerRetryableFailure(in: id) }
                     }
-                    settleSpentAllowance(in: id, against: spentAllowance)
+                    settleRetryableFailure(in: id, against: retryable)
                     settleSending(in: id, against: fresh)
                     let builds = CompletedBuilds.count(in: fresh)
                     if builds > 0 {
@@ -623,11 +623,11 @@ final class ChatRuntime {
                     // the reader's New Chat and messages move that
                     // (`lastInteraction`), however much the agent writes.
                     records[id]?.summary.isWorking = isWorking
-                    // A spent allowance that answered while its run still
-                    // went sends the next model once that run ends: a
-                    // session takes a model between runs, not inside one.
+                    // A failure that answered while its run still went sends
+                    // the next model once that run ends: a session takes a
+                    // model between runs, not inside one.
                     if wasWorking == true, !isWorking,
-                       records[id]?.rateLimitRetry?.awaitingTurn == true,
+                       records[id]?.retryState?.awaitingTurn == true,
                        (records[id]?.sending ?? []).isEmpty
                     {
                         Task { [weak self] in await self?.sendNextModel(in: id, readerAsked: false) }
@@ -706,23 +706,25 @@ final class ChatRuntime {
         onUnsentReturned?(id, returned)
     }
 
-    // MARK: - A spent allowance
+    // MARK: - A failure the retry answers
 
-    /// A model answered with a spent allowance. The reader's message goes
-    /// again with the next model of `ModelCandidates.fallbackList`, and the
+    /// A model answered with a spent allowance, or a key the provider
+    /// refused. The reader's message goes again with the next candidate of
+    /// `ModelCandidates.fallbackList` — the same model on another
+    /// configuration of the provider first, which is another key — and the
     /// model bar keeps a Retry while that list has one left.
-    private func answerSpentAllowance(in id: UUID) async {
+    private func answerRetryableFailure(in id: UUID) async {
         // One answer at a time: the models are looked up over the wire, and
         // a second error read meanwhile would answer the same one twice.
-        guard records[id] != nil, !answeringSpentAllowance.contains(id) else { return }
-        answeringSpentAllowance.insert(id)
-        defer { answeringSpentAllowance.remove(id) }
-        var state: RateLimitRetryState
-        if let known = records[id]?.rateLimitRetry {
+        guard records[id] != nil, !answeringRetryableFailure.contains(id) else { return }
+        answeringRetryableFailure.insert(id)
+        defer { answeringRetryableFailure.remove(id) }
+        var state: ModelRetryState
+        if let known = records[id]?.retryState {
             // later errors of the same run keep the tries and the list
             state = known
         } else {
-            state = RateLimitRetryState(
+            state = ModelRetryState(
                 remaining: await fallbackCandidates(after: id),
                 text: "",
             )
@@ -734,36 +736,36 @@ final class ChatRuntime {
         // With nothing to send again, or no model left, the conversation
         // keeps the error alone: the reader is the one who acts.
         guard !state.remaining.isEmpty, Self.hasContent(draft) else {
-            if records[id]?.rateLimitRetry != nil {
-                records[id]?.rateLimitRetry = nil
+            if records[id]?.retryState != nil {
+                records[id]?.retryState = nil
                 changed(id)
             }
             return
         }
-        records[id]?.rateLimitRetry = state
+        records[id]?.retryState = state
         changed(id)
         await sendNextModel(in: id, readerAsked: false)
     }
 
     /// The reader's Retry in the model bar: the next model, whether or not
     /// the automatic tries are spent.
-    func retrySpentAllowance(_ id: UUID) async {
+    func retryFailedMessage(_ id: UUID) async {
         await sendNextModel(in: id, readerAsked: true)
     }
 
-    /// Whether `id` has a model left to answer a spent allowance with: what
-    /// the model bar's Retry is shown for.
-    func hasSpentAllowanceRetry(_ id: UUID) -> Bool {
-        records[id]?.rateLimitRetry.map { !$0.remaining.isEmpty } ?? false
+    /// Whether `id` has a candidate left to answer a failure with: what the
+    /// model bar's Retry is shown for.
+    func canRetryFailedMessage(_ id: UUID) -> Bool {
+        records[id]?.retryState.map { !$0.remaining.isEmpty } ?? false
     }
 
     private func sendNextModel(in id: UUID, readerAsked: Bool) async {
-        guard var state = records[id]?.rateLimitRetry, let next = state.remaining.first else { return }
+        guard var state = records[id]?.retryState, let next = state.remaining.first else { return }
         // One retry at a time: the same message sent twice would run twice,
         // and a send under way is a prompt the host already has.
         guard (records[id]?.sending ?? []).isEmpty else { return }
         let draft = retryDraft(in: id, fallbackText: state.text)
-        let step = RateLimitRetryPolicy.step(
+        let step = ModelRetryPolicy.step(
             attempts: state.attempts,
             candidatesLeft: state.remaining.count,
             hasMessage: Self.hasContent(draft),
@@ -775,7 +777,7 @@ final class ChatRuntime {
         // that run ends.
         if state.awaitingTurn != (step == .wait) {
             state.awaitingTurn = step == .wait
-            records[id]?.rateLimitRetry = state
+            records[id]?.retryState = state
             changed(id)
         }
         guard step == .send else { return }
@@ -783,7 +785,7 @@ final class ChatRuntime {
         state.attempts += 1
         state.awaitingTurn = nil
         let previous = records[id]?.modelSelection
-        records[id]?.rateLimitRetry = state
+        records[id]?.retryState = state
         // this conversation runs on the model that answers from here on
         records[id]?.modelSelection = next
         records[id]?.submit(draft)
@@ -794,10 +796,10 @@ final class ChatRuntime {
             // A send that never reached the host spent neither the model
             // nor the try, and the conversation keeps the model it had.
             takeBack(draft, from: id)
-            if var back = records[id]?.rateLimitRetry {
+            if var back = records[id]?.retryState {
                 back.remaining.insert(next, at: 0)
                 back.attempts = max(back.attempts - 1, 0)
-                records[id]?.rateLimitRetry = back
+                records[id]?.retryState = back
             }
             if records[id]?.modelSelection == next {
                 records[id]?.modelSelection = previous
@@ -815,7 +817,7 @@ final class ChatRuntime {
     private func retryDraft(in id: UUID, fallbackText: String) -> ComposerDraft {
         guard let events = records[id]?.events else { return ComposerDraft(text: fallbackText) }
         // The error's own place: the message it answered is the one before.
-        let anchor = events.last(where: Self.isSpentAllowance)?.seq
+        let anchor = events.last(where: Self.isRetryableFailure)?.seq
         let answered = anchor.map { anchor in
             events.last { $0.seq < anchor && ChatTranscript.userMessageID(of: $0) != nil }
         } ?? events.last { ChatTranscript.userMessageID(of: $0) != nil }
@@ -841,14 +843,14 @@ final class ChatRuntime {
         return ModelCandidates.fallbackList(current: current, accounts: listed).map(\.selection)
     }
 
-    /// The conversation answered again after a spent allowance — a message
-    /// finished past its last error, and the turn ended — so the retry has
-    /// done what it could. A turn that ends on an error of its own never
-    /// clears it: its message came before that error, not after.
-    private func settleSpentAllowance(in id: UUID, against spentAllowance: Bool) {
-        guard !spentAllowance, records[id]?.rateLimitRetry != nil,
+    /// The conversation answered again after a failure the retry answers — a
+    /// message finished past its last error, and the turn ended — so the
+    /// retry has done what it could. A turn that ends on an error of its own
+    /// never clears it: its message came before that error, not after.
+    private func settleRetryableFailure(in id: UUID, against retryable: Bool) {
+        guard !retryable, records[id]?.retryState != nil,
               let events = records[id]?.events,
-              let anchor = events.last(where: Self.isSpentAllowance)?.seq,
+              let anchor = events.last(where: Self.isRetryableFailure)?.seq,
               events.contains(where: {
                   $0.kind == "message" && $0.seq > anchor
               }),
@@ -857,14 +859,16 @@ final class ChatRuntime {
                       && $0.payload?["reason"]?.stringValue != "aborted"
               })
         else { return }
-        records[id]?.rateLimitRetry = nil
+        records[id]?.retryState = nil
         changed(id)
     }
 
-    /// The host words a spent allowance as a sentence of its own
-    /// (`AgentSession`); an older host passes the provider's text through.
-    private static func isSpentAllowance(_ event: TaskEvent) -> Bool {
-        event.kind == "error" && RateLimitSignal.matches(event.payload?["message"]?.stringValue ?? "")
+    /// The failures `ModelRetrySignal` names, on an error event of the run:
+    /// the host words a spent allowance as a sentence of its own and passes a
+    /// provider's refusal through (`AgentSession`), and an older host passes
+    /// both through.
+    private static func isRetryableFailure(_ event: TaskEvent) -> Bool {
+        event.kind == "error" && ModelRetrySignal.matches(event.payload?["message"]?.stringValue ?? "")
     }
 
     /// `urgent`: written at once rather than after the interval; see `persist`.

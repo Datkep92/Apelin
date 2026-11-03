@@ -21,18 +21,21 @@ struct ChatRecord: Codable, Sendable {
     /// which takes the reader's current one. Added per-conversation model
     /// support; absent from older files.
     var modelSelection: ComposerModelSelection?
-    /// Where an automatic retry after a rate-limit error stands. Absent from
-    /// older files.
-    var rateLimitRetry: RateLimitRetryState?
+    /// Where an automatic retry after a failure another model or key can
+    /// answer stands — a spent allowance, or a key the provider refused.
+    /// Named `rateLimitRetry` in older files, whose state is dropped; absent
+    /// from files older still.
+    var retryState: ModelRetryState?
 }
 
-/// An automatic retry after a model answered with a spent allowance: the
-/// reader's message sent again with the next model of
-/// `ModelCandidates.fallbackList`, at most
-/// `RateLimitRetryPolicy.maximumRetries` times on its own. Kept with the
-/// conversation so a relaunch remembers what is left of the list and how
-/// many tries were spent.
-struct RateLimitRetryState: Codable, Sendable, Equatable {
+/// An automatic retry after a failure another model or key can answer — a
+/// model with a spent allowance, or a key the provider refused: the reader's
+/// message sent again with the next candidate of `ModelCandidates.fallbackList`
+/// — the same model on another configuration of the provider first, which is
+/// another key — at most `ModelRetryPolicy.maximumRetries` times on its own.
+/// Kept with the conversation so a relaunch remembers what is left of the list
+/// and how many tries were spent.
+struct ModelRetryState: Codable, Sendable, Equatable {
     /// Models left to try, in fallback order, the next one first: each is
     /// removed as it is sent. Empty means the reader is the only one who
     /// can ask again.
