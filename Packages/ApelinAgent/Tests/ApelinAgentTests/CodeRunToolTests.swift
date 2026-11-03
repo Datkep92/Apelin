@@ -17,9 +17,9 @@ struct CodeRunToolTests {
     func `the tool offers exactly the interpreters the host runs`() {
         let fields = AgentToolName.codeRun.parameters.objectValue
         let properties = fields?["properties"]?.objectValue
-        let offered = properties?["interpreter"]?.objectValue?["enum"]?.arrayValue?.compactMap(\.stringValue)
+        let offered = properties?["interpreter"]?.objectValue?["enum"]?.stringList
         #expect(offered == RunCodeSpec.interpreterNames)
-        #expect(fields?["required"]?.arrayValue?.compactMap(\.stringValue) == ["source"])
+        #expect(fields?["required"]?.stringList == ["source"])
         #expect(properties?["argv"] == nil && properties?["command"] == nil, "no command line here")
         #expect(properties?["root"] == nil, "there is no root here at all")
         #expect(AgentToolName.codeRun.summary.contains(RunCodeSpec.interpreterNames.joined(separator: ", ")))
@@ -114,7 +114,7 @@ struct CodeRunToolTests {
             ["source": "print(1)", "interpreter": "ruby"],
             ["source": "print(1)", "interpreter": ""],
             ["source": "a\u{0}b"],
-            ["source": tooLong],
+            ["source": .string(tooLong)],
         ]
         let harness = try DigestApprovalTests.Harness()
         defer { harness.home.remove() }
@@ -156,7 +156,7 @@ struct CodeRunToolTests {
             let harness = try DigestApprovalTests.Harness(mode: .relaxed)
             defer { harness.home.remove() }
             await #expect(throws: (any Error).self) {
-                _ = try await harness.run(.codeRun, ["source": "print(1)", "cwd": cwd])
+                _ = try await harness.run(.codeRun, ["source": "print(1)", "cwd": .string(cwd)])
             }
             #expect(await harness.backend.runCodeRequests.isEmpty, "\(cwd)")
         }
@@ -171,9 +171,21 @@ struct CodeRunToolTests {
         for mode in [ApprovalMode.confirm, .relaxed, .full] {
             let harness = try DigestApprovalTests.Harness(mode: mode)
             defer { harness.home.remove() }
-            let (_, asked) = try await harness.run(.codeRun, ["source": source])
+            let (_, asked) = try await harness.run(.codeRun, ["source": .string(source)])
             #expect(asked.count == 1, "\(mode)")
             #expect(asked.first?.detail == .screenControl(.command(expected, asRoot: false)), "\(mode)")
+        }
+    }
+}
+
+/// The tool's published schema is `JSONValue`, which carries an `objectValue`
+/// and a subscript but no array accessor; a list of strings is read here.
+private extension JSONValue {
+    var stringList: [String]? {
+        guard case let .array(values) = self else { return nil }
+        return values.compactMap { value in
+            if case let .string(text) = value { return text }
+            return nil
         }
     }
 }

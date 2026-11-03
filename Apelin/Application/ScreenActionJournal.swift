@@ -1,4 +1,5 @@
 import ApelinCore
+import ApelinProtocol
 import Dog
 
 /// Writes `ScreenActionLog`'s lines to the launch journal beside the app's

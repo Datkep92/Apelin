@@ -95,7 +95,7 @@ struct FileBackupTests {
         let copies = try backups.copies(of: "a.txt")
         #expect(copies.count == 2)
         let one = try #require(try copies.first { try backups.load($0) == Data("one\n".utf8) })
-        _ = try tools.revertFile(["path": "a.txt", "backup": one.name])
+        _ = try tools.revertFile(["path": "a.txt", "backup": .string(one.name)])
         #expect(try home.read("a.txt") == "one\n")
 
         let listed = try tools.listBackups(["path": "a.txt"])

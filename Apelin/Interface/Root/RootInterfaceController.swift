@@ -231,7 +231,7 @@ final class RootInterfaceController: UIViewController {
         // the project list comes out when the page is panned from its
         // trailing edge, the conversation left between the two
         let projectsEdge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(panDrawer))
-        projectsEdge.edges = .trailing
+        projectsEdge.edges = navigator.view.laysOutRightToLeft ? .left : .right
         projectsEdge.delegate = self
         navigator.view.addGestureRecognizer(projectsEdge)
         projectsEdgePan = projectsEdge
