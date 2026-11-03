@@ -17,8 +17,11 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
     let ledger = ApprovalLedger(directory: scratch.appendingPathComponent("code-approvals"))
     let sessions = AgentSessionTable.shared
 
-    // A project of its own, with a directory inside it to run in.
-    let projectRoot = scratch.appendingPathComponent("code-project")
+    // A project of its own, with a directory inside it to run in: the root
+    // is the canonical one, as a `ResolvedProject` is built from (the
+    // harness's own `scratch` is `/var/folders/…` on macOS, whose real path
+    // no project check would recognise).
+    let projectRoot = URL(fileURLWithPath: scratchPath).appendingPathComponent("code-project")
     let projectPath = projectRoot.path
     let sources = projectRoot.appendingPathComponent("Sources").path
     try? FileManager.default.createDirectory(atPath: sources, withIntermediateDirectories: true)
