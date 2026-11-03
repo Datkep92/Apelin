@@ -281,7 +281,7 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
     check(preset == nil, "Strict runs no code_run on a preset")
     let sessionGrant = await identity(strict, python, .session)
     check(sessionGrant == nil, "and none on a session grant it never gave")
-    await ask(strict, "code-card", source: "print(1)", interpreter: "python3")
+    await ask(strict, "code-card", interpreter: "python3", source: "print(1)")
     await approve(strict, "code-card")
     let byCard = await identity(strict, python, .user(approvalID: "code-card"))
     check(byCard == .mobile(preset: nil), "the app's approval of this script lets exactly it through, as mobile")
@@ -294,14 +294,14 @@ func codeRunChecks(scratch: URL, scratchPath: String) async {
         .user(approvalID: "code-other"),
     )
     check(otherScript == nil, "an approval the session never asked for approves nothing")
-    await ask(strict, "code-elsewhere", source: "print(1)", interpreter: "python3", workingDirectory: "Sources")
+    await ask(strict, "code-elsewhere", interpreter: "python3", source: "print(1)", workingDirectory: "Sources")
     await approve(strict, "code-elsewhere")
     let elsewhere = await identity(strict, python, .user(approvalID: "code-elsewhere"))
     check(elsewhere == nil, "a script approved in another working directory is not the one sent")
 
     // Root: a code_run card is no approval of a root request, and the
     // session grant of a script is no root grant either.
-    await ask(strict, "code-root", source: "print(1)", interpreter: "python3")
+    await ask(strict, "code-root", interpreter: "python3", source: "print(1)")
     await approve(strict, "code-root")
     let rootAsCard = await identity(strict, python, .user(approvalID: "code-root"), asRoot: true)
     check(rootAsCard == nil, "a card for code_run authorises nothing as root")
