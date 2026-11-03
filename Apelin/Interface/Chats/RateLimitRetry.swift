@@ -40,9 +40,12 @@ enum RateLimitSignal {
 }
 
 /// What a spent allowance leaves to do.
-enum RateLimitRetryDecision: Equatable {
+enum RateLimitRetryStep: Equatable {
     /// Send the reader's message again, with the next model offered.
-    case sendNextModel
+    case send
+    /// The run the error belongs to is still going: the next model goes
+    /// once it ends, since a session takes a new model between runs only.
+    case wait
     /// Nothing is left to send: the conversation keeps the error, and the
     /// reader decides what comes next.
     case leaveIt
@@ -53,16 +56,22 @@ enum RateLimitRetryPolicy {
     /// is the one to ask (`Retry` in the model bar).
     static let maximumRetries = 3
 
+    /// `hasMessage` is a message to send again: text, files, or both.
     /// `readerAsked` is the reader's own Retry, which one message's budget
     /// does not limit: they asked, and a model is there. A retry with no
-    /// message to send, or with no model left, is not one.
-    static func decision(
+    /// message to send, or with no model left, is not one. A run still
+    /// going is waited for in either case: the host applies a prompt's
+    /// model to the run it starts, and one that joins a run under way keeps
+    /// the model that run began with.
+    static func step(
         attempts: Int,
         candidatesLeft: Int,
-        hasText: Bool,
+        hasMessage: Bool,
+        isWorking: Bool,
         readerAsked: Bool = false,
-    ) -> RateLimitRetryDecision {
-        guard hasText, candidatesLeft > 0 else { return .leaveIt }
-        return readerAsked || attempts < maximumRetries ? .sendNextModel : .leaveIt
+    ) -> RateLimitRetryStep {
+        guard hasMessage, candidatesLeft > 0 else { return .leaveIt }
+        guard readerAsked || attempts < maximumRetries else { return .leaveIt }
+        return isWorking ? .wait : .send
     }
 }

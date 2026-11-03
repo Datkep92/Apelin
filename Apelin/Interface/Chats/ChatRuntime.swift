@@ -618,6 +618,15 @@ final class ChatRuntime {
                     // the reader's New Chat and messages move that
                     // (`lastInteraction`), however much the agent writes.
                     records[id]?.summary.isWorking = isWorking
+                    // A spent allowance that answered while its run still
+                    // went sends the next model once that run ends: a
+                    // session takes a model between runs, not inside one.
+                    if wasWorking == true, !isWorking,
+                       records[id]?.rateLimitRetry?.awaitingTurn == true,
+                       (records[id]?.sending ?? []).isEmpty
+                    {
+                        Task { [weak self] in await self?.sendNextModel(in: id, readerAsked: false) }
+                    }
                     // A wait that ran out with nothing, as an idle session's
                     // does every 20 s, has nothing to write or show. A turn's
                     // start and end are written at once, what streams between
@@ -699,19 +708,23 @@ final class ChatRuntime {
     /// model bar keeps a Retry while that list has one left.
     private func answerSpentAllowance(in id: UUID) async {
         guard records[id] != nil else { return }
-        let state: RateLimitRetryState
+        var state: RateLimitRetryState
         if let known = records[id]?.rateLimitRetry {
             // later errors of the same run keep the tries and the list
             state = known
         } else {
             state = RateLimitRetryState(
                 remaining: await fallbackCandidates(after: id),
-                text: records[id]?.lastUserText ?? "",
+                text: "",
             )
         }
+        // The message the error answered, which a newer one the reader sent
+        // meanwhile takes over: the retry sends what failed.
+        let draft = retryDraft(in: id, fallbackText: state.text)
+        state.text = draft.text
         // With nothing to send again, or no model left, the conversation
         // keeps the error alone: the reader is the one who acts.
-        guard !state.remaining.isEmpty, !state.text.isEmpty else {
+        guard !state.remaining.isEmpty, Self.hasContent(draft) else {
             if records[id]?.rateLimitRetry != nil {
                 records[id]?.rateLimitRetry = nil
                 changed(id)
@@ -736,27 +749,76 @@ final class ChatRuntime {
     }
 
     private func sendNextModel(in id: UUID, readerAsked: Bool) async {
-        guard var state = records[id]?.rateLimitRetry, let next = state.remaining.first,
-              RateLimitRetryPolicy.decision(
-                  attempts: state.attempts,
-                  candidatesLeft: state.remaining.count,
-                  hasText: !state.text.isEmpty,
-                  readerAsked: readerAsked,
-              ) == .sendNextModel
-        else { return }
+        guard var state = records[id]?.rateLimitRetry, let next = state.remaining.first else { return }
+        let draft = retryDraft(in: id, fallbackText: state.text)
+        let step = RateLimitRetryPolicy.step(
+            attempts: state.attempts,
+            candidatesLeft: state.remaining.count,
+            hasMessage: Self.hasContent(draft),
+            isWorking: records[id]?.summary.isWorking ?? false,
+            readerAsked: readerAsked,
+        )
+        // The model that answered with nothing left spent carries the wait
+        // the run it belongs to imposes: `follow` sends the next one when
+        // that run ends.
+        if state.awaitingTurn != (step == .wait) {
+            state.awaitingTurn = step == .wait
+            records[id]?.rateLimitRetry = state
+            changed(id)
+        }
+        guard step == .send else { return }
         state.remaining.removeFirst()
         state.attempts += 1
+        state.awaitingTurn = nil
+        let previous = records[id]?.modelSelection
         records[id]?.rateLimitRetry = state
         // this conversation runs on the model that answers from here on
         records[id]?.modelSelection = next
-        let draft = ComposerDraft(text: state.text)
         records[id]?.submit(draft)
         changed(id)
         do {
             try await send(draft, to: id)
         } catch {
+            // A send that never reached the host spent neither the model
+            // nor the try, and the conversation keeps the model it had.
             takeBack(draft, from: id)
+            if var back = records[id]?.rateLimitRetry {
+                back.remaining.insert(next, at: 0)
+                back.attempts = max(back.attempts - 1, 0)
+                records[id]?.rateLimitRetry = back
+            }
+            if records[id]?.modelSelection == next {
+                records[id]?.modelSelection = previous
+            }
+            changed(id)
         }
+    }
+
+    /// The message a spent allowance sends again: the reader's last one the
+    /// allowance answered, with the files it carried, read from the
+    /// conversation's own events. One sent after the error is not it — the
+    /// run it joined never got the error — and a queued one still in the
+    /// host's queue would go twice. `fallbackText` is what a state written
+    /// before that holds.
+    private func retryDraft(in id: UUID, fallbackText: String) -> ComposerDraft {
+        guard let events = records[id]?.events else { return ComposerDraft(text: fallbackText) }
+        // The error's own place: the message it answered is the one before.
+        let anchor = events.last(where: Self.isSpentAllowance)?.seq
+        let answered = anchor.map { anchor in
+            events.last { $0.seq < anchor && ChatTranscript.userMessageID(of: $0) != nil }
+        } ?? events.last { ChatTranscript.userMessageID(of: $0) != nil }
+        guard let event = answered
+        else { return ComposerDraft(text: fallbackText) }
+        let text = event.payload?["text"]?.stringValue ?? ""
+        let saved = ChatTranscript.attachments(in: event.payload?["attachments"])
+        let files = saved.compactMap { attachment($0, in: id) }
+        guard !text.isEmpty || !files.isEmpty else { return ComposerDraft(text: fallbackText) }
+        return ComposerDraft(text: text, attachments: files)
+    }
+
+    /// Whether `draft` carries a message: text, files, or both.
+    private static func hasContent(_ draft: ComposerDraft) -> Bool {
+        !draft.text.isEmpty || !draft.attachments.isEmpty
     }
 
     /// The models to fall back to after the one `id` runs on, in

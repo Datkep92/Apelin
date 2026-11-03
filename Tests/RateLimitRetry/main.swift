@@ -31,32 +31,72 @@ require(!RateLimitSignal.matches("Request failed: 4290 tokens"), "The status has
 // MARK: - What is left to do
 
 require(
-    RateLimitRetryPolicy.decision(attempts: 0, candidatesLeft: 3, hasText: true) == .sendNextModel,
+    RateLimitRetryPolicy.step(attempts: 0, candidatesLeft: 3, hasMessage: true, isWorking: false) == .send,
     "A model left and a message to send is a retry",
 )
 require(
-    RateLimitRetryPolicy.decision(attempts: 2, candidatesLeft: 1, hasText: true) == .sendNextModel,
+    RateLimitRetryPolicy.step(attempts: 2, candidatesLeft: 1, hasMessage: true, isWorking: false) == .send,
     "The last automatic try is still a retry",
 )
 require(
-    RateLimitRetryPolicy.decision(attempts: RateLimitRetryPolicy.maximumRetries, candidatesLeft: 9, hasText: true) == .leaveIt,
+    RateLimitRetryPolicy.step(
+        attempts: RateLimitRetryPolicy.maximumRetries,
+        candidatesLeft: 9,
+        hasMessage: true,
+        isWorking: false,
+    ) == .leaveIt,
     "Automatic tries stop at the budget, a model left or not",
 )
 require(
-    RateLimitRetryPolicy.decision(attempts: RateLimitRetryPolicy.maximumRetries, candidatesLeft: 9, hasText: true, readerAsked: true) == .sendNextModel,
+    RateLimitRetryPolicy.step(
+        attempts: RateLimitRetryPolicy.maximumRetries,
+        candidatesLeft: 9,
+        hasMessage: true,
+        isWorking: false,
+        readerAsked: true,
+    ) == .send,
     "The reader's own Retry is not bound by the budget",
 )
 require(
-    RateLimitRetryPolicy.decision(attempts: 0, candidatesLeft: 0, hasText: true) == .leaveIt,
+    RateLimitRetryPolicy.step(attempts: 0, candidatesLeft: 0, hasMessage: true, isWorking: false) == .leaveIt,
     "With no model left there is nothing to retry",
 )
 require(
-    RateLimitRetryPolicy.decision(attempts: 0, candidatesLeft: 0, hasText: true, readerAsked: true) == .leaveIt,
+    RateLimitRetryPolicy.step(
+        attempts: 0,
+        candidatesLeft: 0,
+        hasMessage: true,
+        isWorking: false,
+        readerAsked: true,
+    ) == .leaveIt,
     "The reader's Retry cannot invent a model",
 )
 require(
-    RateLimitRetryPolicy.decision(attempts: 0, candidatesLeft: 3, hasText: false) == .leaveIt,
+    RateLimitRetryPolicy.step(attempts: 0, candidatesLeft: 3, hasMessage: false, isWorking: false) == .leaveIt,
     "With no message to send again there is nothing to retry",
 )
+require(
+    RateLimitRetryPolicy.step(attempts: 0, candidatesLeft: 3, hasMessage: true, isWorking: true) == .wait,
+    "A run still going is waited for: a prompt that joins it keeps its model",
+)
+require(
+    RateLimitRetryPolicy.step(
+        attempts: 0,
+        candidatesLeft: 3,
+        hasMessage: true,
+        isWorking: true,
+        readerAsked: true,
+    ) == .wait,
+    "The reader's Retry waits for the run too",
+)
+require(
+    RateLimitRetryPolicy.step(
+        attempts: RateLimitRetryPolicy.maximumRetries,
+        candidatesLeft: 3,
+        hasMessage: true,
+        isWorking: true,
+    ) == .leaveIt,
+    "A spent budget stops the retry whether a run goes or not",
+)
 
-print("ok: a spent allowance (429, rate limit, quota, every other failure, the tries left, the reader's own Retry)")
+print("ok: a spent allowance (429, rate limit, quota, every other failure, the tries left, the run still going, the reader's own Retry)")

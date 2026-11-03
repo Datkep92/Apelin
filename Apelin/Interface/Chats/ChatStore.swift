@@ -37,10 +37,15 @@ struct RateLimitRetryState: Codable, Sendable, Equatable {
     /// removed as it is sent. Empty means the reader is the only one who
     /// can ask again.
     var remaining: [ComposerModelSelection]
-    /// The text sent again, taken from the message the error answered.
+    /// The text sent again, taken from the message the error answered. Kept
+    /// for a state written before the message was read from the
+    /// conversation's own events, which is what a retry sends.
     var text: String
     /// How many retries were already sent for this run.
     var attempts = 0
+    /// Set while the run the error came from is still going: the next model
+    /// is sent when it ends. Absent from older files.
+    var awaitingTurn: Bool?
 }
 
 /// The replay a reopened session's task starts with: every event of the
@@ -146,13 +151,6 @@ extension ChatRecord {
         guard !recorded, draft.text.isEmpty, draft.attachments.isEmpty else { return false }
         draft = message
         return true
-    }
-
-    /// The text of the last message the reader sent: what an automatic retry
-    /// after a rate-limit error sends again.
-    var lastUserText: String? {
-        events.last { ChatTranscript.userMessageID(of: $0) != nil }?
-            .payload?["text"]?.stringValue
     }
 
     /// The session is now `task`. One that is not the task `events` came
