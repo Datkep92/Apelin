@@ -3,10 +3,13 @@ import Foundation
 import ImageIO
 
 /// An image file as file_read shows it to the model: one frame, scaled to
-/// at most `maxPixelSize` on its longer side and encoded again — PNG when
-/// it has transparency, JPEG otherwise — so no provider is sent HEIC, WebP,
+/// at most `sideLimit` on its longer side and encoded again — PNG when it
+/// has transparency, JPEG otherwise — so no provider is sent HEIC, WebP,
 /// TIFF or BMP, an animation, or the file's metadata. What a file is comes
 /// from its bytes, never its name: an attachment is saved without one.
+/// `sideLimit` and `bytesLimit` are the caller's, since a message's picture
+/// goes to one endpoint the caller knows the limits of (`MessageImage`),
+/// while file_read's own are the defaults below.
 struct FileImage: Sendable {
     /// The first line of the result: what the file is and what is shown.
     let summary: String
@@ -50,8 +53,15 @@ struct FileImage: Sendable {
     /// Frame `frame` of the image `data` (its primary image when nil), or
     /// nil when ImageIO cannot decode it, which may be a text file that
     /// begins as an image does. `name` is the file's, for the summary and
-    /// the refusals.
-    static func read(_ data: Data, frame: Int?, name: String) throws -> FileImage? {
+    /// the refusals. The picture is scaled to at most `sideLimit` on its
+    /// longer side and encoded again until it fits `bytesLimit`.
+    static func read(
+        _ data: Data,
+        frame: Int?,
+        name: String,
+        sideLimit: Int = FileImage.maxPixelSize,
+        bytesLimit: Int = FileImage.maxBytes,
+    ) throws -> FileImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions),
               let type = CGImageSourceGetType(source),
@@ -74,7 +84,7 @@ struct FileImage: Sendable {
         }
         // Smaller until it fits: a detailed picture with transparency stays
         // PNG, which can be larger than the limit at full size.
-        for side in [maxPixelSize, 1024, 512] {
+        for side in ladder(sideLimit) {
             let options = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
@@ -85,7 +95,7 @@ struct FileImage: Sendable {
             guard let encoded = encode(picture, transparent: facts.transparent) else {
                 throw ToolArgumentError("\(name) is a \(format) image that could not be encoded to be shown")
             }
-            guard encoded.data.count <= maxBytes else { continue }
+            guard encoded.data.count <= bytesLimit else { continue }
             var summary = "Read image \(name): \(format), \(facts.width)×\(facts.height)"
             if count > 1 {
                 summary += ", frame \(index) of \(count) (frame 0 to \(count - 1) picks another)"
@@ -93,7 +103,24 @@ struct FileImage: Sendable {
             summary += "; shown as a \(picture.width)×\(picture.height) \(encoded.name)."
             return FileImage(summary: summary, data: encoded.data, mimeType: encoded.mimeType)
         }
-        throw ToolArgumentError("\(name) is a \(format) image too detailed to show in \(maxBytes) bytes")
+        throw ToolArgumentError("\(name) is a \(format) image too detailed to show in \(bytesLimit) bytes")
+    }
+
+    /// The sizes tried in turn, the caller's own first, then the ones a
+    /// detailed picture has to come down to to fit `bytesLimit`.
+    private static func ladder(_ sideLimit: Int) -> [Int] {
+        [sideLimit] + [1024, 512].filter { $0 < sideLimit }
+    }
+
+    /// The pixel size of a file's primary frame as it is meant to be seen,
+    /// without decoding it — EXIF orientations 5 to 8 turn it a quarter —
+    /// or nil when ImageIO cannot read the file.
+    static func pixelSize(of data: Data) -> (width: Int, height: Int)? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions),
+              let facts = facts(source, CGImageSourceGetPrimaryImageIndex(source))
+        else { return nil }
+        return (facts.width, facts.height)
     }
 
     /// The frame's pixel size as it is meant to be seen — EXIF orientations

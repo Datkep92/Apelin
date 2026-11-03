@@ -49,6 +49,10 @@ struct ChatTranscript {
     private var unanswered: UUID?
     /// The run's output so far, from its latest `received`.
     private var receivedTokens: Int?
+    /// The provider's own count for the run's latest request: the prompt it
+    /// read and how much of that prompt its cache answered, from its
+    /// `usage`. Nil before the first one and once the run has ended.
+    private var usage: (input: Int, cacheRead: Int)?
     /// Where the message streaming now began among `rows`, and the row it
     /// answered then, from its `messageStarted` until anything but its
     /// stream comes: a `messageDiscarded` (kwwk asks for it again) takes
@@ -109,6 +113,7 @@ struct ChatTranscript {
             case "prompt", "steer":
                 finishThinking(at: event.time)
                 assistant = nil
+                usage = nil
                 let messageID = Self.userMessageID(of: event) ?? id
                 let files = Self.attachments(in: payload?["attachments"])
                 queued.removeAll { $0.id == messageID }
@@ -263,11 +268,20 @@ struct ChatTranscript {
                 add(ChatMessage(id: id, role: .assistant, text: message ?? ""))
             case "received":
                 receivedTokens = payload?["tokens"]?.doubleValue.map { Int($0) }
+            case "usage":
+                // What the provider itself counted for the request it just
+                // answered, as the cache hit rate is measured.
+                if let input = payload?["input"]?.doubleValue.map({ Int($0) }),
+                   let read = payload?["cacheRead"]?.doubleValue.map({ Int($0) })
+                {
+                    usage = (input: input, cacheRead: read)
+                }
             case "finished":
                 finishThinking(at: event.time)
                 assistant = nil
                 isWorking = false
                 receivedTokens = nil
+                keepCacheNote()
             case "compactionStarted":
                 isCompacting = true
             case "compactionFinished":
@@ -283,6 +297,7 @@ struct ChatTranscript {
                     isWorking = false
                     isCompacting = false
                     receivedTokens = nil
+                    keepCacheNote()
                 }
             default: break
             }
@@ -403,6 +418,34 @@ struct ChatTranscript {
         rows[summary].receivedSettles = true
     }
 
+    /// The run that just ended leaves what the provider counted for its caching
+    /// on the summary it made, where it stays: the fold merges a run's
+    /// thoughts into the row the first of them made, so the figure goes on
+    /// the row still there, and the next run counts from nothing.
+    private mutating func keepCacheNote() {
+        defer { usage = nil }
+        guard let note = cacheNote else { return }
+        // The last summary there is: the run that just ended always began one
+        // (`messageStarted`), and a note exists only once a request answered.
+        guard let index = rows.lastIndex(where: {
+            if case .thinking = $0.role { return true }
+            return false
+        })
+        else { return }
+        rows[index].cacheNote = note
+    }
+
+    /// How much of the run's prompt the provider answered from its own cache,
+    /// as the summary says it: from its own count, nil when it reported none
+    /// or nothing of the prompt was cached.
+    private var cacheNote: String? {
+        guard let usage, usage.cacheRead > 0 else { return nil }
+        let prompt = usage.input + usage.cacheRead
+        guard prompt > 0 else { return nil }
+        let share = "\(usage.cacheRead * 100 / prompt)%"
+        return String(localized: "\(share) cached")
+    }
+
     /// The running summary that stands in under `row` until the turn shows
     /// what follows it, under the id the next thought will take.
     private static func standIn(after row: UUID) -> ChatMessage {
@@ -427,6 +470,7 @@ struct ChatTranscript {
                     combined[summary].text = [combined[summary].text, message.text].filter { !$0.isEmpty }
                         .joined(separator: "\n\n")
                     combined[summary].trace.append(message)
+                    combined[summary].cacheNote = combined[summary].cacheNote ?? message.cacheNote
                 } else {
                     guard !isEmpty || Self.callFollows(messages, index) else { break }
                     summary = combined.count
@@ -446,6 +490,7 @@ struct ChatTranscript {
                 }
                 if let summary {
                     combined[summary].trace.append(message)
+                    combined[summary].cacheNote = combined[summary].cacheNote ?? message.cacheNote
                     if case let .thinking(seconds, _) = combined[summary].role {
                         let calls = combined[summary].trace.count(where: { $0.role == .tool })
                         combined[summary].role = .thinking(seconds: seconds, tools: calls)

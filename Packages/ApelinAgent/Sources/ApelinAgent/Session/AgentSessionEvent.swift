@@ -40,6 +40,13 @@ public enum AgentSessionEvent: Sendable, Hashable, Codable {
     /// recorded a few times a second while a message streams, and when it
     /// ends, at the provider's count where it gave one.
     case received(tokens: Int)
+    /// What the provider said the request that just finished cost it: the
+    /// prompt it read (`input`), how much of that prompt its cache answered
+    /// (`cacheRead`) and how much it wrote into that cache (`cacheWrite`),
+    /// and what it wrote back (`output`). One per model message, so the app
+    /// measures caching from the provider's own count instead of guessing;
+    /// a route that reports nothing records no event.
+    case usage(input: Int, output: Int, cacheRead: Int, cacheWrite: Int)
     case toolCallStarted(ToolCallRecord)
     case toolCallFinished(ToolResultRecord)
     /// The session is waiting: nothing runs until `approve` answers, and an

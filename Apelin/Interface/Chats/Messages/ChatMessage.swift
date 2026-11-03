@@ -72,6 +72,11 @@ struct ChatMessage: Identifiable, Hashable {
     /// The summary's count belongs to a reply the run is writing after it:
     /// the figure settles in half a second, not five (`TokenClimb`).
     var receivedSettles = false
+    /// On a summary whose run has ended, what the provider itself said about
+    /// that run's caching (`ChatTranscript`): shown after the title, as "82%
+    /// cached". Nil while the run goes, and for a run that cached nothing or
+    /// whose route reported no counts.
+    var cacheNote: String?
     /// An approval of a command that runs as root (`ApprovalCardText`):
     /// the card says so, and Approve checks the device owner first.
     var runsAsRoot = false
@@ -91,6 +96,12 @@ struct ChatMessage: Identifiable, Hashable {
                 ? String(localized: "Executing tool…")
                 : String(localized: "Executing \(runningTools) tools…")
         }
+        return noted(finishedTitle(seconds: seconds, tools: tools))
+    }
+
+    /// The title of a summary whose run has ended: how long it thought and
+    /// how many calls it made.
+    private func finishedTitle(seconds: Int, tools: Int) -> String {
         if seconds <= 0 {
             guard tools > 0 else { return "" }
             return tools == 1 ? String(localized: "Called 1 tool") : String(localized: "Called \(tools) tools")
@@ -108,6 +119,13 @@ struct ChatMessage: Identifiable, Hashable {
         return tools == 1
             ? String(localized: "Thought for \(seconds) seconds and called 1 tool")
             : String(localized: "Thought for \(seconds) seconds and called \(tools) tools")
+    }
+
+    /// `activityTitle` with what the provider said about the run's cache after
+    /// it, as "Thought for 3 seconds · 82% cached".
+    private func noted(_ title: String) -> String {
+        guard let cacheNote, !cacheNote.isEmpty else { return title }
+        return title.isEmpty ? cacheNote : "\(title) · \(cacheNote)"
     }
 
     var approvalTitle: String {

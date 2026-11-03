@@ -1122,7 +1122,12 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   `usage.output`, or its estimate when that is 0; the session records it
   at most every 250 ms and at each message's end, never per delta
   (`OutputTally`), the relay sends only the latest with its next flush,
-  and each run counts from nothing), `message`, `toolCall`, `toolResult`,
+  and each run counts from nothing), `usage` {input, output, cacheRead,
+  cacheWrite} (what the provider itself counted for the message that just
+  ended, recorded only when it counted anything: the prompt it read,
+  `cacheRead` of which its cache answered and `cacheWrite` it wrote into
+  that cache, `output` what it wrote back — the app measures the run's
+  cache hit rate from it, `ChatTranscript`), `message`, `toolCall`, `toolResult`,
   `approvalRequested` {approvalID, toolCallID, tool, arguments,
   workingDirectory, projectID, fingerprint, reason, allowsSessionScope,
   detail} followed by `state` `waitingForApproval`, `approvalResolved`

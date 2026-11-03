@@ -291,6 +291,7 @@ final class FixtureProtocolTests: XCTestCase {
             ),
             "approvalResolved": Shape(required: ["approvalID": .string, "decision": .word { ApprovalDecision(rawValue: $0) != nil }]),
             "error": Shape(required: ["message": .string]),
+            "usage": Shape(required: fields("input", "output", "cacheRead", "cacheWrite", as: .number)),
             "finished": Shape(required: ["reason": .words(["completed", "aborted", "failed"])]),
             "state": state([:]),
         ],

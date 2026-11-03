@@ -65,6 +65,10 @@ public actor AgentSession {
 
     /// Messages sent while a run was going, oldest first.
     private var queued: [QueuedMessage] = []
+    /// The pictures messages carried, as each endpoint's limits are sent
+    /// them (`PreparedImageStore`), so one sent again is not prepared,
+    /// scaled or encoded a second time.
+    private var preparedImages = PreparedImageStore()
     /// What the system prompt showed when the session took it, plus every
     /// delta a message has carried since (`PromptState`).
     private var told: PromptState
@@ -487,6 +491,25 @@ public actor AgentSession {
         }
     }
 
+    /// The pictures `files` carry, each as the endpoint the session's model
+    /// talks to is sent it: the bytes that were attached when they already
+    /// fit that endpoint, and a scaled, re-encoded copy when they do not.
+    /// One already prepared for the same bytes and limits is that copy, so a
+    /// message sent again prepares and encodes nothing again.
+    private func messageImages(
+        _ files: [(name: String, mimeType: String, data: Data)],
+        limits: MessageImageLimits,
+    ) -> [MessageImage] {
+        files.filter { $0.mimeType.hasPrefix("image/") }.map { file in
+            preparedImages.image(
+                name: file.name,
+                mimeType: file.mimeType,
+                data: file.data,
+                limits: limits,
+            )
+        }
+    }
+
     /// Returns once the title completion going, if any, has ended.
     func waitForTitle() async {
         await titleTask?.value
@@ -543,9 +566,10 @@ public actor AgentSession {
             }
             throw error
         }
-        let images = files
-            .filter { $0.mimeType.hasPrefix("image/") }
-            .map { ImageContent(data: $0.data.base64EncodedString(), mimeType: $0.mimeType) }
+        let images = messageImages(
+            files,
+            limits: MessageImageLimits.for(api: agent.state.model.api),
+        )
         let paths = attachments.map { "\($0.name): \($0.path)" }.joined(separator: "\n")
         let typed = paths.isEmpty ? text : text + "\n\nAttached files in the workspace:\n" + paths
         if !queues {
@@ -566,7 +590,7 @@ public actor AgentSession {
             sender.map { $0.prefix + "\n" + typed } ?? typed,
             delta: true,
         )
-        let message = UserMessage(content: [.text(TextContent(text: prompt))] + images.map { .image($0) })
+        let message = UserMessage(content: [.text(TextContent(text: prompt))] + images.map(\.content))
         await waitForEndingRun()
         if queues, let messageID {
             if runTask != nil {
@@ -830,6 +854,7 @@ public actor AgentSession {
             guard case let .assistant(assistant) = message else { break }
             output.endMessage(reported: assistant.usage.output)
             await recordOutput(messageEnded: true)
+            await recordUsage(assistant.usage)
             await record(.messageFinished(text: Self.text(of: assistant.content)))
             if assistant.stopReason == .error {
                 let raw = assistant.errorMessage ?? ""
@@ -942,6 +967,22 @@ public actor AgentSession {
         if let tokens = output.take(at: Date(), messageEnded: messageEnded) {
             await record(.received(tokens: tokens))
         }
+    }
+
+    /// The provider's own count for the message that just ended, when it gave
+    /// one: what the app reads to say how much of the prompt was a cache hit
+    /// (`usage`). Both Anthropic and the OpenAI-compatible routes leave
+    /// `input` without the cached part, which `cacheRead` counts, so the
+    /// prompt is the two together.
+    private func recordUsage(_ usage: Usage) async {
+        guard usage.input > 0 || usage.output > 0 || usage.cacheRead > 0 || usage.cacheWrite > 0
+        else { return }
+        await record(.usage(
+            input: usage.input,
+            output: usage.output,
+            cacheRead: usage.cacheRead,
+            cacheWrite: usage.cacheWrite,
+        ))
     }
 
     private func recordRunError(_ error: Error) async {

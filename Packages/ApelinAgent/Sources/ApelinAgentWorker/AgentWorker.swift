@@ -568,6 +568,13 @@ actor EventRelay {
             return [("message", .object(["text": .string(text)]))]
         case let .received(tokens):
             return [("received", .object(["tokens": .number(Double(tokens))]))]
+        case let .usage(input, output, cacheRead, cacheWrite):
+            return [("usage", .object([
+                "input": .number(Double(input)),
+                "output": .number(Double(output)),
+                "cacheRead": .number(Double(cacheRead)),
+                "cacheWrite": .number(Double(cacheWrite)),
+            ]))]
         case let .toolCallStarted(call):
             return [("toolCall", .object([
                 "id": .string(call.id),
