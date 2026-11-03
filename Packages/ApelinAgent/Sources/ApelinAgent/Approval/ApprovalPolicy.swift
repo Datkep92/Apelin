@@ -250,7 +250,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
         switch facts.tool {
         case .local(.screenReadTree), .local(.screenInteract):
             break
-        case .local(.shellRun):
+        case .local(.shellRun), .local(.codeRun):
             guard facts.command?.screenProgram != nil else { return nil }
         default:
             return nil
@@ -535,6 +535,18 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 )
             case .script: return .ask(reason: "Scripts require approval each time they run.", detail: .command(command))
             }
+
+        case .codeRun:
+            // The program is the model's own, it runs as mobile in the
+            // project, and it asks every time: no preset can stand in for a
+            // program written now, and it is never granted for the session.
+            guard let command = facts.command else {
+                return .ask(reason: "Apelin could not read this program. Review it before running.", detail: .none)
+            }
+            return .ask(
+                reason: "Runs a program the assistant wrote, as mobile, in your project. Each program needs your approval, and the card above shows its source.",
+                detail: .command(command),
+            )
 
         case .projectBuild, .packageInstall:
             // A workspace's build runs its own script, code from the

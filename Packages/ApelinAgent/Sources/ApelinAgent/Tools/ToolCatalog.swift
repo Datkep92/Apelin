@@ -87,7 +87,8 @@ public extension AgentToolName {
         // after this conversation ends. A deleted project is gone for good,
         // its files and conversations with it. A published package is
         // anyone's to install who adds the user's package repository.
-        case .shellRun, .projectBuild, .packageInstall, .packageRemove, .deviceRespring, .screenInteract, .gitPush,
+        case .shellRun, .codeRun, .projectBuild, .packageInstall, .packageRemove, .deviceRespring, .screenInteract,
+             .gitPush,
              .gitSetAuthor, .gitSaveCredential, .gitRemoveCredential, .gitCreateRepository, .gitCreateIssue,
              .toolchainSetup, .sdkImport, .toolchainSelfTest, .skillSave, .skillRemove, .feedbackSend, .projectDelete,
              .packagePublish, .feedbackEdit:
@@ -113,6 +114,7 @@ public extension AgentToolName {
         case .fileFind: "Find project files whose names match a glob, or by absolute path those of Apelin's development extensions or the registered SDKs."
         case .fileShow: "Show project files to the user in this conversation: images in an album, other files (a PDF, a log, a text file) as cards, each opening in Quick Look. Use it when the user wants to see a file; a path or a file: link in your reply opens nothing. Each file is copied as it is now, at most \(FileShow.maximumFiles) at a time and \(AgentSession.maximumAttachmentBytes >> 20) MB each. You are told what was shown, not what the files contain."
         case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, for a step of the user's task that truly needs uid 0 (irisin-cli's questions and --dry-run, a dependency's install, another step only root can take), said first with why; it asks every time unless the mode is Full, a change outside the project needs the user's explicit go-ahead for exactly it in every mode, and what it writes is root's."
+        case .codeRun: "Run a program the assistant wrote, as mobile, in the project, and answer its standard output, standard error and exit code. Pass source, the program text, and interpreter (\(RunCodeSpec.interpreterNames.joined(separator: ", ")); default \(RunCodeSpec.defaultInterpreter)). There is no argv and no shell text here: use apelin_shell_run to run a command line. It never runs as root, every run is the user's to approve, and the approval is never granted for the session."
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
         case .sdkReadHeader: "Read one header of a framework in the registered SDK, or find the header that declares a class, protocol, type or function."
         case .projectBuild: "Build the project: the only way to make its package, which stays in Apelin's build folder. Returns structured diagnostics and artifacts with their digests; apelin_package_install takes the package artifact."
@@ -488,11 +490,22 @@ public extension AgentToolName {
                 ]),
                 "command": Schema.string("Shell text, when a plain argv is not enough."),
                 "script": Schema.string("Script source, run by interpreter."),
-                "interpreter": Schema.string("Interpreter for script: sh, bash, zsh, python3, perl."),
+                "interpreter": Schema.string("Interpreter for script: \(RunCodeSpec.interpreterNames.joined(separator: ", "))."),
                 "cwd": Schema.string("Working directory relative to the project root."),
                 "timeout_seconds": Schema.integer("Timeout, default 120."),
                 "root": Schema.boolean("Run as root instead of mobile. Never for the project's own build or install, never apt or dpkg."),
             ], required: [])
+        case .codeRun:
+            Schema.object([
+                "source": Schema.string("The program text to run, at most \(RunCodeSpec.maximumSourceBytes / 1024) KB."),
+                "interpreter": .object([
+                    "type": "string",
+                    "enum": .array(RunCodeSpec.interpreterNames.map { .string($0) }),
+                    "description": "Interpreter for source. Default \(RunCodeSpec.defaultInterpreter).",
+                ]),
+                "cwd": Schema.string("Working directory relative to the project root."),
+                "timeout_seconds": Schema.integer("Timeout, default 120, at most \(RunCodeSpec.timeoutRange.upperBound)."),
+            ], required: ["source"])
         case .sdkAnalyzeFramework:
             Schema.object([
                 "framework": Schema.string("Framework name without extension, e.g. UIKit or SpringBoardServices."),

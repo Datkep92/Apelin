@@ -35,6 +35,53 @@ public enum CommandClassifier {
         throw ToolArgumentError("shell_run needs argv, command or script")
     }
 
+    /// Turns `code_run`'s arguments into the `.script` invocation it runs:
+    /// the model writes a program, names one of `RunCodeSpec.interpreters`,
+    /// and that program runs and nothing else. There is no `argv` and no
+    /// shell text here — a command line is `shell_run`'s to run and to be
+    /// judged for — so a call that passes one is refused, never quietly
+    /// turned into a program.
+    public static func classifyCode(_ arguments: JSONValue) throws -> RunCodeInvocation {
+        if case let .object(fields) = arguments {
+            if fields["source"] != nil, fields["code"] != nil {
+                throw ToolArgumentError("Pass one of source or code, not both.")
+            }
+            if let command = ["argv", "command", "script"].first(where: { fields[$0] != nil }) {
+                throw ToolArgumentError(
+                    "code_run runs source with an interpreter, not \(command): pass source, or use shell_run for a command line.",
+                )
+            }
+        }
+        // A program of nothing but whitespace would run and do nothing: the
+        // same mistake as an empty one, and refused the same way.
+        guard let source = arguments.argString("source") ?? arguments.argString("code"),
+              !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw ToolArgumentError("code_run needs source, the program text to run")
+        }
+        guard !CanonicalPath.containsNUL(source) else {
+            throw ToolArgumentError("the source has a NUL byte in it")
+        }
+        guard source.utf8.count <= RunCodeSpec.maximumSourceBytes else {
+            throw ToolArgumentError("the source is over \(RunCodeSpec.maximumSourceBytes / 1024) KB")
+        }
+        let interpreter = arguments.argString("interpreter") ?? RunCodeSpec.defaultInterpreter
+        // No root here at all. A call asking for it has mistaken this tool for
+        // shell_run, and running the program as mobile instead would leave it
+        // to fail for a reason it never learns.
+        if arguments.argBool("root") == true {
+            throw ToolArgumentError(
+                "code_run never runs as root: pass a program to run as mobile, or use shell_run when a step truly needs root.",
+            )
+        }
+        guard RunCodeSpec.interpreters.contains(where: { $0.name == interpreter }) else {
+            throw ToolArgumentError(
+                "\(interpreter) is not an interpreter code_run runs: \(RunCodeSpec.interpreterNames.joined(separator: ", "))",
+            )
+        }
+        return .script(interpreter: interpreter, source: source)
+    }
+
     /// The words of `text` if it is one simple command, else nil.
     public static func plainWords(_ text: String) -> [String]? {
         var words: [String] = []

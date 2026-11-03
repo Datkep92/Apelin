@@ -1384,6 +1384,10 @@ await agentHostRunChecks()
 
 await rootRunChecks(scratch: scratch, scratchPath: scratchPath)
 
+// MARK: - code_run (CodeRunChecks.swift)
+
+await codeRunChecks(scratch: scratch, scratchPath: scratchPath)
+
 // MARK: - Ask Before Using the Screen (ScreenConsentChecks.swift)
 
 await screenConsentChecks(scratch: scratch, scratchPath: scratchPath)

@@ -221,12 +221,14 @@ enum AgentApprovals {
             }
             return .mobile(preset: preset)
         case let .user(approvalID):
-            // The approval must be one this session asked for shell_run, for
-            // this command in this directory, checked before it is spent so
-            // a refused call leaves it alone.
+            // The approval must be one this session asked for, for this
+            // program in this directory, checked before it is spent so a
+            // refused call leaves it alone: a command line through
+            // shell_run, or a program the model wrote through code_run.
             let asked = await requested(approvalID, entry: entry, registry: registry)
-            guard let asked, asked["tool"]?.stringValue == AgentToolName.shellRun.rawValue else {
-                throw ApelinError(.denied, "\(approvalID) is not an approval this session requested for shell_run")
+            guard let asked, let name = asked["tool"]?.stringValue,
+                  let tool = AgentToolName(rawValue: name), AgentToolName.runCodeTools.contains(tool) else {
+                throw ApelinError(.denied, "\(approvalID) is not an approval this session requested for a program it runs")
             }
             guard let approved = approvedSpec(asked), approved == run.spec,
                   directoryName(asked["workingDirectory"]?.stringValue) == directoryName(run.workingDirectory)

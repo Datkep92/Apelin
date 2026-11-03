@@ -19,6 +19,12 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case fileFind = "file_find"
     case fileShow = "file_show"
     case shellRun = "shell_run"
+    /// Runs a program the model wrote, as mobile, in the session's project:
+    /// `source` for one of `RunCodeSpec.interpreters` alone. Never as root,
+    /// never a plain command line (that is `shell_run`), and every run needs
+    /// the user's approval in Confirm — never a preset, never for the
+    /// session.
+    case codeRun = "code_run"
     case sdkAnalyzeFramework = "apelin_sdk_analyze_framework"
     case sdkReadHeader = "apelin_sdk_read_header"
     case projectBuild = "apelin_project_build"
@@ -86,6 +92,12 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
 }
 
 public extension AgentToolName {
+    /// The tools that hand a run's program to the host's `agentRunCode`: a
+    /// command line through the shell, or a program the model wrote for one
+    /// interpreter. Wherever a rule is about "the program this call runs",
+    /// it names these two together.
+    static let runCodeTools: Set<AgentToolName> = [.shellRun, .codeRun]
+
     /// The names earlier builds gave a tool (0.1.8 and before, and
     /// `notify_user` after it), for the events and transcripts recorded
     /// then. None of them is a current name.

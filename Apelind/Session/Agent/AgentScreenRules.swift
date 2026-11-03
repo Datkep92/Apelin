@@ -70,7 +70,13 @@ enum AgentScreenRules {
     /// The `detail.screenControl` of `asked` when it is for `operation` and
     /// `tool`.
     private static func marker(_ asked: JSONValue, operation: AppOperation, tool: AgentToolName) -> JSONValue? {
-        guard asked["tool"]?.stringValue == tool.rawValue,
+        marker(asked, operation: operation, tools: [tool])
+    }
+
+    /// The same, when either of `tools` may have asked: a command and the
+    /// code `code_run` writes are two tools, one run's approval each.
+    private static func marker(_ asked: JSONValue, operation: AppOperation, tools: Set<AgentToolName>) -> JSONValue? {
+        guard let name = asked["tool"]?.stringValue, let tool = AgentToolName(rawValue: name), tools.contains(tool),
               let marker = asked["detail"]?[ScreenConsent.detailKey],
               marker["operation"]?.stringValue == operation.rawValue
         else { return nil }
@@ -99,7 +105,7 @@ enum AgentScreenRules {
     /// ordinary one only on an ordinary card (`command`).
     static func covers(_ run: AgentRunCodeRequest, asked: JSONValue) -> Bool {
         let key = run.asRoot == true ? RunCodeApproval.rootCommandDetail : "command"
-        guard marker(asked, operation: .agentRunCode, tool: .shellRun) != nil,
+        guard marker(asked, operation: .agentRunCode, tools: AgentToolName.runCodeTools) != nil,
               let approved = AgentApprovals.approvedSpec(asked, key: key), approved == run.spec
         else { return false }
         return AgentApprovals.directoryName(asked["workingDirectory"]?.stringValue)

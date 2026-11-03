@@ -26,9 +26,10 @@ enum ApprovalCardText {
             result.append(Section(text: diff, isCode: true))
         }
         if let json = payload?["arguments"]?.stringValue {
-            let shell = AgentToolName.canonical(payload?["tool"]?.stringValue ?? "") == .shellRun
+            let runCode = AgentToolName.canonical(payload?["tool"]?.stringValue ?? "")
+                .map(AgentToolName.runCodeTools.contains) ?? false
             result += argumentsDetail(json, payload: payload, title: title, root: root).sections.map { part in
-                let command = shell && ["argv", "command", "script"].contains(part.name ?? "")
+                let command = runCode && ["argv", "command", "script"].contains(part.name ?? "")
                 return Section(title: command ? String(localized: "Command") : part.name,
                                text: part.value, isCode: command)
             }
@@ -89,7 +90,8 @@ enum ApprovalCardText {
         if let squashed = squashedCommits(payload) {
             return ToolCallDetail(detail: squashed, title: title)
         }
-        guard AgentToolName.canonical(payload?["tool"]?.stringValue ?? "") == .shellRun,
+        guard let tool = AgentToolName.canonical(payload?["tool"]?.stringValue ?? ""),
+              AgentToolName.runCodeTools.contains(tool),
               case var .object(values)? = try? JSONCoding.decode(JSONValue.self, from: Data(json.utf8))
         else { return ToolCallDetail(detail: json, title: title) }
         if root {
@@ -97,7 +99,10 @@ enum ApprovalCardText {
         }
         let bound = payload?["detail"]?[root ? RunCodeApproval.rootCommandDetail : "command"]
         if let bound, let shown = boundCommand(bound) {
-            for key in ["argv", "command", "script", "interpreter"] {
+            // The interpreter's `script` key is where a program the model
+            // wrote is shown, so the call's own `source` and `code` go with
+            // the rest: one program on the card, the one approved.
+            for key in ["argv", "command", "script", "interpreter", "source", "code"] {
                 values[key] = nil
             }
             values.merge(shown) { _, bound in bound }

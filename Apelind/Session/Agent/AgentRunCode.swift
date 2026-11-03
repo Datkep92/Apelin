@@ -32,13 +32,14 @@ enum AgentRunCode {
     /// How long the pipes are read after the process has exited or been
     /// killed: what a descendant still holding them writes later is cut.
     private static let drainSeconds = 2
-    private static let maximumSourceBytes = 256 * 1024
     private static let maximumArguments = 1024
-    private static let timeoutRange = 1 ... 1800
-    /// In the order the refusal lists them.
-    private static let interpreters: [(name: String, flag: String)] = [
-        ("sh", "-c"), ("bash", "-c"), ("zsh", "-c"), ("python3", "-c"), ("perl", "-e"),
-    ]
+    /// The source a run is handed, at most, and the seconds it may take:
+    /// the one bound the agent's own check states too (`RunCodeSpec`).
+    private static var maximumSourceBytes: Int { RunCodeSpec.maximumSourceBytes }
+    private static var timeoutRange: ClosedRange<Int> { RunCodeSpec.timeoutRange }
+    /// In the order the refusal lists them (`RunCodeSpec.interpreters`), the
+    /// one table the tool's description and any card read as well.
+    private static var interpreters: [RunCodeInterpreter] { RunCodeSpec.interpreters }
     /// The process groups of the shell_run calls running now, by session.
     private static let running = RunningGroups()
 
@@ -194,6 +195,19 @@ enum AgentRunCode {
             throw ApelinError(
                 .badRequest,
                 "timeoutSeconds must be \(timeoutRange.lowerBound)–\(timeoutRange.upperBound)",
+            )
+        }
+        // A run as root is a command line the user approved word by word, or
+        // `shell_run`'s own shell text, which the worker hands to `sh`.
+        // `code_run` never runs as root, and its interpreters are refused
+        // here whatever the request says — the agent refuses a root
+        // `code_run` before it is sent, and this catches one that got past
+        // it. A root request that spells its program as `sh` is
+        // indistinguishable from `shell_run`'s text mode on this wire.
+        if identity == .root, case let .script(interpreter, _) = request.spec, interpreter != "sh" {
+            throw ApelinError(
+                .denied,
+                "\(interpreter) is a code_run interpreter, and code_run never runs as root",
             )
         }
         let preset: Preset? = if case let .mobile(preset) = identity {

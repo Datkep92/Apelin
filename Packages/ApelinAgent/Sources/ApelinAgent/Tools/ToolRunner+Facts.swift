@@ -37,6 +37,18 @@ extension ToolRunner {
             if command.screenProgram != nil {
                 facts.screenControl = .command(command, asRoot: facts.runsAsRoot)
             }
+        case .codeRun:
+            // Source for one interpreter and nothing else: no argv, no shell
+            // text, and never as root, whatever the call asks for.
+            let invocation = try CommandClassifier.classifyCode(arguments)
+            facts.command = invocation
+            facts.runsAsRoot = false
+            let cwd = arguments.argString("cwd") ?? "."
+            facts.pathCheck = root.mayReach(cwd) ? .inside : .outside(cwd)
+            facts.workingDirectory = cwd
+            if invocation.screenProgram != nil {
+                facts.screenControl = .command(invocation, asRoot: false)
+            }
         // What the call does on the screen, as the host is asked for it:
         // what Ask Before Using the Screen's card names.
         case .screenReadTree:

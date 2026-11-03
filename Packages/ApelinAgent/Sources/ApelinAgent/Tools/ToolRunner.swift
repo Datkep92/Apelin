@@ -328,7 +328,8 @@ actor ToolRunner {
         switch tool {
         case .local(.packageRemove), .local(.gitPush), .local(.toolchainSetup), .local(.sdkImport),
              .local(.skillSave), .local(.skillRemove), .local(.feedbackSend), .local(.gitCreateRepository),
-             .local(.projectDelete), .local(.packagePublish), .local(.feedbackEdit), .local(.gitCreateIssue):
+             .local(.projectDelete), .local(.packagePublish), .local(.feedbackEdit), .local(.gitCreateIssue),
+             .local(.codeRun):
             return false
         default:
             break
@@ -517,6 +518,20 @@ actor ToolRunner {
                 workingDirectory: facts.workingDirectory,
                 timeoutSeconds: timeout,
                 asRoot: facts.runsAsRoot,
+            )))
+
+        case .codeRun:
+            guard let invocation = facts.command else {
+                throw ToolArgumentError("code_run needs source to run")
+            }
+            let range = RunCodeSpec.timeoutRange
+            let timeout = min(range.upperBound, max(range.lowerBound, arguments.argInt("timeout_seconds") ?? 120))
+            return try await json(backend.runCode(RunCodeRequest(
+                context: context,
+                invocation: invocation,
+                workingDirectory: facts.workingDirectory,
+                timeoutSeconds: timeout,
+                asRoot: false,
             )))
 
         case .projectBuild:

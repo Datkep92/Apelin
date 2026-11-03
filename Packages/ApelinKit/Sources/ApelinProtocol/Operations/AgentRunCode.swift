@@ -1,6 +1,7 @@
-/// `shell_run` as the session host runs it: as mobile — or as root when the
-/// request asks and the host allows it —, in the session's project, with no
-/// shell unless the invocation is a script. Only the agent worker of
+/// A run the session host makes: a command line (`shell_run`) or a program
+/// the model wrote for one interpreter (`code_run`), as mobile — or as root
+/// when the request asks and the host allows it —, in the session's project,
+/// with no shell unless the invocation is a script. Only the agent worker of
 /// `sessionID` may send it; the host refuses it from anyone else, and
 /// re-decides the approval itself under Confirm, and for root in every mode.
 public enum RunCodeSpec: Codable, Sendable, Equatable {
@@ -10,8 +11,50 @@ public enum RunCodeSpec: Codable, Sendable, Equatable {
     /// directories alone), or a path, read from the working directory
     /// unless absolute.
     case argv([String])
-    /// Source handed to `sh`, `bash`, `zsh`, `python3` or `perl`.
+    /// Source handed to one of `RunCodeSpec.interpreters`.
     case script(interpreter: String, source: String)
+}
+
+/// One interpreter `.script` hands source to, and the flag it takes its
+/// one-line program on. A nominal type, not a tuple: a key path, `map(\.name)`,
+/// reaches a member and never a tuple element.
+public struct RunCodeInterpreter: Sendable, Hashable, Codable {
+    public var name: String
+    public var flag: String
+
+    public init(name: String, flag: String) {
+        self.name = name
+        self.flag = flag
+    }
+}
+
+public extension RunCodeSpec {
+    /// The interpreters `.script` hands source to, and the flag each takes
+    /// its one-line program on, in the order a refusal lists them: one table,
+    /// so the tool's description, the agent's own check and the host's never
+    /// drift apart. Every one is looked up on the run's `PATH` as
+    /// `AgentRunCode` prepares it — a toolchain's tools first — and one that
+    /// is not there is refused by name.
+    static let interpreters: [RunCodeInterpreter] = [
+        RunCodeInterpreter(name: "sh", flag: "-c"),
+        RunCodeInterpreter(name: "bash", flag: "-c"),
+        RunCodeInterpreter(name: "zsh", flag: "-c"),
+        RunCodeInterpreter(name: "python3", flag: "-c"),
+        RunCodeInterpreter(name: "perl", flag: "-e"),
+        RunCodeInterpreter(name: "node", flag: "-e"),
+    ]
+
+    /// Their names, as a description or a card lists them.
+    static var interpreterNames: [String] { interpreters.map(\.name) }
+
+    /// The interpreter a call that names none gets.
+    static let defaultInterpreter = "python3"
+
+    /// The program text `code_run` runs at most, in bytes.
+    static let maximumSourceBytes = 256 * 1024
+
+    /// The seconds a run may take, as the host accepts them.
+    static let timeoutRange = 1 ... 1800
 }
 
 /// What the agent's own gate acted on, which the host checks rather than
