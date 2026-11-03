@@ -55,6 +55,10 @@ extension ToolRunner {
             facts.screenControl = .readTree(targetID: arguments.argString("target_id"))
         case .screenInteract:
             facts.screenControl = try .interact(targetID: arguments.argString("target_id"), action: Self.uiAction(arguments))
+        // A browser call reads the page or acts on it, and the card says
+        // which, exactly as the host is asked for it.
+        case .browser:
+            facts.screenControl = try BrowserTool.invocation(from: arguments).screenControl
         case .projectBuild:
             if let script = ProjectBuildSystem.externalScript(in: root) {
                 facts.externalBuild = ExternalBuildApproval(

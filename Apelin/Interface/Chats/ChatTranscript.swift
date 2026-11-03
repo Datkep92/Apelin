@@ -606,6 +606,7 @@ struct ChatTranscript {
         case .screenCapture: return String(localized: "Capture the screen")
         case .screenReadTree: return String(localized: "Inspect the screen")
         case .screenInteract: return String(localized: "Interact with the screen")
+        case .browser: return String(localized: "Use the browser")
         case .logRead: return String(localized: "Read logs")
         case .crashList, .crashRead: return String(localized: "Read crash reports")
         case .crashSymbolicate: return String(localized: "Symbolicate a crash")

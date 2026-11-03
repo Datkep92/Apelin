@@ -695,6 +695,12 @@ actor ToolRunner {
                 action: Self.uiAction(arguments),
             )))
 
+        // One call, one thing: a page shaped for a conversation, or one
+        // action on the screen, so each call is one look at the screen and
+        // one thing to check afterwards.
+        case .browser:
+            return try await runBrowser(BrowserTool.invocation(from: arguments), context: context)
+
         case .gitStatus:
             return try await json(backend.gitStatus(GitStatusToolRequest(context: context)))
 

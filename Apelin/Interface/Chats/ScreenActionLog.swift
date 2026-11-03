@@ -24,6 +24,7 @@ enum ScreenActionLog {
         AgentToolName.screenInteract.rawValue,
         AgentToolName.screenReadTree.rawValue,
         AgentToolName.screenCapture.rawValue,
+        AgentToolName.browser.rawValue,
     ]
 
     static let screenCategory = "Screen"

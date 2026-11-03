@@ -248,7 +248,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
     private func evaluateScreen(_ facts: InvocationFacts) -> GateVerdict? {
         guard asksBeforeScreen else { return nil }
         switch facts.tool {
-        case .local(.screenReadTree), .local(.screenInteract):
+        case .local(.screenReadTree), .local(.screenInteract), .local(.browser):
             break
         case .local(.shellRun), .local(.codeRun):
             guard facts.command?.screenProgram != nil else { return nil }
@@ -541,7 +541,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
             }
             return .ask(reason: "This action is not in your approved presets. Review it before running.", detail: .none)
 
-        case .deviceRespring, .screenInteract:
+        case .deviceRespring, .screenInteract, .browser:
             if presets.systemTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
             }

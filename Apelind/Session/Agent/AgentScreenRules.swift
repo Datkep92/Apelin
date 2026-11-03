@@ -85,7 +85,9 @@ enum AgentScreenRules {
 
     /// Whether `asked` approves exactly this read of the UI tree.
     static func covers(_ tree: ReadUITreeRequest, asked: JSONValue) -> Bool {
-        guard let shown = try? marker(asked, operation: .readUITree, tool: .screenReadTree)?["request"]?
+        // A page read is the browser's tree read: `apelin_browser` sends the
+        // same request, and the approval is for that read either way.
+        guard let shown = try? marker(asked, operation: .readUITree, tools: [.screenReadTree, .browser])?["request"]?
             .decode(ReadUITreeRequest.self)
         else { return false }
         return shown.targetID == tree.targetID
@@ -94,7 +96,7 @@ enum AgentScreenRules {
     /// Whether `asked` approves exactly this action, in this target: what
     /// the host adds to it (`refusedBundleIDs`) is not part of it.
     static func covers(_ action: UIActionRequest, asked: JSONValue) -> Bool {
-        guard let shown = try? marker(asked, operation: .uiAction, tool: .screenInteract)?["request"]?
+        guard let shown = try? marker(asked, operation: .uiAction, tools: [.screenInteract, .browser])?["request"]?
             .decode(UIActionRequest.self)
         else { return false }
         return shown.targetID == action.targetID && shown.action == action.action

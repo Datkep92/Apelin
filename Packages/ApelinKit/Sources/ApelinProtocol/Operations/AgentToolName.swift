@@ -46,6 +46,10 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case screenCapture = "apelin_screen_capture"
     case screenReadTree = "apelin_screen_read_tree"
     case screenInteract = "apelin_screen_interact"
+    /// Drives a browser as a page instead of a tree: one call is one read or
+    /// one action on the screen, shaped so a page's words and its controls
+    /// fit a conversation (`BrowserTool`).
+    case browser = "apelin_browser"
     case memoryList = "apelin_memory_list"
     case memorySave = "apelin_memory_save"
     case memoryDelete = "apelin_memory_delete"
