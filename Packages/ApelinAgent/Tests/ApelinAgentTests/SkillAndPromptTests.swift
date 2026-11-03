@@ -458,7 +458,11 @@ struct SkillAndPromptTests {
         let command = try #require(external.range(of: "dpkg-deb -b --root-owner-group"))
         #expect(step.upperBound <= command.lowerBound)
         for skill in BuiltInSkills.all where skill.body.contains("dpkg-deb") {
-            #expect(["apelin-external-build", "apelin-packaging-and-install"].contains(skill.name), "\(skill.name) names dpkg-deb")
+            // Only a skill that tells the model to make a package itself is
+            // wrong; the device-language skill names the binary to say the
+            // build makes packages, never the model.
+            #expect(["apelin-external-build", "apelin-packaging-and-install", "apelin-device-languages"]
+                .contains(skill.name), "\(skill.name) names dpkg-deb")
         }
     }
 

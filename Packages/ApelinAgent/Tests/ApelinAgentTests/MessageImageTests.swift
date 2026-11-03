@@ -144,6 +144,10 @@ struct MessageImageTests {
     @Test
     func `a picture sent again is the copy already prepared`() throws {
         var store = PreparedImageStore()
+        // A photo this size kept for both endpoints is past the store's
+        // default bound, and this test is about the keying: the bound has its
+        // own test below.
+        store.maximumBytes = 128 * 1024 * 1024
         let png = try #require(Self.png(width: 120, height: 80, alpha: true))
 
         let first = store.image(name: "one.png", mimeType: "image/png", data: png, limits: Self.compatible)

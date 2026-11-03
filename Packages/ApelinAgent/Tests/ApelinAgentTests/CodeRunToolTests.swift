@@ -99,7 +99,9 @@ struct CodeRunToolTests {
     }
 
     /// A call that is not a program for one interpreter is refused by name,
-    /// before the user is asked anything.
+    /// before the user is asked anything. An `interpreter` left empty is not a
+    /// name at all: empty arguments are dropped before a tool sees them, so
+    /// the default interpreter runs.
     @Test
     func `what is not a program for one interpreter is refused`() async throws {
         let tooLong = String(repeating: "a", count: RunCodeSpec.maximumSourceBytes + 1)
@@ -112,7 +114,6 @@ struct CodeRunToolTests {
             ["source": "print(1)", "command": "ls -l"],
             ["source": "print(1)", "script": "print(1)"],
             ["source": "print(1)", "interpreter": "ruby"],
-            ["source": "print(1)", "interpreter": ""],
             ["source": "a\u{0}b"],
             ["source": .string(tooLong)],
         ]

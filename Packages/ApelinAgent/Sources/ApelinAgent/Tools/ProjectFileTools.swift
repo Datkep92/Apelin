@@ -142,7 +142,7 @@ struct ProjectFileTools: Sendable {
             "\(copy.name)  \(copy.bytes) bytes  saved \(formatter.string(from: copy.savedAt))"
         }
         let more = copies.count > 20 ? "\n\(copies.count - 20) older copies not listed" : ""
-        return "\(copies.count) saved copy\(copies.count == 1 ? "" : "ies") of \(relative), newest first:\n"
+        return "\(copies.count) saved \(copies.count == 1 ? "copy" : "copies") of \(relative), newest first:\n"
             + lines.joined(separator: "\n") + more
             + "\nfile_revert restores one, by name or the newest."
     }

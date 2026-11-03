@@ -270,9 +270,13 @@ public struct ApprovalPolicy: Sendable, Hashable {
             let app = targetID.map { "the app \($0)" } ?? "the app in front, whichever it is"
             return "Reads what is on the screen: the text and controls of \(app)."
         case let .interact(targetID, action):
-            // A press acts on the whole device and a URL opens in whatever
-            // app claims it, so neither names the app in front.
+            // A press and a key act on the whole device and a URL opens in
+            // whatever app claims it, so none of the three names the app in
+            // front.
             if case .pressButton = action {
+                return actionPhrase(action) + "."
+            }
+            if case .pressKey = action {
                 return actionPhrase(action) + "."
             }
             if case .openURL = action {

@@ -245,7 +245,9 @@ struct ScriptedSessionTests {
             }
             return nil
         }.first
-        #expect(patchResult?.output.split(separator: "\n").first?.hasSuffix("(1 replacement, +1 -1)") == true)
+        // The line goes on with the digest it wrote and the copy it kept, so
+        // the count is somewhere in it rather than at its end.
+        #expect(patchResult?.output.split(separator: "\n").first?.contains("(1 replacement, +1 -1)") == true)
         #expect(toolOrder == [
             "start:file_edit", "end:file_edit",
             "start:apelin_project_build", "end:apelin_project_build",

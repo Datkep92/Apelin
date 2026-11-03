@@ -143,8 +143,11 @@ struct ChatAttachmentsTests {
         try await session.prompt("And again", messageID: UUID(), files: [("photo.jpg", "image/jpeg", photo)])
         await session.waitForIdle()
         let images = await sent.all
-        #expect(images.count == 2)
-        #expect(images.last?.data == first.data)
+        // The second request carries the whole conversation, so the picture is
+        // given once in each of the two messages: three in all, and every one
+        // of them the copy made first.
+        #expect(images.count == 3)
+        #expect(images.allSatisfy { $0.data == first.data })
         await session.close()
     }
 
