@@ -303,17 +303,22 @@ public struct ApprovalPolicy: Sendable, Hashable {
             default: "Presses \(button)"
             }
         case let .doubleTap(x, y, interval):
-            "Double taps \(point(x, y)), \(duration(interval)) apart"
+            "Double taps \(point(x, y)), \(duration(milliseconds: interval)) apart"
         case let .longPress(x, y, seconds):
-            "Holds \(point(x, y)) for \(duration(seconds))"
+            "Holds \(point(x, y)) for \(duration(milliseconds: seconds))"
         case let .drag(points, move, hold):
             "Drags through \(points.count) points from \(points.first.map(gesturePoint) ?? "nowhere")"
-                + " to \(points.last.map(gesturePoint) ?? "nowhere"), after \(duration(hold)) and over \(duration(move))"
+                + " to \(points.last.map(gesturePoint) ?? "nowhere"), after \(duration(milliseconds: hold)) and over \(duration(milliseconds: move))"
         case let .pressKey(key):
             "Types the key \(key)"
         case let .openURL(url):
             "Opens \(url) on this device, in the app that handles it, which comes to the front"
         }
+    }
+
+    /// A gesture's length in milliseconds, read as the seconds `duration` formats.
+    private static func duration(milliseconds: Int) -> String {
+        duration(Double(milliseconds) / 1000)
     }
 
     /// A gesture's length: milliseconds under a second, seconds above.
