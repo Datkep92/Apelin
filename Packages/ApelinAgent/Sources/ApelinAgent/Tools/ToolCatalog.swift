@@ -7,6 +7,7 @@ import struct ApelinProtocol.DistributionPublishRequest
 import enum ApelinProtocol.FeedbackRules
 import struct ApelinProtocol.GitRepositoryCreateRequest
 import enum ApelinProtocol.GitRepositoryVisibility
+import enum ApelinProtocol.RunCodeSpec
 import Foundation
 import KWWKAI
 

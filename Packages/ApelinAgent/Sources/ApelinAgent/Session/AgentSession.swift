@@ -590,7 +590,7 @@ public actor AgentSession {
             sender.map { $0.prefix + "\n" + typed } ?? typed,
             delta: true,
         )
-        let message = UserMessage(content: [.text(TextContent(text: prompt))] + images.map(\.content))
+        let message = UserMessage(content: [.text(TextContent(text: prompt))] + images.map { UserBlock.image($0.content) })
         await waitForEndingRun()
         if queues, let messageID {
             if runTask != nil {
@@ -622,7 +622,7 @@ public actor AgentSession {
         let opening = withProjectContext(prompt, repository: repository)
         runTask = Task { [weak self] in
             do {
-                try await agent.prompt(opening, images: images)
+                try await agent.prompt(opening, images: images.map(\.content))
             } catch {
                 await self?.recordRunError(error)
             }

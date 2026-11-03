@@ -4,6 +4,7 @@ import enum ApelinCore.MemoryStoreError
 import enum ApelinProtocol.AgentToolName
 import struct ApelinProtocol.ApelinError
 import enum ApelinProtocol.BuildBootstrap
+import enum ApelinProtocol.RunCodeSpec
 import Foundation
 import KWWKAgent
 import KWWKAI

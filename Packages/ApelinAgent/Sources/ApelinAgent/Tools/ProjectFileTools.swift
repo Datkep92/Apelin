@@ -87,7 +87,7 @@ struct ProjectFileTools: Sendable {
             updated = original.replacingCharacters(in: range, with: newText)
         }
         let relative = root.relative(target.finalPath)
-        let originalBytes = try readData(target.finalPath, limit: maxReadBytes)
+        let originalBytes = try readData(target.finalPath, limit: Self.maxReadBytes)
         try requireUnchanged(arguments, path: relative, current: originalBytes)
         let backup = keepBackup(originalBytes, path: relative)
         try target.commit(Data(updated.utf8), exclusive: false)
