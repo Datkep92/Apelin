@@ -341,7 +341,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
             return .ask(reason: Self.otherProjectReason(reach), detail: .otherProject(reach))
         }
         switch tool {
-        case .fileWrite, .fileEdit, .fileCreate, .memorySave, .memoryDelete:
+        case .fileWrite, .fileEdit, .fileCreate, .fileRevert, .memorySave, .memoryDelete:
             return .allow(.notRequired)
 
         // A banner from Apelin to the user, never a preset to edit away:
@@ -495,7 +495,7 @@ public struct ApprovalPolicy: Sendable, Hashable {
                 detail: .gitSettings(summary: summary),
             )
 
-        case .fileRead, .fileList, .fileGrep, .fileFind, .fileShow, .sdkAnalyzeFramework, .sdkReadHeader,
+        case .fileRead, .fileList, .fileGrep, .fileFind, .fileShow, .fileBackups, .sdkAnalyzeFramework, .sdkReadHeader,
              .packageList, .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,

@@ -18,6 +18,11 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case fileGrep = "file_grep"
     case fileFind = "file_find"
     case fileShow = "file_show"
+     /// The copies `file_write`, `file_edit` and `file_create` keep of what
+     /// they replace: one write's rollback, and the list of what a file's
+     /// rollback would reach.
+     case fileRevert = "file_revert"
+     case fileBackups = "file_backups"
     case shellRun = "shell_run"
     /// Runs a program the model wrote, as mobile, in the session's project:
     /// `source` for one of `RunCodeSpec.interpreters` alone. Never as root,

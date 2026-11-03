@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import KWWKAI
 
@@ -10,6 +11,9 @@ struct ProjectFileTools: Sendable {
     /// shown under, as the system prompt names it, so a result can be read
     /// again; nil for the project, whose paths are shown relative to it.
     var shownRoot: String?
+    /// Where a copy of what a write replaces is kept, for `file_revert`;
+    /// nil when this session keeps none, and then a write reports no backup.
+    var backups: FileBackups?
 
     static let maxReadBytes = 512 * 1024
     /// As large as a message's attachment may be, so one sent can be looked
@@ -18,16 +22,31 @@ struct ProjectFileTools: Sendable {
     static let maxGrepFileBytes = 2 * 1024 * 1024
     static let maxWalkEntries = 20000
 
+    /// The hash a write reports and `expected_sha256` checks: the whole of a
+    /// SHA-256 in hex, so a value copied out of one result is a value the
+    /// next call takes.
+    static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
     // MARK: - Writes
 
     func writeFile(_ arguments: JSONValue) throws -> String {
         let path = try arguments.requireString("path")
         let content = try arguments.requireString("content")
         let target = try root.resolveForWrite(path)
-        let original = target.exists ? (try? readText(target.finalPath)) ?? "" : ""
+        let relative = root.relative(target.finalPath)
+        var before: Data? = Data()
+        if target.exists {
+            before = try? readData(target.finalPath, limit: FileBackups.maxBytes)
+        }
+        try requireUnchanged(arguments, path: relative, current: before)
+        let backup = target.exists ? keepBackup(before, path: relative) : ""
         try target.commit(Data(content.utf8), exclusive: false)
-        let change = LineDiff.counts(old: original, new: content)
-        return "\(target.exists ? "Replaced" : "Created") \(root.relative(target.finalPath)) (\(content.utf8.count) bytes, \(change))"
+        let change = LineDiff.counts(old: before.map { String(decoding: $0, as: UTF8.self) } ?? "", new: content)
+        let written = Data(content.utf8)
+        return "\(target.exists ? "Replaced" : "Created") \(relative) (\(written.count) bytes, \(change))"
+            + " sha256 \(Self.digest(written))\(backup)"
     }
 
     func createFile(_ arguments: JSONValue) throws -> String {
@@ -38,7 +57,9 @@ struct ProjectFileTools: Sendable {
             throw PathPolicyError.alreadyExists(path)
         }
         try target.commit(Data(content.utf8), exclusive: true)
-        return "Created \(root.relative(target.finalPath)) (\(content.utf8.count) bytes, \(LineDiff.counts(old: "", new: content)))"
+        let written = Data(content.utf8)
+        return "Created \(root.relative(target.finalPath)) (\(written.count) bytes, \(LineDiff.counts(old: "", new: content)))"
+            + " sha256 \(Self.digest(written))"
     }
 
     func patchFile(_ arguments: JSONValue) throws -> String {
@@ -65,10 +86,96 @@ struct ProjectFileTools: Sendable {
             let range = original.range(of: oldText)!
             updated = original.replacingCharacters(in: range, with: newText)
         }
+        let relative = root.relative(target.finalPath)
+        let originalBytes = try readData(target.finalPath, limit: maxReadBytes)
+        try requireUnchanged(arguments, path: relative, current: originalBytes)
+        let backup = keepBackup(originalBytes, path: relative)
         try target.commit(Data(updated.utf8), exclusive: false)
-        let diff = LineDiff.unified(old: original, new: updated, path: root.relative(target.finalPath))
+        let diff = LineDiff.unified(old: original, new: updated, path: relative)
         let change = LineDiff.counts(old: original, new: updated)
-        return "Patched \(root.relative(target.finalPath)) (\(replaceAll ? occurrences : 1) replacement\(replaceAll && occurrences > 1 ? "s" : ""), \(change))\n\(diff)"
+        let written = Data(updated.utf8)
+        return "Patched \(relative) (\(replaceAll ? occurrences : 1) replacement\(replaceAll && occurrences > 1 ? "s" : ""), \(change))"
+            + " sha256 \(Self.digest(written))\(backup)\n\(diff)"
+    }
+
+    /// Restores one of the copies a write kept. Without `backup`, the newest
+    /// copy of `path`; the file as it is now is kept first, so a revert is
+    /// itself a step back.
+    func revertFile(_ arguments: JSONValue) throws -> String {
+        let path = try arguments.requireString("path")
+        guard let backups else {
+            throw ToolArgumentError("this session keeps no copies of project files")
+        }
+        let target = try root.resolveForWrite(path)
+        guard target.exists else { throw PathPolicyError.notFound(path) }
+        let relative = root.relative(target.finalPath)
+        let found: (copy: FileBackups.Copy, data: Data)?
+        if let name = arguments.argNonEmptyString("backup") {
+            found = try backups.find(named: name)
+            guard found != nil else { throw ToolArgumentError("\(relative) has no copy named \(name)") }
+        } else {
+            found = try backups.newest(of: relative)
+            guard found != nil else { throw ToolArgumentError("\(relative) has no saved copy; only a write or an edit keeps one") }
+        }
+        guard let (copy, data) = found else { throw ToolArgumentError("\(relative) has no saved copy") }
+        let current = try? readData(target.finalPath, limit: FileBackups.maxBytes)
+        let kept = keepBackup(current, path: relative)
+        try target.commit(data, exclusive: false)
+        let when = ISO8601DateFormatter().string(from: copy.savedAt)
+        return "Restored \(relative) from \(copy.name) (saved \(when), \(data.count) bytes)"
+            + " sha256 \(Self.digest(data))\(kept)"
+    }
+
+    /// The copies a path has, newest first: what `file_revert` would reach.
+    func listBackups(_ arguments: JSONValue) throws -> String {
+        let path = try arguments.requireString("path")
+        guard let backups else {
+            throw ToolArgumentError("this session keeps no copies of project files")
+        }
+        let relative = root.relative(try root.resolveForWrite(path).finalPath)
+        let copies = try backups.copies(of: relative)
+        guard !copies.isEmpty else {
+            return "No saved copy of \(relative). A copy is kept each time file_write or file_edit replaces it, the newest \(FileBackups.limit) across the project."
+        }
+        let formatter = ISO8601DateFormatter()
+        let lines = copies.prefix(20).map { copy in
+            "\(copy.name)  \(copy.bytes) bytes  saved \(formatter.string(from: copy.savedAt))"
+        }
+        let more = copies.count > 20 ? "\n\(copies.count - 20) older copies not listed" : ""
+        return "\(copies.count) saved copy\(copies.count == 1 ? "" : "ies") of \(relative), newest first:\n"
+            + lines.joined(separator: "\n") + more
+            + "\nfile_revert restores one, by name or the newest."
+    }
+
+    // MARK: - Writes: checks
+
+    /// Refuses a write whose `expected_sha256` is not the file's content: the
+    /// model read a revision that has changed since, and writing over it
+    /// would lose what someone else wrote.
+    private func requireUnchanged(_ arguments: JSONValue, path: String, current: Data?) throws {
+        guard let expected = arguments.argNonEmptyString("expected_sha256") else { return }
+        guard let current else {
+            throw ToolArgumentError("\(path) is over \(FileBackups.maxBytes) bytes, so its sha256 is not checked; omit expected_sha256")
+        }
+        let actual = Self.digest(current)
+        let wanted = expected.lowercased().trimmingCharacters(in: .whitespaces)
+        guard actual == wanted else {
+            throw ToolArgumentError("\(path) is not the file that hash describes (it is sha256 \(actual) now); read it again and retry")
+        }
+    }
+
+    /// Keeps a copy of what a write is about to replace, and answers the
+    /// words the result adds: nothing when this session keeps none, the
+    /// copy's name when one was saved, and why when none could be.
+    private func keepBackup(_ data: Data?, path: String) -> String {
+        guard let backups else { return "" }
+        guard let data else { return " no backup (over \(FileBackups.maxBytes) bytes)" }
+        do {
+            guard let name = try backups.save(data, path: path) else { return " backup already current" }
+            return " backup \(name)"
+        } catch {
+            return " no backup (\(error.localizedDescription))"
+        }
     }
 
     // MARK: - Reads

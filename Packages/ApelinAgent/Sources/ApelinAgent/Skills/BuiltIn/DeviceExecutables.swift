@@ -12,6 +12,10 @@ extension BuiltInSkills {
         workspace's build script (apelin-external-build).
 
         ## Sign it, every time you link it
+        Nothing here compiles until the user has set a toolchain up in
+        Settings ▸ Toolchains, and with none installed there is nothing to
+        sign: say so rather than searching the device for a compiler
+        (apelin-device-languages).
         A binary the toolchain linked and nothing signed is killed as it
         starts: shell_run answers exit 137 with no output. Sign it with ldid
         and this skill's entitlements before the first run, and again after

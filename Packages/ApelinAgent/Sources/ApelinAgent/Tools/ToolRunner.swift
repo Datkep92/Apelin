@@ -353,7 +353,12 @@ actor ToolRunner {
         context: HostCallContext,
         cancellation: CancellationHandle?,
     ) async throws -> AgentToolResult {
-        let files = ProjectFileTools(root: root)
+        // A copy of what a write replaces is kept beside `Projects/`, not in
+        // the project: a rollback never shows up in the user's repository,
+        // and `git status` stays what the work made it.
+        let files = ProjectFileTools(root: root, backups: FileBackups(
+            directory: FileBackups.directory(for: project.name),
+        ))
         switch name {
         case .memoryList, .memorySave, .memoryDelete:
             guard let memory else { throw ToolDeniedError(message: "Memory storage is unavailable.") }
@@ -444,6 +449,10 @@ actor ToolRunner {
         case .fileFind: return try text(readFiles(arguments).find(arguments))
 
         case .fileShow: return try files.show(arguments)
+
+        case .fileRevert: return try text(files.revertFile(arguments))
+
+        case .fileBackups: return try text(files.listBackups(arguments))
 
         case .projectCheckDistribution:
             let bootstrap = try Self.bootstrap(arguments)

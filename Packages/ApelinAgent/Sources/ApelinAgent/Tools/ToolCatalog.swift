@@ -63,14 +63,14 @@ public extension AgentToolName {
         // the file tools edit too; only registered, compatible ones go in.
         // A notice is a few words to the user, which the host bounds. A
         // project's displayName is a label, outside every approval digest.
-        case .fileWrite, .fileEdit, .fileCreate, .memorySave, .memoryDelete, .projectCreate, .projectRename,
+        case .fileWrite, .fileEdit, .fileCreate, .fileRevert, .memorySave, .memoryDelete, .projectCreate, .projectRename,
              .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitFetch, .gitPull, .gitClone,
              .conversationCreate, .conversationSend, .conversationStop, .projectSetEnvironment, .notificationSend:
             .writeProject
         // file_show copies a project file into the workspace's Attachments
         // and shows it to the user on this device; nothing else changes.
         // apelin_feedback_read reads one issue of Apelin's public repository.
-        case .fileRead, .fileList, .fileGrep, .fileFind, .fileShow, .sdkAnalyzeFramework, .sdkReadHeader,
+        case .fileRead, .fileList, .fileGrep, .fileFind, .fileShow, .fileBackups, .sdkAnalyzeFramework, .sdkReadHeader,
              .packageList, .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
@@ -105,14 +105,16 @@ public extension AgentToolName {
 
     var summary: String {
         switch self {
-        case .fileWrite: "Create a file or replace its whole content, inside the project."
-        case .fileEdit: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set."
+        case .fileWrite: "Create a file or replace its whole content, inside the project. What it replaces is copied first, and the result names the copy and the file's sha256; pass expected_sha256, from an earlier result, to refuse the write when the file has changed since."
+        case .fileEdit: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set. What it replaces is copied first, the result names the copy and the file's sha256, and expected_sha256 refuses an edit of a file that changed since it was read."
         case .fileCreate: "Create a new project file; fails if it already exists."
         case .fileRead: "Read a project file, optionally a range of lines. An image (PNG, JPEG, GIF, HEIC, WebP, TIFF or BMP), such as an attached one, comes back as a picture you can see, scaled down; frame picks one frame of an animated image. Also reads, never writes, Apelin's development extensions and the registered SDKs by absolute path."
         case .fileList: "List a project folder, or by absolute path a folder of Apelin's development extensions or the registered SDKs."
         case .fileGrep: "Search project files with a regular expression, or by absolute path those of Apelin's development extensions or the registered SDKs."
         case .fileFind: "Find project files whose names match a glob, or by absolute path those of Apelin's development extensions or the registered SDKs."
         case .fileShow: "Show project files to the user in this conversation: images in an album, other files (a PDF, a log, a text file) as cards, each opening in Quick Look. Use it when the user wants to see a file; a path or a file: link in your reply opens nothing. Each file is copied as it is now, at most \(FileShow.maximumFiles) at a time and \(AgentSession.maximumAttachmentBytes >> 20) MB each. You are told what was shown, not what the files contain."
+        case .fileRevert: "Restore a project file to a copy a write kept: the step back from a change that broke something. Without backup, the newest copy of that file; file_backups lists them. The file as it is now is copied first, so a revert is itself a step back, and the result names the file's sha256."
+        case .fileBackups: "List the copies kept of one project file, newest first: what file_revert would reach. A copy is kept each time file_write or file_edit replaces the file, the newest \(FileBackups.limit) across the project, beside the project never inside it."
         case .shellRun: "Run a command or script in the project as mobile. Prefer argv, a plain command: in Strict mode only an argv can run without asking. Pass command for shell text, or script with an interpreter. root: true runs it as root, for a step of the user's task that truly needs uid 0 (irisin-cli's questions and --dry-run, a dependency's install, another step only root can take), said first with why; it asks every time unless the mode is Full, a change outside the project needs the user's explicit go-ahead for exactly it in every mode, and what it writes is root's."
         case .codeRun: "Run a program the assistant wrote, as mobile, in the project, and answer its standard output, standard error and exit code. Pass source, the program text, and interpreter (\(RunCodeSpec.interpreterNames.joined(separator: ", ")); default \(RunCodeSpec.defaultInterpreter)). There is no argv and no shell text here: use apelin_shell_run to run a command line. It never runs as root, every run is the user's to approve, and the approval is never granted for the session."
         case .sdkAnalyzeFramework: "Summarise a framework of the registered SDK from its .tbd and headers: install name, architectures, exported symbols and Objective-C classes."
@@ -434,6 +436,7 @@ public extension AgentToolName {
             Schema.object([
                 "path": Schema.string("Path relative to the project root."),
                 "content": Schema.string("The whole new content."),
+                "expected_sha256": Schema.string("Refuse the write unless the file hashes to this, from an earlier result; omit to replace whatever is there now."),
             ], required: ["path", "content"])
         case .fileEdit:
             Schema.object([
@@ -441,6 +444,7 @@ public extension AgentToolName {
                 "old_text": Schema.string("Exact text to replace."),
                 "new_text": Schema.string("Replacement text."),
                 "replace_all": Schema.boolean("Replace every occurrence instead of exactly one."),
+                "expected_sha256": Schema.string("Refuse the edit unless the file hashes to this, from an earlier result; omit to edit whatever is there now."),
             ], required: ["path", "old_text", "new_text"])
         case .fileCreate:
             Schema.object([
@@ -462,6 +466,15 @@ public extension AgentToolName {
                     "description": .string("Files relative to the project root, 1 to \(FileShow.maximumFiles)."),
                 ]),
             ], required: ["paths"])
+        case .fileRevert:
+            Schema.object([
+                "path": Schema.string("Path relative to the project root."),
+                "backup": Schema.string("A copy named by file_backups to restore; omit for the newest."),
+            ], required: ["path"])
+        case .fileBackups:
+            Schema.object([
+                "path": Schema.string("Path relative to the project root."),
+            ], required: ["path"])
         case .fileList:
             Schema.object([
                 "path": Schema.string("Folder relative to the project root, or an absolute path inside the development extensions or SDKs folder # Environment names; omit for the root."),

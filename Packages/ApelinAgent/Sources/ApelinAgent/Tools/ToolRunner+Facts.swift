@@ -12,12 +12,12 @@ extension ToolRunner {
         guard case let .local(name) = tool else { return InvocationFacts(tool: tool) }
         var facts = InvocationFacts(tool: tool)
         switch name {
-        case .fileWrite, .fileEdit, .fileCreate:
+        case .fileWrite, .fileEdit, .fileCreate, .fileRevert:
             let path = try arguments.requireString("path")
             // No project walk for .git files here: a git directory does not
             // change the gate's answer, and the tool's own resolution walks.
             facts.pathCheck = check { _ = try root.resolveForWrite(path, findingGitPointers: false) }
-        case .fileRead:
+        case .fileRead, .fileBackups:
             let path = try arguments.requireString("path")
             facts.pathCheck = check { _ = try readRoot(for: path).resolveExisting(path) }
         case .fileList, .fileGrep, .fileFind:

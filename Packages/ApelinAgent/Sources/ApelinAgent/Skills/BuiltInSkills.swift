@@ -17,6 +17,7 @@ enum BuiltInSkills {
         projectDescription,
         externalBuild,
         deviceExecutables,
+        deviceLanguages,
         packagingAndInstall,
         packageDependencies,
         crashTriage,
