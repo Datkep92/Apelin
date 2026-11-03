@@ -515,7 +515,7 @@ public extension AgentToolName {
                 "interpreter": .object([
                     "type": "string",
                     "enum": .array(RunCodeSpec.interpreterNames.map { .string($0) }),
-                    "description": "Interpreter for source. Default \(RunCodeSpec.defaultInterpreter).",
+                    "description": .string("Interpreter for source. Default \(RunCodeSpec.defaultInterpreter)."),
                 ]),
                 "cwd": Schema.string("Working directory relative to the project root."),
                 "timeout_seconds": Schema.integer("Timeout, default 120, at most \(RunCodeSpec.timeoutRange.upperBound)."),
