@@ -127,4 +127,14 @@ extension ToolRunner {
         default: return nil
         }
     }
+
+    /// The narrowing a screen read asked for. A call that asked for none
+    /// gets the tree the device listed.
+    static func treeFilter(_ arguments: JSONValue) -> UITreeFilter.Options {
+        UITreeFilter.Options(
+            match: arguments.argNonEmptyString("match"),
+            clickableOnly: arguments.argBool("clickable_only") ?? false,
+            limit: arguments.argInt("max_elements"),
+        )
+    }
 }
