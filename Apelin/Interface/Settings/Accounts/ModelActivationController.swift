@@ -38,7 +38,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         super.viewDidLoad()
         title = String(localized: "Enable Models")
         navigationItem.largeTitleDisplayMode = .never
-        let menu = usesAPIKey
+        let menu = usesAPIKey && probesModels
             ? UIMenu(children: [UIAction(title: String(localized: "Save Without Verification")) { [weak self] _ in
                 self?.save(verify: false)
             }])
@@ -91,6 +91,17 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
 
     private var usesAPIKey: Bool {
         account.isAPIKeyAccount
+    }
+
+    /// Whether apelin-agent probes a model before enabling it. A typed key is
+    /// probed one model at a time, except for the two providers that keep
+    /// their own keys and endpoints — an OpenAI-compatible one and an
+    /// Anthropic API key — where what a catalog lists and what the endpoint
+    /// serves drift apart too often (free tiers, relays, a key let into a few
+    /// models only) to hold a save back over a failed request.
+    private var probesModels: Bool {
+        account.provider == .githubCopilot
+            || (usesAPIKey && account.provider != .openAICompatible && account.provider != .anthropic)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -191,7 +202,9 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
 
     private func save(verify: Bool = true) {
         guard !saving else { return }
-        guard usesAPIKey && verify || account.provider == .githubCopilot,
+        // Nothing to probe: the save goes straight through, with no task and
+        // no progress sheet claiming a check that would not run.
+        guard verify ? probesModels : (account.provider == .githubCopilot),
               !selected.isEmpty
         else { finishSaving(); return }
         saving = true

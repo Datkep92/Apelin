@@ -4,7 +4,11 @@ import Then
 import UIKit
 
 /// Settings ▸ Model Providers: every provider apelin-agent can sign in to,
-/// in the order it lists them (kwwk's). Signed-in ones first, each with who
+/// in the order it lists them (kwwk's). The keys added to an
+/// OpenAI-compatible endpoint or to an Anthropic API key come first, one
+/// section per endpoint host — every key pointing at one Base URL under a
+/// single name, sharing that endpoint's models. Then the providers that keep
+/// a single sign-in: signed-in ones first, each with who
 /// it is signed in as under its name and a `...` menu (Edit Configuration or Sign In Again, Sign
 /// Out); then the rest, those signed in to with an account apart from those
 /// that take a typed key. A search field narrows the list by name, and `+`
@@ -36,8 +40,20 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         case noResults
     }
 
+    /// One Base URL of a provider that keeps several keys — its host, and the
+    /// provider itself, since one relay can answer for an OpenAI-compatible
+    /// key and an Anthropic one at the same address, and the models behind
+    /// them are not the same list.
+    private struct Endpoint: Hashable {
+        var provider: AgentProvider
+        var host: String
+    }
+
     private enum Section: Hashable {
         case group(Group)
+        /// Every key pointing at one Base URL, under a single name, instead
+        /// of a row each.
+        case endpoint(Endpoint)
         case status
     }
 
@@ -131,14 +147,15 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         navigationItem.hidesSearchBarWhenScrolling = false
         navigationItem.rightBarButtonItem = addButton
         definesPresentationContext = true
-        dataSource.headerTitle = { section in
-            if case let .group(group) = section {
-                return group.title
+        dataSource.headerTitle = { [weak self] section in
+            switch section {
+            case let .group(group): return group.title
+            case let .endpoint(endpoint): return self?.endpointTitle(endpoint) ?? endpoint.host
+            case .status: return nil
             }
-            return nil
         }
         dataSource.footerTitle = { [weak self] section in
-            guard let self, section == sections.last?.0, case .group = section else { return nil }
+            guard let self, section == sections.last?.0, !isStatus(section) else { return nil }
             return String(localized: "Credentials stay in this device’s keychain.")
         }
         dataSource.update(sections)
@@ -185,12 +202,31 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             sections = [(.status, [.status(.unavailable(ProviderLoginController.unavailableText(failure)))])]
         } else {
             let shown = (accounts + waiting(in: accounts)).filter(matches)
+            // One section per Base URL the reader added keys to — its keys, signed
+            // in or still waiting, under the name they share — and then the
+            // providers that keep a single sign-in.
+            let byEndpoint = Dictionary(grouping: shown) { endpoint(of: $0) }
+            let rest = byEndpoint[nil] ?? []
             let groups: [(Group, [AgentAccount])] = [
-                (.signedIn, shown.filter(\.signedIn)),
-                (.accounts, shown.filter { !$0.signedIn && $0.method != .apiKey }),
-                (.keys, shown.filter { !$0.signedIn && $0.method == .apiKey }),
+                (.signedIn, rest.filter(\.signedIn)),
+                (.accounts, rest.filter { !$0.signedIn && $0.method != .apiKey }),
+                (.keys, rest.filter { !$0.signedIn && $0.method == .apiKey }),
             ]
-            sections = groups.filter { !$0.1.isEmpty }.map { (.group($0.0), $0.1.map(Row.account)) }
+            let endpointSections: [(Section, [Row])] = byEndpoint.keys.compactMap { $0 }
+                .sorted { left, right in
+                    if left.host != right.host { return left.host < right.host }
+                    return left.provider.rawValue < right.provider.rawValue
+                }
+                .map { endpoint in
+                    let keys = (byEndpoint[endpoint] ?? []).sorted { left, right in
+                        if left.signedIn != right.signedIn { return left.signedIn }
+                        return (left.name ?? left.id) < (right.name ?? right.id)
+                    }
+                    return (.endpoint(endpoint), keys.map(Row.account))
+                }
+            let providerSections: [(Section, [Row])] = groups.filter { !$0.1.isEmpty }
+                .map { (.group($0.0), $0.1.map(Row.account)) }
+            sections = endpointSections + providerSections
             if sections.isEmpty {
                 sections = [(.status, [.status(.noResults)])]
             }
@@ -225,6 +261,35 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         query.isEmpty
             || account.title.localizedStandardContains(query)
             || account.provider.displayName.localizedStandardContains(query)
+    }
+
+    /// The Base URL a row belongs under: the two providers the reader adds
+    /// keys to itself — an OpenAI-compatible one and an Anthropic API key —
+    /// keep one row per key under the name of the endpoint they point at.
+    /// Every other provider has a single sign-in and keeps the sections
+    /// below, and so does a key that has not saved its endpoint yet.
+    private func endpoint(of account: AgentAccount) -> Endpoint? {
+        guard AgentProfileID.canonicalID(for: account.provider) != nil,
+              let host = account.account, !host.isEmpty
+        else { return nil }
+        return Endpoint(provider: account.provider, host: host)
+    }
+
+    /// What a Base URL's section is called: the host, with the provider after
+    /// it when both of them point at one host — a relay can answer for an
+    /// OpenAI-compatible key and an Anthropic one — since their keys are not
+    /// interchangeable and neither are their models.
+    private func endpointTitle(_ endpoint: Endpoint) -> String {
+        let shared = sections.contains { entry in
+            guard case let .endpoint(other) = entry.0 else { return false }
+            return other.host == endpoint.host && other.provider != endpoint.provider
+        }
+        return shared ? "\(endpoint.host) — \(endpoint.provider.displayName)" : endpoint.host
+    }
+
+    private func isStatus(_ section: Section) -> Bool {
+        if case .status = section { return true }
+        return false
     }
 
     // MARK: - Table
