@@ -208,7 +208,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 54 | 2026-11-04 | Cá nhân hoá | **AI được yêu cầu đọc một tệp thì bị chính công cụ đọc tệp từ chối.** `file_read` từ chối mọi tệp trên 512 KB (câu “là 524289 byte, quá giới hạn 524288 byte” kèm gợi ý dùng `shell_run`), nên nhật ký dài, tệp JSON lớn, tệp nguồn do máy sinh — đúng những thứ cần đọc — đều nằm ngoài tầm công cụ. Nay tệp được đọc theo **cửa sổ**: tệp vừa thì giữ nguyên như cũ, tệp lớn hơn được đọc từng 64 KB, mỗi câu trả lời hiện tối đa `maxReadBytes` byte và `limit` dòng (mặc định 2000), phần ghi chú nói **vị trí cần đọc tiếp**, và chỉ những dòng được hỏi mới được giữ nên một tệp rất lớn không tốn bộ nhớ bằng cả tệp. **Chụp màn hình quá 4 MB thì ảnh bị bỏ** (`ToolRunner.maxImageBytes`), model chỉ còn con số byte và **mù** trước chính màn hình mình vừa xin xem; nay ảnh được thu nhỏ (tối đa `FileImage.maxPixelSize` px một cạnh) rồi mã hoá lại, trường `note` của `CaptureScreenResponse` nói đã cho xem bản nào, còn ảnh dưới ngưỡng vẫn đi nguyên byte như máy chủ gửi. `FrameworkTools` cũng nói rõ đã bỏ bao nhiêu header khỏi danh sách thay vì im lặng. Toàn bộ giới hạn còn lại được khảo sát trong `Documents/Research/2026-11-04-Tool-Caps.md`: giới hạn do giao thức/nhà cung cấp (`HTTPRequest` 5 MB và 5 lần chuyển hướng, ảnh 1568 px / 3 MB), do máy (`crashRead` 256 KB, tệp đính kèm 32 MB), do chi phí của thứ đang đọc (ảnh nguồn 64 MP), **ngân sách của người gọi nhưng nói ra** (`find` 20000 mục, `grep` tệp 2 MB và trích 300 ký tự, diff 400 dòng, JavaScript 32 KB, thân skill 64/256 KB), và tham số của chính công cụ. Danh sách để xem lại sau: `grep` **im lặng bỏ qua** tệp nó không đọc nổi (quá 2 MB hoặc nhị phân), giới hạn của công cụ trình duyệt, `HTMLText` 4096 byte, `AppRelaunch` 1 MB, `SkillReader` 100 tệp; đầu ra của `shell_run`/`code_run` bị giới hạn ở máy chủ chứ không ở đây nên chưa khảo sát. **Chưa xác nhận chạy thật:** máy không có trình biên nên hai bài kiểm mới (`FileReadWindowTests`, `ScreenCaptureImageTests`) chưa từng qua compiler — CI là lần đầu. | `d5e9576d` | `Packages/ApelinAgent/Sources/ApelinAgent/Tools/ProjectFileTools.swift` (`readFile` đọc theo cửa sổ, `readWindow`, `streamedWindow`, `readAll`, `fill`), `.../Tools/ToolRunner.swift` (chụp màn hình: thu nhỏ thay vì bỏ), `.../Backend/HostDiagnosticsTypes.swift` (`CaptureScreenResponse.note`), `.../Tools/FrameworkTools.swift` (nói rõ số header đã bỏ), `Tests/ApelinAgentTests/FileReadWindowTests.swift` (mới), `.../ScreenCaptureImageTests.swift` (mới), `.../FileReadImageTests.swift`, `.../Support.swift` (`MockBackend` đặt được ảnh chụp), `Documents/Research/2026-11-04-Tool-Caps.md` (mới). |
 | 55 | 2026-11-04 | Cá nhân hoá | **Nhiều khoá API thì lẫn nhau, và khi một khoá hỏng thì không ai thay.** Bốn lỗi liên quan cùng một chuỗi: (1) hai khoá khác nhau trên *cùng một tên miền* bị coi là một cấu hình, nên danh sách model, khoá và cấu hình trộn vào nhau — nay mỗi **Base URL trọn vẹn** là một cấu hình riêng (`/v1` khác `/v2` khác `http`/`https`, hai cách viết cùng một địa chỉ vẫn là một), một địa chỉ giữ được nhiều khoá, mỗi khoá giữ giao thức, khoá và cấu hình của chính nó; (2) chọn model **không thấy khoá nào** — model do nhiều khoá phục vụ vẫn hiện **một lần**, mở ra danh sách các khoá phục vụ nó, mỗi khoá ghi **tên như trong Cài đặt** (thêm số khi hai khoá trùng tên), **địa chỉ ở dưới**, tuyệt đối **không hiện khoá bí mật**, và các khoá **không phải** dùng chung một danh sách model; (3) trong chat **không có cách đổi khoá** — hàng model nay có thêm nút **khoá**, chỉ hiện khi có **từ hai khoá trở lên** cùng Base URL và cùng phục vụ model đang dùng, đổi khoá **giữ nguyên model, hội thoại, lịch sử và ngữ cảnh**; (4) **tự chuyển khoá không bao giờ chạy** — lỗi nay được phân loại theo đúng câu nhà cung cấp trả về: *hết hạn mức* (429/quota), *khoá bị từ chối* (401/khoá sai), *máy chủ lỗi* (5xx/quá tải) và *không kết nối được* (mạng, quá hạn, kết nối đứt); ba loại đầu tự gửi lại trên khoá khác **cùng Base URL và cùng model trước tiên**, có **thời gian chờ riêng** cho khoá vừa lỗi (khoá bị từ chối chờ lâu nhất), **tối đa 3 lần**, không hỏi lại khoá đang chờ; riêng lỗi *không kết nối được* thì **không tự gửi lại** vì request đó có thể đã được trả lời — nút **Thử lại** của người dùng mới là thứ tiêu danh sách, và danh sách model khác chỉ gồm những model người dùng đã bật. **Chưa xác nhận chạy thật:** máy không có trình biên nên **toàn bộ phần Swift mới chưa từng qua compiler** (CI là lần biên dịch đầu); bài kiểm `rate-limit-retry` chạy ở máy Mac/CI, ở đây đã kiểm bằng mắt từng câu lỗi mẫu; **chưa build, chưa cài, chưa push**. | `55d22c30`, `14a85f0c`, `9bebc139` | `Apelin/Interface/Settings/Accounts/EnabledModels.swift` (`identity`/`save` theo cả Base URL), `Apelin/Interface/Settings/Accounts/ModelProvidersController.swift` (mỗi Base URL một mục, danh sách model theo địa chỉ), `Packages/ApelinKit/.../Operations/AgentEndpoint.swift` (mới: chuẩn hoá Base URL + tên rút gọn), `.../Operations/AgentSignIn.swift` (`AgentAccount.endpoint`, `profileID`), `Packages/ApelinAgentWorker/SignIn/AccountDesk.swift`, `Packages/ApelinKit/Tests/.../AgentEndpointTests.swift` (mới), `Apelin/Interface/Chats/RateLimitRetry.swift` (`ModelFailureKind`, `kind(of:)`, `automatic`, `cooldown`), `Apelin/Interface/Chats/ChatRuntime.swift` (ghi loại lỗi + thời gian chờ, chặn tự gửi khi lỗi không kết nối được, chờ đúng lượt), `Apelin/Interface/Chats/ChatStore.swift` (`ModelRetryState.kind`/`cooldowns`), `Apelin/Interface/Chats/Composer/ModelCandidates.swift` (`retryKey`, `nextCandidate`, cùng Base URL trước), `Apelin/Interface/Chats/Composer/ChatModelPicker.swift` (dòng model nhiều khoá, trang chọn khoá), `Apelin/Interface/Chats/Composer/Sections/ComposerModelBar.swift` (nút khoá), `Apelin/Interface/Chats/ChatController.swift` (`keyChoices`, `switchKey`), `Tests/RateLimitRetry/main.swift` (bài mới: phân loại, thời gian chờ, không tự gửi khi không kết nối được). |
 | 56 | 2026-11-04 | Quy trình | **Mỗi phiên mới (kể cả đổi model) phải đọc lại cả file dài mới biết đang làm gì, mà kho ghi nhớ thì gần đầy.** Nay có ba tầng rõ ràng, không cần Sếp kể lại: (1) **§9 “Trạng thái hiện tại”** ở cuối file này — bảng các việc đang dở kèm HEAD, bước kế tiếp và phần chưa kiểm chứng, luôn được cập nhật ở mỗi mốc, và đọc bằng `file_grep "^## 9\."` rồi `file_read` từ dòng đó nên **không phải đọc cả file**; (2) **§10 “Sổ dọn ghi nhớ”** — một hạn mức chung 64 bản/32 KB, cách đo bằng một lệnh `python3`, ngưỡng dọn 75 %, thứ tự dọn (handoff `done` → bản trùng → handoff cũ đã ghi vào §9 → bản dài đã có trong tài liệu/skill) và danh sách không bao giờ xoá (sở thích giao tiếp, luật chung, quy tắc lưu, §9); quy tắc **riêng của dự án** được đẩy sang `AGENTS.md` vì file đó được nạp tự động mà không tốn kho; (3) khối mở đầu `AGENTS.md` nay trỏ thẳng vào §9 thay vì bắt đọc §6.1/§8 trước. Mục đích: phiên sau đọc một mục là làm tiếp được, không hỏi lại, và kho ghi nhớ tự dọn trước khi đầy. | (commit tài liệu cùng lượt) | Giữ §9 cập nhật ở mỗi mốc (cùng lượt với dòng bảng 6.1 và ghi nhớ handoff), giữ khối mở đầu `AGENTS.md` trỏ vào §9, giữ ngưỡng 75 % và danh sách không-bao-giờ-xoá ở §10, và giữ nguyên tắc quy tắc riêng dự án nằm ở `AGENTS.md`. |
-
+| 57 | 2026-11-04 | Quy trình | **Cùng một bộ luật nằm ở bốn chỗ, sửa một chỗ thì ba chỗ kia lặng lẽ thành bản cũ.** Trước đây luật của Sếp có mặt đồng thời ở: ghi nhớ `5783d40e` (~13 KB — gần nửa kho 32 KB dùng chung mọi dự án), mục “Luật làm việc của Sếp” trong `AGENTS.md`, file `Documents/Personal/Operating-Specification.md`, và một bản ghi riêng cho chữ “bắt buộc”; mỗi phiên mới phải đọc lại cả file dài mà vẫn không biết bản nào đang đúng. Nay mỗi thứ **một chỗ duy nhất**: luật chung của Sếp ở **skill `sep-working-rules`** (skill không tốn kho ghi nhớ và mọi dự án tự đọc), bản **nguyên văn 19 mục** để nguyên trong `Operating-Specification.md` cùng folder skill — file luật của Sếp nằm **ngoài git** (`.gitignore` bỏ qua); `AGENTS.md` và file `Documents/Personal` chỉ còn **một dòng trỏ**; kho ghi nhớ chỉ giữ **một dòng móc** trỏ tới skill. Xoá 4 bản trùng (`5783d40e`, `32a1b006`, `34c0001c`, `cce3bf60`): kho **20 735 → 4 149 byte (63 % → 13 %), 13 → 10 bản**, không mất chữ nào vì bản nguyên văn đã đối chiếu byte-đúng trước khi xoá. Chỗ đặt cho mọi thứ về sau: bảng “Where a rule belongs” ở đầu `AGENTS.md` và §10. | `d3b924a`, `b08c873` | Giữ luật chung **chỉ** ở skill `sep-working-rules`; `AGENTS.md` và file `Documents/Personal/Operating-Specification.md` chỉ trỏ, không chép lại; kho ghi nhớ không chép luật, chỉ một dòng móc; bản nguyên văn 19 mục nằm trong folder skill. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
@@ -293,10 +293,14 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `c006bc7` (nhánh `main`; đứng trên `origin/main`
-là `f45cceb` hai commit tài liệu). Commit `c006bc7` sửa 4 sai lệch Host test
-(run 41775208831): BrowserTool chrome filter, UITreeFilter fixture role,
-FileReadWindow count/message, ChannelHostBackend count; đã commit, chưa push.
+**HEAD khi cập nhật mục này:** `7dbe0ed` (nhánh `main`) — **`main` = `origin/main`,
+cây làm việc sạch, đã push** (`git fetch` không cập nhật gì thêm). Mốc gần nhất:
+`7dbe0ed` (Release 0.3.9: version + notes), `b08c873` (gộp 19 mục luật của Sếp vào
+skill `sep-working-rules`) và `d3b924a` (đưa file luật của Sếp ra ngoài git) — xem
+dòng 57 ở bảng 6.1; trước đó `280e2b9` (host harness: biên dịch `RateLimitRetry.swift`
+trong `test-chat-transcript`) và `c006bc7` (4 sai lệch Host test, run 41775208831:
+BrowserTool chrome filter, UITreeFilter fixture role, FileReadWindow count/message,
+ChannelHostBackend count).
 
 | # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
 |---|---|---|---|
@@ -306,15 +310,20 @@ FileReadWindow count/message, ChannelHostBackend count; đã commit, chưa push.
 | 4 | **Tối ưu AI** — ảnh theo endpoint + đo cache thật (`9c55a9e`, dòng 37) | thử ảnh HEIC/quá lớn, dòng “N% cached”, đổi model giữa hội thoại có ảnh | nhóm 1–3 của đơn `4a56bc42` đã có sẵn trong repo, **không** sửa gì |
 | 5 | **Đơn `b41b438f` Task Progress Panel** | **chờ Sếp duyệt** — không tự làm | — |
 
-**Ràng buộc chung của các việc trên:** chưa push GitHub và chưa cài lên máy —
-chờ Sếp cho phép. Trước khi push phải **rebase lên `origin/main` (`ee06948`)**
-vì `main` đang đứng trên đó nhiều commit. Muốn cài đè bản `0.3.7` thì bump lên
-`0.3.8`. Không `git reset`/`git clean`/ghi đè thay đổi chưa commit.
+**Ràng buộc chung của các việc trên:** `main` hiện **đã bằng** `origin/main` (đừng
+rebase lên `ee06948`/`f45cceb` như ghi cũ; số đó đã cũ). **Đẩy lên GitHub và cài lên
+máy thì vẫn chờ Sếp cho phép** (quy tắc `9c97c7e6`: chưa được yêu cầu build thì chỉ
+commit tại chỗ, **không push**). Repo đang ở `0.3.9`
+(`Configuration/Version.xcconfig`), và bản Apelin đang chạy trên máy **không do Apelin
+cài** nên `apelin_package_list` không liệt kê nó (ở đó chỉ có tweak của dự án khác).
+Không `git reset`/`git clean`/ghi đè thay đổi chưa commit.
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
 `69b004d` (`a140824`, `d8bfbf1`, `a0f9003`, `f45cceb` — browser tool,
-`FileReadWindowTests`, provider casing), và `c006bc7` (4 sai lệch Host test), đã lên `main` local.
+`FileReadWindowTests`, provider casing), và `c006bc7` (4 sai lệch Host test), đã lên
+`main` local; và **cơ chế luật/ghi nhớ một chỗ** (dòng 57) — luật của Sếp ở skill
+`sep-working-rules`, kho ghi nhớ chỉ còn một dòng móc (4 149 byte / 10 bản), đã push.
 
 ## 10. Sổ dọn ghi nhớ — tự động, không cần Sếp nhắc
 
@@ -341,16 +350,20 @@ Ra `<số byte> <số bản>`. **Quá 24 KB (75 %) hoặc 48 bản thì dọn tr
    dự án** nên nằm trong `AGENTS.md`: file này được nạp tự động mà **không tốn**
    kho ghi nhớ.
 5. Chỉ khi đó mới rút ngắn bản dài còn lại — **bản Sếp tự viết thì hỏi Sếp
-   trước**, không tự cắt.
+   trước**, không tự cắt. Bản luật 19 mục đã đi đúng đường này ở lượt 3: hỏi trước,
+   chuyển **nguyên văn** vào skill rồi mới xoá bản trong kho (nhật ký dưới).
 
 **Không bao giờ xoá:** sở thích giao tiếp (gọi “Sếp”, tiếng Việt, ngắn, ví dụ
-đời thường), quy tắc lưu và dọn này, luật chung của Sếp, và §9 ở trên.
+đời thường), quy tắc lưu và dọn này, **dòng móc trỏ tới luật chung của Sếp** (bản
+luật nằm ở skill `sep-working-rules`, không nằm trong kho — xoá dòng móc là mất
+đường tới luật), và §9 ở trên.
 
 **Chỗ lưu — chọn đúng, đừng tạo trùng:**
 
 | Nội dung | Chỗ lưu |
 |---|---|
-| Quy tắc áp cho **mọi** dự án (cách nói, cách làm việc) | ghi nhớ `scope=global` |
+| Luật áp cho **mọi** dự án (cách nói, cách làm việc) — hiện là 10 luật của Sếp | **skill `sep-working-rules`**; ghi nhớ chỉ giữ **một** dòng móc `scope=global` trỏ tới skill |
+| Bản **nguyên văn** dài của Sếp | file `.md` trong folder skill (`skills/sep-working-rules/Operating-Specification.md`), **ngoài git** nếu là văn bản của Sếp — không tốn kho |
 | Quy tắc **riêng dự án này** | `AGENTS.md`, mục *Fork personalisation* — không tốn kho |
 | Việc đang dở tới đâu, kế tiếp là gì | **một** ghi nhớ `kind=handoff` bản ngắn; chi tiết ở §9 |
 | Kế hoạch dài hơn hạn mức ghi nhớ | file `.md` trong repo (`Documents/Plan/…`), ghi nhớ chỉ trỏ đường dẫn |
@@ -364,4 +377,16 @@ Ra `<số byte> <số bản>`. **Quá 24 KB (75 %) hoặc 48 bản thì dọn tr
   lưu trạng thái — xuống 26 159 byte (80 %). **Còn một bản do Sếp tự viết** nặng
   ~13 KB (“Assistant Operating Specification”) chiếm một nửa kho: theo bước 5 nó
   chỉ được rút khi **Sếp gật**, nên vẫn để nguyên và đã hỏi Sếp.
+
+- **2026-11-04 (lượt 3):** 20 735 byte / 13 bản (63 %), trong đó bản 13 KB của Sếp
+  chiếm gần một nửa. Sếp cho toàn quyền tái cấu trúc, nên: bản đó chuyển thành
+  **skill `sep-working-rules`** — `SKILL.md` 6 402 byte (10 luật L1–L10 + L8b, luật
+  lưu/dọn), `Operating-Specification.md` 15 313 byte giữ **nguyên văn** 19 mục (đã
+  `diff` với bản trong kho: giống hệt, không mất chữ nào) — rồi xoá **4 bản trùng**:
+  `5783d40e` (19 mục), `32a1b006` (luật “bắt buộc”, nay là **L8b** trong skill),
+  `34c0001c` (quy tắc lưu/dọn, nay ở skill + §10), `cce3bf60` (danh sách skill, mỗi
+  phiên tự hiện nên không cần ghi nhớ); thêm **một** dòng móc `scope=global`.
+  Kết quả: **4 149 byte / 10 bản (13 %)**. Từ nay luật chung **chỉ** ở skill,
+  `AGENTS.md` và `Documents/Personal/Operating-Specification.md` chỉ trỏ, kho không
+  chép lại. Chi tiết ở dòng 57, bảng 6.1.
 
