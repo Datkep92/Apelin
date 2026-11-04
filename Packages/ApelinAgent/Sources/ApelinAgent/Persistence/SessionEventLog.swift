@@ -1,5 +1,6 @@
 import Foundation
 import KWWKAI
+import struct ApelinProtocol.AgentPlan
 
 public enum SessionStoreError: Error, Equatable, LocalizedError {
     case invalidSessionID(String)
@@ -337,6 +338,25 @@ public actor SessionEventLog {
         let url = directory.appendingPathComponent("transcript.json")
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         return try Self.decoder.decode([Message].self, from: Data(contentsOf: url))
+    }
+
+    /// The plan the session is on, kept beside its transcript: it outlives a
+    /// compaction, a model switch and a restart of Apelin, and the `plan`
+    /// event in the log carries the same plan to the app's plan bar. A
+    /// cleared plan is gone, not an empty one, so it is removed.
+    public func writePlan(_ plan: AgentPlan?) throws {
+        let url = directory.appendingPathComponent("plan.json")
+        guard let plan else {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        try writeAtomically(encoder.encode(plan), name: "plan.json")
+    }
+
+    public func readPlan() throws -> AgentPlan? {
+        let url = directory.appendingPathComponent("plan.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try Self.decoder.decode(AgentPlan.self, from: Data(contentsOf: url))
     }
 
     private func writeAtomically(_ data: Data, name: String) throws {

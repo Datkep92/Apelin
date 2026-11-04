@@ -64,6 +64,11 @@ public extension AgentToolName {
         // the file tools edit too; only registered, compatible ones go in.
         // A notice is a few words to the user, which the host bounds. A
         // project's displayName is a label, outside every approval digest.
+        // The session's own plan: the steps of the work the user asked for
+        // and where each one stands. It is written into the conversation's
+        // log, which the user reads in the plan bar, and nothing outside it
+        // changes.
+        case .planUpdate: .writeProject
         case .fileWrite, .fileEdit, .fileCreate, .fileRevert, .memorySave, .memoryDelete, .projectCreate, .projectRename,
              .gitStage, .gitUnstage, .gitCommit, .gitInit, .gitFetch, .gitPull, .gitClone,
              .conversationCreate, .conversationSend, .conversationStop, .projectSetEnvironment, .notificationSend:
@@ -106,6 +111,7 @@ public extension AgentToolName {
 
     var summary: String {
         switch self {
+        case .planUpdate: "Write the plan you are carrying out: the steps in the order you will do them, with where each one stands, so the user watches the work go by instead of waiting blind, and so you go on from the right step after a long conversation is summarised, the model changes, or the user opens this chat again. Send the whole plan every time — a plan replaces the one before it — with every step, including the ones that already ended, and keep a step's status and evidence once it ended: a step only moves to done with evidence naming the tool that really ran and what it answered. At most \(AgentPlanRules.maximumSteps) steps, at most one of them running, each with its own short id and a one-line title. Write the plan after you have read what the user wants and before the first step's own work, mark the step running as you start it and settled as you finish it, and write it again when the user asks for something else. The user can pause, resume or cancel the plan from the bar."
         case .fileWrite: "Create a file or replace its whole content, inside the project. What it replaces is copied first, and the result names the copy and the file's sha256; pass expected_sha256, from an earlier result, to refuse the write when the file has changed since."
         case .fileEdit: "Replace an exact snippet of a project file with new text; returns a diff. The snippet must occur exactly once unless replace_all is set. What it replaces is copied first, the result names the copy and the file's sha256, and expected_sha256 refuses an edit of a file that changed since it was read."
         case .fileCreate: "Create a new project file; fails if it already exists."
@@ -191,6 +197,28 @@ public extension AgentToolName {
 
     var parameters: JSONValue {
         switch self {
+        case .planUpdate:
+            Schema.object([
+                "steps": .object([
+                    "type": "array",
+                    "description": .string("The whole plan, in the order you will do it, at most \(AgentPlanRules.maximumSteps) steps. A plan replaces the one before it, so send every step every time, ended ones included."),
+                    "items": .object([
+                        "type": "object",
+                        "properties": .object([
+                            "id": Schema.string("A short name for this step, unique in the plan, at most \(AgentPlanRules.maximumIDCharacters) characters on one line; it is how you and the user name the step."),
+                            "title": Schema.string("What the step does, one line, at most \(AgentPlanRules.maximumTitleCharacters) characters, in the language the user writes in."),
+                            "status": .object([
+                                "type": "string",
+                                "enum": .array(AgentPlanStepStatus.allCases.map { .string($0.rawValue) }),
+                                "description": .string("Where the step stands: pending \(AgentPlanStepStatus.pending.mark), running \(AgentPlanStepStatus.running.mark) (at most one step of the plan), done \(AgentPlanStepStatus.done.mark) with evidence, failed \(AgentPlanStepStatus.failed.mark), or skipped \(AgentPlanStepStatus.skipped.mark) with a reason in evidence."),
+                            ]),
+                            "evidence": Schema.string("What says so for a step that ended: for done, the tool that really ran and what it answered; for skipped or failed, why. At most \(AgentPlanRules.maximumEvidenceCharacters) characters."),
+                        ]),
+                        "required": .array(["id", "title", "status"]),
+                        "additionalProperties": false,
+                    ]),
+                ]),
+            ], required: ["steps"])
         case .skillList, .templateList, .projectList, .gitStatus, .gitInit, .gitReadSettings, .toolchainList, .sdkList:
             Schema.object([:], required: [])
         case .memoryList:

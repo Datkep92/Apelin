@@ -31,6 +31,13 @@ final class ChatController: UIViewController {
     private let composerSeparator = UIView()
     private let topBlur = ChatTopBlurView()
     private let latestMessageButton = UIButton(type: .system)
+    /// The plan bar, above the composer and below the conversation: the plan
+    /// the agent is on, and the controls for it.
+    private let planBar = ChatPlanBar()
+    /// The height the plan bar is being given, so a refresh that changed
+    /// nothing leaves the list alone.
+    private var planHeight: CGFloat = 0
+    private var planBarHeightConstraint: Constraint?
     private weak var tracePage: TraceController?
     /// Builds the rows again once a running turn has gone quiet.
     private let quietWatch = ChatQuietWatch()
@@ -217,6 +224,27 @@ final class ChatController: UIViewController {
             make.top.equalTo(composer.snp.top).offset(-4)
         }
 
+        planBar.onAction = { [weak self] action in
+            guard let self, let id = chat?.id else { return }
+            Task { await self.runtime.applyPlan(action, to: id) }
+        }
+        planBar.onStepDetail = { [weak self] step, number in
+            self?.showPlanStep(step, number: number)
+        }
+        planBar.onHeightChange = { [weak self] in
+            guard let self else { return }
+            setPlanBarHeight(planBar.preferredHeight)
+        }
+        planBar.isHidden = true
+        view.addSubview(planBar)
+        planBar.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview()
+            // directly on the composer's background, so its hairline is the
+            // composer's upper edge and the list is inset by its height
+            make.bottom.equalTo(composerBackground.snp.top)
+            planBarHeightConstraint = make.height.equalTo(0).constraint
+        }
+
         var latestConfiguration: UIButton.Configuration
         if #available(iOS 26, *) {
             latestConfiguration = .glass()
@@ -243,7 +271,7 @@ final class ChatController: UIViewController {
         view.addSubview(latestMessageButton)
         latestMessageButton.snp.makeConstraints { make in
             make.centerX.equalTo(view.safeAreaLayoutGuide)
-            make.bottom.equalTo(composerBackground.snp.top).offset(-8)
+            make.bottom.equalTo(planBar.snp.top).offset(-8)
             make.size.equalTo(44)
         }
     }
@@ -515,6 +543,7 @@ final class ChatController: UIViewController {
                 title = summary.displayTitle
             }
             titleView.setTitle(summary.displayTitle, animated: view.window != nil)
+            showPlan()
             let transcript = runtime.transcript(chat.id)
             updateMessages(transcript.messages)
             quietWatch.wake(at: transcript.quietDeadline) { [weak self] in self?.refreshRuntime() }
@@ -709,9 +738,51 @@ final class ChatController: UIViewController {
         ensureModelSelection()
     }
 
+    /// Draws the plan the conversation is on, above the composer: nothing
+    /// when it has none, its line alone while it is closed, and its steps
+    /// while the reader opened it. The room it asks for moves the list with
+    /// it, as the composer's own height changes do.
+    private func showPlan() {
+        guard let chat else {
+            planBar.show(nil)
+            setPlanBarHeight(0)
+            return
+        }
+        planBar.show(runtime.plan(for: chat.id))
+        setPlanBarHeight(planBar.preferredHeight)
+    }
+
+    /// The whole of one step: its title, where it stands, and what the
+    /// session recorded for it — which the bar's line has to trim.
+    private func showPlanStep(_ step: AgentPlanStep, number: Int) {
+        var lines = [step.title, ChatPlan.name(step.status)]
+        if let evidence = step.evidence, !evidence.isEmpty {
+            lines.append(evidence)
+        }
+        let alert = UIAlertController(
+            title: String(localized: "Step \(number)"),
+            message: lines.joined(separator: "\n\n"),
+            preferredStyle: .alert,
+        )
+        alert.addAction(UIAlertAction(title: String(localized: "Close"), style: .default))
+        present(alert, animated: true)
+    }
+
+    private func setPlanBarHeight(_ height: CGFloat) {
+        guard height != planHeight else { return }
+        planHeight = height
+        planBar.isHidden = height == 0
+        planBarHeightConstraint?.update(offset: height)
+        // the bar takes its room from the list, which keeps the message the
+        // reader was on where it was
+        updateMessageListInsets()
+        view.setNeedsLayout()
+    }
+
     /// The list scrolls clear of the composer, and of the keyboard under it.
     private func updateMessageListInsets() {
-        let covered = max(view.bounds.height - composerBackground.frame.minY, 0)
+        // the plan bar sits on the composer, so what covers the list is both
+        let covered = max(view.bounds.height - composerBackground.frame.minY + planHeight, 0)
         let bottom = max(covered - view.safeAreaInsets.bottom, 0)
         if messageList.contentInset.bottom != bottom + 16 {
             // a reader at the latest message, or following a turn, stays there

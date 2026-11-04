@@ -1,6 +1,7 @@
 import struct ApelinCore.MemorySnapshot
 import struct ApelinCore.MemoryStore
 import enum ApelinCore.MemoryStoreError
+import struct ApelinProtocol.AgentPlanViolation
 import enum ApelinProtocol.AgentToolName
 import struct ApelinProtocol.ApelinError
 import enum ApelinProtocol.BuildBootstrap
@@ -39,6 +40,10 @@ actor ToolRunner {
     /// The agent tool extensions' sessions, opened as their tools are called.
     let toolExtensions: ToolExtensionSessions
     private var notices = UserNotices()
+    /// The session's plan, written by `plan_update` and read by the app's
+    /// plan bar (`AgentPlanRequest`). The session makes one and hands it to
+    /// the runner, so the tool and the bar write the same plan.
+    let plan: SessionPlan?
 
     init(
         sessionID: String,
@@ -52,6 +57,7 @@ actor ToolRunner {
         skills: URL? = nil,
         readOnlyRoots: ReadOnlyRoots = .none,
         record: (@Sendable (AgentSessionEvent) async throws -> Void)? = nil,
+        plan: SessionPlan? = nil,
         webFetch: WebFetch = .shared,
         httpRequest: HTTPRequest = .shared,
         webSearch: WebSearch = .shared,
@@ -68,6 +74,7 @@ actor ToolRunner {
         self.skills = skills
         self.readOnlyRoots = readOnlyRoots
         self.record = record
+        self.plan = plan
         self.webFetch = webFetch
         self.httpRequest = httpRequest
         self.webSearch = webSearch
@@ -249,8 +256,9 @@ actor ToolRunner {
             toolCallID: toolCallID,
             approval: evidence,
         )
+        let result: AgentToolResult
         do {
-            return try await execute(
+            result = try await execute(
                 name,
                 arguments: arguments,
                 facts: facts,
@@ -267,7 +275,7 @@ actor ToolRunner {
             guard case .preset = evidence, let command = facts.command else { throw refusal }
             context.approval = try await ask(hostRefusal, .command(command))
             try cancellation?.throwIfCancelled()
-            return try await execute(
+            result = try await execute(
                 name,
                 arguments: arguments,
                 facts: facts,
@@ -275,6 +283,10 @@ actor ToolRunner {
                 cancellation: cancellation,
             )
         }
+        // It really ran, and without an error: the step of the plan that
+        // says so may now cite it as evidence, and nothing else may.
+        await plan?.noteRan(name)
+        return result
     }
 
     /// Asks the user about one call — unless it is one they approved for
@@ -407,6 +419,19 @@ actor ToolRunner {
             let notice = try notices.take(arguments, now: Date())
             try await record(.notice(title: notice.title, body: notice.body))
             return text(notices.sentMessage)
+
+        case .planUpdate:
+            // No host request either: the plan is the session's own record.
+            // It is written here, the `plan` event goes to the log with the
+            // rest, and a broken rule comes back to the model as the tool's
+            // error, saying what to write instead.
+            guard let plan else { throw ToolDeniedError(message: "This session has no plan.") }
+            let steps = try PlanArguments.steps(in: arguments)
+            do {
+                return text(PlanArguments.answer(try await plan.update(steps)))
+            } catch let violation as AgentPlanViolation {
+                throw ToolDeniedError(message: violation.message)
+            }
 
         case .webFetch:
             // No host request either: the worker fetches the page itself,

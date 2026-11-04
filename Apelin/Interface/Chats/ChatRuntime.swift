@@ -44,6 +44,12 @@ final class ChatRuntime {
     private let store = ChatStore(folder: .app)
     private var revision = 0
     private var readers: [UUID: Task<Void, Never>] = [:]
+    /// The plan each conversation is on, read from its events and from the
+    /// host (`ChatPlan`). Kept here rather than in the saved conversation:
+    /// the session has it, and reads it back itself, so the app asks again
+    /// instead of keeping a second copy that could be older than the
+    /// session's.
+    private(set) var plans: [UUID: AgentPlan] = [:]
     private var opening: [UUID: Task<AgentOpenResponse, Error>] = [:]
     private var attachmentCache: [String: ComposerAttachment] = [:]
     private var transcripts = ChatTranscriptCache()
@@ -499,6 +505,40 @@ final class ChatRuntime {
         changed(id)
     }
 
+    /// The plan a conversation is on, or nil while it has none: what the
+    /// plan bar draws.
+    func plan(for id: UUID) -> AgentPlan? {
+        plans[id]
+    }
+
+    /// What the user asked of the plan in the bar. The session owns the
+    /// plan, so the host is asked to pause, resume, end or clear it, and
+    /// what it answers is what stands here. A call that fails leaves the bar
+    /// as it is, which is all that can honestly be shown.
+    func applyPlan(_ action: AgentPlanAction, to id: UUID) async {
+        guard let sessionID = records[id]?.sessionID else { return }
+        guard let answer = try? await ApelinService.app.agentPlan(sessionID: sessionID, action: action) else {
+            return
+        }
+        guard records[id]?.sessionID == sessionID else { return }
+        plans[id] = answer.plan
+        changed(id)
+    }
+
+    /// Asks the session for the plan of a conversation opened again: the
+    /// session has carried it across a restart, and its events here may not
+    /// reach back to where it was written.
+    func refreshPlan(for id: UUID) async {
+        guard let sessionID = records[id]?.sessionID else {
+            plans[id] = nil
+            return
+        }
+        guard let answer = try? await ApelinService.app.agentPlan(sessionID: sessionID) else { return }
+        guard records[id]?.sessionID == sessionID else { return }
+        plans[id] = answer.plan
+        changed(id, urgent: false)
+    }
+
     private func open(_ id: UUID) async throws -> AgentOpenResponse {
         if let pending = opening[id] {
             return try await pending.value
@@ -540,6 +580,8 @@ final class ChatRuntime {
         records[id]?.reopen(as: result.task)
         changed(id)
         follow(id, task: result.task)
+        // the plan the session kept from before, if this conversation has one
+        Task { [weak self] in await self?.refreshPlan(for: id) }
         return result
     }
 
@@ -608,6 +650,11 @@ final class ChatRuntime {
                     }
                     if let finished = fresh.last(where: { $0.kind == "compactionFinished" }) {
                         endCompaction(id, with: .success(Self.compactionResult(finished)))
+                    }
+                    if fresh.contains(where: ChatPlan.isPlanEvent) {
+                        // the last `plan` event with a payload stands, and a
+                        // later one without (`planCleared`) takes the bar away
+                        plans[id] = ChatPlan.in(records[id]?.events ?? [])
                     }
                     let wasWorking = records[id]?.summary.isWorking
                     let current = transcript(id)

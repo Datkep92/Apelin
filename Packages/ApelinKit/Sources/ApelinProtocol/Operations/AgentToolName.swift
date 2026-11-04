@@ -30,6 +30,15 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     /// the user's approval in Confirm — never a preset, never for the
     /// session.
     case codeRun = "code_run"
+    /// The plan the assistant is carrying out: it writes the whole list of
+    /// steps with where each one stands, and the user sees it in the
+    /// conversation's plan bar. It is the assistant's own note in the
+    /// session — nothing on the device changes — and the rules
+    /// (`AgentPlanRules` and `SessionPlan`) hold it to a plan that can be
+    /// resumed after a compaction, a model switch or a conversation opened
+    /// again: at most twelve steps, one running, and a step only `done`
+    /// with evidence naming a tool that really ran.
+    case planUpdate = "plan_update"
     case sdkAnalyzeFramework = "apelin_sdk_analyze_framework"
     case sdkReadHeader = "apelin_sdk_read_header"
     case projectBuild = "apelin_project_build"

@@ -57,6 +57,15 @@ public enum AgentSessionEvent: Sendable, Hashable, Codable {
     /// away (`apelin_notification_send`): plain text within `AgentNoticeRules`' lengths,
     /// which the session host posts as a banner by its own rules.
     case notice(title: String?, body: String)
+    /// The assistant's plan, whole: the steps of the work the user asked
+    /// for and where each one stands. Written every time the plan is
+    /// written, so the app that reattaches, the bar and a conversation
+    /// opened again all read the latest one — the plan lives in the log,
+    /// not in a model's context, and outlives a compaction.
+    case plan(AgentPlan)
+    /// The plan was forgotten on the user's word: the bar goes, and no step
+    /// stands any more.
+    case planCleared
     case error(message: String)
     /// A run ended.
     case finished(reason: FinishReason)

@@ -513,6 +513,7 @@ harness:
 	[[ -n "$$modules" ]] || { echo "error: no ApelinProtocol.swiftmodule under $(SWIFTPM_SCRATCH)" >&2; exit 1; }; \
 	kit_flags="$$(module_flags "$(SWIFTPM_SCRATCH)")"; \
 	"$(ROOT_DIR)/Scripts/test-chat-transcript.sh" "$$modules" && \
+	"$(ROOT_DIR)/Scripts/test-chat-plan.sh" "$$modules" && \
 	"$(ROOT_DIR)/Scripts/test-onboarding.sh" "$$modules" && \
 	xcrun --sdk macosx swiftc -swift-version 5 -typecheck -target arm64-apple-macos13.0 -I "$(XPC_SHIM_DIR)" -I "$(IRISIN_SHIM_DIR)" $$kit_flags -I "$$toolhost_modules" \
 		$$(find "$(ROOT_DIR)/Shared/Protocol" "$(ROOT_DIR)/Apelind" -name '*.swift' | sort) "$(ROOT_DIR)/Shared/RoothideRoot.swift" && \

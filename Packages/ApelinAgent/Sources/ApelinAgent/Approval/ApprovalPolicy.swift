@@ -377,6 +377,14 @@ public struct ApprovalPolicy: Sendable, Hashable {
             return .ask(reason: Self.otherProjectReason(reach), detail: .otherProject(reach))
         }
         switch tool {
+        // The assistant's own plan, a note in the session about the work the
+        // user asked for and can watch in the plan bar: no file, no device
+        // setting, nothing outside the conversation's log changes, and the
+        // tool exists so the user can see progress before it is done.
+        // Asking first would defeat it, the way it would a notice.
+        case .planUpdate:
+            return .allow(.notRequired)
+
         case .fileWrite, .fileEdit, .fileCreate, .fileRevert, .memorySave, .memoryDelete:
             return .allow(.notRequired)
 

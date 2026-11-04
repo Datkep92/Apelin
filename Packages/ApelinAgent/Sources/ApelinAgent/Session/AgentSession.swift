@@ -38,6 +38,10 @@ public actor AgentSession {
     /// providers' tokens over the network, before the message is recorded.
     private var resolvedFrom: (provider: ProviderConfiguration, credentials: OAuthCredentials?)
     private var titleTask: Task<Void, Never>?
+    /// The plan the model is working to, and where `plan_update` writes it.
+    /// The conversation's plan bar reads and steers the same one, so the two
+    /// never disagree, and it is read back from disk as the session opens.
+    let plan: SessionPlan
     private var hasTitle = false
     /// Title completions that named nothing. Each prompt asks again until
     /// one does, so a model that never answers in the shape asked for is
@@ -135,6 +139,13 @@ public actor AgentSession {
         let resolved = try await ProviderResolver.resolve(configuration.provider, credentials: credentials)
         let gate = ApprovalGate { event in _ = try? await log.append(event) }
         let memory = MemoryStore(root: configuration.dataRoot.url)
+        // The plan and the events that carry it: `plan.json` is what a
+        // restart reads back, the `plan` event is what the app's bar follows.
+        let plan = SessionPlan(
+            plan: try await log.readPlan(),
+            record: { _ = try? await log.append($0) },
+            save: { plan in try? await log.writePlan(plan) },
+        )
         let runner = ToolRunner(
             sessionID: configuration.id,
             project: configuration.project,
@@ -147,6 +158,7 @@ public actor AgentSession {
             skills: configuration.dataRoot.skills,
             readOnlyRoots: ReadOnlyRoots(installRoot: configuration.installRoot, dataRoot: configuration.dataRoot),
             record: { _ = try await log.append($0) },
+            plan: plan,
         )
         let (mcpManager, mcpTools) = await MCPBridge.connect(configuration.mcpServers)
         let toolExtensions = ToolExtensionOffer.read(
@@ -371,6 +383,7 @@ public actor AgentSession {
             changes: changes,
             hostRestarted: delta && restartUntoldBefore,
             installRoot: configuration.installRoot,
+            plan: await plan.stateLine(),
         )
         return (SystemState.make(facts) + text, toldBefore, restartUntoldBefore)
     }
@@ -713,6 +726,14 @@ public actor AgentSession {
         }
         await record(.compactionFinished(result))
         compaction = nil
+    }
+
+    /// The plan as it stands, or what the app asked of it in the plan bar
+    /// (`AgentPlanAction`, through `agentPlan`): pause, resume, cancel or
+    /// clear. Reading — no action — is what a conversation opened again does.
+    public func planState(_ action: AgentPlanAction?) async -> AgentPlan? {
+        guard let action else { return await plan.current() }
+        return await plan.apply(action)
     }
 
     /// Stops the run. Waiting approvals resolve as denied, and the messages

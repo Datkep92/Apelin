@@ -108,6 +108,12 @@ enum SystemState {
         var hostRestarted = false
         /// The install root now, which the restart note names.
         var installRoot: String?
+        /// The plan the assistant is carrying out, as `AgentPlan.promptBlock`
+        /// writes it: the steps and where each one stands, in every block, so
+        /// a turn that follows a compaction, a model switch or a conversation
+        /// opened again goes on from the right step instead of doing a done
+        /// one twice.
+        var plan: String?
     }
 
     static func facts(
@@ -117,6 +123,7 @@ enum SystemState {
         changes: [String] = [],
         hostRestarted: Bool = false,
         installRoot: String? = nil,
+        plan: String? = nil,
     ) -> Facts {
         Facts(
             languages: source.languages(),
@@ -128,6 +135,7 @@ enum SystemState {
             changes: changes,
             hostRestarted: hostRestarted,
             installRoot: installRoot,
+            plan: plan,
         )
     }
 
@@ -154,6 +162,9 @@ enum SystemState {
             "- Approval mode: \(modeName(facts.mode)).",
             "- Ask Before Using the Screen: \(facts.asksBeforeScreen ? "on" : "off").",
         ]
+        if let plan = facts.plan {
+            lines.append(plan)
+        }
         if facts.hostRestarted {
             lines.append(restartNote(installRoot: facts.installRoot, changesBelow: !facts.changes.isEmpty))
         }

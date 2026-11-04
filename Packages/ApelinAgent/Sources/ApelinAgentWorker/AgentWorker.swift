@@ -128,6 +128,13 @@ public enum AgentWorker {
                 try await state.session(compact.sessionID).compact()
                 return Acknowledged()
             }
+        case .agentPlan:
+            await WorkerMain.serve(AgentPlanRequest.self, request) { ask in
+                // The plan is the session's own: this reads it, or does what
+                // the bar asked — pause, resume, cancel or clear.
+                let session = try state.session(ask.sessionID)
+                return AgentPlanResponse(plan: await session.planState(ask.action))
+            }
         case .agentApprove:
             await WorkerMain.serve(AgentApproveRequest.self, request) { approve in
                 try await state.approve(approve)
@@ -611,6 +618,12 @@ actor EventRelay {
                 payload["title"] = .string(title)
             }
             return [(AgentNoticeRules.eventKind, .object(payload))]
+        case let .plan(plan):
+            // The app's plan bar draws this; a null payload is `planCleared`,
+            // the plan is gone.
+            return [(AgentPlan.eventKind, (try? ApelinCore.JSONValue(encoding: plan)) ?? .null)]
+        case .planCleared:
+            return [(AgentPlan.eventKind, .null)]
         case let .error(message):
             return [("error", .object(["message": .string(message)]))]
         case let .finished(reason):

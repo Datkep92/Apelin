@@ -596,6 +596,7 @@ struct ChatTranscript {
         case .fileBackups: return String(localized: "List saved copies")
         case .shellRun: return String(localized: "Run a command")
         case .codeRun: return String(localized: "Run code")
+        case .planUpdate: return String(localized: "Update the plan")
         case .sdkAnalyzeFramework, .sdkReadHeader: return String(localized: "Read the SDK")
         case .projectBuild: return String(localized: "Build the project")
         case .packageInstall: return String(localized: "Install the package")
