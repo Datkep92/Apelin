@@ -132,7 +132,7 @@ public enum AgentWorker {
             await WorkerMain.serve(AgentPlanRequest.self, request) { ask in
                 // The plan is the session's own: this reads it, or does what
                 // the bar asked — pause, resume, cancel or clear.
-                let session = try state.session(ask.sessionID)
+                let session = try await state.session(ask.sessionID)
                 return AgentPlanResponse(plan: await session.planState(ask.action))
             }
         case .agentApprove:
