@@ -210,6 +210,8 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 56 | 2026-11-04 | Quy trình | **Mỗi phiên mới (kể cả đổi model) phải đọc lại cả file dài mới biết đang làm gì, mà kho ghi nhớ thì gần đầy.** Nay có ba tầng rõ ràng, không cần Sếp kể lại: (1) **§9 “Trạng thái hiện tại”** ở cuối file này — bảng các việc đang dở kèm HEAD, bước kế tiếp và phần chưa kiểm chứng, luôn được cập nhật ở mỗi mốc, và đọc bằng `file_grep "^## 9\."` rồi `file_read` từ dòng đó nên **không phải đọc cả file**; (2) **§10 “Sổ dọn ghi nhớ”** — một hạn mức chung 64 bản/32 KB, cách đo bằng một lệnh `python3`, ngưỡng dọn 75 %, thứ tự dọn (handoff `done` → bản trùng → handoff cũ đã ghi vào §9 → bản dài đã có trong tài liệu/skill) và danh sách không bao giờ xoá (sở thích giao tiếp, luật chung, quy tắc lưu, §9); quy tắc **riêng của dự án** được đẩy sang `AGENTS.md` vì file đó được nạp tự động mà không tốn kho; (3) khối mở đầu `AGENTS.md` nay trỏ thẳng vào §9 thay vì bắt đọc §6.1/§8 trước. Mục đích: phiên sau đọc một mục là làm tiếp được, không hỏi lại, và kho ghi nhớ tự dọn trước khi đầy. | (commit tài liệu cùng lượt) | Giữ §9 cập nhật ở mỗi mốc (cùng lượt với dòng bảng 6.1 và ghi nhớ handoff), giữ khối mở đầu `AGENTS.md` trỏ vào §9, giữ ngưỡng 75 % và danh sách không-bao-giờ-xoá ở §10, và giữ nguyên tắc quy tắc riêng dự án nằm ở `AGENTS.md`. |
 | 57 | 2026-11-04 | Quy trình | **Cùng một bộ luật nằm ở bốn chỗ, sửa một chỗ thì ba chỗ kia lặng lẽ thành bản cũ.** Trước đây luật của Sếp có mặt đồng thời ở: ghi nhớ `5783d40e` (~13 KB — gần nửa kho 32 KB dùng chung mọi dự án), mục “Luật làm việc của Sếp” trong `AGENTS.md`, file `Documents/Personal/Operating-Specification.md`, và một bản ghi riêng cho chữ “bắt buộc”; mỗi phiên mới phải đọc lại cả file dài mà vẫn không biết bản nào đang đúng. Nay mỗi thứ **một chỗ duy nhất**: luật chung của Sếp ở **skill `sep-working-rules`** (skill không tốn kho ghi nhớ và mọi dự án tự đọc), bản **nguyên văn 19 mục** để nguyên trong `Operating-Specification.md` cùng folder skill — file luật của Sếp nằm **ngoài git** (`.gitignore` bỏ qua); `AGENTS.md` và file `Documents/Personal` chỉ còn **một dòng trỏ**; kho ghi nhớ chỉ giữ **một dòng móc** trỏ tới skill. Xoá 4 bản trùng (`5783d40e`, `32a1b006`, `34c0001c`, `cce3bf60`): kho **20 735 → 4 149 byte (63 % → 13 %), 13 → 10 bản**, không mất chữ nào vì bản nguyên văn đã đối chiếu byte-đúng trước khi xoá. Chỗ đặt cho mọi thứ về sau: bảng “Where a rule belongs” ở đầu `AGENTS.md` và §10. | `d3b924a`, `b08c873` | Giữ luật chung **chỉ** ở skill `sep-working-rules`; `AGENTS.md` và file `Documents/Personal/Operating-Specification.md` chỉ trỏ, không chép lại; kho ghi nhớ không chép luật, chỉ một dòng móc; bản nguyên văn 19 mục nằm trong folder skill. |
 
+| 58 | 2026-11-04 | Bản vá | **Nhập file từ "Gần đây" / "iCloud Drive" báo "Unable to Import File"**, file "Trên iPhone" thì vào được. Hai mục kia trả về file reference (`/.file/id=…`) mà `realpath` không thấy, hoặc file iCloud chưa tải về (dataless) — đọc trực tiếp theo path nên lỗi. Nay `readAttachment` giữ nhánh nhanh cho file trên máy, còn chỗ `realpath` không ra hoặc file iCloud chưa có thì qua `NSFileCoordinator` để hệ thống dò địa chỉ thật và tải xuống trước khi đọc. Chưa build/cài để kiểm chứng (máy chưa có toolchain; chờ Sếp). | `01b227b4` | Giữ nhánh `NSFileCoordinator` trong `ComposerAttachmentImport.readAttachment` (tách `readFile`); file trên máy vẫn đi đường cũ. |
+
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
 2. Bổ sung **1 dòng** vào bảng 6.1: `Số | Ngày (YYYY-MM-DD) | Cá nhân hoá/Bản vá | Tóm tắt | Hash commit | Yêu cầu giữ lại`.
@@ -293,14 +295,7 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `7dbe0ed` (nhánh `main`) — **`main` = `origin/main`,
-cây làm việc sạch, đã push** (`git fetch` không cập nhật gì thêm). Mốc gần nhất:
-`7dbe0ed` (Release 0.3.9: version + notes), `b08c873` (gộp 19 mục luật của Sếp vào
-skill `sep-working-rules`) và `d3b924a` (đưa file luật của Sếp ra ngoài git) — xem
-dòng 57 ở bảng 6.1; trước đó `280e2b9` (host harness: biên dịch `RateLimitRetry.swift`
-trong `test-chat-transcript`) và `c006bc7` (4 sai lệch Host test, run 41775208831:
-BrowserTool chrome filter, UITreeFilter fixture role, FileReadWindow count/message,
-ChannelHostBackend count).
+**HEAD khi cập nhật mục này:** `01b227b4` (nhánh `main`, **chưa push** — `origin/main` vẫn là `46162d1`, cây làm việc có thay đổi treo của phiên Task Progress Panel trong `Packages/ApelinAgent`/`ApelinKit`, **không đụng vào**). Mốc gần nhất: `46162d1` (tái cấu trúc luật/ghi nhớ một chỗ, đã push), `7dbe0ed` (Release 0.3.9), `b08c873`/`d3b924a` (luật vào skill `sep-working-rules`) — xem dòng 57 ở bảng 6.1.
 
 | # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
 |---|---|---|---|
@@ -309,6 +304,7 @@ ChannelHostBackend count).
 | 3 | **IDE AI đa ngôn ngữ** — `code_run` (`1151fef`, dòng 38+53) và sao lưu/hoàn tác tệp (`438cd07`, dòng 39) | sau khi cài: thử `file_revert`, `file_backups`, `code_run` | `FileBackupTests` mới chỉ chạy ở CI |
 | 4 | **Tối ưu AI** — ảnh theo endpoint + đo cache thật (`9c55a9e`, dòng 37) | thử ảnh HEIC/quá lớn, dòng “N% cached”, đổi model giữa hội thoại có ảnh | nhóm 1–3 của đơn `4a56bc42` đã có sẵn trong repo, **không** sửa gì |
 | 5 | **Đơn `b41b438f` Task Progress Panel** | **chờ Sếp duyệt** — không tự làm | — |
+| 6 | **Nhập file từ "Gần đây"/"iCloud Drive" lỗi** — đã sửa code qua `NSFileCoordinator` (`01b227b4`, dòng 58), file trên máy vẫn đường cũ | build → cài → thử chọn PDF/XML từ "Gần đây" và iCloud Drive, kiểm chứng vào được chat | chưa build/cài (máy chưa có toolchain); file iCloud chưa tải có thể mất vài giây để tải về |
 
 **Ràng buộc chung của các việc trên:** `main` hiện **đã bằng** `origin/main` (đừng
 rebase lên `ee06948`/`f45cceb` như ghi cũ; số đó đã cũ). **Đẩy lên GitHub và cài lên
