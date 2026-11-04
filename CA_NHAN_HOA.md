@@ -236,3 +236,30 @@ Nguồn sao lưu phụ trên máy (bản cũ hơn 30/10 22:51–22:53):
 
 **Quy tắc rút ra:** commit + push ngay sau mỗi thay đổi; bản `.deb` quan trọng
 lưu vào `Downloads`; đừng để repo chỉ tồn tại một nơi.
+
+## 8. Nhật ký quá trình làm việc (bắt buộc)
+
+Mục 6 ghi *đã đổi cái gì*. Mục này ghi *đang làm gì và tới đâu*, để **phiên sau
+— kể cả khi dùng model khác — đọc là hiểu, không cần người dùng kể lại**.
+
+**Khi bắt đầu một việc dài** (nhiều bước, nhiều file, hoặc có rủi ro): mở một
+**ghi nhớ handoff** của Apelin (`kind=handoff`, phạm vi dự án) ghi rõ:
+
+- mục tiêu và ràng buộc của việc đang làm;
+- file/d thư mục sẽ đụng tới;
+- việc đã xong (kèm hash commit nếu đã commit);
+- việc kế tiếp, và chỗ nào còn vướng.
+
+**Trong lúc làm:** cập nhật ghi nhớ đó sau mỗi mốc lớn (xong một phần, build
+xong, đổi hướng) — không cần ghi mỗi lệnh. **Xong việc:** đổi `status` thành
+`done`, giữ lại làm hồ sơ.
+
+**Nếu kế hoạch dài hơn hạn mức ghi nhớ** (khoảng 32 KB): viết file `.md` trong
+repo (ví dụ `Documents/Plan/Handoff.md`) và để ghi nhớ chỉ trỏ tới đường dẫn
+file đó.
+
+**Cách lưu:** `apelin_memory_list` lấy revision trước → `apelin_memory_save`;
+ưu tiên **sửa bản ghi đã có** thay vì tạo bản mới trùng.
+
+**Ba chỗ cần đọc khi tiếp nhận một việc:** `AGENTS.md` (mục này) → mục 6 của
+`CA_NHAN_HOA.md` → các ghi nhớ handoff đang `active`.

@@ -3828,3 +3828,11 @@ Quy tắc ngắn của fork:
   tra giao diện bằng accessibility tree; chỉ gói `iphoneos-arm64` (máy này arm64).
 - Không force push, không đổi URL remote, không tự làm `.deb` bằng tay
   (`dpkg-deb`, `ar`… ngoài CI là cấm).
+- **Nhật ký quá trình, không chỉ dòng bảng 6.1:** mỗi việc dài (nhiều bước,
+  nhiều file) phải có **ghi nhớ handoff** của Apelin (phạm vi dự án này) ghi rõ
+  mục tiêu, ràng buộc, file đụng tới, việc đã xong, việc kế tiếp và hash commit;
+  cập nhật lại sau mỗi mốc lớn, xong thì đóng (`status: done`). Việc dài hơn hạn
+  mức ghi nhớ thì viết file `.md` trong repo (`Documents/Plan/`) và để ghi nhớ
+  trỏ tới file. Nhờ vậy phiên sau, hay một model khác, đọc `AGENTS.md` +
+  `CA_NHAN_HOA.md` + ghi nhớ là hiểu đang làm gì, không cần người dùng kể lại.
+  Chi tiết ở `CA_NHAN_HOA.md` mục 8.
