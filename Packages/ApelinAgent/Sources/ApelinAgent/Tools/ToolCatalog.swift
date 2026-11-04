@@ -1,6 +1,8 @@
 import struct ApelinCore.MemoryStore
 import enum ApelinCore.ProjectDisplayName
 import enum ApelinProtocol.AgentNoticeRules
+import enum ApelinProtocol.AgentPlanRules
+import enum ApelinProtocol.AgentPlanStepStatus
 import enum ApelinProtocol.AgentToolName
 import enum ApelinProtocol.BuildBootstrap
 import struct ApelinProtocol.DistributionPublishRequest
