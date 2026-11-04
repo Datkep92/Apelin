@@ -663,12 +663,35 @@ actor ToolRunner {
                 context: context,
                 targetID: arguments.argString("target_id"),
             ))
-            let image = response.imageData.flatMap { $0.count <= Self.maxImageBytes ? $0 : nil }
+            let captured = response.imageData
             response.imageData = nil
+            var picture = captured
+            // A capture of a whole screen is often several megabytes, over
+            // what a provider takes. It used to be dropped, which left the
+            // model blind to the screen it had been asked to look at, with
+            // nothing saying why: over the limit the bytes are scaled and
+            // encoded again to fit (FileImage), and the reply says what was
+            // shown. Under it, the bytes go as the host sent them.
+            if let captured, captured.count > Self.maxImageBytes {
+                if let shown = try? FileImage.read(
+                    captured,
+                    frame: nil,
+                    name: "the screenshot",
+                    sideLimit: FileImage.maxPixelSize,
+                    bytesLimit: Self.maxImageBytes,
+                ) {
+                    picture = shown.data
+                    response.mimeType = shown.mimeType
+                    response.note = "the capture is \(captured.count) bytes, over the \(Self.maxImageBytes) bytes a provider takes; the picture with this reply is scaled down, at most \(FileImage.maxPixelSize) px on a side, and encoded again as \(shown.mimeType)"
+                } else {
+                    picture = nil
+                    response.note = "the capture is \(captured.count) bytes, over the \(Self.maxImageBytes) bytes a provider takes, and no smaller picture of it could be sent"
+                }
+            }
             var result = json(response)
-            if let image {
+            if let picture {
                 result.content.append(.image(ImageContent(
-                    data: image.base64EncodedString(),
+                    data: picture.base64EncodedString(),
                     mimeType: response.mimeType,
                 )))
             }

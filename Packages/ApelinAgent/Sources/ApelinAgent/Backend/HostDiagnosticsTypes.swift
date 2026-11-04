@@ -227,15 +227,21 @@ public struct CaptureScreenResponse: Sendable, Hashable, Codable {
     public var mimeType: String
     public var width: Int
     public var height: Int
-    /// The image itself, already bounded by the host; handed to the model
-    /// only, never written into the session's event log.
+    /// The image itself, handed to the model only, never written into the
+    /// session's event log; over what a provider takes, the model is shown a
+    /// scaled copy of it instead and `note` says so (`ToolRunner`).
     public var imageData: Data?
-    public init(attachmentID: String, mimeType: String, width: Int, height: Int, imageData: Data? = nil) {
+    /// What the model should know about the picture it was shown, when
+    /// anything is worth saying: a capture that had to be scaled to fit, or
+    /// one that could not be shown at all.
+    public var note: String?
+    public init(attachmentID: String, mimeType: String, width: Int, height: Int, imageData: Data? = nil, note: String? = nil) {
         self.attachmentID = attachmentID
         self.mimeType = mimeType
         self.width = width
         self.height = height
         self.imageData = imageData
+        self.note = note
     }
 }
 

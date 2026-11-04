@@ -15,6 +15,9 @@ struct ProjectFileTools: Sendable {
     /// nil when this session keeps none, and then a write reports no backup.
     var backups: FileBackups?
 
+    /// As much of a file as one reply shows. It bounds the reply, not the
+    /// file: a larger one is read a piece at a time and the window asked for
+    /// is shown, so nothing is out of reach for being big.
     static let maxReadBytes = 512 * 1024
     /// As large as a message's attachment may be, so one sent can be looked
     /// at again.
@@ -187,25 +190,171 @@ struct ProjectFileTools: Sendable {
     func readFile(_ arguments: JSONValue) throws -> String {
         let path = try arguments.requireString("path")
         let real = try root.resolveExisting(path)
-        let text: String
+        let offset = max(1, arguments.argInt("offset") ?? 1)
+        let limit = max(1, arguments.argInt("limit") ?? 2000)
+        let window: FileWindow
         do {
-            text = try readText(real)
+            window = try readWindow(real, offset: offset, limit: limit)
         } catch let refusal as ToolArgumentError {
             throw ToolArgumentError("\(refusal.message); \(Self.unreadableHint)")
         }
-        let lines = text.components(separatedBy: "\n")
-        let offset = max(1, arguments.argInt("offset") ?? 1)
-        let limit = max(1, arguments.argInt("limit") ?? 2000)
-        guard offset <= max(lines.count, 1) else { return "(\(path) has \(lines.count) lines)" }
-        let slice = lines[(offset - 1) ..< min(lines.count, offset - 1 + limit)]
-        var output = ""
-        for (index, line) in slice.enumerated() {
-            output += "\(offset + index)\t\(line)\n"
+        guard !window.lines.isEmpty else {
+            guard window.bytesCut else { return "\(path) has \(window.total ?? 0) lines)" }
+            return "... one line of it is larger than the \(Self.maxReadBytes) bytes one reply shows; "
+                + "grep it for what matters, or read it through shell_run\n"
         }
-        if offset - 1 + limit < lines.count {
-            output += "… \(lines.count - (offset - 1 + limit)) more lines; continue with offset \(offset + limit)\n"
+        var output = ""
+        for (index, line) in window.lines.enumerated() {
+            output += "\(window.firstLine + index)\t\(line)\n"
+        }
+        let next = window.firstLine + window.lines.count
+        if window.bytesCut {
+            output += "... one reply shows \(Self.maxReadBytes) bytes of it at most; continue with offset \(next)\n"
+        } else if !window.ends {
+            if let total = window.total {
+                output += "... \(total - next + 1) more lines; continue with offset \(next)\n"
+            } else {
+                output += "... more lines; continue with offset \(next)\n"
+            }
         }
         return output
+    }
+
+    /// The lines of one file a reply shows, and how far the file goes.
+    private struct FileWindow {
+        /// The lines shown, in order, and the number of the first of them.
+        var lines: [String] = []
+        var firstLine = 1
+        /// The file's last line is one of them.
+        var ends = false
+        /// The byte budget ran out inside the window.
+        var bytesCut = false
+        /// Lines the file has: known when it was read to the end, and nil
+        /// otherwise, which is any window that stopped early.
+        var total: Int?
+    }
+
+    /// The window of a file, held whole while it is small enough and read a
+    /// piece at a time when it is not, so a file of any size can be read.
+    private func readWindow(_ canonical: String, offset: Int, limit: Int) throws -> FileWindow {
+        let file = try openRegularFile(canonical)
+        defer { close(file.descriptor) }
+        if file.size <= Self.maxReadBytes {
+            let (data, ends) = try readAll(file.descriptor, upTo: Self.maxReadBytes)
+            if ends {
+                if data.prefix(8192).contains(0) {
+                    throw ToolArgumentError("\(shown(canonical)) is a binary file")
+                }
+                return window(of: data, offset: offset, limit: limit)
+            }
+        }
+        return try streamedWindow(canonical, descriptor: file.descriptor, offset: offset, limit: limit)
+    }
+
+    /// The window of a file held whole, which knows where the file ends.
+    private func window(of data: Data, offset: Int, limit: Int) -> FileWindow {
+        let lines = String(decoding: data, as: UTF8.self).components(separatedBy: "\n")
+        var window = FileWindow()
+        window.firstLine = offset
+        window.total = lines.count
+        window.ends = true
+        guard offset <= lines.count else { return window }
+        window.lines = Array(lines[(offset - 1) ..< min(lines.count, offset - 1 + limit)])
+        window.ends = offset - 1 + window.lines.count == lines.count
+        return window
+    }
+
+    /// The window of a file too large to hold whole: read a piece at a time,
+    /// count the lines, and keep only the ones asked for, so the memory used
+    /// is one piece and the window, never the file.
+    private func streamedWindow(
+        _ canonical: String,
+        descriptor: Int32,
+        offset: Int,
+        limit: Int
+    ) throws -> FileWindow {
+        _ = lseek(descriptor, 0, SEEK_SET)
+        var window = FileWindow()
+        window.firstLine = offset
+        var piece = [UInt8](repeating: 0, count: 64 * 1024)
+        /// The line being read: kept only while it is a line the window
+        /// shows, so the bytes of lines before the window are never held.
+        var pending = [UInt8]()
+        var lineNumber = 1
+        var shownBytes = 0
+        var first = true
+
+        /// One finished line: keeps it when the window shows it, and answers
+        /// false when the window is as full as it may be.
+        func emit(_ line: [UInt8]) -> Bool {
+            guard lineNumber >= offset else { return true }
+            guard shownBytes + line.count <= Self.maxReadBytes else {
+                window.bytesCut = true
+                return false
+            }
+            window.lines.append(String(decoding: line, as: UTF8.self))
+            shownBytes += line.count + 1
+            return window.lines.count < limit
+        }
+
+        reading: while true {
+            let count = try fill(descriptor, &piece)
+            if count == 0 {
+                // The end: what follows the last newline is a line too, and
+                // read to the end the number of lines is known.
+                _ = emit(pending)
+                window.ends = true
+                window.total = lineNumber
+                break reading
+            }
+            if first {
+                first = false
+                if piece[0 ..< min(count, 8192)].contains(0) {
+                    throw ToolArgumentError("\(shown(canonical)) is a binary file")
+                }
+            }
+            for index in 0 ..< count {
+                if piece[index] == 0x0A {
+                    if !emit(pending) {
+                        // Full at a line's end: reading one byte more says
+                        // whether that line was the file's last.
+                        let following = try fill(descriptor, &piece)
+                        window.ends = following == 0
+                        window.total = window.ends ? lineNumber : nil
+                        break reading
+                    }
+                    pending.removeAll(keepingCapacity: true)
+                    lineNumber += 1
+                } else if lineNumber >= offset {
+                    pending.append(piece[index])
+                }
+            }
+        }
+        return window
+    }
+
+    /// Up to `limit` bytes from a descriptor, and whether the file ended
+    /// within them.
+    private func readAll(_ descriptor: Int32, upTo limit: Int) throws -> (data: Data, ends: Bool) {
+        var data = Data()
+        var piece = [UInt8](repeating: 0, count: 64 * 1024)
+        while data.count <= limit {
+            let count = try fill(descriptor, &piece)
+            if count == 0 { return (data, true) }
+            data.append(contentsOf: piece[0 ..< count])
+        }
+        return (data, false)
+    }
+
+    /// One read into `piece`, answering how many bytes it holds; 0 at the end
+    /// of the file. Only the bytes the file has are touched, which is what
+    /// makes reading a large file cost one piece of memory.
+    private func fill(_ descriptor: Int32, _ piece: inout [UInt8]) throws -> Int {
+        let count = piece.withUnsafeMutableBytes { read(descriptor, $0.baseAddress, $0.count) }
+        guard count >= 0 else {
+            throw PathPolicyError.io("could not read the file: \(String(cString: strerror(errno)))")
+        }
+        return count
     }
 
     /// An image file as file_read shows it, a picture; nil when the file is

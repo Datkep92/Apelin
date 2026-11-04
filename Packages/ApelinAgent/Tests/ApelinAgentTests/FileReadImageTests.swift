@@ -140,7 +140,7 @@ struct FileReadImageTests {
     // MARK: Refusals
 
     @Test
-    func `another binary file is refused as before, saying what can be read`() async throws {
+    func `a binary file is refused, and one larger than a reply is read`() async throws {
         defer { home.remove() }
         try save("tool", Data([0xCF, 0xFA, 0xED, 0xFE, 0x0C, 0x00, 0x00, 0x01] + [UInt8](repeating: 0, count: 64)))
         try home.write("big.log", String(repeating: "a", count: ProjectFileTools.maxReadBytes + 1))
@@ -148,8 +148,11 @@ struct FileReadImageTests {
         let binary = await refusal { try await read(["path": "tool"]) }
         #expect(binary.hasPrefix("tool is a binary file; file_read shows a PNG, JPEG, GIF"))
         #expect(binary.contains("for a video, extract frames as image files"))
-        let large = await refusal { try await read(["path": "big.log"]) }
-        #expect(large.hasPrefix("big.log is \(ProjectFileTools.maxReadBytes + 1) bytes, over the \(ProjectFileTools.maxReadBytes)-byte limit; file_read shows"))
+        let large = text(try await read(["path": "big.log"]))
+        #expect(
+            large.hasPrefix("... one line of it is larger than the \(ProjectFileTools.maxReadBytes) bytes one reply shows"),
+            "a file over one reply's bytes is read, not refused for its size",
+        )
     }
 
     @Test

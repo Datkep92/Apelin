@@ -60,6 +60,9 @@ struct FrameworkTools: Sendable {
         let headers = headerNames(framework.path)
         lines.append("headers: \(headers.count)")
         lines.append(contentsOf: headers.prefix(200).map { "  \($0)" })
+        if headers.count > 200 {
+            lines.append("  ... \(headers.count - 200) more; call this again with no header name for every one")
+        }
         return lines.joined(separator: "\n")
     }
 

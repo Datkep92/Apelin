@@ -336,7 +336,16 @@ actor MockBackend: AgentHostBackend {
 
     func captureScreen(_: CaptureScreenRequest) -> CaptureScreenResponse {
         calls.append(.other("captureScreen"))
-        return CaptureScreenResponse(attachmentID: "att-1", mimeType: "image/png", width: 1, height: 1, imageData: Data([0x89, 0x50]))
+        return CaptureScreenResponse(attachmentID: "att-1", mimeType: "image/png", width: 1, height: 1, imageData: capturedImage)
+    }
+
+    /// What `captureScreen` answers with: a two-byte PNG header unless a test
+    /// sets a picture, so a capture over the limit a provider takes can be
+    /// exercised (`ScreenCaptureImageTests`).
+    var capturedImage = Data([0x89, 0x50])
+
+    func setCapturedImage(_ data: Data) {
+        capturedImage = data
     }
 
     func readUITree(_: ReadUITreeRequest) -> ReadUITreeResponse {
