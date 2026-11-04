@@ -52,7 +52,14 @@ precondition(
     "an event that is not a plan leaves the plan standing",
 )
 precondition(ChatPlan.latest(in: [planEvent(2, reading), clearedEvent(3)]) == nil, "a cleared plan is gone")
-let older = AgentPlan(steps: [AgentPlanStep(id: "one", title: "Read it")], revision: 2)
+// A plan stored in an event is written as ISO 8601, so its time keeps whole
+// seconds: a plan built here with a default `Date()` comes back different by
+// its fraction. Every plan these checks store is given a whole-second time.
+let older = AgentPlan(
+    steps: [AgentPlanStep(id: "one", title: "Read it")],
+    revision: 2,
+    updatedAt: Date(timeIntervalSince1970: 1_800_000_100),
+)
 precondition(ChatPlan.latest(in: [planEvent(1, reading), planEvent(2, older)]) == older, "the last plan written is the one")
 precondition(
     ChatPlan.latest(in: [clearedEvent(1), planEvent(2, reading)]) == reading,
