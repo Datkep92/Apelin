@@ -3871,6 +3871,15 @@ Quy tắc ngắn của fork:
 - **Build bằng CI GitHub**, không build trên máy này (không có `xcodebuild`):
   push vào `main` → `ci.yml` (~20–27 phút, artifact `apelin-<full sha>`);
   phát hành bằng tag `v...` của riêng fork → `release.yml`.
+- **Luật phát hành (Sếp đặt 2026-11-04): mỗi lần đẩy lên CI là tăng version.**
+  `bash Scripts/apply-version.sh <x.y.z> <build>` (không dùng `make set-version`:
+  máy này không có `/bin/bash`), kèm `Documents/Releases/<x.y.z>.md` viết trước
+  khi gắn tag. CI **xanh** → gắn tag `v<x.y.z>` để `release.yml` phát hành đúng
+  file CI đã kiểm → tải `wiki.qaq.apelin_<ver>_iphoneos-arm64.deb`, đối chiếu
+  `SHA256SUMS`, cài lên máy. CI **đỏ** → đọc log job lỗi
+  (`gh api /repos/Datkep92/Apelin/actions/jobs/<jobid>/logs`), sửa, đẩy lại
+  ngay; không dừng lại hỏi, không gộp nhiều lần sửa vào một lượt chờ.
+  Việc chỉ sửa tài liệu thì đi kèm lần đẩy mã sau đó, để không đốt thêm số phiên bản.
 - **Cài đặt:** `icli pkg install <deb>` chạy bằng root (maintainer script
   **không** chạy — để nguyên, `postinst` sẽ bootout `apelind`); sau đó
   `icli app kill wiki.qaq.apelin --force` + `icli app launch wiki.qaq.apelin`.

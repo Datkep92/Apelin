@@ -9,6 +9,7 @@ Usage examples:
   python3 Scripts/zxtouch_ctl.py size
   python3 Scripts/zxtouch_ctl.py toast "Hello" 2
   python3 Scripts/zxtouch_ctl.py tap 562 1218
+  python3 Scripts/zxtouch_ctl.py ocr 0 0 1125 100
   python3 Scripts/zxtouch_ctl.py raw "2530"
 """
 import argparse
@@ -18,7 +19,7 @@ import time
 
 HOST = "127.0.0.1"
 PORT = 6000
-TIMEOUT = 3.0
+TIMEOUT = 5.0
 
 
 def send(cmd: str, recv: bool = True, timeout: float = TIMEOUT) -> str:
@@ -30,7 +31,7 @@ def send(cmd: str, recv: bool = True, timeout: float = TIMEOUT) -> str:
     out = ""
     if recv:
         try:
-            data = s.recv(4096)
+            data = s.recv(8192)
             out = data.decode("utf-8", errors="replace").strip()
         except socket.timeout:
             out = "<timeout: no response>"
@@ -48,6 +49,14 @@ def cmd_size(_):
     print(send("251"))
 
 
+def cmd_orientation(_):
+    print(send("252"))
+
+
+def cmd_scale(_):
+    print(send("253"))
+
+
 def cmd_info(_):
     print(send("2530"))
 
@@ -57,11 +66,7 @@ def cmd_battery(_):
 
 
 def cmd_toast(args):
-    text = args.text
-    dur = args.duration
-    pos = args.position
-    size = args.font_size
-    print(send(f"220;;{text};;{dur};;{pos};;{size}"))
+    print(send(f"22{args.type};;{args.text};;{args.duration};;{args.position};;{args.font_size}"))
 
 
 def cmd_alert(args):
@@ -97,7 +102,6 @@ def cmd_indicator(args):
 
 
 def cmd_kb_insert(args):
-    # insert one char at a time
     for ch in args.text:
         print(send(f"241;;{ch}"))
 
@@ -111,12 +115,61 @@ def cmd_kb_show(args):
     print(send(code))
 
 
-def cmd_shell(args):
-    print(send("13" + args.command))
+def cmd_kb_paste(_):
+    print(send("245"))
+
+
+def cmd_kb_get_clip(_):
+    print(send("246"))
+
+
+def cmd_kb_set_clip(args):
+    print(send(f"247;;{args.text}"))
+
+
+def cmd_kb_move(args):
+    print(send(f"243;;{args.offset}"))
+
+
+def cmd_color(args):
+    print(send(f"23{args.x};;{args.y}"))
+
+
+def cmd_color_search(args):
+    print(send(f"281;;{args.x};;{args.y};;{args.w};;{args.h};;{args.rmin};;{args.rmax};;{args.gmin};;{args.gmax};;{args.bmin};;{args.bmax};;{args.skip}"))
+
+
+def cmd_ocr(args):
+    rect = f"{args.x},,{args.y},,{args.w},,{args.h}"
+    print(send(f"271;;{rect};;{args.custom};;{args.minh};;{args.level};;{args.langs};;{args.correct};;{args.debug}"))
+
+
+def cmd_image_match(args):
+    print(send(f"21{args.path};;{args.maxtry};;{args.accept};;{args.scale}"))
 
 
 def cmd_usleep(args):
     print(send(f"18{args.ms}"))
+
+
+def cmd_record_start(_):
+    print(send("14"))
+
+
+def cmd_record_stop(_):
+    print(send("15"))
+
+
+def cmd_play_script(args):
+    print(send(f"19{args.path}"))
+
+
+def cmd_stop_script(_):
+    print(send("20"))
+
+
+def cmd_shell(args):
+    print(send("13" + args.command))
 
 
 def cmd_raw(args):
@@ -128,24 +181,27 @@ def main():
     p = argparse.ArgumentParser(description="ZXTouch control helper")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("size", help="screen size").set_defaults(func=cmd_size)
-    sub.add_parser("info", help="device info").set_defaults(func=cmd_info)
-    sub.add_parser("battery", help="battery info").set_defaults(func=cmd_battery)
+    sub.add_parser("size").set_defaults(func=cmd_size)
+    sub.add_parser("orientation").set_defaults(func=cmd_orientation)
+    sub.add_parser("scale").set_defaults(func=cmd_scale)
+    sub.add_parser("info").set_defaults(func=cmd_info)
+    sub.add_parser("battery").set_defaults(func=cmd_battery)
 
-    t = sub.add_parser("toast", help="show toast")
+    t = sub.add_parser("toast")
     t.add_argument("text")
     t.add_argument("duration", type=int, nargs="?", default=2)
     t.add_argument("position", type=int, nargs="?", default=0)
     t.add_argument("font_size", type=int, nargs="?", default=0)
+    t.add_argument("--type", dest="type", type=int, default=3)
     t.set_defaults(func=cmd_toast)
 
-    a = sub.add_parser("alert", help="show alert")
+    a = sub.add_parser("alert")
     a.add_argument("title")
     a.add_argument("content")
     a.add_argument("duration", type=int, nargs="?", default=2)
     a.set_defaults(func=cmd_alert)
 
-    sw = sub.add_parser("switch", help="switch foreground app")
+    sw = sub.add_parser("switch")
     sw.add_argument("bundle")
     sw.set_defaults(func=cmd_switch)
 
@@ -156,38 +212,97 @@ def main():
         c.add_argument("finger", type=int, nargs="?", default=1)
         c.set_defaults(func=fn)
 
-    tp = sub.add_parser("tap", help="tap at x y")
+    tp = sub.add_parser("tap")
     tp.add_argument("x", type=int)
     tp.add_argument("y", type=int)
     tp.add_argument("finger", type=int, nargs="?", default=1)
-    tp.add_argument("--hold", type=int, default=80, help="hold ms")
+    tp.add_argument("--hold", type=int, default=80)
     tp.set_defaults(func=cmd_tap)
 
-    ind = sub.add_parser("indicator", help="touch indicator on/off")
+    ind = sub.add_parser("indicator")
     ind.add_argument("state", choices=["on", "off"])
     ind.set_defaults(func=cmd_indicator)
 
-    ki = sub.add_parser("kb-insert", help="insert text")
+    ki = sub.add_parser("kb-insert")
     ki.add_argument("text")
     ki.set_defaults(func=cmd_kb_insert)
 
-    kd = sub.add_parser("kb-delete", help="delete n chars")
+    kd = sub.add_parser("kb-delete")
     kd.add_argument("count", type=int, nargs="?", default=1)
     kd.set_defaults(func=cmd_kb_delete)
 
-    ks = sub.add_parser("kb-show", help="show/hide keyboard")
+    ks = sub.add_parser("kb-show")
     ks.add_argument("state", choices=["show", "hide"])
     ks.set_defaults(func=cmd_kb_show)
 
-    sh = sub.add_parser("shell", help="run shell as root (dangerous)")
-    sh.add_argument("command")
-    sh.set_defaults(func=cmd_shell)
+    sub.add_parser("kb-paste").set_defaults(func=cmd_kb_paste)
+    sub.add_parser("kb-get-clip").set_defaults(func=cmd_kb_get_clip)
 
-    us = sub.add_parser("usleep", help="usleep ms")
+    ksc = sub.add_parser("kb-set-clip")
+    ksc.add_argument("text")
+    ksc.set_defaults(func=cmd_kb_set_clip)
+
+    km = sub.add_parser("kb-move")
+    km.add_argument("offset", type=int)
+    km.set_defaults(func=cmd_kb_move)
+
+    col = sub.add_parser("color")
+    col.add_argument("x", type=int)
+    col.add_argument("y", type=int)
+    col.set_defaults(func=cmd_color)
+
+    cs = sub.add_parser("color-search")
+    cs.add_argument("x", type=int)
+    cs.add_argument("y", type=int)
+    cs.add_argument("w", type=int)
+    cs.add_argument("h", type=int)
+    cs.add_argument("rmin", type=int, nargs="?", default=0)
+    cs.add_argument("rmax", type=int, nargs="?", default=255)
+    cs.add_argument("gmin", type=int, nargs="?", default=0)
+    cs.add_argument("gmax", type=int, nargs="?", default=255)
+    cs.add_argument("bmin", type=int, nargs="?", default=0)
+    cs.add_argument("bmax", type=int, nargs="?", default=255)
+    cs.add_argument("skip", type=int, nargs="?", default=0)
+    cs.set_defaults(func=cmd_color_search)
+
+    ocr = sub.add_parser("ocr")
+    ocr.add_argument("x", type=int)
+    ocr.add_argument("y", type=int)
+    ocr.add_argument("w", type=int)
+    ocr.add_argument("h", type=int)
+    ocr.add_argument("--custom", default="")
+    ocr.add_argument("--minh", default="")
+    ocr.add_argument("--level", type=int, default=0)
+    ocr.add_argument("--langs", default="")
+    ocr.add_argument("--correct", type=int, default=0)
+    ocr.add_argument("--debug", default="")
+    ocr.set_defaults(func=cmd_ocr)
+
+    im = sub.add_parser("image-match")
+    im.add_argument("path")
+    im.add_argument("maxtry", type=int, nargs="?", default=4)
+    im.add_argument("accept", type=float, nargs="?", default=0.8)
+    im.add_argument("scale", type=float, nargs="?", default=0.8)
+    im.set_defaults(func=cmd_image_match)
+
+    us = sub.add_parser("usleep")
     us.add_argument("ms", type=int)
     us.set_defaults(func=cmd_usleep)
 
-    r = sub.add_parser("raw", help="send raw command")
+    sub.add_parser("record-start").set_defaults(func=cmd_record_start)
+    sub.add_parser("record-stop").set_defaults(func=cmd_record_stop)
+
+    ps = sub.add_parser("play-script")
+    ps.add_argument("path")
+    ps.set_defaults(func=cmd_play_script)
+
+    sub.add_parser("stop-script").set_defaults(func=cmd_stop_script)
+
+    sh = sub.add_parser("shell")
+    sh.add_argument("command")
+    sh.set_defaults(func=cmd_shell)
+
+    r = sub.add_parser("raw")
     r.add_argument("cmd")
     r.add_argument("--no-recv", action="store_true")
     r.set_defaults(func=cmd_raw)
