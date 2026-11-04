@@ -40,13 +40,16 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         case noResults
     }
 
-    /// One Base URL of a provider that keeps several keys — its host, and the
-    /// provider itself, since one relay can answer for an OpenAI-compatible
-    /// key and an Anthropic one at the same address, and the models behind
-    /// them are not the same list.
+    /// One Base URL of a provider that keeps several keys — the canonical
+    /// address, and the provider itself, since one relay can answer for an
+    /// OpenAI-compatible key and an Anthropic one at the same address, and the
+    /// models behind them are not the same list.
     private struct Endpoint: Hashable {
         var provider: AgentProvider
-        var host: String
+        /// `AgentEndpoint.canonical`: the whole address, path included. Two
+        /// keys at `/v1` and `/v2` on one host are two groups, because the
+        /// models behind them are two lists.
+        var baseURL: String
     }
 
     private enum Section: Hashable {
@@ -150,7 +153,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         dataSource.headerTitle = { [weak self] section in
             switch section {
             case let .group(group): return group.title
-            case let .endpoint(endpoint): return self?.endpointTitle(endpoint) ?? endpoint.host
+            case let .endpoint(endpoint): return self?.endpointTitle(endpoint) ?? AgentEndpoint.title(endpoint.baseURL)
             case .status: return nil
             }
         }
@@ -214,7 +217,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             ]
             let endpointSections: [(Section, [Row])] = byEndpoint.keys.compactMap { $0 }
                 .sorted { left, right in
-                    if left.host != right.host { return left.host < right.host }
+                    if left.baseURL != right.baseURL { return left.baseURL < right.baseURL }
                     return left.provider.rawValue < right.provider.rawValue
                 }
                 .map { endpoint in
@@ -265,26 +268,31 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
 
     /// The Base URL a row belongs under: the two providers the reader adds
     /// keys to itself — an OpenAI-compatible one and an Anthropic API key —
-    /// keep one row per key under the name of the endpoint they point at.
-    /// Every other provider has a single sign-in and keeps the sections
-    /// below, and so does a key that has not saved its endpoint yet.
+    /// keep one row per key under the Base URL they point at. Every other
+    /// provider has a single sign-in and keeps the sections below, and so does
+    /// a key that has not saved its Base URL yet.
     private func endpoint(of account: AgentAccount) -> Endpoint? {
-        guard AgentProfileID.canonicalID(for: account.provider) != nil,
-              let host = account.account, !host.isEmpty
-        else { return nil }
-        return Endpoint(provider: account.provider, host: host)
+        guard AgentProfileID.canonicalID(for: account.provider) != nil else { return nil }
+        if let baseURL = account.endpoint {
+            return Endpoint(provider: account.provider, baseURL: baseURL)
+        }
+        // A key whose Base URL did not travel with it is grouped by the host
+        // it reported, as it was before the whole address was known.
+        guard let host = account.account, !host.isEmpty else { return nil }
+        return Endpoint(provider: account.provider, baseURL: host)
     }
 
-    /// What a Base URL's section is called: the host, with the provider after
-    /// it when both of them point at one host — a relay can answer for an
-    /// OpenAI-compatible key and an Anthropic one — since their keys are not
-    /// interchangeable and neither are their models.
+    /// What a Base URL's section is called: the address without its scheme,
+    /// with the provider after it when both of them point at one address — a
+    /// relay can answer for an OpenAI-compatible key and an Anthropic one —
+    /// since their keys are not interchangeable and neither are their models.
     private func endpointTitle(_ endpoint: Endpoint) -> String {
         let shared = sections.contains { entry in
             guard case let .endpoint(other) = entry.0 else { return false }
-            return other.host == endpoint.host && other.provider != endpoint.provider
+            return other.baseURL == endpoint.baseURL && other.provider != endpoint.provider
         }
-        return shared ? "\(endpoint.host) — \(endpoint.provider.displayName)" : endpoint.host
+        let title = AgentEndpoint.title(endpoint.baseURL)
+        return shared ? "\(title) — \(endpoint.provider.displayName)" : title
     }
 
     private func isStatus(_ section: Section) -> Bool {

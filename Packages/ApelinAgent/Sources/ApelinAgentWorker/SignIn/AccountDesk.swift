@@ -96,6 +96,7 @@ public actor AccountDesk {
                 if account.signedIn, let credentials = try? await store.credentials(for: id) {
                     account.name = Self.profileName(credentials)
                     account.account = Self.accountLabel(provider, credentials)
+                    account.baseURL = Self.accountEndpoint(provider, credentials)
                     account.expiresAt = Self.lapses(credentials)
                     account.models = ProviderModels.list(provider, credentials: credentials)
                     account.reasoningEfforts = ProviderModels.reasoningEfforts(provider, credentials: credentials)
@@ -198,6 +199,24 @@ public actor AccountDesk {
               let base = provider.keyFields.first(where: { $0.field == .baseURL })?.defaultValue
         else { return nil }
         return URLComponents(string: base)?.host
+    }
+
+    /// The whole Base URL the key was given, in the form its requests are
+    /// built from (`ProviderModels.normalizedBase`) — the one it was given,
+    /// else its form's default. Two keys naming one Base URL answer here with
+    /// one string, so the app groups them together; two addresses on one host
+    /// do not. No secret crosses the wire with it.
+    static func accountEndpoint(_ provider: AgentProvider, _ credentials: OAuthCredentials) -> String? {
+        let configured: String? = if case let .string(base)? = credentials.extras[AgentSignInField.baseURL.rawValue] {
+            base
+        } else {
+            nil
+        }
+        let fallback = provider.signInMethod == .apiKey
+            ? provider.keyFields.first(where: { $0.field == .baseURL })?.defaultValue
+            : nil
+        guard let raw = configured ?? fallback else { return nil }
+        return AgentEndpoint.canonical(raw)
     }
 
     /// Only a sign-in that cannot renew itself lapses for the user: a

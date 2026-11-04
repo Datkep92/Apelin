@@ -26,24 +26,47 @@ enum EnabledModels {
         key(prefix, account.provider.rawValue)
     }
 
-    /// What a preference is kept under: the endpoint for a provider the
+    /// What a preference is kept under: the whole Base URL for a provider the
     /// reader adds endpoints to — an OpenAI-compatible one, or an Anthropic
     /// API key — and the configuration itself for every other one, which
     /// keeps a single sign-in of its own.
+    ///
+    /// The Base URL, not its host: two keys on one host but at two addresses
+    /// (`/v1` and `/v2`, or an `http` and an `https` one) serve different
+    /// model lists, so they are two trees; two spellings of one address
+    /// (`…/v1/` and `…/v1`, with or without the scheme) are one.
     static func identity(for account: AgentAccount) -> String {
-        guard AgentProfileID.canonicalID(for: account.provider) != nil,
-              let host = account.account, !host.isEmpty
-        else { return account.id }
-        return "\(account.provider.rawValue).\(host)"
+        guard AgentProfileID.canonicalID(for: account.provider) != nil else { return account.id }
+        if let endpoint = account.endpoint {
+            return "\(account.provider.rawValue).\(endpoint)"
+        }
+        // A key that has not saved its Base URL yet keeps the list it had
+        // when only the host was known.
+        if let host = account.account, !host.isEmpty {
+            return hostIdentity(for: account, host: host)
+        }
+        return account.id
     }
 
-    /// The endpoint's list, else the one this configuration saved, else —
-    /// for a provider's first configuration — what a single sign-in left
-    /// under the provider's own name.
+    /// What a list was kept under before the whole Base URL travelled with an
+    /// account: the endpoint's host. Read, never written.
+    private static func hostIdentity(for account: AgentAccount, host: String) -> String {
+        "\(account.provider.rawValue).\(host)"
+    }
+
+    /// The endpoint's list, else the one an earlier version kept under the
+    /// host or under this configuration, else — for a provider's first
+    /// configuration — what a single sign-in left under the provider's own
+    /// name.
     private static func read(_ prefix: String, _ account: AgentAccount) -> [String]? {
         let defaults = UserDefaults.standard
         if let shared = defaults.stringArray(forKey: key(prefix, identity(for: account))) {
             return shared
+        }
+        if let host = account.account, !host.isEmpty,
+           let byHost = defaults.stringArray(forKey: key(prefix, hostIdentity(for: account, host: host)))
+        {
+            return byHost
         }
         if let own = defaults.stringArray(forKey: key(prefix, account.id)) {
             return own
@@ -79,9 +102,10 @@ enum EnabledModels {
             (hiddenPrefix, hidden.sorted()),
         ] {
             defaults.set(values, forKey: key(prefix, scope))
-            // The endpoint's preference is the one that counts, so a copy an
-            // earlier version kept for this key goes: a key that later loses
-            // its host must not bring it back.
+            // The endpoint's Base URL is the one that counts, so a copy an
+            // earlier version kept for this key goes. A copy kept under the
+            // host stays: another key on that host but at another address
+            // may still be reading it.
             if shared {
                 defaults.removeObject(forKey: key(prefix, account.id))
             }

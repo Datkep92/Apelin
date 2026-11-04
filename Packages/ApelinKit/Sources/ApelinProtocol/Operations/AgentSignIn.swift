@@ -87,6 +87,11 @@ public struct AgentAccount: Codable, Sendable, Equatable {
     /// What tells the account apart without a secret: an API key's
     /// endpoint host. Absent for a subscription sign-in.
     public var account: String?
+    /// The whole Base URL this key was given, canonicalised
+    /// (`AgentEndpoint.canonical`): the address its requests go to. Two keys
+    /// pointing at one Base URL share their models; two Base URLs on one host
+    /// do not. Absent for a sign-in that names none.
+    public var baseURL: String?
     /// When a sign-in that cannot renew itself lapses. Absent when it
     /// renews (a refresh token) or never lapses (an API key).
     public var expiresAt: Date?
@@ -104,7 +109,7 @@ public struct AgentAccount: Codable, Sendable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case provider, id, method, alternativeMethods, signedIn, name, account, expiresAt, models, usesAPIKey
+        case provider, id, method, alternativeMethods, signedIn, name, account, baseURL, expiresAt, models, usesAPIKey
         case reasoningEfforts, serviceTiers
     }
 
@@ -122,6 +127,7 @@ public struct AgentAccount: Codable, Sendable, Equatable {
         signedIn = try container.decode(Bool.self, forKey: .signedIn)
         name = try container.decodeIfPresent(String.self, forKey: .name)
         account = try container.decodeIfPresent(String.self, forKey: .account)
+        baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
         expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
         models = try container.decodeIfPresent([String].self, forKey: .models)
         usesAPIKey = try container.decodeIfPresent(Bool.self, forKey: .usesAPIKey)
@@ -140,6 +146,7 @@ public struct AgentAccount: Codable, Sendable, Equatable {
         signedIn: Bool,
         name: String? = nil,
         account: String? = nil,
+        baseURL: String? = nil,
         expiresAt: Date? = nil,
         models: [String]? = nil,
         usesAPIKey: Bool? = nil,
@@ -153,6 +160,7 @@ public struct AgentAccount: Codable, Sendable, Equatable {
         self.signedIn = signedIn
         self.name = name
         self.account = account
+        self.baseURL = baseURL
         self.expiresAt = expiresAt
         self.models = models
         self.usesAPIKey = usesAPIKey
@@ -162,6 +170,15 @@ public struct AgentAccount: Codable, Sendable, Equatable {
 }
 
 public extension AgentAccount {
+    /// This account's Base URL, canonicalised: what its models and its
+    /// enabled list are kept under (`EnabledModels.identity`). Nil for a
+    /// sign-in that names none, and for a listing written before the whole
+    /// Base URL travelled with the account — a reader's saved list is then
+    /// still reached through the older host name.
+    var endpoint: String? {
+        AgentEndpoint.canonical(baseURL)
+    }
+
     /// This account's added configuration, nil for the provider's first one
     /// and for every provider that keeps a single sign-in.
     var profileID: String? {
