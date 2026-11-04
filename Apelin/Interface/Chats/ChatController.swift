@@ -94,6 +94,12 @@ final class ChatController: UIViewController {
         composer.modelBar.button
     }
 
+    /// The configurations the composer may send with, as last listed: signed
+    /// in and enabled, each with the models it offers. The key row reads
+    /// them, so a switch knows the other keys of the Base URL without a
+    /// second round trip.
+    private var keyOptions: [AgentAccount] = []
+
     private var attachmentHeightLimit: CGFloat {
         (view.window?.bounds.height ?? view.bounds.height) * 0.3
     }
@@ -152,6 +158,7 @@ final class ChatController: UIViewController {
         }
         composer.modelBar.onEffortChanged = { ComposerModelPreferences.effort = $0 }
         composer.modelBar.onTierChanged = { ComposerModelPreferences.tier = $0 }
+        composer.modelBar.onKeyChanged = { [weak self] account in self?.switchKey(to: account) }
         composer.modelBar.onRetry = { [weak self] in
             guard let id = self?.chat?.id else { return }
             Task { await self?.runtime.retryFailedMessage(id) }
@@ -651,8 +658,43 @@ final class ChatController: UIViewController {
         let selection = barSelection
         shownModel = selection
         composer.modelBar.setModelName(selection?.model)
+        let keys = keyChoices(for: selection)
+        composer.modelBar.setKeys(keys.keys, selected: keys.current)
         composer.modelBar.setEfforts(selection?.supportedEfforts ?? [], selected: selection?.effort)
         composer.modelBar.setTiers(selection?.supportedTiers ?? [], selected: selection?.tier)
+    }
+
+    /// The keys that can send `selection`'s model, and the one that sends it
+    /// now: the enabled configurations on the same Base URL that offer that
+    /// model — the first step of `ModelCandidates.fallbackList`, which is the
+    /// one swap a spent allowance or a refused key needs. The key in use
+    /// leads, so the row can name it.
+    private func keyChoices(for selection: ComposerModelSelection?) -> (keys: [AgentAccount], current: AgentAccount?) {
+        guard let selection,
+              let current = keyOptions.first(where: {
+                  $0.provider == selection.provider && $0.profileID == selection.profileID
+              }),
+              let endpoint = current.endpoint
+        else { return ([], nil) }
+        let others = keyOptions.filter { account in
+            account.id != current.id && account.endpoint == endpoint
+                && (account.models ?? []).contains(selection.model)
+        }
+        return ([current] + others, current)
+    }
+
+    /// The same model, sent with another key that serves it: the
+    /// conversation, its history and its context stay where they are, and so
+    /// does the model — the one change to the send that costs the reader
+    /// nothing.
+    private func switchKey(to account: AgentAccount) {
+        guard let model = barSelection?.model else { return }
+        let selection = Self.selection(of: model, in: account)
+        if let id = chat?.id {
+            runtime.setModelSelection(selection, for: id)
+        }
+        ComposerModelSelection.current = selection
+        updateModelSelection()
     }
 
     /// The model this composer sends with: the conversation's own, which a
@@ -706,6 +748,7 @@ final class ChatController: UIViewController {
             do {
                 let accounts = try await EnabledModels.accounts(from: ApelinService.app.agentAccountList().accounts)
                 guard !Task.isCancelled, presentedViewController == nil else { return }
+                keyOptions = accounts
                 guard !accounts.isEmpty else {
                     presentPageAsFormSheet(ModelProvidersController())
                     return
@@ -742,6 +785,7 @@ extension ChatController {
                   !Task.isCancelled
             else { return }
             let accounts = EnabledModels.accounts(from: listed)
+            keyOptions = accounts
             let chatID = chat?.id
             let hasChatOverride = chatID.flatMap { runtime.modelSelection(for: $0) } != nil
             let current = (chatID.flatMap { runtime.modelSelection(for: $0) }) ?? ComposerModelSelection.current

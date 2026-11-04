@@ -7,6 +7,10 @@ import UIKit
 /// FlowDown's model control below the text band, hidden while imports are open.
 final class ComposerModelBar: ComposerSectionView {
     let button = ComposerBlockButton(text: String(localized: "Select Model"), image: UIImage(named: "ComposerModel"))
+    /// The key that sends, when more than one of them can answer with the
+    /// model shown: switching keeps the model, the conversation and its
+    /// history, which is the one change that costs the reader nothing.
+    private let keyButton = ComposerBlockButton(text: "", image: UIImage(systemName: "key"))
     private let effortButton = ComposerBlockButton(text: String(localized: "High"), image: UIImage(systemName: "brain"))
     private let tierButton = ComposerBlockButton(text: String(localized: "Standard"), image: UIImage(systemName: "bolt"))
     private let stopButton = ComposerBlockButton(
@@ -22,13 +26,20 @@ final class ComposerModelBar: ComposerSectionView {
     var onEffortChanged: ((AgentReasoningEffort) -> Void)?
     var onTierChanged: ((AgentServiceTier?) -> Void)?
     var onRetry: (() -> Void)?
+    /// The key the reader picked, which sends the model shown from now on.
+    var onKeyChanged: ((AgentAccount) -> Void)?
+    private var keyIDs: [String] = []
+    private var currentKeyID: String?
     private var cancelOutput: (() -> Void)?
 
     override func initializeViews() {
         super.initializeViews()
-        for control in [button, effortButton, tierButton, retryButton, stopButton] {
+        for control in [button, keyButton, effortButton, tierButton, retryButton, stopButton] {
             addSubview(control)
         }
+        keyButton.showsMenuAsPrimaryAction = true
+        keyButton.tintColor = .secondaryLabel
+        setControl(keyButton, visible: false)
         effortButton.showsMenuAsPrimaryAction = true
         setControl(effortButton, visible: false)
         tierButton.showsMenuAsPrimaryAction = true
@@ -52,6 +63,34 @@ final class ComposerModelBar: ComposerSectionView {
             button.accessibilityLabel = String(localized: "Select Model")
             button.accessibilityValue = name
         }
+    }
+
+    /// The keys that can send the model shown, when more than one can: the
+    /// row then offers the switch, and hides it again when a single key
+    /// answers, which says nothing the model button does not. Each key is
+    /// named the way Settings names it — a title, never a secret.
+    func setKeys(_ keys: [AgentAccount], selected: AgentAccount?) {
+        let ids = keys.map(\.id)
+        guard ids != keyIDs || selected?.id != currentKeyID else { return }
+        keyIDs = ids
+        currentKeyID = selected?.id
+        let name = selected?.title
+        updateControls { [self] in
+            setControl(keyButton, visible: keys.count > 1)
+            keyButton.setText(name ?? "")
+            keyButton.accessibilityLabel = String(localized: "API Key")
+            keyButton.accessibilityValue = name
+        }
+        keyButton.menu = keys.count > 1
+            ? UIMenu(children: keys.map { account in
+                UIAction(
+                    title: account.title,
+                    state: account.id == selected?.id ? .on : .off,
+                ) { [weak self] _ in
+                    self?.onKeyChanged?(account)
+                }
+            })
+            : nil
     }
 
     /// The import panel takes this row's place, so the row hands over to it.
@@ -149,13 +188,14 @@ final class ComposerModelBar: ComposerSectionView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let controls = [button, effortButton, tierButton, retryButton, stopButton].filter(\.isUserInteractionEnabled)
+        let controls = [button, keyButton, effortButton, tierButton, retryButton, stopButton]
+            .filter(\.isUserInteractionEnabled)
         let spacing: CGFloat = 10
         let otherWidth = controls.dropFirst().reduce(CGFloat.zero) { $0 + $1.intrinsicContentSize.width + spacing }
         let modelWidth = min(button.intrinsicContentSize.width, max(44, bounds.width - otherWidth))
         var x = max(0, (bounds.width - modelWidth - otherWidth) / 2)
-        // model, effort, speed, Retry, Stop in reading order: right to left, from the right
-        for control in [button, effortButton, tierButton, retryButton, stopButton] {
+        // model, key, effort, speed, Retry, Stop in reading order: right to left, from the right
+        for control in [button, keyButton, effortButton, tierButton, retryButton, stopButton] {
             let width = control === button ? modelWidth : control.intrinsicContentSize.width
             control.frame = directionalFrame(
                 CGRect(x: x, y: 0, width: width, height: control.intrinsicContentSize.height),
