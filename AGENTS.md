@@ -1,24 +1,32 @@
 # Apelin — Agent Notes
 
 > **Picking this up on a model or a session that did not do the work? (fork
-> `Datkep92/Apelin`.)** This file is long and its end may be cut, so the entry
-> point is here. The work in progress is already written down — read it and
-> continue, do not ask the user to explain it again:
+> `Datkep92/Apelin`.)** The work in progress is already written down — read it
+> and continue, do not ask the user to explain it again:
 >
-> 1. `CA_NHAN_HOA.md` ▸ §6.1 — every personalisation and fix, its commit and
->    what must survive the next build; §8 — the process log, and §8.1 on
->    picking up work without asking again.
-> 2. The project's `handoff` memories with status `active` — goal, constraints,
->    what is done, what comes next. An `active` handoff is continued **without
->    asking**: ask only when the next step needs a permission its constraints do
->    not give (push, install, publish), or when the notes disagree or lack
->    something essential.
-> 3. `AGENTS.md` ▸ *Fork personalisation* (the last section) — the fork's own
->    rules.
+> 1. `CA_NHAN_HOA.md` ▸ **§9 “Trạng thái hiện tại”** — the *last* section of that
+>    file. It is the one section to read on arrival: every open item with the
+>    HEAD it stands on, the next step, and what is not yet verified. Do not read
+>    the whole file to find it — `file_grep` for `^## 9\.` in
+>    `CA_NHAN_HOA.md`, then `file_read` from that line to the end.
+> 2. The project's `handoff` memories with status `active` — the same table,
+>    short. An `active` handoff is continued **without asking**: ask only when
+>    the next step needs a permission its constraints do not give (push,
+>    install, publish), or when the notes disagree or lack something essential.
+> 3. `CA_NHAN_HOA.md` ▸ §10 — memory hygiene; §6.1 only to trace one change's
+>    history; §8/§8.1 for the process log.
 >
-> At every milestone you finish: a row in §6.1 when code changed, the `handoff`
-> memory, and §8's log. A finished thing is one you **saw work**, not one that
-> compiles; write down what you could not test.
+> At every milestone: the §9 table, a row in §6.1 when code changed, the
+> `handoff` memory, then §8's log. A finished thing is one you **saw work**, not
+> one that compiles; write down what you could not test.
+>
+> **Where a rule belongs.** Rules for every project go in a `global` memory.
+> This project's own rules go in **this file** ▸ *Fork personalisation*, which is
+> loaded automatically and costs no memory space. Progress goes in **one** short
+> `handoff` memory, the detail in §9. A plan longer than the memory limit goes in
+> a `.md` file in the repo, the memory only pointing at it. A *kind* of task
+> goes in a skill. Measure the store before saving and tidy past 75 % (§10);
+> never drop the communication style, the user's own rules, or §9.
 
 An on-device IDE where an agent writes, builds and installs tweaks, for
 jailbroken iOS 16.0+ — roothide and rootless bootstraps both. **iOS only**: there is no Mac Catalyst build and no

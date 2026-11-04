@@ -207,6 +207,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 53 | 2026-11-04 | Cá nhân hoá | **AI viết được chương trình nhưng không được chạy nó bằng quyền quản trị.** `code_run` (chạy chương trình AI tự viết bằng Python/Perl/Node/shell) chỉ chạy được ở quyền thường, nên khi một bước thật sự cần uid 0 — hỏi `irisin-cli`, cài một gói phụ thuộc — AI phải **viết lại đúng đoạn đó thành văn bản shell** cho `shell_run`: một công cụ khác, một thẻ duyệt khác, và bảng interpreter của `code_run` bị bỏ qua; còn lời gọi viết thẳng `root: true` thì bị từ chối bằng câu “code_run never runs as root”. Nay `code_run` đọc `root` **y như `shell_run`**: thẻ duyệt ghi tên **đúng chương trình đó** và **đúng thư mục đó**, chế độ Confirm hỏi mỗi lần, chế độ Full chạy thẳng không thẻ, và máy chủ session lấy danh tính từ **chính lần duyệt nó đã kiểm** chứ không từ lời gọi — nên một chương trình khác, một thư mục khác, hay một thẻ đã tiêu vẫn không chạy được. Các hình dạng model hay viết cho “đồng ý” (chuỗi `"true"`, số `1`, `null`) vẫn hiểu là quyền thường, đúng như ở `shell_run`. Bảng interpreter vẫn là giới hạn cuối: tên không có trong bảng vẫn bị từ chối dù ở quyền nào. `isRootTool` thay cho phép thử chỉ riêng `shell_run`, nên một thẻ ghi `command` **không** phải là phê duyệt quyền root cho bất kỳ công cụ nào, còn thẻ root của `code_run` được đọc là yêu cầu quyền root — chính vì vậy app mới kiểm tra **chủ máy** trước khi chuyển tiếp lần duyệt. **Điều này sửa lại phần “`code_run` không bao giờ chạy root” của dòng 38** (và câu từ chối root ở dòng 44–47 nay không còn); dòng 38 giữ nguyên theo mục 6.3, thay đổi ghi ở đây. **Chưa xác nhận chạy thật:** máy không có trình biên lẫn XCTest nên toàn bộ phần Swift mới chưa từng qua compiler (CI sẽ là lần biên dịch đầu tiên) và hai bài kiểm chạy thật chỉ chạy được ở CI. | `e89ebbff` | `Apelind/Session/Agent/AgentApprovals.swift` (`isRootTool`), `Apelind/Session/Agent/AgentRunCode.swift` (bỏ chốt “interpreter khác `sh` thì không được root”; bảng interpreter là giới hạn), `Packages/ApelinAgent/.../Approval/CommandClassifier.swift` (bỏ câu từ chối `root`), `.../Approval/ApprovalPolicy.swift` (thẻ root cho cả `shell_run` và `code_run`), `.../Tools/ToolRunner+Facts.swift` (đọc `root` thành thông tin thật), `.../Tools/ToolRunner.swift` (gửi `asRoot` theo thông tin đó), `.../Tools/ToolCatalog.swift` (mô tả + schema `root`), `Tests/ApelinAgentTests/CodeRunToolTests.swift` (bài cũ “bị từ chối mọi chế độ” → nay đòi có thẻ, chạy đúng chương trình, Full không thẻ), `Tests/SessionHost/CodeRunChecks.swift` (chạy thật một `python3` bằng root khi máy có `python3` trong đường dẫn của root, thẻ root chỉ tiêu một lần, thẻ root không duyệt lần chạy quyền thường và ngược lại). |
 | 54 | 2026-11-04 | Cá nhân hoá | **AI được yêu cầu đọc một tệp thì bị chính công cụ đọc tệp từ chối.** `file_read` từ chối mọi tệp trên 512 KB (câu “là 524289 byte, quá giới hạn 524288 byte” kèm gợi ý dùng `shell_run`), nên nhật ký dài, tệp JSON lớn, tệp nguồn do máy sinh — đúng những thứ cần đọc — đều nằm ngoài tầm công cụ. Nay tệp được đọc theo **cửa sổ**: tệp vừa thì giữ nguyên như cũ, tệp lớn hơn được đọc từng 64 KB, mỗi câu trả lời hiện tối đa `maxReadBytes` byte và `limit` dòng (mặc định 2000), phần ghi chú nói **vị trí cần đọc tiếp**, và chỉ những dòng được hỏi mới được giữ nên một tệp rất lớn không tốn bộ nhớ bằng cả tệp. **Chụp màn hình quá 4 MB thì ảnh bị bỏ** (`ToolRunner.maxImageBytes`), model chỉ còn con số byte và **mù** trước chính màn hình mình vừa xin xem; nay ảnh được thu nhỏ (tối đa `FileImage.maxPixelSize` px một cạnh) rồi mã hoá lại, trường `note` của `CaptureScreenResponse` nói đã cho xem bản nào, còn ảnh dưới ngưỡng vẫn đi nguyên byte như máy chủ gửi. `FrameworkTools` cũng nói rõ đã bỏ bao nhiêu header khỏi danh sách thay vì im lặng. Toàn bộ giới hạn còn lại được khảo sát trong `Documents/Research/2026-11-04-Tool-Caps.md`: giới hạn do giao thức/nhà cung cấp (`HTTPRequest` 5 MB và 5 lần chuyển hướng, ảnh 1568 px / 3 MB), do máy (`crashRead` 256 KB, tệp đính kèm 32 MB), do chi phí của thứ đang đọc (ảnh nguồn 64 MP), **ngân sách của người gọi nhưng nói ra** (`find` 20000 mục, `grep` tệp 2 MB và trích 300 ký tự, diff 400 dòng, JavaScript 32 KB, thân skill 64/256 KB), và tham số của chính công cụ. Danh sách để xem lại sau: `grep` **im lặng bỏ qua** tệp nó không đọc nổi (quá 2 MB hoặc nhị phân), giới hạn của công cụ trình duyệt, `HTMLText` 4096 byte, `AppRelaunch` 1 MB, `SkillReader` 100 tệp; đầu ra của `shell_run`/`code_run` bị giới hạn ở máy chủ chứ không ở đây nên chưa khảo sát. **Chưa xác nhận chạy thật:** máy không có trình biên nên hai bài kiểm mới (`FileReadWindowTests`, `ScreenCaptureImageTests`) chưa từng qua compiler — CI là lần đầu. | `d5e9576d` | `Packages/ApelinAgent/Sources/ApelinAgent/Tools/ProjectFileTools.swift` (`readFile` đọc theo cửa sổ, `readWindow`, `streamedWindow`, `readAll`, `fill`), `.../Tools/ToolRunner.swift` (chụp màn hình: thu nhỏ thay vì bỏ), `.../Backend/HostDiagnosticsTypes.swift` (`CaptureScreenResponse.note`), `.../Tools/FrameworkTools.swift` (nói rõ số header đã bỏ), `Tests/ApelinAgentTests/FileReadWindowTests.swift` (mới), `.../ScreenCaptureImageTests.swift` (mới), `.../FileReadImageTests.swift`, `.../Support.swift` (`MockBackend` đặt được ảnh chụp), `Documents/Research/2026-11-04-Tool-Caps.md` (mới). |
 | 55 | 2026-11-04 | Cá nhân hoá | **Nhiều khoá API thì lẫn nhau, và khi một khoá hỏng thì không ai thay.** Bốn lỗi liên quan cùng một chuỗi: (1) hai khoá khác nhau trên *cùng một tên miền* bị coi là một cấu hình, nên danh sách model, khoá và cấu hình trộn vào nhau — nay mỗi **Base URL trọn vẹn** là một cấu hình riêng (`/v1` khác `/v2` khác `http`/`https`, hai cách viết cùng một địa chỉ vẫn là một), một địa chỉ giữ được nhiều khoá, mỗi khoá giữ giao thức, khoá và cấu hình của chính nó; (2) chọn model **không thấy khoá nào** — model do nhiều khoá phục vụ vẫn hiện **một lần**, mở ra danh sách các khoá phục vụ nó, mỗi khoá ghi **tên như trong Cài đặt** (thêm số khi hai khoá trùng tên), **địa chỉ ở dưới**, tuyệt đối **không hiện khoá bí mật**, và các khoá **không phải** dùng chung một danh sách model; (3) trong chat **không có cách đổi khoá** — hàng model nay có thêm nút **khoá**, chỉ hiện khi có **từ hai khoá trở lên** cùng Base URL và cùng phục vụ model đang dùng, đổi khoá **giữ nguyên model, hội thoại, lịch sử và ngữ cảnh**; (4) **tự chuyển khoá không bao giờ chạy** — lỗi nay được phân loại theo đúng câu nhà cung cấp trả về: *hết hạn mức* (429/quota), *khoá bị từ chối* (401/khoá sai), *máy chủ lỗi* (5xx/quá tải) và *không kết nối được* (mạng, quá hạn, kết nối đứt); ba loại đầu tự gửi lại trên khoá khác **cùng Base URL và cùng model trước tiên**, có **thời gian chờ riêng** cho khoá vừa lỗi (khoá bị từ chối chờ lâu nhất), **tối đa 3 lần**, không hỏi lại khoá đang chờ; riêng lỗi *không kết nối được* thì **không tự gửi lại** vì request đó có thể đã được trả lời — nút **Thử lại** của người dùng mới là thứ tiêu danh sách, và danh sách model khác chỉ gồm những model người dùng đã bật. **Chưa xác nhận chạy thật:** máy không có trình biên nên **toàn bộ phần Swift mới chưa từng qua compiler** (CI là lần biên dịch đầu); bài kiểm `rate-limit-retry` chạy ở máy Mac/CI, ở đây đã kiểm bằng mắt từng câu lỗi mẫu; **chưa build, chưa cài, chưa push**. | `55d22c30`, `14a85f0c`, `9bebc139` | `Apelin/Interface/Settings/Accounts/EnabledModels.swift` (`identity`/`save` theo cả Base URL), `Apelin/Interface/Settings/Accounts/ModelProvidersController.swift` (mỗi Base URL một mục, danh sách model theo địa chỉ), `Packages/ApelinKit/.../Operations/AgentEndpoint.swift` (mới: chuẩn hoá Base URL + tên rút gọn), `.../Operations/AgentSignIn.swift` (`AgentAccount.endpoint`, `profileID`), `Packages/ApelinAgentWorker/SignIn/AccountDesk.swift`, `Packages/ApelinKit/Tests/.../AgentEndpointTests.swift` (mới), `Apelin/Interface/Chats/RateLimitRetry.swift` (`ModelFailureKind`, `kind(of:)`, `automatic`, `cooldown`), `Apelin/Interface/Chats/ChatRuntime.swift` (ghi loại lỗi + thời gian chờ, chặn tự gửi khi lỗi không kết nối được, chờ đúng lượt), `Apelin/Interface/Chats/ChatStore.swift` (`ModelRetryState.kind`/`cooldowns`), `Apelin/Interface/Chats/Composer/ModelCandidates.swift` (`retryKey`, `nextCandidate`, cùng Base URL trước), `Apelin/Interface/Chats/Composer/ChatModelPicker.swift` (dòng model nhiều khoá, trang chọn khoá), `Apelin/Interface/Chats/Composer/Sections/ComposerModelBar.swift` (nút khoá), `Apelin/Interface/Chats/ChatController.swift` (`keyChoices`, `switchKey`), `Tests/RateLimitRetry/main.swift` (bài mới: phân loại, thời gian chờ, không tự gửi khi không kết nối được). |
+| 56 | 2026-11-04 | Quy trình | **Mỗi phiên mới (kể cả đổi model) phải đọc lại cả file dài mới biết đang làm gì, mà kho ghi nhớ thì gần đầy.** Nay có ba tầng rõ ràng, không cần Sếp kể lại: (1) **§9 “Trạng thái hiện tại”** ở cuối file này — bảng các việc đang dở kèm HEAD, bước kế tiếp và phần chưa kiểm chứng, luôn được cập nhật ở mỗi mốc, và đọc bằng `file_grep "^## 9\."` rồi `file_read` từ dòng đó nên **không phải đọc cả file**; (2) **§10 “Sổ dọn ghi nhớ”** — một hạn mức chung 64 bản/32 KB, cách đo bằng một lệnh `python3`, ngưỡng dọn 75 %, thứ tự dọn (handoff `done` → bản trùng → handoff cũ đã ghi vào §9 → bản dài đã có trong tài liệu/skill) và danh sách không bao giờ xoá (sở thích giao tiếp, luật chung, quy tắc lưu, §9); quy tắc **riêng của dự án** được đẩy sang `AGENTS.md` vì file đó được nạp tự động mà không tốn kho; (3) khối mở đầu `AGENTS.md` nay trỏ thẳng vào §9 thay vì bắt đọc §6.1/§8 trước. Mục đích: phiên sau đọc một mục là làm tiếp được, không hỏi lại, và kho ghi nhớ tự dọn trước khi đầy. | (commit tài liệu cùng lượt) | Giữ §9 cập nhật ở mỗi mốc (cùng lượt với dòng bảng 6.1 và ghi nhớ handoff), giữ khối mở đầu `AGENTS.md` trỏ vào §9, giữ ngưỡng 75 % và danh sách không-bao-giờ-xoá ở §10, và giữ nguyên tắc quy tắc riêng dự án nằm ở `AGENTS.md`. |
 
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
@@ -280,3 +281,74 @@ thử được thì ghi rõ là chưa thử.
 
 Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đọc bản ghi của
 đơn cần làm → làm theo `nextSteps` trong đó.
+
+---
+
+## 9. Trạng thái hiện tại — đọc mục này là đủ để làm tiếp
+
+> **Đây là mục phải đọc đầu tiên khi vào việc.** Nó nằm ở **cuối** file nên đọc
+> được mà không phải đọc cả file dài: `file_grep` với mẫu `^## 9\.` trong
+> `CA_NHAN_HOA.md` để biết số dòng, rồi `file_read` từ dòng đó tới hết file.
+> **Cập nhật mục này ở mỗi mốc**, cùng lượt với dòng ở bảng 6.1 và ghi nhớ
+> handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
+> mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
+
+**HEAD khi cập nhật mục này:** `f45cceb` (nhánh `main`, worktree sạch; đứng
+trên `origin/main` là `ee06948` nhiều commit).
+
+| # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
+|---|---|---|---|
+| 1 | **Base URL / khoá API / model / tự chuyển khoá** — 4 lỗi đã sửa (`55d22c3`, `14a85f0`, `9bebc13`), dòng 55 | build CI → cài → thử trên máy | toàn bộ hành vi trên app: chưa từng chạy |
+| 2 | **Bỏ chặn công cụ vô lý** — đọc tệp theo cửa sổ thay vì chặn 512 KB, giữ ảnh chụp quá 4 MB (`d5e9576`, `804daba`), dòng 54 | điểm 4–7 của đơn `6811e482`: tự kiểm build → cài → xác nhận → đọc log | `file_read` trên tệp lớn, ảnh chụp được thu nhỏ |
+| 3 | **IDE AI đa ngôn ngữ** — `code_run` (`1151fef`, dòng 38+53) và sao lưu/hoàn tác tệp (`438cd07`, dòng 39) | sau khi cài: thử `file_revert`, `file_backups`, `code_run` | `FileBackupTests` mới chỉ chạy ở CI |
+| 4 | **Tối ưu AI** — ảnh theo endpoint + đo cache thật (`9c55a9e`, dòng 37) | thử ảnh HEIC/quá lớn, dòng “N% cached”, đổi model giữa hội thoại có ảnh | nhóm 1–3 của đơn `4a56bc42` đã có sẵn trong repo, **không** sửa gì |
+| 5 | **Đơn `b41b438f` Task Progress Panel** | **chờ Sếp duyệt** — không tự làm | — |
+
+**Ràng buộc chung của các việc trên:** chưa push GitHub và chưa cài lên máy —
+chờ Sếp cho phép. Trước khi push phải **rebase lên `origin/main` (`ee06948`)**
+vì `main` đang đứng trên đó nhiều commit. Muốn cài đè bản `0.3.7` thì bump lên
+`0.3.8`. Không `git reset`/`git clean`/ghi đè thay đổi chưa commit.
+
+**Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1); sáu commit
+sửa lỗi biên dịch sau `69b004d` (`a140824`, `d8bfbf1`, `a0f9003`, `f45cceb` —
+browser tool, `FileReadWindowTests`, provider casing), đã lên `main`.
+
+## 10. Sổ dọn ghi nhớ — tự động, không cần Sếp nhắc
+
+Kho ghi nhớ của Apelin (`~/Documents/wiki.qaq.apelin/memories.json`) có **một
+hạn mức chung cho mọi chat và mọi dự án: 64 bản / 32 KB**. Đầy là hỏng việc
+ngày mai, nên dọn là **một phần của việc đang làm**, không phải việc riêng.
+
+**Đo trước khi lưu** (chạy được, đã dùng nhiều lần):
+
+```sh
+python3 -c "import json;d=json.load(open('/var/mobile/Documents/wiki.qaq.apelin/memories.json'));r=d['records'];print(sum(len(x['body'].encode()) for x in r),len(r))"
+```
+
+Ra `<số byte> <số bản>`. **Quá 24 KB (75 %) hoặc 48 bản thì dọn trước khi thêm.**
+
+**Thứ tự dọn** — dừng ngay khi xuống dưới 75 %:
+
+1. Handoff `done` → xoá (hồ sơ đã nằm ở bảng 6.1 và §9).
+2. Bản trùng nhau → gộp vào bản còn đúng, xoá bản kia.
+3. Handoff cũ mà §9 đã ghi đủ → xoá; nhiều đơn đang dở thì gộp thành **một**
+   handoff “Bảng việc đang dở”, mỗi đơn hai dòng như bảng ở §9.
+4. Bản dài mà phần cốt lõi đã nằm trong `AGENTS.md`, `CA_NHAN_HOA.md` hay một
+   skill → bỏ khỏi ghi nhớ, để lại một dòng trỏ tới file. Quy tắc **riêng của
+   dự án** nên nằm trong `AGENTS.md`: file này được nạp tự động mà **không tốn**
+   kho ghi nhớ.
+5. Chỉ khi đó mới rút ngắn bản dài còn lại — **bản Sếp tự viết thì hỏi Sếp
+   trước**, không tự cắt.
+
+**Không bao giờ xoá:** sở thích giao tiếp (gọi “Sếp”, tiếng Việt, ngắn, ví dụ
+đời thường), quy tắc lưu và dọn này, luật chung của Sếp, và §9 ở trên.
+
+**Chỗ lưu — chọn đúng, đừng tạo trùng:**
+
+| Nội dung | Chỗ lưu |
+|---|---|
+| Quy tắc áp cho **mọi** dự án (cách nói, cách làm việc) | ghi nhớ `scope=global` |
+| Quy tắc **riêng dự án này** | `AGENTS.md`, mục *Fork personalisation* — không tốn kho |
+| Việc đang dở tới đâu, kế tiếp là gì | **một** ghi nhớ `kind=handoff` bản ngắn; chi tiết ở §9 |
+| Kế hoạch dài hơn hạn mức ghi nhớ | file `.md` trong repo (`Documents/Plan/…`), ghi nhớ chỉ trỏ đường dẫn |
+| Cách làm một **loại** việc dùng lại ở nhiều dự án | skill (`apelin_skill_save`), không phải ghi nhớ |
