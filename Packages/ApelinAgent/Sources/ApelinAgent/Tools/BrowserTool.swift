@@ -1,5 +1,6 @@
 import ApelinCore
 import Foundation
+import KWWKAI
 
 /// Driving a browser by its screen: one call, one thing done, and a page
 /// small enough to keep in the conversation.
@@ -65,6 +66,23 @@ public enum BrowserTool {
         case key(targetID: String?, key: String)
         case scroll(targetID: String?, direction: Direction, x: Double, y: Double, distance: Double)
         case check(targetID: String?, scope: Scope, expect: String?)
+
+        public var screenControl: ScreenControlApproval {
+            switch self {
+            case let .open(url):
+                .interact(targetID: nil, action: .openURL(url))
+            case let .read(targetID, _, _, _, _), let .find(targetID, _, _), let .check(targetID, _, _):
+                .readTree(targetID: targetID)
+            case let .click(targetID, elementID):
+                .interact(targetID: targetID, action: .tapElement(id: elementID))
+            case let .type(targetID, text):
+                .interact(targetID: targetID, action: .typeText(text))
+            case let .key(targetID, key):
+                .interact(targetID: targetID, action: .pressKey(key))
+            case let .scroll(targetID, direction, x, y, distance):
+                .interact(targetID: targetID, action: BrowserTool.swipe(direction: direction, x: x, y: y, distance: distance))
+            }
+        }
     }
 
     // MARK: - What a call answers
@@ -203,7 +221,7 @@ public enum BrowserTool {
 
     // MARK: - Reading the arguments
 
-    public static func invocation(from arguments: JSONValue) throws -> Invocation {
+    public static func invocation(from arguments: KWWKAI.JSONValue) throws -> Invocation {
         let name = try arguments.requireString("action").trimmingCharacters(in: .whitespacesAndNewlines)
         guard let action = Action(rawValue: name) else {
             throw ToolArgumentError("action must be one of \(Action.allCases.map(\.rawValue).joined(separator: ", "))")
@@ -260,7 +278,7 @@ public enum BrowserTool {
         }
     }
 
-    static func scope(from arguments: JSONValue) -> Scope {
+    static func scope(from arguments: KWWKAI.JSONValue) -> Scope {
         let name = (arguments.argNonEmptyString("scope") ?? Scope.page.rawValue).lowercased()
         return Scope(rawValue: name) ?? .page
     }
@@ -274,27 +292,6 @@ public enum BrowserTool {
               let host = components.host, !host.isEmpty
         else { return false }
         return true
-    }
-
-    // MARK: - The wire and the card
-
-    /// What the call does on the screen, as the host is asked for it: the
-    /// card Ask Before Using the Screen shows names exactly this.
-    public var screenControl: ScreenControlApproval {
-        switch self {
-        case let .open(url):
-            .interact(targetID: nil, action: .openURL(url))
-        case let .read(targetID, _, _, _, _), let .find(targetID, _, _), let .check(targetID, _, _):
-            .readTree(targetID: targetID)
-        case let .click(targetID, elementID):
-            .interact(targetID: targetID, action: .tapElement(id: elementID))
-        case let .type(targetID, text):
-            .interact(targetID: targetID, action: .typeText(text))
-        case let .key(targetID, key):
-            .interact(targetID: targetID, action: .pressKey(key))
-        case let .scroll(targetID, direction, x, y, distance):
-            .interact(targetID: targetID, action: Self.swipe(direction: direction, x: x, y: y, distance: distance))
-        }
     }
 
     /// The swipe a scroll makes. Reading further down a page is the finger
@@ -329,12 +326,12 @@ public enum BrowserTool {
         let webArea = all.first { isWebArea($0.role) }
         var page = all
         var chrome: [UIElementNode] = []
-        if let webArea, let frame = frame(webArea) {
+        if let webArea, let webFrame = frame(webArea) {
             page = all.filter { node in
-                node.id != webArea.id && (frame(of: node).map { isInside($0, frame) } ?? false)
+                node.id != webArea.id && (frame(of: node).map { isInside($0, webFrame) } ?? false)
             }
             chrome = all.filter { node in
-                node.id != webArea.id && !(frame(of: node).map { isInside($0, frame) } ?? false)
+                node.id != webArea.id && !(frame(of: node).map { isInside($0, webFrame) } ?? false)
             }
         } else {
             notes.append(

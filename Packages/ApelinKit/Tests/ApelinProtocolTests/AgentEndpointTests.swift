@@ -83,7 +83,7 @@ final class AgentEndpointTests: XCTestCase {
     /// and says it has no endpoint rather than a made-up one.
     func testOlderListingsDecodeWithoutAnEndpoint() throws {
         let json = """
-        {"provider":"openai-compatible","id":"openai-compatible.1","method":"apiKey",
+        {"provider":"openAICompatible","id":"openai-compatible.1","method":"apiKey",
          "signedIn":true,"account":"relay.example.com"}
         """
         let account = try JSONDecoder().decode(AgentAccount.self, from: Data(json.utf8))

@@ -1,5 +1,6 @@
 @testable import ApelinAgent
 import ApelinCore
+import KWWKAI
 import Testing
 
 /// `apelin_browser`: what a call is allowed to say, what a page answers, and
@@ -7,7 +8,7 @@ import Testing
 /// the device already sent, so no browser is opened here.
 @Suite("Driving a browser as a page")
 struct BrowserToolTests {
-    private func invocation(_ fields: [String: JSONValue]) throws -> BrowserTool.Invocation {
+    private func invocation(_ fields: [String: KWWKAI.JSONValue]) throws -> BrowserTool.Invocation {
         try BrowserTool.invocation(from: .object(fields))
     }
 
