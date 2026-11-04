@@ -49,6 +49,16 @@ struct ModelRetryState: Codable, Sendable, Equatable {
     /// Set while the run the error came from is still going: the next model
     /// is sent when it ends. Absent from older files.
     var awaitingTurn: Bool?
+    /// What the failure was, as far as its wording says
+    /// (`ModelRetrySignal.kind(of:)`): it decides whether an automatic retry
+    /// runs at all and how long the candidate that failed is left alone.
+    /// Absent from older files, and from a state whose failure named nothing.
+    var kind: ModelFailureKind?
+    /// The candidates that failed, each until the moment it may be tried
+    /// again, by `ComposerModelSelection.retryKey` (`ModelCandidates`). An
+    /// automatic retry steps over one still waiting; the reader's own Retry
+    /// takes it anyway, since they asked.
+    var cooldowns: [String: Date]?
 }
 
 /// The replay a reopened session's task starts with: every event of the

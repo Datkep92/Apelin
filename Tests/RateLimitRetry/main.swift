@@ -125,4 +125,79 @@ require(
     "A spent budget stops the retry whether a run goes or not",
 )
 
+// MARK: - What kind of failure it is
+
+/// Whether one wording names `expected`, as `ModelRetrySignal.kind(of:)` reads
+/// it. The comparison carries the kind as a value, so a wording that names
+/// nothing at all fails it rather than being compared away.
+func kindIs(_ message: String, _ expected: ModelFailureKind) -> Bool {
+    ModelRetrySignal.kind(of: message) == expected
+}
+
+/// A spent allowance, a refused key, a provider that failed on its side, and
+/// a request that never arrived: what another candidate can answer, out of
+/// the wording alone (`AgentWorker` sends the message and nothing else).
+require(kindIs("429 Too Many Requests", .spentAllowance), "The status is a spent allowance")
+require(
+    kindIs("Rate limit / quota reached for this model", .spentAllowance),
+    "The host's own sentence is a spent allowance",
+)
+require(kindIs("Incorrect API key provided: sk-abc", .refusedKey), "OpenAI's wording is a refused key")
+require(kindIs("401 Unauthorized", .refusedKey), "The status is a refused key")
+require(kindIs("502 Bad Gateway", .serverError), "A bad gateway is the provider's side")
+require(kindIs("The engine is currently overloaded", .serverError), "An overloaded engine is too")
+require(kindIs("Connection reset by peer", .unreachable), "A dropped connection never arrived")
+require(kindIs("The request timed out", .unreachable), "So did a request that timed out")
+
+/// A failure no other candidate answers is none of the four: the conversation
+/// keeps it, and the reader decides.
+require(ModelRetrySignal.kind(of: "") == nil, "Nothing said is no kind")
+require(ModelRetrySignal.kind(of: "The context is too long for this model") == nil, "An over-long context is no kind")
+require(ModelRetrySignal.kind(of: "model_not_found: gpt-9") == nil, "A model that does not exist is no kind")
+require(!ModelRetrySignal.matches("The context is too long for this model"), "And it is not retried")
+
+// MARK: - What the kind leaves to do
+
+require(ModelRetryPolicy.automatic(.spentAllowance), "A spent allowance is worth another key")
+require(ModelRetryPolicy.automatic(.refusedKey), "So is a refused key")
+require(ModelRetryPolicy.automatic(.serverError), "And a provider that failed")
+require(
+    !ModelRetryPolicy.automatic(.unreachable),
+    "A request that never arrived may have been served: nothing is sent again on its own",
+)
+require(ModelRetryPolicy.cooldown(for: .unreachable) == nil, "And the candidate that failed waits not at all")
+
+/// The refused key waits longest — only a new key answers it — then the spent
+/// allowance, which comes back, then the provider that failed.
+let refused = ModelRetryPolicy.cooldown(for: .refusedKey) ?? 0
+let spent = ModelRetryPolicy.cooldown(for: .spentAllowance) ?? 0
+let failed = ModelRetryPolicy.cooldown(for: .serverError) ?? 0
+require(refused > spent, "A refused key waits longer than a spent allowance")
+require(spent > failed, "A spent allowance waits longer than a provider that failed")
+require(failed > 0, "A provider that failed is still left alone for a moment")
+
+// MARK: - A failure the list cannot answer
+
+require(
+    ModelRetryPolicy.step(
+        attempts: 0,
+        candidatesLeft: 3,
+        hasMessage: true,
+        isWorking: false,
+        automatic: false,
+    ) == .leaveIt,
+    "A failure no candidate answers sends nothing on its own",
+)
+require(
+    ModelRetryPolicy.step(
+        attempts: 0,
+        candidatesLeft: 3,
+        hasMessage: true,
+        isWorking: false,
+        readerAsked: true,
+        automatic: false,
+    ) == .send,
+    "The reader's own Retry sends it anyway: they asked, and a model is there",
+)
+
 print("ok: what the retry answers (a spent allowance, a refused key, every other failure, the tries left, the run still going, the reader's own Retry)")

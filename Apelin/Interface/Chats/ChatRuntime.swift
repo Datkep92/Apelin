@@ -628,8 +628,11 @@ final class ChatRuntime {
                     records[id]?.summary.isWorking = isWorking
                     // A failure that answered while its run still went sends
                     // the next model once that run ends: a session takes a
-                    // model between runs, not inside one.
-                    if wasWorking == true, !isWorking,
+                    // model between runs, not inside one. Not only the batch
+                    // that ends the run: the answer may have been read while
+                    // the failed message was still listed as sending, and then
+                    // the end of the turn is read in the batch after it.
+                    if !isWorking,
                        records[id]?.retryState?.awaitingTurn == true,
                        (records[id]?.sending ?? []).isEmpty
                     {
@@ -732,6 +735,19 @@ final class ChatRuntime {
                 text: "",
             )
         }
+        // What the failure was, from its own wording: it decides whether the
+        // automatic retry runs and how long the candidate that failed waits.
+        let kind = failureKind(in: id)
+        if let kind {
+            state.kind = kind
+            if let wait = ModelRetryPolicy.cooldown(for: kind),
+               let failed = (records[id]?.modelSelection ?? ComposerModelSelection.current)?.retryKey
+            {
+                var cooldowns = state.cooldowns ?? [:]
+                cooldowns[failed] = Date().addingTimeInterval(wait)
+                state.cooldowns = cooldowns
+            }
+        }
         // The message the error answered, which a newer one the reader sent
         // meanwhile takes over: the retry sends what failed.
         let draft = retryDraft(in: id, fallbackText: state.text)
@@ -747,6 +763,11 @@ final class ChatRuntime {
         }
         records[id]?.retryState = state
         changed(id)
+        // A failure no candidate answers the same request for — one that never
+        // arrived, which may still have been served — leaves the candidates to
+        // the reader's own Retry: the model bar keeps the button, and nothing
+        // is sent again on its own.
+        guard kind.map(ModelRetryPolicy.automatic) ?? true else { return }
         await sendNextModel(in: id, readerAsked: false)
     }
 
@@ -763,7 +784,8 @@ final class ChatRuntime {
     }
 
     private func sendNextModel(in id: UUID, readerAsked: Bool) async {
-        guard var state = records[id]?.retryState, let next = state.remaining.first else { return }
+        guard var state = records[id]?.retryState,
+              let next = state.nextCandidate(readerAsked: readerAsked) else { return }
         // One retry at a time: the same message sent twice would run twice,
         // and a send under way is a prompt the host already has.
         guard (records[id]?.sending ?? []).isEmpty else { return }
@@ -774,6 +796,7 @@ final class ChatRuntime {
             hasMessage: Self.hasContent(draft),
             isWorking: records[id]?.summary.isWorking ?? false,
             readerAsked: readerAsked,
+            automatic: state.kind.map(ModelRetryPolicy.automatic) ?? true,
         )
         // The model that answered with nothing left spent carries the wait
         // the run it belongs to imposes: `follow` sends the next one when
@@ -784,7 +807,9 @@ final class ChatRuntime {
             changed(id)
         }
         guard step == .send else { return }
-        state.remaining.removeFirst()
+        if let index = state.remaining.firstIndex(of: next) {
+            state.remaining.remove(at: index)
+        }
         state.attempts += 1
         state.awaitingTurn = nil
         let previous = records[id]?.modelSelection
@@ -872,6 +897,20 @@ final class ChatRuntime {
     /// both through.
     private static func isRetryableFailure(_ event: TaskEvent) -> Bool {
         event.kind == "error" && ModelRetrySignal.matches(event.payload?["message"]?.stringValue ?? "")
+    }
+
+    /// What the last such failure was, from its own wording: the kind a
+    /// cooldown and the automatic-retry gate are decided by. nil when nothing
+    /// in the conversation names one — a state read from disk that is being
+    /// answered after a relaunch, whose error event the replay has not
+    /// reached yet — and then the retry behaves as it did before kinds were
+    /// kept.
+    private func failureKind(in id: UUID) -> ModelFailureKind? {
+        records[id]?.events
+            .last(where: Self.isRetryableFailure)?
+            .payload?["message"]?
+            .stringValue
+            .flatMap(ModelRetrySignal.kind(of:))
     }
 
     /// `urgent`: written at once rather than after the interval; see `persist`.
