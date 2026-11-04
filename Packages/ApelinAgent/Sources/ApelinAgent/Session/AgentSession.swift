@@ -210,6 +210,7 @@ public actor AgentSession {
         self.agent = agent
         self.gate = gate
         self.runner = runner
+        self.plan = plan
         self.mcpManager = mcpManager
         self.mcpTools = mcpTools
         self.toolExtensions = toolExtensions
