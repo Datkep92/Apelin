@@ -328,10 +328,10 @@ public enum BrowserTool {
         var chrome: [UIElementNode] = []
         if let webArea, let webFrame = frame(webArea) {
             page = all.filter { node in
-                node.id != webArea.id && (frame(of: node).map { isInside($0, webFrame) } ?? false)
+                node.id != webArea.id && (frame(node).map { isInside($0, webFrame) } ?? false)
             }
             chrome = all.filter { node in
-                node.id != webArea.id && !(frame(of: node).map { isInside($0, webFrame) } ?? false)
+                node.id != webArea.id && !(frame(node).map { isInside($0, webFrame) } ?? false)
             }
         } else {
             notes.append(
