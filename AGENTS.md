@@ -15,6 +15,11 @@
 >    install, publish), or when the notes disagree or lack something essential.
 > 3. `CA_NHAN_HOA.md` ▸ §10 — memory hygiene; §6.1 only to trace one change's
 >    history; §8/§8.1 for the process log.
+> 4. **The user's own working rules** — `Documents/Personal/Operating-Specification.md`
+>    (his own words, kept verbatim; that folder is git-ignored on purpose). Read the
+>    file before starting work and treat it as a standing instruction from him. The
+>    short, self-loading form of those rules lives further down in *Luật làm việc
+>    của Sếp*, each rule naming the section of the file it was folded from.
 >
 > At every milestone: the §9 table, a row in §6.1 when code changed, the
 > `handoff` memory, then §8's log. A finished thing is one you **saw work**, not

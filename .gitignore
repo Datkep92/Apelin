@@ -14,3 +14,5 @@ Packages/*/.build/
 Extensions/**/.build/
 # The banner tool's pnpm dependencies
 Documents/Banner/Tool/node_modules/
+# Tài liệu cá nhân của Sếp: giữ trong dự án để AI đọc, không đưa lên GitHub
+Documents/Personal/
