@@ -654,7 +654,7 @@ final class ChatRuntime {
                     if fresh.contains(where: ChatPlan.isPlanEvent) {
                         // the last `plan` event with a payload stands, and a
                         // later one without (`planCleared`) takes the bar away
-                        plans[id] = ChatPlan.in(records[id]?.events ?? [])
+                        plans[id] = ChatPlan.latest(in: records[id]?.events ?? [])
                     }
                     let wasWorking = records[id]?.summary.isWorking
                     let current = transcript(id)

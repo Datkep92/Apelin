@@ -9,7 +9,7 @@ enum ChatPlan {
     /// The plan the events end on. The last `plan` event with a payload is
     /// it; a later one without (`planCleared`) means the conversation has
     /// none; nil means it never had one.
-    static func in(_ events: [TaskEvent]) -> AgentPlan? {
+    static func latest(in events: [TaskEvent]) -> AgentPlan? {
         for event in events.reversed() where isPlanEvent(event) {
             return (try? event.payload?.decode(AgentPlan.self)) ?? nil
         }

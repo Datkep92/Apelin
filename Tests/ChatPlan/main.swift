@@ -44,18 +44,18 @@ let reading = AgentPlan(steps: [
 
 // The plan the events end on: the last one written, gone after a cleared
 // one, and none at all for a conversation that never had one.
-precondition(ChatPlan.in([]) == nil, "a conversation that never had a plan has none")
-precondition(ChatPlan.in([otherEvent(1, "message")]) == nil)
-precondition(ChatPlan.in([planEvent(2, reading)]) == reading)
+precondition(ChatPlan.latest(in: []) == nil, "a conversation that never had a plan has none")
+precondition(ChatPlan.latest(in: [otherEvent(1, "message")]) == nil)
+precondition(ChatPlan.latest(in: [planEvent(2, reading)]) == reading)
 precondition(
-    ChatPlan.in([planEvent(2, reading), otherEvent(3, "message")]) == reading,
+    ChatPlan.latest(in: [planEvent(2, reading), otherEvent(3, "message")]) == reading,
     "an event that is not a plan leaves the plan standing",
 )
-precondition(ChatPlan.in([planEvent(2, reading), clearedEvent(3)]) == nil, "a cleared plan is gone")
+precondition(ChatPlan.latest(in: [planEvent(2, reading), clearedEvent(3)]) == nil, "a cleared plan is gone")
 let older = AgentPlan(steps: [AgentPlanStep(id: "one", title: "Read it")], revision: 2)
-precondition(ChatPlan.in([planEvent(1, reading), planEvent(2, older)]) == older, "the last plan written is the one")
+precondition(ChatPlan.latest(in: [planEvent(1, reading), planEvent(2, older)]) == older, "the last plan written is the one")
 precondition(
-    ChatPlan.in([clearedEvent(1), planEvent(2, reading)]) == reading,
+    ChatPlan.latest(in: [clearedEvent(1), planEvent(2, reading)]) == reading,
     "a new plan written after a cleared one is read",
 )
 precondition(ChatPlan.isPlanEvent(planEvent(1, reading)))
