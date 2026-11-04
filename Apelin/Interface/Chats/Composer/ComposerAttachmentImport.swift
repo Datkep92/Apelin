@@ -136,7 +136,46 @@ final class ComposerAttachmentImport: NSObject, UIImagePickerControllerDelegate,
 
     /// `url` as an attachment named `name`: a regular file of at most 32 MB,
     /// read by its canonical path, an image or else text (a PDF's own).
+    ///
+    /// A plain on-device file keeps the fast path: realpath, then read. That
+    /// cannot see the URLs the document picker answers for **Recents** and
+    /// **iCloud Drive** — a file reference (`/.file/id=…`) that realpath
+    /// fails on, or an iCloud item that exists but is not on the device yet
+    /// (dataless). Those fall to `NSFileCoordinator`, which resolves the
+    /// reference to the real path and downloads the item before it is read.
     nonisolated static func readAttachment(at url: URL, name: String) throws -> ComposerAttachment {
+        if let path = CanonicalPath.resolve(url.path) {
+            let source = URL(fileURLWithPath: path)
+            let values = try? source.resourceValues(
+                forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
+            )
+            let notDownloaded = values?.isUbiquitousItem == true && values?.ubiquitousItemDownloadingStatus != .current
+            if !notDownloaded {
+                return try readFile(at: source, name: name)
+            }
+        }
+        var outcome: Result<ComposerAttachment, Error>?
+        var coordinateError: NSError?
+        let coordinator = NSFileCoordinator()
+        coordinator.coordinate(readingItemAt: url, options: [], error: &coordinateError) { resolved in
+            do {
+                outcome = .success(try readFile(at: resolved, name: name))
+            } catch {
+                outcome = .failure(error)
+            }
+        }
+        if let error = coordinateError {
+            throw error
+        }
+        if let outcome {
+            return try outcome.get()
+        }
+        throw ApelinError(.badRequest, String(localized: "The selected file could not be read."))
+    }
+
+    /// The read itself, on a URL already resolved: a regular file of at most
+    /// 32 MB, read by its canonical path, an image or else text (a PDF's own).
+    nonisolated static func readFile(at url: URL, name: String) throws -> ComposerAttachment {
         guard let path = CanonicalPath.resolve(url.path) else {
             throw ApelinError(.badRequest, String(localized: "The selected file could not be read."))
         }
