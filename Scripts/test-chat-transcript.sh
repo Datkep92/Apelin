@@ -30,6 +30,7 @@ sources=(
     "$root/Apelin/Interface/Chats/ChatTranscriptCache.swift"
     "$root/Apelin/Interface/Chats/ScreenActionLog.swift"
     "$root/Apelin/Interface/Chats/ChatStore.swift"
+    "$root/Apelin/Interface/Chats/RateLimitRetry.swift"
     "$root/Apelin/Interface/Chats/ChatAdoption.swift"
     "$root/Apelin/Interface/Chats/DroppedMessages.swift"
     "$root/Apelin/Interface/Chats/DeletedProjects.swift"
