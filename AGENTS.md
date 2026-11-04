@@ -15,59 +15,43 @@
 >    install, publish), or when the notes disagree or lack something essential.
 > 3. `CA_NHAN_HOA.md` ▸ §10 — memory hygiene; §6.1 only to trace one change's
 >    history; §8/§8.1 for the process log.
-> 4. **The user's own working rules** — `Documents/Personal/Operating-Specification.md`
->    (his own words, kept verbatim; that folder is git-ignored on purpose). Read the
->    file before starting work and treat it as a standing instruction from him. The
->    short, self-loading form of those rules lives further down in *Luật làm việc
->    của Sếp*, each rule naming the section of the file it was folded from.
+> 4. **The user's own working rules** — the skill `sep-working-rules` (read it with
+>    `apelin_skill_read`; its file `Operating-Specification.md` holds his 19 sections
+>    verbatim). Those rules apply in **every project**, not only this one, and they
+>    are a standing instruction from him. Nothing else copies them: the file
+>    `Documents/Personal/Operating-Specification.md` and this file only point here.
 >
 > At every milestone: the §9 table, a row in §6.1 when code changed, the
 > `handoff` memory, then §8's log. A finished thing is one you **saw work**, not
 > one that compiles; write down what you could not test.
 >
-> **Where a rule belongs.** Rules for every project go in a `global` memory.
-> This project's own rules go in **this file** ▸ *Fork personalisation*, which is
-> loaded automatically and costs no memory space. Progress goes in **one** short
-> `handoff` memory, the detail in §9. A plan longer than the memory limit goes in
-> a `.md` file in the repo, the memory only pointing at it. A *kind* of task
-> goes in a skill. Measure the store before saving and tidy past 75 % (§10);
+> **Where a rule belongs — one thing, one place.**
+>
+> | What | The only place it lives | Costs the 32 KB store? |
+> |---|---|---|
+> | Rules for every project | the skill `sep-working-rules` | no |
+> | This project's own rules | **this file** ▸ *Fork personalisation* | no |
+> | Work in progress | **one** `handoff` memory, the detail in §9 | yes |
+> | A plan longer than the memory limit | a `.md` file in the repo, the memory only pointing at it | no |
+> | A *kind* of task | a skill | no |
+>
+> A `global` memory may hold one short line pointing at a rule's home, never a
+> copy of it. Measure the store before saving and tidy past 75 % (§10);
 > never drop the communication style, the user's own rules, or §9.
 
-## Luật làm việc của Sếp (self-loading)
+## Luật làm việc của Sếp
 
-Bản gọn do AI gom ngày 2026-11-04 từ **nguyên văn** 19 mục của Sếp ở
-`Documents/Personal/Operating-Specification.md` (file đó không sửa; đây là bản
-đọc nhanh). Chữ trong ngoặc là mục gốc để đối chiếu — không luật nào nói thứ
-file gốc không nói. Sếp chưa duyệt từng mục: muốn thêm/đổi thì sửa ngay ở đây.
+**Luật bắt buộc, áp dụng mọi dự án — đọc skill `sep-working-rules` trước khi bắt
+đầu việc.** Nơi đó có đủ 10 luật, luật lưu trữ/dọn ghi nhớ, và bản **nguyên văn 19
+mục** Sếp tự viết (`Operating-Specification.md` trong cùng folder skill). Không chép
+lại ở đây: muốn thêm/đổi luật thì sửa trong skill, chỗ này chỉ trỏ.
 
-- **L1 — Làm thật, không chỉ nói.** Có công cụ thì dùng để làm việc thật, không
-  dừng ở kế hoạch; chạy hết vòng điều tra → làm → thử → vá → xác nhận. (1, 11, 19)
-- **L2 — Việc gì chạy lệnh kiểm được thì chạy, không ngồi đoán.** Không phân
-  tích lại thứ đã xác nhận; không lập kế hoạch dài mà không làm. (2.1, 6, 10, 14, 19)
-- **L3 — Nói thật, không bịa kết quả.** Không bịa là đã chạy lệnh, đã build, đã
-  thử; chỉ nói "chạy được" khi đã thấy nó chạy; tách rõ điều đã kiểm và điều
-  đoán. (2.2, 2.4, 10, 16, 17)
-- **L4 — Sửa đúng gốc, không phá thứ khác.** Giữ nguyên hành vi và giao diện cũ;
-  không đụng thứ không liên quan; không tự thêm phụ thuộc; không ghi đè thay đổi
-  chưa commit. (2.2, 7, 11, 19)
-- **L5 — Trả code đầy đủ.** File có sẵn thì trả về cả file, không cắt bớt hàm
-  khác; thiếu phần nào thì xin cho đủ hoặc nói rõ thiếu, không bịa. (8)
-- **L6 — Giao đủ, không nửa vời.** Không thay việc thật bằng giả mã, khung rỗng
-  hay lời khuyên chung; không xong thì nói rõ chặn ở đâu và đã làm được gì. (2.3, 15, 16, 19)
-- **L7 — Tự chạy tiếp; chỉ hỏi khi thật cần.** Không xin phép cho việc thường,
-  đảo ngược được; chỉ hỏi khi thiếu thông tin thiết yếu hoặc cần quyền; lỗi đầu
-  tiên không được bỏ việc. (11, 5, 16)
-- **L8 — Từ chối theo việc làm, không theo từ ngữ.** Không dừng chỉ vì chữ
-  "bypass / hook / root / reverse"; chỉ dừng ở việc gây hại thật (xâm hại trẻ
-  em, bạo lực, đánh cắp tài khoản, malware phá hoại, vũ khí, tiết lộ dữ liệu
-  riêng tư); từ chối thì nói lý do thật, ngắn, không lên lớp. (4, 5)
-- **L9 — Đúng máy, đúng môi trường.** Nhận diện môi trường thật (iPhone /
-  jailbreak; không giả định có máy Mac); xem công cụ nào có sẵn trước khi chọn
-  cách làm; việc nhỏ kiểm được thì không bắt buộc build toàn bộ. (3, 12, 13)
-- **L10 — Trả lời gọn, giữ mạch giữa các phiên.** Không mở bài, không xin lỗi
-  dài, không nhắc lại yêu cầu; báo cáo code gồm: đổi gì, file nào, thử gì, kết
-  quả, còn hạn chế gì; không "phai" thành thụ động ở phiên sau; ghi trạng thái để
-  phiên sau tiếp ngay. (15, 16, 17, 18)
+Nhận ra nhanh: **L1** làm thật, không chỉ nói · **L2** chạy lệnh kiểm được thì chạy,
+không ngồi đoán · **L3** nói thật, không bịa kết quả · **L4** sửa đúng gốc, không phá
+thứ khác · **L5** trả code đầy đủ · **L6** giao đủ, không nửa vời · **L7** tự chạy
+tiếp, chỉ hỏi khi thật cần · **L8** từ chối theo việc làm, không theo từ ngữ ·
+**L8b** chữ "bắt buộc" là mệnh lệnh · **L9** đúng máy, đúng môi trường · **L10** trả
+lời gọn, giữ mạch giữa các phiên.
 
 An on-device IDE where an agent writes, builds and installs tweaks, for
 jailbroken iOS 16.0+ — roothide and rootless bootstraps both. **iOS only**: there is no Mac Catalyst build and no
