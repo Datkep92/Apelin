@@ -20,12 +20,12 @@ struct BrowserToolTests {
         #expect(throws: ToolArgumentError.self) { try invocation(["action": .string("click")]) }
         #expect(throws: ToolArgumentError.self) { try invocation(["action": .string("type")]) }
         #expect(throws: ToolArgumentError.self) { try invocation(["action": .string("key"), "key": .string("  ")]) }
-        #expect(throws: ToolArgumentError.self) { try invocation(["action": .string("scroll"), "x": .number(10)]) }
+        #expect(throws: ToolArgumentError.self) { try invocation(["action": .string("scroll"), "x": .int(10)]) }
         #expect(throws: ToolArgumentError.self) {
             try invocation(["action": .string("open"), "url": .string("javascript:alert(1)")])
         }
         #expect(throws: ToolArgumentError.self) {
-            try invocation(["action": .string("scroll"), "direction": .string("sideways"), "x": .number(1), "y": .number(2)])
+            try invocation(["action": .string("scroll"), "direction": .string("sideways"), "x": .int(1), "y": .int(2)])
         }
     }
 
@@ -70,9 +70,9 @@ struct BrowserToolTests {
     func `a scroll keeps its point and bounds only its travel`() throws {
         guard case let .scroll(targetID, direction, x, y, distance) = try invocation([
             "action": .string("scroll"),
-            "x": .number(180),
-            "y": .number(420),
-            "distance": .number(9000),
+            "x": .int(180),
+            "y": .int(420),
+            "distance": .int(9000),
         ]) else {
             Issue.record("a scroll was not read as one")
             return
@@ -86,7 +86,7 @@ struct BrowserToolTests {
         guard case let .read(_, _, _, controlsOnly, maximumControls) = try invocation([
             "action": .string("read"),
             "clickable_only": .bool(true),
-            "max_elements": .number(0),
+            "max_elements": .int(0),
         ]) else {
             Issue.record("a read was not read as one")
             return

@@ -261,5 +261,22 @@ file đó.
 **Cách lưu:** `apelin_memory_list` lấy revision trước → `apelin_memory_save`;
 ưu tiên **sửa bản ghi đã có** thay vì tạo bản mới trùng.
 
-**Ba chỗ cần đọc khi tiếp nhận một việc:** `AGENTS.md` (mục này) → mục 6 của
-`CA_NHAN_HOA.md` → các ghi nhớ handoff đang `active`.
+**Ba chỗ cần đọc khi tiếp nhận một việc:** khối mở đầu `AGENTS.md` → mục 6.1 và
+mục 8 của `CA_NHAN_HOA.md` → các ghi nhớ handoff đang `active`.
+
+### 8.1 Tiếp nhận việc đang dở — làm tiếp luôn, không hỏi lại
+
+Ghi nhớ handoff đang `active` đã ghi mục tiêu, ràng buộc, việc đã xong và việc
+kế tiếp thì **phiên sau (kể cả model khác) làm tiếp ngay**: không bắt người dùng
+kể lại, không hỏi lại điều đã ghi trong handoff hay trong mục 6.1.
+
+Chỉ hỏi người dùng khi: bước kế tiếp cần một quyền mà **ràng buộc trong handoff
+chưa cho** (push lên GitHub, cài lên máy, phát hành gói); hoặc tài liệu mâu thuẫn
+nhau, thiếu hẳn thông tin, hay việc đã đổi hướng so với ghi chép.
+
+Một việc chỉ được coi là **xong** khi có bằng chứng đã chạy thật (log build, kết
+quả kiểm thử, lần đọc màn hình) — không phải khi code đã viết xong. Phần chưa
+thử được thì ghi rõ là chưa thử.
+
+Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đọc bản ghi của
+đơn cần làm → làm theo `nextSteps` trong đó.

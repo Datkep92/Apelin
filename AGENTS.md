@@ -1,5 +1,25 @@
 # Apelin — Agent Notes
 
+> **Picking this up on a model or a session that did not do the work? (fork
+> `Datkep92/Apelin`.)** This file is long and its end may be cut, so the entry
+> point is here. The work in progress is already written down — read it and
+> continue, do not ask the user to explain it again:
+>
+> 1. `CA_NHAN_HOA.md` ▸ §6.1 — every personalisation and fix, its commit and
+>    what must survive the next build; §8 — the process log, and §8.1 on
+>    picking up work without asking again.
+> 2. The project's `handoff` memories with status `active` — goal, constraints,
+>    what is done, what comes next. An `active` handoff is continued **without
+>    asking**: ask only when the next step needs a permission its constraints do
+>    not give (push, install, publish), or when the notes disagree or lack
+>    something essential.
+> 3. `AGENTS.md` ▸ *Fork personalisation* (the last section) — the fork's own
+>    rules.
+>
+> At every milestone you finish: a row in §6.1 when code changed, the `handoff`
+> memory, and §8's log. A finished thing is one you **saw work**, not one that
+> compiles; write down what you could not test.
+
 An on-device IDE where an agent writes, builds and installs tweaks, for
 jailbroken iOS 16.0+ — roothide and rootless bootstraps both. **iOS only**: there is no Mac Catalyst build and no
 macOS product. The app runs as `mobile`; with the privileged backend, the
