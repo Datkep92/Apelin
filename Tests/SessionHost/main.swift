@@ -547,6 +547,9 @@ do {
     for operation: AppOperation in [.toolchainStatus, .toolchainCatalog, .toolchainSetup, .toolchainSelfTest, .sdkList, .sdkImport, .environmentAttach] {
         check(CallerPolicy.allows(.worker(.agent, instance: "s"), operation), "the agent reaches the device's toolchains and SDKs (\(operation.rawValue))")
     }
+    // The plan bar is the user's: a session's agent writes its plan through
+    // the plan_update tool, and never pauses, resumes, cancels or clears it.
+    check(!CallerPolicy.allows(.worker(.agent, instance: "s"), .agentPlan), "the agent may not call agentPlan")
     let agentEnvironmentOperations = CallerPolicy.agentOperations.filter {
         $0.domain == .toolchain || $0.domain == .sdk || $0.domain == .environment
     }

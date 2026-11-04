@@ -23,6 +23,13 @@
     {"op": "agentCompact", "label": "compact", "allowError": true,
      "request": {"sessionID": "${agent.response.sessionID}"}},
 
+    {"op": "agentPlan", "label": "plan-read",
+     "request": {"sessionID": "${agent.response.sessionID}"}},
+    {"op": "agentPlan", "label": "plan-pause",
+     "request": {"sessionID": "${agent.response.sessionID}", "action": "pause"}},
+    {"op": "agentPlan", "label": "plan-resume",
+     "request": {"sessionID": "${agent.response.sessionID}", "action": "resume"}},
+
     {"op": "agentApprove", "label": "unknown-approval", "allowError": true,
      "request": {"sessionID": "${agent.response.sessionID}", "approvalID": "no-such-approval", "decision": "deny"}},
     {"op": "expect", "request": {"step": "unknown-approval", "ok": false}},
