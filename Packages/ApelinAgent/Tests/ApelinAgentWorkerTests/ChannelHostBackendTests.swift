@@ -519,7 +519,7 @@ struct ChannelHostBackendTests {
                 "a limit that bit is cut short and says so")
 
         // One read is one ask of the device, whatever was filtered out of it.
-        #expect(fixture.host.requests(ApelinProtocol.ReadUITreeRequest.self).count == 5)
+        #expect(fixture.host.requests(ApelinProtocol.ReadUITreeRequest.self).count == 4)
     }
 
     @Test

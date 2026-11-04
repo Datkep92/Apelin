@@ -61,7 +61,7 @@ struct UITreeFilterTests {
     @Test
     func `a text match keeps only the elements that hold it, and counts what it left`() {
         let tree = Self.tree([
-            Self.element(label: "Café"),
+            Self.element(label: "Café", role: "staticText"),
             Self.element(label: "Wi-Fi", value: "On"),
             Self.element(label: "General", identifier: "com.apple.general", role: "cell"),
         ])

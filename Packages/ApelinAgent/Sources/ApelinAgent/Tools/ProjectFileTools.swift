@@ -199,7 +199,7 @@ struct ProjectFileTools: Sendable {
             throw ToolArgumentError("\(refusal.message); \(Self.unreadableHint)")
         }
         guard !window.lines.isEmpty else {
-            guard window.bytesCut else { return "\(path) has \(window.total ?? 0) lines)" }
+            guard window.bytesCut else { return "(\(path) has \(window.total ?? 0) lines)" }
             return "... one line of it is larger than the \(Self.maxReadBytes) bytes one reply shows; "
                 + "grep it for what matters, or read it through shell_run\n"
         }

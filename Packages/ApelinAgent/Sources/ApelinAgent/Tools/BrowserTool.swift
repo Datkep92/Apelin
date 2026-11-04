@@ -331,7 +331,7 @@ public enum BrowserTool {
                 node.id != webArea.id && (frame(node).map { isInside($0, webFrame) } ?? false)
             }
             chrome = all.filter { node in
-                node.id != webArea.id && !(frame(node).map { isInside($0, webFrame) } ?? false)
+                node.id != webArea.id && (frame(node).map { !isInside($0, webFrame) } ?? false)
             }
         } else {
             notes.append(

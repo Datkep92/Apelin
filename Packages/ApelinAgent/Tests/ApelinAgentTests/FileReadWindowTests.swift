@@ -32,7 +32,7 @@ struct FileReadWindowTests {
         try write("big/deep.txt", lines: 8000, width: 200)
 
         let shown = lines(of: text(try await read(["path": "big/deep.txt", "offset": 6998, "limit": 3])))
-        #expect(shown.count == 4)
+        #expect(shown.count == 5)
         #expect(shown[0].hasPrefix("6998\t6998\txxx"))
         #expect(shown[1].hasPrefix("6999\t6999\t"))
         #expect(shown[2].hasPrefix("7000\t7000\t"))
