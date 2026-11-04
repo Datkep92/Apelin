@@ -80,7 +80,7 @@ struct FileReadWindowTests {
                 "... one reply shows \(ProjectFileTools.maxReadBytes) bytes of it at most; continue with offset \(next)",
             ),
         )
-        let resumed = lines(of: text(try await read(["path": "big/wide.txt", "offset": next, "limit": 2])))
+        let resumed = lines(of: text(try await read(["path": "big/wide.txt", "offset": .number(Double(next)), "limit": 2])))
         #expect(resumed[0].hasPrefix("\(next)\t"), "the offset the note gives does go on there")
     }
 
