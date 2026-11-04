@@ -293,8 +293,9 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `f45cceb` (nhánh `main`, worktree sạch; đứng
-trên `origin/main` là `ee06948` nhiều commit).
+**HEAD khi cập nhật mục này:** `2f05041` (nhánh `main`; đứng trên `origin/main`
+là `ee06948` nhiều commit). Commit `2f05041` chỉ sửa tài liệu: khối mở đầu
+`AGENTS.md` trỏ về §9 này, và §9/§10 lần đầu được viết vào `CA_NHAN_HOA.md`.
 
 | # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
 |---|---|---|---|
@@ -309,9 +310,10 @@ chờ Sếp cho phép. Trước khi push phải **rebase lên `origin/main` (`ee
 vì `main` đang đứng trên đó nhiều commit. Muốn cài đè bản `0.3.7` thì bump lên
 `0.3.8`. Không `git reset`/`git clean`/ghi đè thay đổi chưa commit.
 
-**Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1); sáu commit
-sửa lỗi biên dịch sau `69b004d` (`a140824`, `d8bfbf1`, `a0f9003`, `f45cceb` —
-browser tool, `FileReadWindowTests`, provider casing), đã lên `main`.
+**Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
+§9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
+`69b004d` (`a140824`, `d8bfbf1`, `a0f9003`, `f45cceb` — browser tool,
+`FileReadWindowTests`, provider casing), đã lên `main`.
 
 ## 10. Sổ dọn ghi nhớ — tự động, không cần Sếp nhắc
 
@@ -352,3 +354,13 @@ Ra `<số byte> <số bản>`. **Quá 24 KB (75 %) hoặc 48 bản thì dọn tr
 | Việc đang dở tới đâu, kế tiếp là gì | **một** ghi nhớ `kind=handoff` bản ngắn; chi tiết ở §9 |
 | Kế hoạch dài hơn hạn mức ghi nhớ | file `.md` trong repo (`Documents/Plan/…`), ghi nhớ chỉ trỏ đường dẫn |
 | Cách làm một **loại** việc dùng lại ở nhiều dự án | skill (`apelin_skill_save`), không phải ghi nhớ |
+
+**Nhật ký dọn:**
+
+- **2026-11-04 (lượt 2):** 13 bản / 28 134 byte (86 %). Gộp 4 handoff rời thành
+  **một** handoff “Bảng việc đang dở” (xoá 3 bản: `8b955458`, `bb8bd1fe`,
+  `acaa821f`), rồi rút gọn 3 bản dài — kỹ năng tự tạo, hai clone Apelin, quy tắc
+  lưu trạng thái — xuống 26 159 byte (80 %). **Còn một bản do Sếp tự viết** nặng
+  ~13 KB (“Assistant Operating Specification”) chiếm một nửa kho: theo bước 5 nó
+  chỉ được rút khi **Sếp gật**, nên vẫn để nguyên và đã hỏi Sếp.
+
