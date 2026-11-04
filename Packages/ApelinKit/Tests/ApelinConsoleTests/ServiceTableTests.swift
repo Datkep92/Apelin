@@ -139,6 +139,8 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: ack) { try await $0.agentAbort(sessionID: "s") }
         case .agentCompact:
             return Row(reply: ack) { try await $0.agentCompact(sessionID: "s") }
+        case .agentPlan:
+            return Row(reply: AgentPlanResponse(plan: nil)) { _ = try await $0.agentPlan(sessionID: "s", action: .pause) }
         case .agentApprove:
             return Row(reply: ack) { try await $0.agentApprove(sessionID: "s", approvalID: "a", decision: .deny) }
         case .agentAttach:
