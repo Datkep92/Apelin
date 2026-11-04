@@ -293,9 +293,10 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `2f05041` (nhánh `main`; đứng trên `origin/main`
-là `ee06948` nhiều commit). Commit `2f05041` chỉ sửa tài liệu: khối mở đầu
-`AGENTS.md` trỏ về §9 này, và §9/§10 lần đầu được viết vào `CA_NHAN_HOA.md`.
+**HEAD khi cập nhật mục này:** `c006bc7` (nhánh `main`; đứng trên `origin/main`
+là `f45cceb` hai commit tài liệu). Commit `c006bc7` sửa 4 sai lệch Host test
+(run 41775208831): BrowserTool chrome filter, UITreeFilter fixture role,
+FileReadWindow count/message, ChannelHostBackend count; đã commit, chưa push.
 
 | # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
 |---|---|---|---|
@@ -313,7 +314,7 @@ vì `main` đang đứng trên đó nhiều commit. Muốn cài đè bản `0.3.
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
 `69b004d` (`a140824`, `d8bfbf1`, `a0f9003`, `f45cceb` — browser tool,
-`FileReadWindowTests`, provider casing), đã lên `main`.
+`FileReadWindowTests`, provider casing), và `c006bc7` (4 sai lệch Host test), đã lên `main` local.
 
 ## 10. Sổ dọn ghi nhớ — tự động, không cần Sếp nhắc
 
