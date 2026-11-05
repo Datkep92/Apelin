@@ -425,7 +425,7 @@ public enum ConfigBundleCrypto {
                         saltBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         salt.count,
                         CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                        rounds,
+                        UInt32(rounds),
                         outputBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         output.count,
                     )
