@@ -296,7 +296,7 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `b2cea5d` (nhánh `main`, **chưa push** — `origin/main` là `2aed598`, tức đơn 6 đã lên GitHub, chỉ còn commit kế hoạch ở dưới máy). Cây làm việc **sạch**: những thay đổi “treo” mà mục này nhắc ở các lượt trước chính là việc kế hoạch, nay đã vào `b2cea5d`. Mốc gần nhất: `2aed598` (sổ đơn 6, đã push), `01b227b4` (sửa nhập file Gần đây/iCloud, đã push), `46162d1` (tái cấu trúc luật/ghi nhớ một chỗ, đã push), `7dbe0ed` (Release 0.3.9) — xem dòng 57–59 ở bảng 6.1.
+**HEAD khi cập nhật mục này:** `aa8edf6` (nhánh `main`, **đã push** `origin/main`, tag `v0.4.4`, release `0.4.4` xanh). `0.4.4` đã cài rootless trên máy. Cây làm việc **sạch**; thay đổi startup đã vào `aa8edf6`. Mốc gần nhất: `796c7da` (fix import 0.4.3, đã push/cài 0.4.3), `b2cea5d` (kế hoạch phiên), `2aed598` (sổ đơn 6, đã push). Xem dòng 55–59 ở bảng 6.1.
 
 | # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
 |---|---|---|---|
@@ -306,16 +306,10 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 | 4 | **Tối ưu AI** — ảnh theo endpoint + đo cache thật (`9c55a9e`, dòng 37) | thử ảnh HEIC/quá lớn, dòng “N% cached”, đổi model giữa hội thoại có ảnh | nhóm 1–3 của đơn `4a56bc42` đã có sẵn trong repo, **không** sửa gì |
 | 5 | **Đơn `b41b438f` Task Progress Panel** — code, test và tài liệu đã xong hết ở `b2cea5d` (dòng 59); không còn chờ duyệt | Sếp cho phép push → chờ CI (lần biên dịch đầu tiên của phần mã này) → cài bản CI build → mở chat xem thanh kế hoạch | toàn bộ hành vi: chưa từng qua compiler, thanh kế hoạch chưa từng hiện trên màn hình |
 | 6 | **Nhập file từ "Gần đây"/"iCloud Drive" lỗi** — đã sửa code qua `NSFileCoordinator` (`01b227b4`, dòng 58), file trên máy vẫn đường cũ | build → cài → thử chọn PDF/XML từ "Gần đây" và iCloud Drive, kiểm chứng vào được chat | chưa build/cài (máy chưa có toolchain); file iCloud chưa tải có thể mất vài giây để tải về |
-| 7 | **Kế hoạch phiên / thanh tiến trình (đơn `b41b438f`)** — công cụ `plan_update`, kế hoạch lưu trong sự kiện phiên, thanh kế hoạch trên ô soạn tin (`b2cea5d`, dòng 59); đã kiểm bằng mắt phần API/luồng gọi, **chưa** chạy `make check` được ở máy này | push khi Sếp cho phép → CI → cài → xem thanh kế hoạch: đóng/mở, chạm một bước, Tạm dừng/Tiếp tục, Kết thúc, Xoá; thử đổi model và mở lại chat giữa lúc có kế hoạch | toàn bộ: chưa từng biên dịch, chưa từng hiện trên màn hình, chưa thử được việc sống sót qua tóm tắt/đổi model/khởi động lại |
+| 7 | **Kế hoạch phiên / thanh tiến trình (đơn `b41b438f`)** — công cụ `plan_update`, kế hoạch lưu trong sự kiện phiên, thanh kế hoạch trên ô soạn tin (`b2cea5d`, dòng 59); đã kiểm bằng mắt phần API/luồng gọi, **chưa** chạy `make check` được ở máy này | push khi Sếp cho phép → **đã push cùng bản 0.4.4**; CI → cài → xem thanh kế hoạch: đóng/mở, chạm một bước, Tạm dừng/Tiếp tục, Kết thúc, Xoá; thử đổi model và mở lại chat giữa lúc có kế hoạch | toàn bộ: đã biên dịch xanh ở CI, chưa từng kiểm bằng mắt |
+| 8 | **Khởi động nhanh 0.4.4** — reconciliation runs in MainActor Task after first paint, đã release/cài `0.4.4` (`aa8edf6`) | đo cold launch UI/resume/rootless-roothide và đánh giá lazy-load các màn lớn | chưa có baseline/profiling; thanh kế hoạch và import 0.4.3 cần kiểm bằng tay |
 
-**Ràng buộc chung của các việc trên:** `main` **hơn** `origin/main` **đúng một commit** —
-`b2cea5d`, việc kế hoạch (đừng
-rebase lên `ee06948`/`f45cceb` như ghi cũ; số đó đã cũ). **Đẩy lên GitHub và cài lên
-máy thì vẫn chờ Sếp cho phép** (quy tắc `9c97c7e6`: chưa được yêu cầu build thì chỉ
-commit tại chỗ, **không push**). Repo đang ở `0.3.9`
-(`Configuration/Version.xcconfig`), và bản Apelin đang chạy trên máy **không do Apelin
-cài** nên `apelin_package_list` không liệt kê nó (ở đó chỉ có tweak của dự án khác).
-Không `git reset`/`git clean`/ghi đè thay đổi chưa commit.
+**Ràng buộc chung của các việc trên:** `main` và `origin/main` đã cùng HEAD `aa8edf6`; tag `v0.4.4` đã push và Release workflow xanh. Bản `0.4.4` đã cài rootless trên máy. `row 6` còn chưa thử import tay; `row 7` thanh kế hoạch chưa kiểm bằng mắt. Không `git reset`/`git clean`/ghi đè thay đổi chưa commit.
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
