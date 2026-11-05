@@ -743,10 +743,16 @@ public actor AgentSession {
         let applied = await plan.apply(action)
         // Resuming only changes the plan's state, and would leave it active but
         // nothing running: a model with nothing to pick up never does so. Kick
-        // off a real follow-up run, unless one is already going or there is no
-        // plan to carry on.
-        if action == .resume, applied?.state == .active, runTask == nil {
-            try? await prompt(String(localized: "Continue with the plan."))
+        // off a real follow-up run, unless one is already going, the plan has
+        // nothing left to do, or the resumed action failed to become active.
+        // A resume that cannot start is reported in the session log rather
+        // than disappearing silently.
+        if action == .resume, applied?.state == .active, applied?.hasPendingSteps == true, runTask == nil {
+            do {
+                try await prompt(String(localized: "Continue with the plan."))
+            } catch {
+                try? await log.append(.error(message: "Could not continue the plan: \(error.localizedDescription)"))
+            }
         }
         return applied
     }

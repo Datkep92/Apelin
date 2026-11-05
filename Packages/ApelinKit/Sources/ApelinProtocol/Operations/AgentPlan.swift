@@ -55,6 +55,12 @@ public struct AgentPlan: Codable, Sendable, Hashable {
         currentStep ?? steps.first { $0.status == .failed }
     }
 
+    /// Some step is still unsettled, so there is work left to take on when the
+    /// plan is resumed: pending or running steps, or a failed one to recover.
+    public var hasPendingSteps: Bool {
+        steps.contains { !$0.status.isSettled }
+    }
+
     /// Every step ended, and at least one of them: nothing is left to do.
     public var isFinished: Bool {
         !steps.isEmpty && steps.allSatisfy { $0.status.isSettled }
