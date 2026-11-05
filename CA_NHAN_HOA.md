@@ -298,7 +298,7 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `66eb3cf` (`main`/`origin/main`; tag mới nhất `v0.4.12`; HEAD hiện tại là một commit sau tag đó (`66eb3cf`, improve task progress UX). Máy đang chạy `Apelin 0.4.12 (143)` theo nhật ký.)
+**HEAD khi cập nhật mục này:** `d820f2d` (`main`/`origin/main`; tag `v0.4.13`; commit mới nhất là release `v0.4.13`. Repo đang tinkering Phase 1 local config bundle core, chưa build/cài.)
 
 > Ghi chú đồng bộ 2026-11-06: bảng việc dở bên dưới còn dữ liệu từ giai đoạn 0.4.7/0.4.9. Các mốc Git thực tế mới hơn là `38a9542` (khôi phục background survival), `d67b84e` (`v0.4.11`, animated progress), `d335b96` (`v0.4.12`, UI polish) và `66eb3cf` (nâng task progress). Các đầu mục cũ trong bảng chưa xác nhận là việc còn mở.
 
@@ -312,8 +312,9 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 | 6 | **Nhập file từ Recents/iCloud Drive** (`01b227b4`) | chọn PDF/XML tay từ máy | chưa build/cài |
 | 7 | **Kế hoạch phiên / thanh tiến đồ** (`b2cea5d`, `8c53479`) | manual pass; refactor tách mutation/side-effect nếu giữ ổn định | chưa từng kiểm bằng mắt |
 | 8 | **Hiệu năng cold launch / chat list / daemon handshake** (`8c53479`) | đo baseline và đối chiếu hotspot trước khi sửa | chưa có số liệu |
+| 9 | **Bản cục bộ `.apelinbak` / ConfigBundle Phase 1** (core hardened tại `ConfigBundle.swift`) | build/CI + tích hợp app export/import UI, rollback, runtime reload | chưa compile; app UI/integration/runtime chưa có; secret/token mapping chưa hoàn tất |
 
-**Ràng buộc chung của các việc trên:** `main` và `origin/main` cùng HEAD `8c53479`; tag `v0.4.7` đã push; release `0.4.7` published và Sếp báo cài rootless. Không cài tự ý nếu Sếp chưa yêu cầu; không build khi Sếp chưa yêu cầu.
+**Ràng buộc chung của các việc trên:** HEAD mới nhất `d820f2d` (tag `v0.4.13`). Build/cài chưa thực hiện trong lượt này; các đầu mục phần lớn còn chờ CI/device. Không cài tự ý nếu Sếp chưa yêu cầu.
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
