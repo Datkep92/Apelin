@@ -740,7 +740,15 @@ public actor AgentSession {
         if action == .pause || action == .cancel {
             await abort()
         }
-        return await plan.apply(action)
+        let applied = await plan.apply(action)
+        // Resuming only changes the plan's state, and would leave it active but
+        // nothing running: a model with nothing to pick up never does so. Kick
+        // off a real follow-up run, unless one is already going or there is no
+        // plan to carry on.
+        if action == .resume, applied?.state == .active, runTask == nil {
+            try? await prompt(String(localized: "Continue with the plan."))
+        }
+        return applied
     }
 
     /// Stops the run. Waiting approvals resolve as denied, and the messages
