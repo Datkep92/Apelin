@@ -296,20 +296,20 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `aa8edf6` (nhánh `main`, **đã push** `origin/main`, tag `v0.4.4`, release `0.4.4` xanh). `0.4.4` đã cài rootless trên máy. Cây làm việc **sạch**; thay đổi startup đã vào `aa8edf6`. Mốc gần nhất: `796c7da` (fix import 0.4.3, đã push/cài 0.4.3), `b2cea5d` (kế hoạch phiên), `2aed598` (sổ đơn 6, đã push). Xem dòng 55–59 ở bảng 6.1.
+**HEAD khi cập nhật mục này:** `5bd4ad6` (nhánh `main`, **đã push** `origin/main`, tag `v0.4.5`, release `0.4.5` ở trạng thái **draft**). Plan bar pause/end halt xử lý hiện tại, thanh giữ khung bước và `setPlanBarHeight` animate; CI cả hai job xanh. Bản `0.4.5` chưa cài rootless, phát hành draft để Sếp xem.
 
 | # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
 |---|---|---|---|
-| 1 | **Base URL / khoá API / model / tự chuyển khoá** — 4 lỗi đã sửa (`55d22c3`, `14a85f0`, `9bebc13`), dòng 55 | build CI → cài → thử trên máy | toàn bộ hành vi trên app: chưa từng chạy |
-| 2 | **Bỏ chặn công cụ vô lý** — đọc tệp theo cửa sổ thay vì chặn 512 KB, giữ ảnh chụp quá 4 MB (`d5e9576`, `804daba`), dòng 54 | điểm 4–7 của đơn `6811e482`: tự kiểm build → cài → xác nhận → đọc log | `file_read` trên tệp lớn, ảnh chụp được thu nhỏ |
-| 3 | **IDE AI đa ngôn ngữ** — `code_run` (`1151fef`, dòng 38+53) và sao lưu/hoàn tác tệp (`438cd07`, dòng 39) | sau khi cài: thử `file_revert`, `file_backups`, `code_run` | `FileBackupTests` mới chỉ chạy ở CI |
-| 4 | **Tối ưu AI** — ảnh theo endpoint + đo cache thật (`9c55a9e`, dòng 37) | thử ảnh HEIC/quá lớn, dòng “N% cached”, đổi model giữa hội thoại có ảnh | nhóm 1–3 của đơn `4a56bc42` đã có sẵn trong repo, **không** sửa gì |
-| 5 | **Đơn `b41b438f` Task Progress Panel** — code, test và tài liệu đã xong hết ở `b2cea5d` (dòng 59); không còn chờ duyệt | Sếp cho phép push → chờ CI (lần biên dịch đầu tiên của phần mã này) → cài bản CI build → mở chat xem thanh kế hoạch | toàn bộ hành vi: chưa từng qua compiler, thanh kế hoạch chưa từng hiện trên màn hình |
-| 6 | **Nhập file từ "Gần đây"/"iCloud Drive" lỗi** — đã sửa code qua `NSFileCoordinator` (`01b227b4`, dòng 58), file trên máy vẫn đường cũ | build → cài → thử chọn PDF/XML từ "Gần đây" và iCloud Drive, kiểm chứng vào được chat | chưa build/cài (máy chưa có toolchain); file iCloud chưa tải có thể mất vài giây để tải về |
-| 7 | **Kế hoạch phiên / thanh tiến trình (đơn `b41b438f`)** — công cụ `plan_update`, kế hoạch lưu trong sự kiện phiên, thanh kế hoạch trên ô soạn tin (`b2cea5d`, dòng 59); đã kiểm bằng mắt phần API/luồng gọi, **chưa** chạy `make check` được ở máy này | push khi Sếp cho phép → **đã push cùng bản 0.4.4**; CI → cài → xem thanh kế hoạch: đóng/mở, chạm một bước, Tạm dừng/Tiếp tục, Kết thúc, Xoá; thử đổi model và mở lại chat giữa lúc có kế hoạch | toàn bộ: đã biên dịch xanh ở CI, chưa từng kiểm bằng mắt |
-| 8 | **Khởi động nhanh 0.4.4** — reconciliation runs in MainActor Task after first paint, đã release/cài `0.4.4` (`aa8edf6`) | đo cold launch UI/resume/rootless-roothide và đánh giá lazy-load các màn lớn | chưa có baseline/profiling; thanh kế hoạch và import 0.4.3 cần kiểm bằng tay |
+| 1 | **Base URL / khoá API / model / tự chuyển khoá** (`55d22c3`, `14a85f0`, `9bebc13`) | cài + thử trên máy | mọi hành vi app chưa chạy |
+| 2 | **Bỏ chặn công cụ vô lý** (`d5e9576`, `804daba`) | các mục còn lại của đơn `6811e482` | `file_read` tệp lớn; ảnh chụp thu nhỏ |
+| 3 | **IDE AI đa ngôn ngữ** (`code_run`, sao lưu/hoàn tác tệp) | thử `file_revert`, `file_backups`, `code_run` sau khi cài | `FileBackupTests` chỉ chạy ở CI |
+| 4 | **Tối ưu AI** (`9c55a9e`) | ảnh HEIC/quá lớn, dòng cached, đổi model | nhóm 1–3 đã có trong repo |
+| 5 | **Task Progress Panel** (`b2cea5d`) | CI ra 0.4.4, đã push, chưa cài thử | mọi UX chưa được mắt |
+| 6 | **Nhập file từ Recents/iCloud Drive** (`01b227b4`) | chọn PDF/XML tay từ máy | chưa build/cài |
+| 7 | **Kế hoạch phiên / thanh tiến đồ** (`b2cea5d`, `5bd4ad6`) | CI xanh; draft 0.4.5 để Sếp xem | chưa từng kiểm bằng mắt |
+| 8 | **0.4.4 nhanh khởi động + 0.4.5 plan pause mượt** (`5bd4ad6`) | đo cold launch, pause/resume, animation | chưa có baseline |
 
-**Ràng buộc chung của các việc trên:** `main` và `origin/main` đã cùng HEAD `aa8edf6`; tag `v0.4.4` đã push và Release workflow xanh. Bản `0.4.4` đã cài rootless trên máy. `row 6` còn chưa thử import tay; `row 7` thanh kế hoạch chưa kiểm bằng mắt. Không `git reset`/`git clean`/ghi đè thay đổi chưa commit.
+**Ràng buộc chung của các việc trên:** `main` và `origin/main` cùng HEAD `5bd4ad6`; tag `v0.4.5` đã push; release `0.4.5` ở trạng thái draft. Bản cài hiện tại vẫn `0.4.4`. Không cài tự ý nếu Sếp chưa yêu cầu.
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
