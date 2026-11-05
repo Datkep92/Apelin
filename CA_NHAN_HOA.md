@@ -298,7 +298,9 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `ec90069` (đang xuất bản `0.4.9` build 41; tag `v0.4.9` và diff hiệu năng chưa commit/push lúc cập nhật này).
+**HEAD khi cập nhật mục này:** `66eb3cf` (`main`/`origin/main`; tag mới nhất `v0.4.12`; HEAD hiện tại là một commit sau tag đó (`66eb3cf`, improve task progress UX). Máy đang chạy `Apelin 0.4.12 (143)` theo nhật ký.)
+
+> Ghi chú đồng bộ 2026-11-06: bảng việc dở bên dưới còn dữ liệu từ giai đoạn 0.4.7/0.4.9. Các mốc Git thực tế mới hơn là `38a9542` (khôi phục background survival), `d67b84e` (`v0.4.11`, animated progress), `d335b96` (`v0.4.12`, UI polish) và `66eb3cf` (nâng task progress). Các đầu mục cũ trong bảng chưa xác nhận là việc còn mở.
 
 | # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
 |---|---|---|---|
