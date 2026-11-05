@@ -144,15 +144,26 @@ final class ComposerAttachmentImport: NSObject, UIImagePickerControllerDelegate,
     /// (dataless). Those fall to `NSFileCoordinator`, which resolves the
     /// reference to the real path and downloads the item before it is read.
     nonisolated static func readAttachment(at url: URL, name: String) throws -> ComposerAttachment {
+        // The document picker answers URLs that carry a security scope; keep
+        // it open for every path below, including the coordinated read.
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer {
+            if scoped {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
         if let path = CanonicalPath.resolve(url.path) {
             let source = URL(fileURLWithPath: path)
             let values = try? source.resourceValues(
-                forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
+                forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey],
             )
-            let notDownloaded = values?.isUbiquitousItem == true && values?.ubiquitousItemDownloadingStatus != .current
+            let notDownloaded =
+                values?.isUbiquitousItem == true
+                && values?.ubiquitousItemDownloadingStatus != .current
             if !notDownloaded {
                 return try readFile(at: source, name: name)
             }
+            try? FileManager.default.startDownloadingUbiquitousItem(at: url)
         }
         var outcome: Result<ComposerAttachment, Error>?
         var coordinateError: NSError?
@@ -170,22 +181,32 @@ final class ComposerAttachmentImport: NSObject, UIImagePickerControllerDelegate,
         if let outcome {
             return try outcome.get()
         }
-        throw ApelinError(.badRequest, String(localized: "The selected file could not be read."))
+        // Final fallback: try to read the picker URL directly. Some Recents
+        // references do not report a coordinator outcome, and resolved file
+        // reference URLs are still readable when they are scoped.
+        return try readFile(at: url, name: name)
     }
 
     /// The read itself, on a URL already resolved: a regular file of at most
     /// 32 MB, read by its canonical path, an image or else text (a PDF's own).
     nonisolated static func readFile(at url: URL, name: String) throws -> ComposerAttachment {
-        guard let path = CanonicalPath.resolve(url.path) else {
-            throw ApelinError(.badRequest, String(localized: "The selected file could not be read."))
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer {
+            if scoped {
+                url.stopAccessingSecurityScopedResource()
+            }
         }
-        let source = URL(fileURLWithPath: path)
-        let values = try source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-        guard values.isRegularFile == true, let size = values.fileSize, size <= 32 * 1024 * 1024 else {
-            throw ApelinError(
-                .badRequest,
-                String(localized: "Choose a regular file smaller than 32 MB."),
-            )
+        // Recents / iCloud references sometimes do not canonicalise: realpath
+        // returns nil even though the URL is readable through its security
+        // scope. Keep the URL itself instead of treating that as a failure.
+        let resolvedPath = CanonicalPath.resolve(url.path)
+        let source = resolvedPath.map { URL(fileURLWithPath: $0) } ?? url
+        let values = try? source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        if values?.isRegularFile == false {
+            throw ApelinError(.badRequest, String(localized: "Choose a regular file smaller than 32 MB."))
+        }
+        if let size = values?.fileSize, size > 32 * 1024 * 1024 {
+            throw ApelinError(.badRequest, String(localized: "Choose a file smaller than 32 MB."))
         }
         let data = try Data(contentsOf: source)
         guard data.count <= 32 * 1024 * 1024 else {
