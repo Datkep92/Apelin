@@ -296,7 +296,7 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `5bd4ad6` (nhánh `main`, **đã push** `origin/main`, tag `v0.4.5`, release `0.4.5` ở trạng thái **draft**). Plan bar pause/end halt xử lý hiện tại, thanh giữ khung bước và `setPlanBarHeight` animate; CI cả hai job xanh. Bản `0.4.5` chưa cài rootless, phát hành draft để Sếp xem.
+**HEAD khi cập nhật mục này:** `8c53479` (nhánh `main`, tag `v0.4.7`; xem chi tiết ở bảng và §8).
 
 | # | Việc đang dở | Bước kế tiếp | Chưa kiểm chứng |
 |---|---|---|---|
@@ -304,12 +304,12 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 | 2 | **Bỏ chặn công cụ vô lý** (`d5e9576`, `804daba`) | các mục còn lại của đơn `6811e482` | `file_read` tệp lớn; ảnh chụp thu nhỏ |
 | 3 | **IDE AI đa ngôn ngữ** (`code_run`, sao lưu/hoàn tác tệp) | thử `file_revert`, `file_backups`, `code_run` sau khi cài | `FileBackupTests` chỉ chạy ở CI |
 | 4 | **Tối ưu AI** (`9c55a9e`) | ảnh HEIC/quá lớn, dòng cached, đổi model | nhóm 1–3 đã có trong repo |
-| 5 | **Task Progress Panel** (`b2cea5d`) | CI ra 0.4.4, đã push, chưa cài thử | mọi UX chưa được mắt |
+| 5 | **Task Progress Panel / Plan bar** (`b2cea5d`, `a4f0b77`, `5ed25ea`, `8c53479`) | kiểm tay Pause→Resume, Cancel→Clear, finished, prompt failure | UX chưa từng mắt; chưa integrated test |
 | 6 | **Nhập file từ Recents/iCloud Drive** (`01b227b4`) | chọn PDF/XML tay từ máy | chưa build/cài |
-| 7 | **Kế hoạch phiên / thanh tiến đồ** (`b2cea5d`, `5bd4ad6`) | CI xanh; draft 0.4.5 để Sếp xem | chưa từng kiểm bằng mắt |
-| 8 | **0.4.4 nhanh khởi động + 0.4.5 plan pause mượt** (`5bd4ad6`) | đo cold launch, pause/resume, animation | chưa có baseline |
+| 7 | **Kế hoạch phiên / thanh tiến đồ** (`b2cea5d`, `8c53479`) | manual pass; refactor tách mutation/side-effect nếu giữ ổn định | chưa từng kiểm bằng mắt |
+| 8 | **Hiệu năng cold launch / chat list / daemon handshake** (`8c53479`) | đo baseline và đối chiếu hotspot trước khi sửa | chưa có số liệu |
 
-**Ràng buộc chung của các việc trên:** `main` và `origin/main` cùng HEAD `5bd4ad6`; tag `v0.4.5` đã push; release `0.4.5` ở trạng thái draft. Bản cài hiện tại vẫn `0.4.4`. Không cài tự ý nếu Sếp chưa yêu cầu.
+**Ràng buộc chung của các việc trên:** `main` và `origin/main` cùng HEAD `8c53479`; tag `v0.4.7` đã push; release `0.4.7` published và Sếp báo cài rootless. Không cài tự ý nếu Sếp chưa yêu cầu; không build khi Sếp chưa yêu cầu.
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
