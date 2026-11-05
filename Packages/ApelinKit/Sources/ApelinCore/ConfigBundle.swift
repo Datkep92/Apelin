@@ -415,6 +415,7 @@ public enum ConfigBundleCrypto {
         guard !passphrase.isEmpty else { throw ConfigBundleError.invalidPassphrase }
         var output = Data(repeating: 0, count: keyLength)
         let passwordBytes = Data(passphrase.utf8)
+        let outputLength = output.count
         let result = passwordBytes.withUnsafeBytes { passwordBuffer in
             salt.withUnsafeBytes { saltBuffer in
                 output.withUnsafeMutableBytes { outputBuffer in
@@ -427,7 +428,7 @@ public enum ConfigBundleCrypto {
                         CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
                         UInt32(rounds),
                         outputBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                        output.count,
+                        outputLength,
                     )
                 }
             }
