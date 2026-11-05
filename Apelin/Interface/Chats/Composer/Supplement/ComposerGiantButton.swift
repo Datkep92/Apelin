@@ -13,8 +13,12 @@ final class ComposerGiantButton: UIButton {
     init(title: String, icon: String) {
         super.init(frame: .zero)
         backgroundView.backgroundColor = .label.withAlphaComponent(0.05)
-        backgroundView.layer.cornerRadius = 16
+        backgroundView.layer.cornerRadius = SurfaceTokens.cardCornerRadius
         backgroundView.layer.cornerCurve = .continuous
+        backgroundView.layer.shadowColor = UIColor.black.cgColor
+        backgroundView.layer.shadowOpacity = SurfaceTokens.cardShadowOpacity
+        backgroundView.layer.shadowRadius = SurfaceTokens.cardShadowRadius
+        backgroundView.layer.shadowOffset = SurfaceTokens.cardShadowOffset
         backgroundView.isUserInteractionEnabled = false
         addSubview(backgroundView)
         iconView.contentMode = .scaleAspectFit
