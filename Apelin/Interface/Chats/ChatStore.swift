@@ -258,35 +258,19 @@ actor ChatStore {
         self.folder = folder
     }
 
-    func load() async throws -> [ChatRecord] {
+    func load() throws -> [ChatRecord] {
         let directory = folder.root.appendingPathComponent("Chats")
         try folder.makeLevels(to: directory)
         guard let directoryPath = CanonicalPath.resolve(directory.path) else { throw CocoaError(.fileReadNoSuchFile) }
-        let urls = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        return try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "json" }
-        var candidates: [URL] = []
-        for url in urls {
-            guard UUID(uuidString: url.deletingPathExtension().lastPathComponent) != nil,
-                  let path = CanonicalPath.resolve(url.path),
-                  CanonicalPath.isCanonical(path, inside: directoryPath)
-            else { continue }
-            candidates.append(url)
-        }
-        guard !candidates.isEmpty else { return [] }
-        return try await withThrowingTaskGroup(of: ChatRecord?.self) { group in
-            for url in candidates {
-                group.addTask {
-                    return try? JSONDecoder().decode(ChatRecord.self, from: Data(contentsOf: url))
-                }
+            .compactMap { url in
+                guard UUID(uuidString: url.deletingPathExtension().lastPathComponent) != nil,
+                      let path = CanonicalPath.resolve(url.path),
+                      CanonicalPath.isCanonical(path, inside: directoryPath)
+                else { return nil }
+                return try JSONDecoder().decode(ChatRecord.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
             }
-            var records: [ChatRecord] = []
-            for try await record in group {
-                if let record {
-                    records.append(record)
-                }
-            }
-            return records
-        }
     }
 
     func save(_ record: ChatRecord, revision: Int) throws {

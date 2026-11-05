@@ -110,30 +110,24 @@ final class ChatRuntime {
             await forget(DeletedProjects.gone(from: summaries, listed: DeletedProjects.listing(in: .app)))
             isLoaded = true
             onChange?()
-            // Host reconciliation runs after the saved conversations have been
-            // shown. The reader sees the conversation list without waiting
-            // for a service that may not have answered yet.
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                // A host that does not answer yet is not an error, and runs
-                // nothing this app could follow: every saved row stops working.
-                let live = await (try? ApelinService.app.agentList().sessions) ?? []
-                for record in records.values {
-                    if let session = live.first(where: { $0.sessionID == record.sessionID }) {
-                        records[record.summary.id]?.reopen(as: session.task)
-                        follow(record.summary.id, task: session.task)
-                    } else if record.summary.isWorking {
-                        records[record.summary.id]?.summary.isWorking = false
-                        changed(record.summary.id)
-                    }
+            // A host that does not answer yet is not an error, and runs
+            // nothing this app could follow: every saved row stops working.
+            let live = await (try? ApelinService.app.agentList().sessions) ?? []
+            for record in records.values {
+                if let session = live.first(where: { $0.sessionID == record.sessionID }) {
+                    records[record.summary.id]?.reopen(as: session.task)
+                    follow(record.summary.id, task: session.task)
+                } else if record.summary.isWorking {
+                    records[record.summary.id]?.summary.isWorking = false
+                    changed(record.summary.id)
                 }
-                isReconciled = true
-                onChange?()
-                // What agents opened while the app was not following their
-                // openers; the list is oldest first, so an opener comes first.
-                for session in live {
-                    adopt(ChatAdoption.record(session: session, records: Array(records.values)))
-                }
+            }
+            isReconciled = true
+            onChange?()
+            // What agents opened while the app was not following their
+            // openers; the list is oldest first, so an opener comes first.
+            for session in live {
+                adopt(ChatAdoption.record(session: session, records: Array(records.values)))
             }
         } catch { onError?(error) }
     }
