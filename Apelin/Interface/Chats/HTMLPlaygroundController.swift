@@ -42,11 +42,13 @@ final class HTMLPlaygroundController: UIViewController {
         editor.layer.borderColor = UIColor.separator.cgColor
         editor.layer.borderWidth = 0.5
         editor.layer.cornerRadius = 8
+        editor.layer.cornerCurve = .continuous
         editor.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
 
         webView.layer.borderColor = UIColor.separator.cgColor
         webView.layer.borderWidth = 0.5
         webView.layer.cornerRadius = 8
+        webView.layer.cornerCurve = .continuous
 
         configureButton(runButton, title: "Run", color: .systemBlue)
         runButton.addTarget(self, action: #selector(runTapped), for: .touchUpInside)
@@ -99,6 +101,7 @@ final class HTMLPlaygroundController: UIViewController {
         button.backgroundColor = color
         button.setTitleColor(.white, for: .normal)
         button.layer.cornerRadius = 8
+        button.layer.cornerCurve = .continuous
     }
 
     private func loadContent() {

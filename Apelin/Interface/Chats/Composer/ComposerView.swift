@@ -100,6 +100,7 @@ class ComposerView: ComposerSectionView {
         commandSuggestionsTable.register(UITableViewCell.self, forCellReuseIdentifier: "cmd")
         commandSuggestionsTable.isHidden = true
         commandSuggestionsTable.layer.cornerRadius = 8
+        commandSuggestionsTable.layer.cornerCurve = .continuous
         commandSuggestionsTable.clipsToBounds = true
         commandSuggestionsTable.backgroundColor = .secondarySystemBackground
         addSubview(commandSuggestionsTable)

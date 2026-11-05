@@ -78,6 +78,7 @@ final class WelcomeActionBar: UIView {
         }
 
         button.layer.cornerRadius = 12
+        button.layer.cornerCurve = .continuous
         button.clipsToBounds = true
         button.titleLabel?.font = WelcomeStyle.buttonFont
         var configuration = UIButton.Configuration.filled()
