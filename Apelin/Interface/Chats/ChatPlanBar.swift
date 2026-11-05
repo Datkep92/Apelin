@@ -63,6 +63,10 @@ final class ChatPlanBar: UIView {
         super.init(frame: .zero)
         backgroundColor = .clear
         clipsToBounds = false
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.10
+        layer.shadowRadius = 12
+        layer.shadowOffset = CGSize(width: 0, height: 4)
 
         surface.layer.cornerRadius = Self.cornerRadius
         surface.layer.cornerCurve = .continuous
@@ -148,7 +152,7 @@ final class ChatPlanBar: UIView {
             make.height.equalTo(Self.progressHeight)
         }
 
-        progressFill.backgroundColor = .systemBlue
+        progressFill.backgroundColor = AppAccent.color(glass: .systemBlue)
         progressFill.layer.cornerRadius = Self.progressHeight / 2
         progressTrack.addSubview(progressFill)
         progressFill.snp.makeConstraints { make in
@@ -343,7 +347,7 @@ final class ChatPlanBar: UIView {
         let total = max(1, plan.steps.count)
         let ratio = min(1, max(0, CGFloat(done) / CGFloat(total)))
         let progressColor: UIColor = switch plan.state {
-        case .active: .systemBlue
+        case .active: AppAccent.color(glass: .systemBlue)
         case .paused: .systemOrange
         case .cancelled: .systemRed
         }
@@ -381,8 +385,8 @@ final class ChatPlanBar: UIView {
         switch style {
         case .filled:
             var config = UIButton.Configuration.filled()
-            config.baseBackgroundColor = .systemBlue
-            config.baseForegroundColor = .white
+            config.baseBackgroundColor = AppAccent.color(glass: .systemBlue)
+            config.baseForegroundColor = AppAccent.foreground(glass: .white)
             config.cornerStyle = .large
             config.titleLineBreakMode = .byTruncatingTail
             button.configuration = config
