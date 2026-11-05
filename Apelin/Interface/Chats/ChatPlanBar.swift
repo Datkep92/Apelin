@@ -25,6 +25,8 @@ final class ChatPlanBar: UIView {
 
     /// The plan drawn, nil while the conversation has none.
     private(set) var plan: AgentPlan?
+    /// Step buttons currently shown, so a refresh can relabel them in place.
+    private var stepButtons: [UIButton] = []
     /// Whether the reader opened the steps.
     private(set) var isExpanded = false
 
@@ -146,15 +148,50 @@ final class ChatPlanBar: UIView {
     /// already drawing changes nothing: a refresh comes with every batch of
     /// a turn, and rebuilding on each of them would take the steps away
     /// from under a reader.
-    func show(_ plan: AgentPlan?) {
-        guard plan != self.plan else { return }
-        self.plan = plan
-        guard let plan else {
+    func show(_ newPlan: AgentPlan?) {
+        guard newPlan != self.plan else { return }
+        guard let newPlan else {
+            self.plan = nil
             isExpanded = false
             clear()
             return
         }
-        rebuild(plan)
+        // Keep the steps under the reader when only their status changes:
+        // the skeleton (count and titles) is what rebuilding exists for.
+        if self.plan != nil,
+           self.plan!.steps.count == newPlan.steps.count,
+           zip(self.plan!.steps, newPlan.steps).allSatisfy({ $0.id == $1.id && $0.title == $1.title }) {
+            self.plan = newPlan
+            updateHeader(newPlan)
+            updateStepButtons(newPlan)
+            updateActions(newPlan)
+            return
+        }
+        self.plan = newPlan
+        rebuild(newPlan)
+    }
+
+    private func updateHeader(_ plan: AgentPlan) {
+        header.setTitle(ChatPlan.line(for: plan), for: .normal)
+        header.accessibilityValue = ChatPlan.line(for: plan)
+    }
+
+    private func updateStepButtons(_ plan: AgentPlan) {
+        guard isExpanded else { return }
+        for (button, step) in zip(stepButtons, plan.steps) {
+            button.setTitle("\(ChatPlan.glyph(step.status)) \(button.tag + 1). \(step.title)", for: .normal)
+            button.accessibilityValue = ChatPlan.detail(of: step)
+        }
+    }
+
+    private func updateActions(_ plan: AgentPlan) {
+        guard isExpanded else { return }
+        pauseResume.setTitle(
+            plan.state == .paused ? String(localized: "Resume") : String(localized: "Pause"),
+            for: .normal,
+        )
+        pauseResume.isEnabled = plan.state != .cancelled
+        endPlan.isEnabled = plan.state != .cancelled
     }
 
     private func toggle() {
@@ -166,6 +203,7 @@ final class ChatPlanBar: UIView {
 
     private func rebuild(_ plan: AgentPlan) {
         clear()
+        stepButtons.removeAll()
         header.setTitle(ChatPlan.line(for: plan), for: .normal)
         header.setImage(
             UIImage(systemName: isExpanded ? "chevron.down" : "chevron.up"),
@@ -196,6 +234,7 @@ final class ChatPlanBar: UIView {
             button.snp.makeConstraints { make in
                 make.height.equalTo(Self.stepHeight)
             }
+            stepButtons.append(button)
             steps.addArrangedSubview(button)
         }
         content.addArrangedSubview(scroll)
@@ -237,5 +276,5 @@ final class ChatPlanBar: UIView {
             steps.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
-    }
+        stepButtons.removeAll()
 }

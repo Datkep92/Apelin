@@ -529,6 +529,10 @@ final class ChatRuntime {
         guard records[id]?.sessionID == sessionID else { return }
         plans[id] = answer.plan
         changed(id)
+        if action == .pause || action == .cancel {
+            try? await stop(id)
+            await refreshPlan(for: id)
+        }
     }
 
     /// Asks the session for the plan of a conversation opened again: the

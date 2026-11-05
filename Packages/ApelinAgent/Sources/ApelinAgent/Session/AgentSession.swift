@@ -734,6 +734,12 @@ public actor AgentSession {
     /// clear. Reading — no action — is what a conversation opened again does.
     public func planState(_ action: AgentPlanAction?) async -> AgentPlan? {
         guard let action else { return await plan.current() }
+        // Pausing, or ending, the plan stops the work now in progress, so the
+        // bar and whatever the model was doing cannot keep stepping away from
+        // a plan the user has told to stand still.
+        if action == .pause || action == .cancel {
+            await abort()
+        }
         return await plan.apply(action)
     }
 

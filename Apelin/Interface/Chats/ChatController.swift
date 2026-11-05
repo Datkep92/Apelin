@@ -776,7 +776,9 @@ final class ChatController: UIViewController {
         // the bar takes its room from the list, which keeps the message the
         // reader was on where it was
         updateMessageListInsets()
-        view.setNeedsLayout()
+        UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0, options: [.beginFromCurrentState, .curveEaseInOut]) {
+            self.view.layoutIfNeeded()
+        }
     }
 
     /// The list scrolls clear of the composer, and of the keyboard under it.
