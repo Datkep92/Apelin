@@ -202,10 +202,11 @@ final class EnvironmentTaskController: TableController {
             barShowsFinished = finished
             let running = isSheetRoot ? backgroundBarItem : spinnerBarItem
             if finished {
-                navigationItem.rightBarButtonItems = progress.state == .succeeded
-                    ? [doneBarItem, menuBarItem] : [menuBarItem]
+                navigationItem.rightBarButtonItems = [doneBarItem, menuBarItem]
+            } else if cancelRequested {
+                navigationItem.rightBarButtonItems = [running, stopBarItem.then { $0.isEnabled = false }, menuBarItem]
             } else {
-                navigationItem.rightBarButtonItems = [running, menuBarItem]
+                navigationItem.rightBarButtonItems = [running, stopBarItem, menuBarItem]
             }
         }
 
@@ -291,6 +292,7 @@ final class EnvironmentTaskController: TableController {
     private var barShowsFinished = false
     private lazy var spinnerBarItem = spinnerItem()
     private lazy var doneBarItem = doneItem()
+    private lazy var stopBarItem = stopItem()
     /// Closes the sheet; the task is the host's and goes on.
     private lazy var backgroundBarItem = UIBarButtonItem(
         title: String(localized: "Continue in Background"),
@@ -321,8 +323,18 @@ final class EnvironmentTaskController: TableController {
         }
     }
 
+    private func stopItem() -> UIBarButtonItem {
+        let item = UIBarButtonItem(
+            image: UIImage(systemName: "stop.circle"),
+            primaryAction: UIAction { [weak self] _ in self?.confirmStop() },
+        ).then {
+            $0.accessibilityLabel = String(localized: "Stop")
+            $0.tintColor = .systemRed
+        }
+        return item
+    }
     private func menuItem() -> UIBarButtonItem {
-        UIBarButtonItem(
+        return UIBarButtonItem(
             image: UIImage(systemName: "ellipsis"),
             menu: UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
                 completion(self?.menuElements() ?? [])
@@ -414,12 +426,14 @@ final class EnvironmentTaskController: TableController {
 
     private func stop() {
         cancelRequested = true
+        render()
         Task { [weak self, handle] in
             do {
                 try await ApelinService.app.environmentCancel(taskID: handle.taskID)
             } catch {
                 guard let self else { return }
                 cancelRequested = false
+                render()
                 presentNotice(title: "Unable to Stop", message: error.readableMessage)
             }
         }

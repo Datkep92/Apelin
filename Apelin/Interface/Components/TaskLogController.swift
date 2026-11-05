@@ -78,28 +78,31 @@ final class TaskLogController: UIViewController {
         present(share, animated: true)
     }
 
-    /// Follows the end only while the end is in sight and nobody is
-    /// scrolling: reading back up is not interrupted.
+    /// Shows the newest log line at the top so the user need not scroll
+    /// to see the result of a just-expanded task; earlier lines read below it.
+    /// Following still keeps the newest line in view while the task runs.
     private func apply() {
-        let previous = dataSource.snapshot()
-        let lastVisible = previous.itemIdentifiers.last.map {
-            tableView.indexPathsForVisibleRows?.contains(IndexPath(row: $0, section: 0)) == true
-        } ?? true
-        let follow = lastVisible && !tableView.isTracking && !tableView.isDecelerating
+        // With the newest line at the top, the anchor is the first row.
+        let anchorVisible = tableView.indexPathsForVisibleRows?.contains(IndexPath(row: 0, section: 0)) == true
+        let follow = anchorVisible && !tableView.isTracking && !tableView.isDecelerating
         var snapshot = NSDiffableDataSourceSnapshot<Int, Int>()
         snapshot.appendSections([0])
-        // a row is its position: the same line can be said twice
-        snapshot.appendItems(Array(lines.indices))
+        // a row is its position: the same line can be said twice. New tasks say
+        // the most recent events first while keeping each line's number.
+        snapshot.appendItems(Array(lines.indices).reversed())
         let changed = lines.indices.filter { displayedLines.indices.contains($0) && displayedLines[$0] != lines[$0] }
         guard !tableView.isFilled || displayedLines != lines else { return }
         snapshot.reconfigureItems(changed)
         displayedLines = lines
         let animated = tableView.isFilled && pacing.animatesChange(in: tableView)
-        let last = snapshot.itemIdentifiers.last
+        // newest line sits at the top of the now-reversed list
+        let newestItem = snapshot.itemIdentifiers.first
         let scroll = { [weak self] in
             guard let self, follow, !tableView.isTracking, !tableView.isDecelerating,
-                  let last, let indexPath = dataSource.indexPath(for: last) else { return }
-            tableView.scrollToRow(at: indexPath, at: .bottom, animated: animated)
+                  newestItem != nil else { return }
+            if self.dataSource.indexPath(for: newestItem!) != nil {
+                self.tableView.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: animated)
+            }
         }
         if tableView.isFilled {
             dataSource.applyChange(snapshot, to: tableView, animated: animated, completion: scroll)
