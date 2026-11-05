@@ -729,7 +729,21 @@ public actor AgentSession {
         compaction = nil
     }
 
-    /// The plan as it stands, or what the app asked of it in the plan bar
+    nonisolated static func shouldStartResumeRun(
+    action: AgentPlanAction,
+    applied: AgentPlan?,
+    runTaskActive: Bool,
+) -> Bool {
+    // Resuming only raises a run when the plan actually became active and
+    // has work left to take on; an already-finished plan or an already
+    // running session must not be prompted again.
+    action == .resume
+        && applied?.state == .active
+        && applied?.hasPendingSteps == true
+        && !runTaskActive
+}
+
+/// The plan as it stands, or what the app asked of it in the plan bar
     /// (`AgentPlanAction`, through `agentPlan`): pause, resume, cancel or
     /// clear. Reading — no action — is what a conversation opened again does.
     public func planState(_ action: AgentPlanAction?) async -> AgentPlan? {
@@ -747,7 +761,7 @@ public actor AgentSession {
         // nothing left to do, or the resumed action failed to become active.
         // A resume that cannot start is reported in the session log rather
         // than disappearing silently.
-        if action == .resume, applied?.state == .active, applied?.hasPendingSteps == true, runTask == nil {
+        if Self.shouldStartResumeRun(action: action, applied: applied, runTaskActive: runTask != nil) {
             do {
                 try await prompt(String(localized: "Continue with the plan."))
             } catch {
