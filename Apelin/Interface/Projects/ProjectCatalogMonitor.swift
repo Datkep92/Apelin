@@ -21,17 +21,9 @@ final class ProjectCatalogMonitor {
         var paths = CanonicalPath.resolve(DataFolder.app.root.path).map { [$0] } ?? []
         if let projects = CanonicalPath.resolve(DataFolder.app.projects.path) {
             paths.append(projects)
-            for name in (try? FileManager.default.contentsOfDirectory(atPath: projects)) ?? [] {
-                guard ProjectName.validate(name) == nil,
-                      let folder = CanonicalPath.resolve(projects + "/" + name), folder == projects + "/" + name
-                else { continue }
-                paths.append(folder)
-                if let manifest = CanonicalPath.resolve(folder + "/apelin-project.json"),
-                   manifest == folder + "/apelin-project.json"
-                {
-                    paths.append(manifest)
-                }
-            }
+            // Watching only the root directories keeps the watcher count bounded
+            // even with hundreds of projects: atomic writes and folder changes are
+            // delivered on the parent directory, then the observers refresh.
         }
         for path in paths {
             let descriptor = open(path, O_EVTONLY | O_NOFOLLOW | O_CLOEXEC)
