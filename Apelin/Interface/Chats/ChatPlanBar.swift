@@ -277,4 +277,5 @@ final class ChatPlanBar: UIView {
             view.removeFromSuperview()
         }
         stepButtons.removeAll()
+    }
 }
