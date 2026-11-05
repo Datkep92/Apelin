@@ -140,7 +140,7 @@ final class ConfigBundleTests: XCTestCase {
             buildNumber: "145",
             scopes: ["memory"],
             files: [
-                ConfigBundleFile(path: "memory.json", size: 0, sha256: ConfigBundleChecksum.sha256(Data()), contentBase64: ""),
+                ConfigBundleFile(path: "memory.json", size: 0, sha256: ConfigBundleChecksum.sha256(Data()), contentBase64: "not-base64!"),
             ],
             hasSecretPack: false,
         )

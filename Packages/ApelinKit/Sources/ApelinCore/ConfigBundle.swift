@@ -87,6 +87,7 @@ public struct ConfigBundleManifest: Codable, Equatable, Sendable {
             guard file.size <= ConfigBundleSchema.maximumFileBytes else { throw ConfigBundleError.fileTooLarge }
             guard seenPaths.insert(file.path).inserted else { throw ConfigBundleError.invalidPath }
             guard let data = file.data else { throw ConfigBundleError.checksumMismatch }
+            guard data.count == file.size else { throw ConfigBundleError.checksumMismatch }
             guard ConfigBundleChecksum.sha256(data) == file.sha256 else {
                 throw ConfigBundleError.checksumMismatch
             }
@@ -266,6 +267,7 @@ public enum ConfigBundleParser {
         for file in bundle.manifest.files {
             try ConfigBundlePath.validate(file.path)
             guard let payload = file.data else { throw ConfigBundleError.checksumMismatch }
+            guard payload.count == file.size else { throw ConfigBundleError.checksumMismatch }
             guard ConfigBundleChecksum.sha256(payload) == file.sha256 else {
                 throw ConfigBundleError.checksumMismatch
             }
