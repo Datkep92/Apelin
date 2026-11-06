@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Demo style — Thanh tiến trình (ChatPlanBar)</title>
+<style>
+  :root {
+    --blue: #0A84FF;
+    --orange: #FF9F0A;
+    --red: #FF453A;
+    --surface: rgba(255,255,255,0.72);
+    --surface-dark: rgba(30,30,32,0.72);
+    --separator: rgba(60,60,67,0.18);
+    --label: #1C1C1E;
+    --secondary: #636366;
+    --tertiary: #8E8E93;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  body {
+    min-height: 100vh;
+    padding: 24px 16px 40px;
+    background: linear-gradient(180deg, #F2F2F7 0%, #E5E5EA 100%);
+    color: var(--label);
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: linear-gradient(180deg, #000 0%, #1C1C1E 100%); color: #F5F5F7; }
+    :root { --surface: rgba(44,44,46,0.72); --label: #F5F5F7; --secondary: #AEAEB2; --tertiary: #636366; --separator: rgba(255,255,255,0.12); }
+  }
+  h1 { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+  .intro { color: var(--secondary); font-size: 14px; margin: 0 0 18px; line-height: 1.5; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 20px; }
+  .toolbar button, .toolbar label {
+    border: 0; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600;
+    background: rgba(120,120,128,0.16); color: var(--label); cursor: pointer;
+  }
+  .toolbar button.active { background: var(--blue); color: #fff; }
+  .toolbar .toggle { display: inline-flex; align-items: center; gap: 6px; }
+  .grid { display: grid; gap: 18px; }
+  @media (min-width: 720px) { .grid.cols-3 { grid-template-columns: repeat(3, 1fr); } }
+  .card { background: transparent; }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 8px; }
+  .card-note { font-size: 12px; color: var(--tertiary); margin: 8px 0 0; line-height: 1.4; }
+
+  /* Plan bar */
+  .planbar {
+    --accent: var(--blue);
+    width: 100%;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.12));
+  }
+  .surface {
+    border-radius: 16px;
+    corner-shape: superellipse(2); /* fallback ignored */
+    border-radius: 16px;
+    background: var(--surface);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    overflow: hidden;
+    border: 0.5px solid var(--separator);
+  }
+  .content { padding: 5px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .header {
+    height: 42px; display: flex; align-items: center; gap: 8px;
+    padding: 0 10px 0 10px; border-radius: 12px; cursor: pointer;
+    position: relative; user-select: none;
+  }
+  .header .icon { font-size: 17px; }
+  .header .title { flex: 1; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header .chevron { font-size: 14px; color: var(--secondary); transition: transform 0.2s ease-in-out; }
+  .planbar.expanded .header .chevron { transform: rotate(180deg); }
+  .reduce-motion .planbar.expanded .header .chevron { transition: none; transform: none; }
+  .progress-track {
+    position: absolute; left: 10px; right: 10px; bottom: 6px; height: 3px;
+    border-radius: 1.5px; background: rgba(60,60,67,0.12);
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; border-radius: 1.5px; background: var(--accent); width: 0%; transition: width 0.26s ease-in-out, background-color 0.2s; }
+  .reduce-motion .progress-fill { transition: none; }
+
+  .steps { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+  .step {
+    height: 32px; display: flex; align-items: center; gap: 6px;
+    padding: 0 8px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--label); opacity: 0;
+    animation: fadeIn 0.22s ease-out 0.04s forwards;
+  }
+  .reduce-motion .step { animation: none; opacity: 1; }
+  .step .num { color: var(--secondary); font-variant-numeric: tabular-nums; }
+  .step.done {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  /* variant: minimal (no done tint) */
+  .variant-minimal .step.done { background: transparent; }
+  /* variant: bold (stronger tint + thicker progress) */
+  .variant-bold .step.done { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .variant-bold .progress-track { height: 4px; }
+  .variant-bold .progress-fill { border-radius: 2px; }
+
+  .scroll-hint { height: 32px; display: flex; align-items: center; padding: 0 8px; font-size: 12px; color: var(--tertiary); }
+
+  .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+  .action {
+    height: 36px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .action.filled { background: var(--accent); color: #fff; }
+  .action.outlined { background: transparent; color: var(--label); border: 1px solid var(--separator); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .reduce-motion .step { animation: none; }
+
+  .state-active { --accent: var(--blue); }
+  .state-paused { --accent: var(--orange); }
+  .state-cancelled { --accent: var(--red); }
+
+  footer { margin-top: 24px; color: var(--tertiary); font-size: 12px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <h1>Demo style — Thanh tiến trình</h1>
+  <p class="intro">Mô phỏng <code>ChatPlanBar</code>. Dùng công cụ bên dưới để thử thu gọn/mở rộng, reduce motion và các biến thể style. Đây là preview HTML, không phải build thật.</p>
+
+  <div class="toolbar">
+    <button id="btnExpand" class="active">Mở rộng</button>
+    <button id="btnCollapse">Thu gọn</button>
+    <label class="toggle"><input type="checkbox" id="reduceMotion"> Reduce Motion</label>
+    <label class="toggle"><input type="checkbox" id="statePaused"> Trạng thái: Paused</label>
+    <label class="toggle"><input type="checkbox" id="stateCancelled"> Trạng thái: Cancelled</label>
+  </div>
+
+  <div class="grid cols-3">
+    <div class="card">
+      <div class="card-title">Biến thể A — Hiện tại (glass + tô nền done + xoay chevron + fade)</div>
+      <div class="planbar variant-a state-active" id="barA"></div>
+      <p class="card-note">Đang dùng trong code hiện tại. Tô nền accent nhẹ cho bước done, chevron xoay mượt, hàng bước fade-in.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Biến thể B — Tối giản (không tô nền, chevron tĩnh)</div>
+      <div class="planbar variant-minimal state-active" id="barB"></div>
+      <p class="card-note">Bỏ tô nền bước done và hiệu ứng xoay; chỉ còn thanh tiến trình. Nhẹ và ít gây chú ý.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Biến thể C — Đậm (tô nền đậm + thanh dày + bo tròn)</div>
+      <div class="planbar variant-bold state-active" id="barC"></div>
+      <p class="card-note">Nhấn mạnh tiến độ: tô nền done đậm hơn, thanh tiến trình dày hơn. Phù hợp khi muốn nổi bật.</p>
+    </div>
+  </div>
+
+  <footer>
+    Gợi ý: Sếp chọn biến thể → tôi sẽ điều chỉnh <code>ChatPlanBar.swift</code> theo đó (giữ accessibility và reduce motion). Nếu muốn thêm biến thể khác (màu, animation khác), nói thêm.
+  </footer>
+
+<script>
+  const steps = [
+    { title: "Đọc yêu cầu", status: "done" },
+    { title: "Viết mã", status: "done" },
+    { title: "Chạy kiểm tra", status: "active" },
+    { title: "Đẩy CI", status: "pending" },
+    { title: "Cài đặt", status: "pending" },
+  ];
+  const doneCount = steps.filter(s => s.status === "done").length;
+
+  function glyph(status) {
+    if (status === "done") return "✓";
+    if (status === "active") return "•";
+    return "○";
+  }
+
+  function buildBar(container, expanded) {
+    const state = container.classList.contains("state-paused") ? "paused"
+                : container.classList.contains("state-cancelled") ? "cancelled" : "active";
+    const accentVar = state === "paused" ? "var(--orange)" : state === "cancelled" ? "var(--red)" : "var(--blue)";
+    container.style.setProperty("--accent", accentVar);
+
+    const wrap = document.createElement("div");
+    wrap.className = "surface";
+    const content = document.createElement("div");
+    content.className = "content";
+
+    // header
+    const header = document.createElement("div");
+    header.className = "header";
+    const icon = document.createElement("span"); icon.className = "icon"; icon.textContent = state === "cancelled" ? "✕" : (state === "paused" ? "⏸" : "☑");
+    const title = document.createElement("span"); title.className = "title";
+    title.textContent = `Plan · ${doneCount}/${steps.length} done · ${state === "cancelled" ? "đã huỷ" : state === "paused" ? "tạm dừng" : "đang chạy"}`;
+    const chevron = document.createElement("span"); chevron.className = "chevron"; chevron.textContent = "⌃";
+    header.append(icon, title, chevron);
+
+    const track = document.createElement("div"); track.className = "progress-track";
+    const fill = document.createElement("div"); fill.className = "progress-fill";
+    const ratio = Math.max(0.02, doneCount / steps.length);
+    fill.style.width = (ratio * 100) + "%";
+    track.append(fill);
+    header.append(track);
+    content.append(header);
+
+    if (expanded) {
+      const stepsWrap = document.createElement("div"); stepsWrap.className = "steps";
+      // completed first
+      const order = steps.map((s,i)=>i).filter(i=>steps[i].status==="done")
+        .concat(steps.map((s,i)=>i).filter(i=>steps[i].status!=="done"));
+      order.forEach(i => {
+        const s = steps[i];
+        const row = document.createElement("div");
+        row.className = "step" + (s.status === "done" ? " done" : "");
+        row.innerHTML = `<span class="num">${i+1}.</span> ${glyph(s.status)} ${s.title}`;
+        stepsWrap.append(row);
+      });
+      content.append(stepsWrap);
+      if (steps.length > 5) {
+        const hint = document.createElement("div"); hint.className = "scroll-hint"; hint.textContent = "Cuộn để xem các bước khác";
+        content.append(hint);
+      }
+      const actions = document.createElement("div"); actions.className = "actions";
+      const a1 = document.createElement("button"); a1.className = "action filled"; a1.textContent = state === "paused" ? "Tiếp tục" : "Tạm dừng";
+      const a2 = document.createElement("button"); a2.className = "action outlined"; a2.textContent = "Kết thúc";
+      const a3 = document.createElement("button"); a3.className = "action outlined"; a3.textContent = "Xoá";
+      actions.append(a1,a2,a3);
+      content.append(actions);
+    }
+
+    wrap.append(content);
+    container.innerHTML = "";
+    container.append(wrap);
+    container.classList.toggle("expanded", expanded);
+  }
+
+  let expanded = true;
+  function renderAll() {
+    const reduce = document.getElementById("reduceMotion").checked;
+    document.body.classList.toggle("reduce-motion", reduce);
+    const paused = document.getElementById("statePaused").checked;
+    const cancelled = document.getElementById("stateCancelled").checked;
+    ["barA","barB","barC"].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove("state-active","state-paused","state-cancelled");
+      if (cancelled) el.classList.add("state-cancelled");
+      else if (paused) el.classList.add("state-paused");
+      else el.classList.add("state-active");
+      buildBar(el, expanded);
+    });
+  }
+
+  document.getElementById("btnExpand").addEventListener("click", () => { expanded = true; renderAll(); setActive("btnExpand"); });
+  document.getElementById("btnCollapse").addEventListener("click", () => { expanded = false; renderAll(); setActive("btnCollapse"); });
+  function setActive(id) {
+    document.querySelectorAll(".toolbar button").forEach(b => b.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+  ["reduceMotion","statePaused","stateCancelled"].forEach(id => {
+    document.getElementById(id).addEventListener("change", () => {
+      if (id === "statePaused" && document.getElementById("statePaused").checked) document.getElementById("stateCancelled").checked = false;
+      if (id === "stateCancelled" && document.getElementById("stateCancelled").checked) document.getElementById("statePaused").checked = false;
+      renderAll();
+    });
+  });
+
+  renderAll();
+</script>
+</body>
+</html>

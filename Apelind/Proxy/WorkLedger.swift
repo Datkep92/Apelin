@@ -1,4 +1,5 @@
 import Dispatch
+import Foundation
 
 /// Whether apelind has work, and when it may exit.
 ///
@@ -14,7 +15,7 @@ import Dispatch
 final class WorkLedger: @unchecked Sendable {
     private let queue: DispatchQueue
     private static let idleGraceSeconds = 15 * 60
-    private let idleGrace: DispatchTimeInterval = .seconds(Self.idleGraceSeconds)
+    private let idleGrace: DispatchTimeInterval = .seconds(WorkLedger.idleGraceSeconds)
     private let onIdle: () -> Void
     private var connections = 0
     private var requests = 0
