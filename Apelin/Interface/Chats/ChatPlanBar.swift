@@ -51,6 +51,14 @@ final class ChatPlanBar: UIView {
     private let progressTrack = UIView()
     private let progressFill = UIView()
     private var progressWidthConstraint: NSLayoutConstraint!
+    private let compactButton = UIButton(type: .system)
+    private let compactRingView = UIView()
+    private let compactTrackLayer = CAShapeLayer()
+    private let compactProgressLayer = CAShapeLayer()
+    private let compactLabel = UILabel()
+    private let visibilityButton = UIButton(type: .system)
+    /// Whole bar collapsed to a small circular progress badge.
+    private var isCompact = false
     private let scroll = UIScrollView()
     private let steps = UIStackView()
     private let more = UILabel()
@@ -142,6 +150,50 @@ final class ChatPlanBar: UIView {
             make.height.equalTo(Self.headerHeight)
         }
 
+        compactButton.backgroundColor = .clear
+        compactButton.layer.cornerRadius = 20
+        compactButton.clipsToBounds = true
+        compactButton.accessibilityLabel = String(localized: "Plan progress")
+        compactButton.addAction(UIAction { [weak self] _ in self?.toggleCompact() }, for: .touchUpInside)
+        addSubview(compactButton)
+        compactButton.snp.makeConstraints { make in
+            make.center.equalToSuperview()
+            make.width.height.equalTo(40)
+        }
+
+        compactRingView.isUserInteractionEnabled = false
+        compactButton.addSubview(compactRingView)
+        compactRingView.snp.makeConstraints { $0.edges.equalToSuperview() }
+
+        compactTrackLayer.fillColor = UIColor.clear.cgColor
+        compactTrackLayer.strokeColor = UIColor.separator.withAlphaComponent(0.25).cgColor
+        compactTrackLayer.lineWidth = 3
+        compactRingView.layer.addSublayer(compactTrackLayer)
+
+        compactProgressLayer.fillColor = UIColor.clear.cgColor
+        compactProgressLayer.strokeColor = AppAccent.color(glass: .systemBlue).cgColor
+        compactProgressLayer.lineWidth = 3
+        compactProgressLayer.lineCap = .round
+        compactRingView.layer.addSublayer(compactProgressLayer)
+
+        compactLabel.font = .preferredFont(forTextStyle: .caption2).with(weight: .bold)
+        compactLabel.textColor = .label
+        compactLabel.textAlignment = .center
+        compactLabel.isUserInteractionEnabled = false
+        compactButton.addSubview(compactLabel)
+        compactLabel.snp.makeConstraints { $0.edges.equalToSuperview() }
+
+        visibilityButton.setImage(UIImage(systemName: "eye.slash"), for: .normal)
+        visibilityButton.tintColor = .secondaryLabel
+        visibilityButton.accessibilityLabel = String(localized: "Hide progress")
+        visibilityButton.addAction(UIAction { [weak self] _ in self?.toggleCompact() }, for: .touchUpInside)
+        header.addSubview(visibilityButton)
+        visibilityButton.snp.makeConstraints { make in
+            make.trailing.equalTo(chevron.snp.leading).offset(-8)
+            make.centerY.equalToSuperview()
+            make.width.height.equalTo(24)
+        }
+
         progressTrack.backgroundColor = .separator.withAlphaComponent(0.25)
         progressTrack.layer.cornerRadius = Self.progressHeight / 2
         progressTrack.clipsToBounds = true
@@ -216,6 +268,7 @@ final class ChatPlanBar: UIView {
     /// and actions.
     var preferredHeight: CGFloat {
         guard let plan else { return 0 }
+        if isCompact { return 44 }
         let hairline = 1 / max(traitCollection.displayScale, 1)
         let verticalInset: CGFloat = 4
         guard isExpanded else {
@@ -239,7 +292,10 @@ final class ChatPlanBar: UIView {
         guard let newPlan else {
             self.plan = nil
             isExpanded = false
+            isCompact = false
             clear()
+            compactButton.isHidden = true
+            surface.isHidden = false
             return
         }
         // Keep the steps under the reader when only their status changes:
@@ -273,6 +329,7 @@ final class ChatPlanBar: UIView {
         }
 
         updateProgress(plan)
+        updateCompactProgress(plan)
     }
 
     private func updateStepButtons(_ plan: AgentPlan) {
@@ -297,9 +354,24 @@ final class ChatPlanBar: UIView {
         onHeightChange?()
     }
 
+    private func toggleCompact() {
+        guard plan != nil else { return }
+        isCompact.toggle()
+        if let plan { rebuild(plan) }
+        onHeightChange?()
+    }
+
     private func rebuild(_ plan: AgentPlan) {
         clear()
         stepButtons.removeAll()
+        if isCompact {
+            surface.isHidden = true
+            compactButton.isHidden = false
+            updateCompactProgress(plan)
+            return
+        }
+        surface.isHidden = false
+        compactButton.isHidden = true
         let line = ChatPlan.line(for: plan)
         var config = header.configuration ?? .plain()
         config.title = line
@@ -402,13 +474,65 @@ final class ChatPlanBar: UIView {
         }, completion: nil)
     }
 
+    private func updateCompactProgress(_ plan: AgentPlan) {
+        let done = max(0, plan.doneCount)
+        let total = max(1, plan.steps.count)
+        let ratio = min(1, max(0, CGFloat(done) / CGFloat(total)))
+        let percent = Int((ratio * 100).rounded())
+        compactLabel.text = "\(percent)%"
+
+        let color: UIColor = switch plan.state {
+        case .active: AppAccent.color(glass: .systemBlue)
+        case .paused: .systemOrange
+        case .cancelled: .systemRed
+        }
+        compactProgressLayer.strokeColor = color.cgColor
+        compactLabel.textColor = color
+
+        let bounds = compactRingView.bounds
+        guard bounds.width > 0 else { return }
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let radius = min(bounds.width, bounds.height) / 2 - 2
+        let trackPath = UIBezierPath(arcCenter: center, radius: radius, startAngle: 0, endAngle: .pi * 2, clockwise: true)
+        compactTrackLayer.frame = bounds
+        compactTrackLayer.path = trackPath.cgPath
+
+        let endAngle = -CGFloat.pi / 2 + (.pi * 2 * ratio)
+        let progressPath = UIBezierPath(arcCenter: center, radius: radius, startAngle: -CGFloat.pi / 2, endAngle: endAngle, clockwise: true)
+        compactProgressLayer.frame = bounds
+        compactProgressLayer.path = progressPath.cgPath
+
+        compactButton.accessibilityValue = "\(percent)%"
+        compactButton.accessibilityHint = isCompact
+            ? String(localized: "Double tap to show progress")
+            : String(localized: "Double tap to hide progress")
+
+        if plan.state == .active, !UIAccessibility.isReduceMotionEnabled {
+            if compactRingView.layer.animation(forKey: "spin") == nil {
+                let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+                animation.fromValue = 0
+                animation.toValue = Double.pi * 2
+                animation.duration = 1.4
+                animation.repeatCount = .infinity
+                compactRingView.layer.add(animation, forKey: "spin")
+            }
+        } else {
+            compactRingView.layer.removeAnimation(forKey: "spin")
+            compactRingView.transform = .identity
+        }
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         let trackWidth = progressTrack.bounds.width
-        guard trackWidth > 0, trackWidth != lastProgressTrackWidth else { return }
-        lastProgressTrackWidth = trackWidth
-        progressWidthConstraint.constant = trackWidth * progressRatio
-        progressTrack.layoutIfNeeded()
+        if trackWidth > 0, trackWidth != lastProgressTrackWidth {
+            lastProgressTrackWidth = trackWidth
+            progressWidthConstraint.constant = trackWidth * progressRatio
+            progressTrack.layoutIfNeeded()
+        }
+        if isCompact, let plan {
+            updateCompactProgress(plan)
+        }
     }
 
     /// Where a step stands and what the session recorded for it: the value
