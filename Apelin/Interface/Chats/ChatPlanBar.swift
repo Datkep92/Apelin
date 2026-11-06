@@ -314,6 +314,9 @@ final class ChatPlanBar: UIView {
         updateProgress(plan)
         guard isExpanded else { return }
 
+        // Newest step is placed highest so it is visible on first look, but each
+        // row keeps its original step number for updates and detail sheets.
+        var renderedButtons: [UIButton] = []
         for (index, step) in plan.steps.enumerated() {
             let button = UIButton(type: .system)
             button.contentHorizontalAlignment = .leading
@@ -328,8 +331,10 @@ final class ChatPlanBar: UIView {
             button.addAction(UIAction { [weak self] _ in self?.detail(index) }, for: .touchUpInside)
             button.snp.makeConstraints { make in make.height.equalTo(Self.stepHeight) }
             stepButtons.append(button)
-            steps.addArrangedSubview(button)
+            renderedButtons.append(button)
         }
+        // Newest first.
+        renderedButtons.reversed().forEach { steps.addArrangedSubview($0) }
         content.addArrangedSubview(scroll)
         let shown = min(plan.steps.count, Self.visibleSteps)
         scroll.snp.remakeConstraints { make in make.height.equalTo(CGFloat(shown) * Self.stepHeight) }
