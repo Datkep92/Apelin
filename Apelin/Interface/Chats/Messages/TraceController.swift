@@ -1,11 +1,15 @@
 import UIKit
 
 /// The trace behind a summary, in a sheet; the conversation shows one
-/// summary. Each step in order — a thought, a call, an approval — is a row,
-/// its kind over a line of its detail (`TraceStep`), and a row with more
-/// opens that step whole (`TraceStepController`). It follows the run:
-/// steps are added and rows reconfigured in place, so the reader's scroll
-/// and open page stay, and the open page shows its step as it grows.
+/// summary. Each step — a thought, a call, an approval — is a row, its kind
+/// over a line of its detail (`TraceStep`), and a row with more opens that
+/// step whole (`TraceStepController`). The newest step is the first row, as
+/// the plan bar above the composer lists the same run's steps, so a reader
+/// opening the sheet mid-run sees what the run is doing now instead of the
+/// first thing it did; the sheet lists the run backwards, newest first. It
+/// follows the run: steps are added and rows reconfigured in place, a step
+/// that did not change is not read again, and an open page takes its step as
+/// it grows where the reader left it.
 final class TraceController: TableController {
     let messageID: UUID
     private var message: ChatMessage
@@ -45,7 +49,11 @@ final class TraceController: TableController {
         self.message = message
         guard isViewLoaded else { return }
         var shown: [UUID: (step: ChatMessage, row: TraceStep)] = [:]
-        let rows = TraceStep.messages(of: message).map { step in
+        // Newest first, as the plan bar above the composer lists the steps of
+        // the same run: the reader opens the sheet to see what is happening
+        // now, and the run's beginning is a swipe away rather than the other
+        // way round.
+        let rows = TraceStep.messages(of: message).reversed().map { step in
             let row = if let known = self.shown[step.id], known.step == step {
                 known.row
             } else {
