@@ -351,10 +351,19 @@ final class ChatPlanBar: UIView {
         content.addArrangedSubview(actions)
     }
 
+    /// The ratio the fill currently represents: kept so a later layout
+    /// pass (rotation, first appearance, sidebar) can size the fill again
+    /// without waiting for a new plan event.
+    private var progressRatio: CGFloat = 0
+    /// The track width the fill was last sized for, so a layout pass that
+    /// does not change it does not recompute (and re-animate) the fill.
+    private var lastProgressTrackWidth: CGFloat = 0
+
     private func updateProgress(_ plan: AgentPlan) {
         let done = max(0, plan.doneCount)
         let total = max(1, plan.steps.count)
         let ratio = min(1, max(0, CGFloat(done) / CGFloat(total)))
+        progressRatio = max(ratio, 0.02)
         let progressColor: UIColor = switch plan.state {
         case .active: AppAccent.color(glass: .systemBlue)
         case .paused: .systemOrange
@@ -362,11 +371,23 @@ final class ChatPlanBar: UIView {
         }
         progressFill.backgroundColor = progressColor
         self.layoutIfNeeded()
-        progressWidthConstraint.constant = max(0, progressTrack.bounds.width * max(ratio, 0.02))
+        let trackWidth = progressTrack.bounds.width
+        guard trackWidth > 0 else { return }
+        lastProgressTrackWidth = trackWidth
+        progressWidthConstraint.constant = trackWidth * progressRatio
         let duration = UIAccessibility.isReduceMotionEnabled ? 0 : 0.26
         UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState, .curveEaseInOut], animations: {
             self.progressTrack.layoutIfNeeded()
         }, completion: nil)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let trackWidth = progressTrack.bounds.width
+        guard trackWidth > 0, trackWidth != lastProgressTrackWidth else { return }
+        lastProgressTrackWidth = trackWidth
+        progressWidthConstraint.constant = trackWidth * progressRatio
+        progressTrack.layoutIfNeeded()
     }
 
     /// Where a step stands and what the session recorded for it: the value
