@@ -13,7 +13,8 @@ import Dispatch
 /// Every method runs on `queue`.
 final class WorkLedger: @unchecked Sendable {
     private let queue: DispatchQueue
-    private let idleGrace: DispatchTimeInterval = .seconds(15 * 60)
+    private static let idleGraceSeconds = 15 * 60
+    private let idleGrace: DispatchTimeInterval = .seconds(Self.idleGraceSeconds)
     private let onIdle: () -> Void
     private var connections = 0
     private var requests = 0
@@ -64,6 +65,7 @@ final class WorkLedger: @unchecked Sendable {
         idleTimer?.cancel()
         idleTimer = nil
         guard isIdle else { return }
+        NSLog("apelind: idle, exiting in %d s unless work arrives", Self.idleGraceSeconds)
         let timer = DispatchWorkItem { [weak self] in
             guard let self else { return }
             onIdle()
