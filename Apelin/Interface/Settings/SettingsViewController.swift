@@ -393,11 +393,16 @@ final class ConfigurationController: UIViewController, UIDocumentPickerDelegate 
         defer { setActionsEnabled(true) }
         do {
             let data: Data = try await Task.detached(priority: .userInitiated) {
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer {
-                    if scoped { url.stopAccessingSecurityScopedResource() }
+                let directURL = URL(fileURLWithPath: url.path)
+                do {
+                    return try Data(contentsOf: directURL)
+                } catch {
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if scoped { url.stopAccessingSecurityScopedResource() }
+                    }
+                    return try Data(contentsOf: url)
                 }
-                return try Data(contentsOf: url)
             }.value
 
             let envelope = try ConfigBundleParser.load(data)
