@@ -312,6 +312,11 @@ final class ChatPlanBar: UIView {
             ? String(localized: "Double tap to hide the steps")
             : String(localized: "Double tap to show the steps")
         chevron.image = UIImage(systemName: isExpanded ? "chevron.compact.up" : "chevron.compact.down")
+        let chevronAngle: CGFloat = isExpanded ? .pi : 0
+        let chevronDuration = UIAccessibility.isReduceMotionEnabled ? 0 : 0.2
+        UIView.animate(withDuration: chevronDuration, delay: 0, options: [.beginFromCurrentState, .curveEaseInOut]) {
+            self.chevron.transform = CGAffineTransform(rotationAngle: chevronAngle)
+        }
         content.addArrangedSubview(header)
         updateProgress(plan)
         guard isExpanded else { return }
@@ -333,6 +338,12 @@ final class ChatPlanBar: UIView {
             button.tag = index
             button.addAction(UIAction { [weak self] _ in self?.detail(index) }, for: .touchUpInside)
             button.snp.makeConstraints { make in make.height.equalTo(Self.stepHeight) }
+            if step.status == .done {
+                button.backgroundColor = AppAccent.color(glass: .systemBlue).withAlphaComponent(0.08)
+                button.layer.cornerRadius = 8
+                button.layer.cornerCurve = .continuous
+            }
+            button.alpha = 0
             stepButtons.append(button)
             renderedButtons.append(button)
         }
@@ -340,6 +351,10 @@ final class ChatPlanBar: UIView {
             + plan.steps.indices.filter { plan.steps[$0].status != .done }
         for i in displayOrder {
             steps.addArrangedSubview(renderedButtons[i])
+        }
+        let fadeDuration = UIAccessibility.isReduceMotionEnabled ? 0 : 0.22
+        UIView.animate(withDuration: fadeDuration, delay: 0.04, options: [.beginFromCurrentState, .curveEaseOut]) {
+            for button in renderedButtons { button.alpha = 1 }
         }
         content.addArrangedSubview(scroll)
         let shown = min(plan.steps.count, Self.visibleSteps)
