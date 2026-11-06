@@ -769,15 +769,18 @@ final class ChatController: UIViewController {
     }
 
     private func setPlanBarHeight(_ height: CGFloat) {
-        guard height != planHeight else { return }
+        let shouldHide = height == 0 && !planBar.isCompact
+        let heightChanged = height != planHeight
         planHeight = height
-        planBar.isHidden = height == 0
+        if planBar.isHidden != shouldHide { planBar.isHidden = shouldHide }
         planBarHeightConstraint?.update(offset: height)
         // the bar takes its room from the list, which keeps the message the
         // reader was on where it was
         updateMessageListInsets()
-        UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0, options: [.beginFromCurrentState, .curveEaseInOut]) {
-            self.view.layoutIfNeeded()
+        if heightChanged {
+            UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0, options: [.beginFromCurrentState, .curveEaseInOut]) {
+                self.view.layoutIfNeeded()
+            }
         }
     }
 

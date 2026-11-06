@@ -58,7 +58,7 @@ final class ChatPlanBar: UIView {
     private let compactLabel = UILabel()
     private let visibilityButton = UIButton(type: .system)
     /// Whole bar collapsed to a small circular progress badge.
-    private var isCompact = false
+    private(set) var isCompact = false
     private let scroll = UIScrollView()
     private let steps = UIStackView()
     private let more = UILabel()
@@ -150,15 +150,20 @@ final class ChatPlanBar: UIView {
             make.height.equalTo(Self.headerHeight)
         }
 
-        compactButton.backgroundColor = .clear
-        compactButton.layer.cornerRadius = 20
-        compactButton.clipsToBounds = true
+        compactButton.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.85)
+        compactButton.layer.cornerRadius = 22
+        compactButton.clipsToBounds = false
+        compactButton.layer.shadowColor = UIColor.black.cgColor
+        compactButton.layer.shadowOpacity = 0.12
+        compactButton.layer.shadowRadius = 6
+        compactButton.layer.shadowOffset = CGSize(width: 0, height: 2)
         compactButton.accessibilityLabel = String(localized: "Plan progress")
         compactButton.addAction(UIAction { [weak self] _ in self?.toggleCompact() }, for: .touchUpInside)
         addSubview(compactButton)
         compactButton.snp.makeConstraints { make in
-            make.center.equalToSuperview()
-            make.width.height.equalTo(40)
+            make.trailing.equalToSuperview().inset(12)
+            make.bottom.equalToSuperview()
+            make.width.height.equalTo(44)
         }
 
         compactRingView.isUserInteractionEnabled = false
@@ -185,6 +190,9 @@ final class ChatPlanBar: UIView {
 
         visibilityButton.setImage(UIImage(systemName: "eye.slash"), for: .normal)
         visibilityButton.tintColor = .secondaryLabel
+        visibilityButton.backgroundColor = UIColor.tertiarySystemFill
+        visibilityButton.layer.cornerRadius = 12
+        visibilityButton.layer.cornerCurve = .continuous
         visibilityButton.accessibilityLabel = String(localized: "Hide progress")
         visibilityButton.addAction(UIAction { [weak self] _ in self?.toggleCompact() }, for: .touchUpInside)
         header.addSubview(visibilityButton)
@@ -268,7 +276,7 @@ final class ChatPlanBar: UIView {
     /// and actions.
     var preferredHeight: CGFloat {
         guard let plan else { return 0 }
-        if isCompact { return 44 }
+        if isCompact { return 0 }
         let hairline = 1 / max(traitCollection.displayScale, 1)
         let verticalInset: CGFloat = 4
         guard isExpanded else {
@@ -357,8 +365,18 @@ final class ChatPlanBar: UIView {
     private func toggleCompact() {
         guard plan != nil else { return }
         isCompact.toggle()
+        if isCompact {
+            compactButton.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
+            compactButton.alpha = 0
+        }
         if let plan { rebuild(plan) }
         onHeightChange?()
+        if isCompact {
+            UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 0.5, options: [.beginFromCurrentState, .curveEaseOut]) {
+                self.compactButton.transform = .identity
+                self.compactButton.alpha = 1
+            }
+        }
     }
 
     private func rebuild(_ plan: AgentPlan) {
@@ -448,6 +466,8 @@ final class ChatPlanBar: UIView {
     /// pass (rotation, first appearance, sidebar) can size the fill again
     /// without waiting for a new plan event.
     private var progressRatio: CGFloat = 0
+/// Compact badge: last drawn progress ratio, for animating strokeEnd.
+private var compactProgressRatio: CGFloat = 0
     /// The track width the fill was last sized for, so a layout pass that
     /// does not change it does not recompute (and re-animate) the fill.
     private var lastProgressTrackWidth: CGFloat = 0
@@ -486,6 +506,12 @@ final class ChatPlanBar: UIView {
         case .paused: .systemOrange
         case .cancelled: .systemRed
         }
+        let strokeAnim = CABasicAnimation(keyPath: "strokeColor")
+        strokeAnim.fromValue = compactProgressLayer.presentation()?.strokeColor ?? compactProgressLayer.strokeColor
+        strokeAnim.toValue = color.cgColor
+        strokeAnim.duration = 0.3
+        strokeAnim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        compactProgressLayer.add(strokeAnim, forKey: "strokeColor")
         compactProgressLayer.strokeColor = color.cgColor
         compactLabel.textColor = color
 
@@ -497,10 +523,22 @@ final class ChatPlanBar: UIView {
         compactTrackLayer.frame = bounds
         compactTrackLayer.path = trackPath.cgPath
 
-        let endAngle = -CGFloat.pi / 2 + (.pi * 2 * ratio)
-        let progressPath = UIBezierPath(arcCenter: center, radius: radius, startAngle: -CGFloat.pi / 2, endAngle: endAngle, clockwise: true)
+        let progressPath = UIBezierPath(arcCenter: center, radius: radius, startAngle: -CGFloat.pi / 2, endAngle: -CGFloat.pi / 2 + .pi * 2, clockwise: true)
         compactProgressLayer.frame = bounds
         compactProgressLayer.path = progressPath.cgPath
+        compactProgressLayer.fillColor = UIColor.clear.cgColor
+        compactProgressLayer.lineWidth = 3
+        compactProgressLayer.lineCap = .round
+
+        let fromRatio = compactProgressRatio
+        compactProgressRatio = ratio
+        compactProgressLayer.strokeEnd = ratio
+        let endAnim = CABasicAnimation(keyPath: "strokeEnd")
+        endAnim.fromValue = fromRatio
+        endAnim.toValue = ratio
+        endAnim.duration = 0.3
+        endAnim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        compactProgressLayer.add(endAnim, forKey: "strokeEnd")
 
         compactButton.accessibilityValue = "\(percent)%"
         compactButton.accessibilityHint = isCompact
@@ -520,6 +558,14 @@ final class ChatPlanBar: UIView {
             compactRingView.layer.removeAnimation(forKey: "spin")
             compactRingView.transform = .identity
         }
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        if isCompact, !compactButton.isHidden {
+            let frame = compactButton.frame
+            if frame.contains(point) { return true }
+        }
+        return super.point(inside: point, with: event)
     }
 
     override func layoutSubviews() {
