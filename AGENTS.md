@@ -323,7 +323,7 @@ What `CHECKLIST.md` asked to be written down, and where the answer lives.
   host only through the socketpair it made for them, so neither is a peer.
 - **Process layout.** `apelind` (root, the launchd job, on demand) is the
   proxy: it authenticates the peer, answers `hello`, forwards everything else
-  unread, and exits 30 s after its last connection, request and session-host
+  unread, and exits 15 min after its last connection, request and session-host
   work (`Apelind/Proxy/WorkLedger.swift`) — past launchd's ten-second respawn
   throttle. `apelind-session` (root) is the same executable with
   `--session` and a socketpair as descriptor 3, the proxy's child — that

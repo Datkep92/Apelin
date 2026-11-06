@@ -50,7 +50,7 @@ platformize-app-ios's; the quoted name is its section.
       **Done:** 5 s hello bound per attempt guarded by generation, 1 s retry, 10 s grace from the first miss (`AGENTS.md` ▸ Decisions).
 - [x] Every optional key in the launchd plist (`KeepAlive`, `RunAtLoad`, `AbandonProcessGroup`, `ProcessType`) is enabled or deleted to match the shape.
       `Packaging/<daemon id>.plist`; SKILL.md "Template".
-      **Done:** On demand (owner, 2026-10-16): no `RunAtLoad`, no `KeepAlive`; launchd starts apelind through `MachServices`, and apelind's `WorkLedger` exits 30 s after its last connection, request and session-host work, past launchd's respawn throttle. `Interactive` + 10240 files. No `AbandonProcessGroup`: the session host and workers are apelind's children and go with it. `make check` asserts all of it.
+      **Done:** On demand (owner, 2026-10-16): no `RunAtLoad`, no `KeepAlive`; launchd starts apelind through `MachServices`, and apelind's `WorkLedger` exits 15 min after its last connection, request and session-host work, past launchd's respawn throttle. `Interactive` + 10240 files. No `AbandonProcessGroup`: the session host and workers are apelind's children and go with it. `make check` asserts all of it.
 - [x] `Scripts/check-launchd-paths.py` is copied in and wired into `make check` against the launchd plist; any watched, logged or working path is spelled `@PREFIX@/…` or `@ROOTFS@/…`, and the packager fills `@ROOTFS@` if one is used.
       SKILL.md "Every path launchd itself opens names its root".
       **Done:** Wired; the plist has no launchd path beyond its program, so no `@ROOTFS@` (the packager fills it if one appears).

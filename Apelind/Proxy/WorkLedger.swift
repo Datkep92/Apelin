@@ -13,7 +13,7 @@ import Dispatch
 /// Every method runs on `queue`.
 final class WorkLedger: @unchecked Sendable {
     private let queue: DispatchQueue
-    private let idleGrace: DispatchTimeInterval = .seconds(30)
+    private let idleGrace: DispatchTimeInterval = .seconds(15 * 60)
     private let onIdle: () -> Void
     private var connections = 0
     private var requests = 0
