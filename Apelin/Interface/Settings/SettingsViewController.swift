@@ -336,6 +336,7 @@ final class ConfigurationController: UIViewController, UIDocumentPickerDelegate 
             let inf = Bundle.main.infoDictionary
             let appVersion = (inf?["CFBundleShortVersionString"] as? String) ?? "unknown"
             let buildNumber = (inf?["CFBundleVersion"] as? String) ?? "unknown"
+            let root = self.root
             let bundle = try await Task.detached(priority: .userInitiated) {
                 let (files, scopes) = ConfigBundleCollector.collect(from: root)
                 return try ConfigBundleBuilder.build(
@@ -363,7 +364,7 @@ final class ConfigurationController: UIViewController, UIDocumentPickerDelegate 
             }
         } catch {
             await MainActor.run {
-                self.presentNotice(title: String(localized: "Unable to Export"), message: String(describing: error))
+                self.presentNotice(title: "Unable to Export", message: String(describing: error))
             }
         }
     }
@@ -459,11 +460,11 @@ final class ConfigurationController: UIViewController, UIDocumentPickerDelegate 
 
             await MainActor.run {
                 NotificationCenter.default.post(name: TransferOpener.environmentChanged, object: nil)
-                self.presentNotice(title: String(localized: "Imported"), message: String(localized: "Configuration applied. Restart Apelin to fully reload agent data if needed."))
+                self.presentNotice(title: "Imported", message: "Configuration applied. Restart Apelin to fully reload agent data if needed.")
             }
         } catch {
             await MainActor.run {
-                self.presentNotice(title: String(localized: "Unable to Import"), message: String(describing: error))
+                self.presentNotice(title: "Unable to Import", message: String(describing: error))
             }
         }
     }
