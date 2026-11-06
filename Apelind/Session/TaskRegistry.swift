@@ -44,6 +44,7 @@ actor TaskRegistry {
     /// the caller resumes or marks `interrupted`.
     @discardableResult
     func load() -> [Record] {
+        pruneSupersededAgentTasksBeforeLoad()
         var unfinished: [Record] = []
         try? FileManager.default.createDirectory(
             at: directory,
@@ -297,6 +298,30 @@ actor TaskRegistry {
                 events.removeValue(forKey: record.id)
                 unlink(eventsURL(record.id).path)
                 unlink(recordURL(record.id).path)
+            }
+        }
+    }
+
+    /// Before reading any event log, remove superseded terminal agent tasks from
+    /// disk (they would otherwise be read in full at every start). Newest per
+    /// session survives, which is all anyone ever reads again.
+    private func pruneSupersededAgentTasksBeforeLoad() {
+        guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return }
+        var bySession: [String: [(url: URL, record: Record)]] = [:]
+        for file in files where file.pathExtension == "json" {
+            guard let data = try? Data(contentsOf: file),
+                  let record = try? JSONCoding.decoder().decode(Record.self, from: data),
+                  record.kind == .agent, let owner = record.ownerKey
+            else { continue }
+            bySession[owner, default: []].append((file, record))
+        }
+        for entries in bySession.values where entries.count > 1 {
+            let order = { (record: Record) in (record.createdAt, record.lastSeq.rawValue, record.id.rawValue) }
+            guard let newest = entries.max(by: { order($0.record) < order($1.record) })
+            else { continue }
+            for entry in entries where entry.record.id != newest.record.id && entry.record.state.isTerminal {
+                try? FileManager.default.removeItem(at: entry.url)
+                try? FileManager.default.removeItem(at: eventsURL(entry.record.id))
             }
         }
     }
