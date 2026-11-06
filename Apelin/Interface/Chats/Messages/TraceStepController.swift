@@ -11,6 +11,11 @@ final class TraceStepController: UIViewController {
     private let body = TextLabelView()
     /// What the body shows, nil when it shows nothing.
     private var key: TraceBody.Key?
+    /// The text `key` makes and the height it takes at the width it was
+    /// measured at: the page open holds its own step, so a layout pass does
+    /// not decode a whole file again, and closing the page frees it —
+    /// `TraceBody` keeps nothing. A width of 0 is "not measured yet".
+    private var laid: (key: TraceBody.Key, text: NSAttributedString, width: CGFloat, height: CGFloat)?
     /// Between the text and the page's top and foot.
     private static let padding: CGFloat = 16
 
@@ -48,8 +53,17 @@ final class TraceStepController: UIViewController {
         guard key != self.key else { return }
         self.key = key
         body.clearSelection()
-        body.attributedText = key.map(TraceBody.text) ?? NSAttributedString()
-        body.accessibilityLabel = body.attributedText.string
+        guard let key else {
+            laid = nil
+            body.attributedText = NSAttributedString()
+            body.accessibilityLabel = nil
+            viewIfLoaded?.setNeedsLayout()
+            return
+        }
+        let text = TraceBody.text(for: key)
+        laid = (key, text, 0, 0)
+        body.attributedText = text
+        body.accessibilityLabel = text.string
         viewIfLoaded?.setNeedsLayout()
     }
 
@@ -66,10 +80,22 @@ final class TraceStepController: UIViewController {
         scrollView.frame = view.bounds
         let readable = view.readableContentGuide.layoutFrame
         guard readable.width > 0 else { return }
-        // measured once for each text and width (`TraceBody`)
-        let height = key.map { TraceBody.height(for: $0, width: readable.width) } ?? 0
+        // the height of the text this page shows, measured once at this width
+        let height = laidHeight(at: readable.width)
         body.frame = CGRect(x: readable.minX, y: Self.padding, width: readable.width, height: height)
         scrollView.contentSize = CGSize(width: view.bounds.width, height: height + Self.padding * 2)
+    }
+
+    /// The height the step's text takes at `width`, measured once for it, so
+    /// a run of layout passes does not decode and lay out a whole file again.
+    private func laidHeight(at width: CGFloat) -> CGFloat {
+        guard var laid else { return 0 }
+        if laid.width != width {
+            laid.width = width
+            laid.height = TraceBody.height(of: laid.text, width: width)
+            self.laid = laid
+        }
+        return laid.height
     }
 }
 

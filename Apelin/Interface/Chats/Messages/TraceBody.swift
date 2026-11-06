@@ -3,9 +3,11 @@ import UIKit
 
 /// The text a step's page in the trace shows (`TraceStepController`): a
 /// thought's text, a call by `ToolCallDetail` with each name set apart from
-/// its value, or what an approval asked. A long call (a whole file written)
-/// is decoded and laid out once for each text, size and width, not again on
-/// every layout pass of the page.
+/// its value, or what an approval asked. It keeps nothing: the page open
+/// holds the one text it shows and the height it takes (`TraceStepController`),
+/// so a long call (a whole file written) is decoded and laid out once while
+/// its page is open, and the reader closing the page frees it — no step's
+/// text outlives the page that showed it.
 @MainActor
 enum TraceBody {
     struct Key: Hashable {
@@ -16,19 +18,6 @@ enum TraceBody {
         let callTitle: String?
         let size: UIContentSizeCategory
     }
-
-    private struct Measure: Hashable {
-        let key: Key
-        let width: CGFloat
-    }
-
-    private static var texts: [Key: NSAttributedString] = [:]
-    private static var heights: [Measure: CGFloat] = [:]
-    private static let sizing = TextLabelView()
-    /// Past this many texts, or four times as many heights, the caches
-    /// start again: a step that streams is a new text each time it grows,
-    /// and a long one's text is the size of the file it wrote.
-    private static let capacity = 64
 
     /// A step's key, or nil for a step with nothing to show.
     static func key(for message: ChatMessage) -> Key? {
@@ -44,34 +33,8 @@ enum TraceBody {
         }
     }
 
+    /// The text a step's page shows, built for it.
     static func text(for key: Key) -> NSAttributedString {
-        if let text = texts[key] {
-            return text
-        }
-        if texts.count >= capacity {
-            texts.removeAll()
-        }
-        let text = build(key)
-        texts[key] = text
-        return text
-    }
-
-    /// The height the text takes at `width`, as a `TextLabelView` lays it out.
-    static func height(for key: Key, width: CGFloat) -> CGFloat {
-        let measure = Measure(key: key, width: width)
-        if let height = heights[measure] {
-            return height
-        }
-        if heights.count >= capacity * 4 {
-            heights.removeAll()
-        }
-        sizing.attributedText = text(for: key)
-        let height = ceil(sizing.sizeThatFits(CGSize(width: width, height: 0)).height)
-        heights[measure] = height
-        return height
-    }
-
-    private static func build(_ key: Key) -> NSAttributedString {
         let body: [NSAttributedString.Key: Any] = [
             .font: UIFont.preferredFont(forTextStyle: .body),
             .foregroundColor: UIColor.label,
@@ -96,4 +59,12 @@ enum TraceBody {
         }
         return result
     }
+
+    /// The height `text` takes at `width`, as a `TextLabelView` lays it out.
+    static func height(of text: NSAttributedString, width: CGFloat) -> CGFloat {
+        sizing.attributedText = text
+        return ceil(sizing.sizeThatFits(CGSize(width: width, height: 0)).height)
+    }
+
+    private static let sizing = TextLabelView()
 }
