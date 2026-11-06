@@ -244,9 +244,11 @@ final class ChatPlanBar: UIView {
         }
         // Keep the steps under the reader when only their status changes:
         // the skeleton (count and titles) is what rebuilding exists for.
+        // A status change reorders (completed steps move to the top), so it
+        // rebuilds rather than relabelling in place.
         if self.plan != nil,
            self.plan!.steps.count == newPlan.steps.count,
-           zip(self.plan!.steps, newPlan.steps).allSatisfy({ $0.id == $1.id && $0.title == $1.title }) {
+           zip(self.plan!.steps, newPlan.steps).allSatisfy({ $0.id == $1.id && $0.title == $1.title && $0.status == $1.status }) {
             self.plan = newPlan
             updateHeader(newPlan)
             updateStepButtons(newPlan)
@@ -314,8 +316,9 @@ final class ChatPlanBar: UIView {
         updateProgress(plan)
         guard isExpanded else { return }
 
-        // Newest first: the latest step stays at the top so it is visible without
-        // scrolling. Each row keeps its original step number for updates and detail sheets.
+        // Completed (done) steps first, so finished work sits at the top and
+        // the step now running leads the rest. Each row keeps its original
+        // step number for updates and detail sheets.
         var renderedButtons: [UIButton] = []
         for (index, step) in plan.steps.enumerated() {
             let button = UIButton(type: .system)
@@ -333,8 +336,11 @@ final class ChatPlanBar: UIView {
             stepButtons.append(button)
             renderedButtons.append(button)
         }
-        // Newest step first.
-        renderedButtons.reversed().forEach { steps.addArrangedSubview($0) }
+        let displayOrder = plan.steps.indices.filter { plan.steps[$0].status == .done }
+            + plan.steps.indices.filter { plan.steps[$0].status != .done }
+        for i in displayOrder {
+            steps.addArrangedSubview(renderedButtons[i])
+        }
         content.addArrangedSubview(scroll)
         let shown = min(plan.steps.count, Self.visibleSteps)
         scroll.snp.remakeConstraints { make in make.height.equalTo(CGFloat(shown) * Self.stepHeight) }
