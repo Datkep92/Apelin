@@ -312,7 +312,7 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 | 6 | **Nhập file từ Recents/iCloud Drive** (`01b227b4`) | chọn PDF/XML tay từ máy | chưa build/cài |
 | 7 | **Kế hoạch phiên / thanh tiến đồ** (`b2cea5d`, `8c53479`) | manual pass; refactor tách mutation/side-effect nếu giữ ổn định | chưa từng kiểm bằng mắt |
 | 8 | **Hiệu năng cold launch / chat list / daemon handshake** (`8c53479`) | đo baseline và đối chiếu hotspot trước khi sửa | chưa có số liệu |
-| 9 | **Bản cục bộ `.apelinbak` / ConfigBundle Phase 1** (`0cd1891`) | CI `0cd1891` đang chạy; host test trước đó fail do base64 rỗng/size mismatch, đã fix; chờ CI xanh | compile + app integration còn chờ; chưa proven |
+| 9 | **Bản cục bộ `.apelinbak` / ConfigBundle Phase 1** (`0cd1891`) | CI `0cd1891` = success (run `42131202236`); signed tag `v0.4.14` pushed, Release workflow run `42136666656` = success; rootless deb digest SHA256 verified; cài lên máy qua icli = 0.4.14 (`previous 0.4.13`, scripts not run) | compile/proven core; export/import runtime và app integration còn chờ; app chưa restart để activate |
 
 **Ràng buộc chung của các việc trên:** HEAD mới nhất `0cd1891` (CI đang chạy cho 0.4.14). Build/cài chưa thực hiện trong lượt này; các đầu mục phần lớn còn chờ CI/device. Không cài tự ý nếu Sếp chưa yêu cầu.
 
