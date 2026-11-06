@@ -223,6 +223,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 64 | 2026-11-06 | Cá nhân hoá | **Thanh tiến trình hiện đại hơn và động hơn.** Bước đã hoàn tất được tô nền accent nhẹ để nhìn thấy ngay; chevron mở/đóng danh sách bước xoay mượt thay vì giật; các hàng bước hiện ra theo hiệu ứng fade-in khi thanh dựng lại danh sách. Tất cả hiệu ứng tắt khi Reduce Motion bật. Logic, số bước và hành vi public không đổi. | `84481fb` | `ChatPlanBar.rebuild(_:)` thêm xoay chevron và fade-in hàng bước; tô nền bước `done` trong vòng dựng hàng. |
 | 65 | 2026-11-07 | Cá nhân hoá | **Thanh tiến trình: ẩn cả thanh thành huy hiệu tròn nhỏ hiển thị phần trăm.** Thêm nút `eye.slash` ở header để ẩn, chạm huy hiệu để hiện lại; trạng thái ẩn không lưu (chỉ trong bộ nhớ). Logic public không đổi. | `be7a4a5` | Giữ `isCompact`, `compactButton`/`visibilityButton`, `toggleCompact()`, `updateCompactProgress(_:)`, `preferredHeight` trong `ChatPlanBar.swift`; không thêm persistence. |
 | 66 | 2026-11-07 | Cá nhân hoá | **Thanh tiến trình: badge compact nổi không chiếm chiều cao nội dung; màu và tiến độ chuyển động mượt; nút ẩn được style lại.** Badge compact đặt overlay ở góc phải trên composer, `preferredHeight` trả 0 và ChatController không ẩn bar khi compact; `strokeColor`/`strokeEnd` animate; nút ẩn có nền tròn và bo góc liên tục. | `76e2d06` | Giữ `point(inside:with:)` trong `ChatPlanBar`, `isCompact` đọc được từ `ChatController`, không thêm persistence. |
+| 67 | 2026-11-07 | Cá nhân hoá | **Thanh tiến trình: badge compact mờ và đổ bóng nhẹ để nhìn chuyên nghiệp hơn.** Nền badge đổi sang `systemBackground` độ mờ 0,72, thêm viền separator mờ, đổ bóng opacity 0,18 bán kính 10 offset cao 3. | `5b49913` | Giữ `clipsToBounds = false` trên badge compact; không thêm hiệu ứng khác. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
@@ -307,7 +308,7 @@ Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đ�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `b12d0b4` (`main`, hơn `origin/main` **1 commit** đang chờ push; `origin/main` đứng ở `01bbb27` "Release 0.4.23"; tag mới nhất `v0.4.23`). Commit mới: `b12d0b4` cập nhật HEAD sau thay đổi ChatPlanBar compact. **Chưa push, chưa build, chưa cài** — theo luật chỉ push/build khi Sếp yêu cầu; khi push thì nhớ luật CI (mỗi lần push là tăng version + ghi chú release).">
+**HEAD khi cập nhật mục này:** `5b49913` (`main`, hơn `origin/main` **2 commit** đang chờ push; `origin/main` đứng ở `01bbb27` "Release 0.4.23"; tag mới nhất `v0.4.23`). Commit mới: `5b49913` làm mờ và đổ bóng badge compact của thanh tiến trình. **Chưa push, chưa build, chưa cài** — theo luật chỉ push/build khi Sếp yêu cầu; khi push thì nhớ luật CI (mỗi lần push là tăng version + ghi chú release).">
 
 > Ghi chú đồng bộ 2026-11-06: bảng việc dở bên dưới còn dữ liệu từ giai đoạn 0.4.7/0.4.9. Các mốc Git thực tế mới hơn là `38a9542` (khôi phục background survival), `d67b84e` (`v0.4.11`, animated progress), `d335b96` (`v0.4.12`, UI polish) và `66eb3cf` (nâng task progress). Các đầu mục cũ trong bảng chưa xác nhận là việc còn mở.
 
