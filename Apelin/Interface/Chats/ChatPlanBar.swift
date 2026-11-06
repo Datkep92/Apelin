@@ -196,7 +196,11 @@ final class ChatPlanBar: UIView {
         for (button, action) in [(endPlan, AgentPlanAction.cancel), (clearPlan, AgentPlanAction.clear)] {
             button.addAction(UIAction { [weak self] _ in self?.onAction?(action) }, for: .touchUpInside)
         }
-
+        for button in [pauseResume, endPlan, clearPlan] {
+            actions.addArrangedSubview(button)
+        }
+        setButtonTitle(endPlan, title: String(localized: "End plan"))
+        setButtonTitle(clearPlan, title: String(localized: "Clear plan"))
         actions.snp.makeConstraints { make in
             make.height.equalTo(Self.actionHeight)
         }
