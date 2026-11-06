@@ -37,12 +37,12 @@ final class ChatPlanBar: UIView {
     /// Steps given room at once. A plan with more of them scrolls, so a
     /// twelve-step plan does not swallow the conversation.
     static let visibleSteps = 5
-    static let headerHeight: CGFloat = 52
-    static let stepHeight: CGFloat = 36
-    static let actionHeight: CGFloat = 42
-    static let cornerRadius: CGFloat = 18
-    static let surfaceInset: CGFloat = 12
-    static let progressHeight: CGFloat = 4
+    static let headerHeight: CGFloat = 42
+    static let stepHeight: CGFloat = 32
+    static let actionHeight: CGFloat = 36
+    static let cornerRadius: CGFloat = 16
+    static let surfaceInset: CGFloat = 10
+    static let progressHeight: CGFloat = 3
 
     private let surface = UIView()
     private let content = UIStackView()
@@ -65,8 +65,8 @@ final class ChatPlanBar: UIView {
         clipsToBounds = false
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = 0.10
-        layer.shadowRadius = 12
-        layer.shadowOffset = CGSize(width: 0, height: 4)
+        layer.shadowRadius = 8
+        layer.shadowOffset = CGSize(width: 0, height: 3)
 
         surface.layer.cornerRadius = Self.cornerRadius
         surface.layer.cornerCurve = .continuous
@@ -74,9 +74,9 @@ final class ChatPlanBar: UIView {
         addSubview(surface)
         surface.snp.makeConstraints { make in
             make.edges.equalTo(self).inset(UIEdgeInsets(
-                top: 2,
+                top: 1,
                 left: Self.surfaceInset,
-                bottom: 2,
+                bottom: 1,
                 right: Self.surfaceInset
             ))
         }
@@ -104,17 +104,17 @@ final class ChatPlanBar: UIView {
         }
 
         content.axis = .vertical
-        content.spacing = 6
+        content.spacing = 4
         surface.addSubview(content)
         content.snp.makeConstraints { make in
-            make.edges.equalToSuperview().inset(UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8))
+            make.edges.equalToSuperview().inset(UIEdgeInsets(top: 5, left: 8, bottom: 5, right: 8))
         }
 
         var headerConfig = UIButton.Configuration.plain()
         headerConfig.image = UIImage(systemName: "checklist")
-        headerConfig.imagePadding = 10
-        headerConfig.contentInsets = .init(top: 0, leading: 12, bottom: 0, trailing: 36)
-        headerConfig.background.cornerRadius = 10
+        headerConfig.imagePadding = 8
+        headerConfig.contentInsets = .init(top: 0, leading: 10, bottom: 0, trailing: 32)
+        headerConfig.background.cornerRadius = 8
         headerConfig.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
             var outgoing = incoming
             outgoing.font = .preferredFont(forTextStyle: .subheadline).with(weight: .semibold)
@@ -134,9 +134,9 @@ final class ChatPlanBar: UIView {
         chevron.contentMode = .scaleAspectFit
         header.addSubview(chevron)
         chevron.snp.makeConstraints { make in
-            make.trailing.equalToSuperview().inset(12)
+            make.trailing.equalToSuperview().inset(11)
             make.centerY.equalToSuperview()
-            make.width.height.equalTo(16)
+            make.width.height.equalTo(14)
         }
         header.snp.makeConstraints { make in
             make.height.equalTo(Self.headerHeight)
@@ -147,8 +147,8 @@ final class ChatPlanBar: UIView {
         progressTrack.clipsToBounds = true
         header.addSubview(progressTrack)
         progressTrack.snp.makeConstraints { make in
-            make.leading.trailing.equalToSuperview().inset(12)
-            make.bottom.equalToSuperview().inset(8)
+            make.leading.trailing.equalToSuperview().inset(10)
+            make.bottom.equalToSuperview().inset(6)
             make.height.equalTo(Self.progressHeight)
         }
 
@@ -168,7 +168,7 @@ final class ChatPlanBar: UIView {
         scroll.layer.cornerCurve = .continuous
         scroll.addSubview(steps)
         steps.axis = .vertical
-        steps.spacing = 4
+        steps.spacing = 2
         steps.snp.makeConstraints { make in
             make.top.bottom.equalTo(scroll.contentLayoutGuide)
             make.leading.trailing.equalTo(scroll.frameLayoutGuide)
@@ -184,7 +184,7 @@ final class ChatPlanBar: UIView {
 
         actions.axis = .horizontal
         actions.distribution = .fillEqually
-        actions.spacing = 8
+        actions.spacing = 6
         configureButton(pauseResume, style: .filled)
         configureButton(endPlan, style: .outlined)
         configureButton(clearPlan, style: .outlined)
@@ -224,8 +224,8 @@ final class ChatPlanBar: UIView {
         let shown = min(plan.steps.count, Self.visibleSteps)
         let beyond = plan.steps.count > shown ? Self.stepHeight : 0
         return hairline + verticalInset
-            + Self.headerHeight + 6
-            + (CGFloat(shown) * Self.stepHeight) + beyond + 6
+            + Self.headerHeight + 4
+            + (CGFloat(shown) * Self.stepHeight) + beyond + 4
             + Self.actionHeight + verticalInset
     }
 
@@ -317,7 +317,7 @@ final class ChatPlanBar: UIView {
         for (index, step) in plan.steps.enumerated() {
             let button = UIButton(type: .system)
             button.contentHorizontalAlignment = .leading
-            button.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
+            button.titleLabel?.font = .preferredFont(forTextStyle: .footnote).with(weight: .medium)
             button.titleLabel?.lineBreakMode = .byTruncatingTail
             button.setTitleColor(.label, for: .normal)
             button.setTitle("\(ChatPlan.glyph(step.status)) \(index + 1). \(step.title)", for: .normal)
@@ -393,6 +393,11 @@ final class ChatPlanBar: UIView {
             config.baseForegroundColor = AppAccent.foreground(glass: .white)
             config.cornerStyle = .large
             config.titleLineBreakMode = .byTruncatingTail
+            config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = .preferredFont(forTextStyle: .footnote).with(weight: .semibold)
+                return outgoing
+            }
             button.configuration = config
         case .outlined:
             var config = UIButton.Configuration.tinted()
@@ -400,9 +405,14 @@ final class ChatPlanBar: UIView {
             config.baseForegroundColor = .label
             config.cornerStyle = .large
             config.titleLineBreakMode = .byTruncatingTail
+            config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = .preferredFont(forTextStyle: .footnote).with(weight: .semibold)
+                return outgoing
+            }
             button.configuration = config
         }
-        button.layer.cornerRadius = 12
+        button.layer.cornerRadius = 10
         button.layer.cornerCurve = .continuous
     }
 
