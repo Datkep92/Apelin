@@ -28,8 +28,8 @@ private func appCreateMachServiceConnection(
 final class DaemonClient: ApelinTransport, @unchecked Sendable {
     static let shared = DaemonClient()
 
-    private static let gracePeriod: TimeInterval = 10
-    private static let helloTimeout: DispatchTimeInterval = .seconds(5)
+    private static let gracePeriod: TimeInterval = 60
+    private static let helloTimeout: DispatchTimeInterval = .seconds(10)
     private static let retryDelay: DispatchTimeInterval = .seconds(1)
     /// A call's bound beyond the attach's own wait.
     private static let callMargin: TimeInterval = 30
