@@ -150,13 +150,15 @@ final class ChatPlanBar: UIView {
             make.height.equalTo(Self.headerHeight)
         }
 
-        compactButton.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.85)
+        compactButton.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.72)
         compactButton.layer.cornerRadius = 22
         compactButton.clipsToBounds = false
+        compactButton.layer.borderWidth = 0.5
+        compactButton.layer.borderColor = UIColor.separator.withAlphaComponent(0.25).cgColor
         compactButton.layer.shadowColor = UIColor.black.cgColor
-        compactButton.layer.shadowOpacity = 0.12
-        compactButton.layer.shadowRadius = 6
-        compactButton.layer.shadowOffset = CGSize(width: 0, height: 2)
+        compactButton.layer.shadowOpacity = 0.18
+        compactButton.layer.shadowRadius = 10
+        compactButton.layer.shadowOffset = CGSize(width: 0, height: 3)
         compactButton.accessibilityLabel = String(localized: "Plan progress")
         compactButton.addAction(UIAction { [weak self] _ in self?.toggleCompact() }, for: .touchUpInside)
         addSubview(compactButton)
