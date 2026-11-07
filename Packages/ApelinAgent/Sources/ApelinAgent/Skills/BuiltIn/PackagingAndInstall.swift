@@ -69,9 +69,9 @@ extension BuiltInSkills {
         - The result carries a `transactionID` and, on success, an
           `installationID`, which `apelin_package_remove` takes;
           `apelin_package_list` finds it again later.
-        - Installation goes through Irisin's installer. There is no `dpkg` or
-          `apt` for you to call, and `shell_run` must not try; the
-          apelin-package-dependencies skill covers what installs a dependency.
+        - Installation goes through Irisin's installer. Other packages may be
+           installed when requested and supported by the target system; never
+           install without the user's approval.          apelin-package-dependencies skill covers what installs a dependency.
 
         ## When another package is in the way
         The installer resolves nothing: it never removes a package to make

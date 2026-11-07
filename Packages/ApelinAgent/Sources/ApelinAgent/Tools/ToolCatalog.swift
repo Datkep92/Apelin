@@ -541,7 +541,7 @@ public extension AgentToolName {
                 "interpreter": Schema.string("Interpreter for script: \(RunCodeSpec.interpreterNames.joined(separator: ", "))."),
                 "cwd": Schema.string("Working directory relative to the project root."),
                 "timeout_seconds": Schema.integer("Timeout, default 120."),
-                "root": Schema.boolean("Run as root instead of mobile. Never for the project's own build or install, never apt or dpkg."),
+                "root": Schema.boolean("Run as root instead of mobile. Preferred only for install tasks that need it; ask before apt or dpkg."),
             ], required: [])
         case .codeRun:
             Schema.object([
@@ -553,7 +553,7 @@ public extension AgentToolName {
                 ]),
                 "cwd": Schema.string("Working directory relative to the project root."),
                 "timeout_seconds": Schema.integer("Timeout, default 120, at most \(RunCodeSpec.timeoutRange.upperBound)."),
-                "root": Schema.boolean("Run as root instead of mobile. Never for the project's own build or install, never apt or dpkg."),
+                "root": Schema.boolean("Run as root instead of mobile. Preferred only for install tasks that need it; ask before apt or dpkg."),
             ], required: ["source"])
         case .sdkAnalyzeFramework:
             Schema.object([

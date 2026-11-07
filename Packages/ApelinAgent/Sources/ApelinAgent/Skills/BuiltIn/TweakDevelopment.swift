@@ -71,11 +71,10 @@ extension BuiltInSkills {
           never by a string.
 
         ## Theos and Logos
-        Apelin does not build Theos projects: there is no Logos preprocessor
-        and no Theos makefile system, and an Objective-C product compiles
-        only `.m` and `.c` files (no `.x`, `.xm`, `.mm` or C++). Never
-        download or vendor Theos. Rewrite a Theos tweak instead, keeping its
-        logic, in the template's style:
+        Apelin's default template does not require Theos or Logos. If a
+        Theos project is available and the user asks for it, a workspace build
+        script may compile those files; otherwise, use its sources as reference
+        and rewrite them into the project's Objective-C style:
         - A `%hook Class` method becomes a `static` function taking `id self,
           SEL _cmd` and the method's arguments, installed in the constructor
           with `MSHookMessageEx(objc_getClass("Class"), @selector(name:),
@@ -108,12 +107,11 @@ extension BuiltInSkills {
         - A roothide-aware repository's `jbroot(…)` and a rootless one's
           `ROOT_PATH_NS(…)` become the apelin-bootstrap-paths skill's
           `ApelinBootstrapPath(…)`.
-        - An imported repository stays a workspace: its Theos Makefile is
-          replaced by a build script of its own that compiles the rewritten
-          sources with the toolchain (the apelin-external-build skill), reading
-          `TWEAK_NAME`, `_FILES`, `_FRAMEWORKS`, `_LIBRARIES`, `_CFLAGS`, the
-          filter plist and `control` for what to build and package. Keep the
-          package id, version and author the repository already has.
+        - An imported repository stays a workspace. If a Theos Makefile is needed
+          and available with the user's request, a build script may use it;
+          otherwise it is replaced by a script that compiles rewritten sources
+          with the toolchain (the apelin-external-build skill). Keep the package
+          id, version and author the repository already has.
 
         ## The loop
         1. Read the relevant files (`file_read`, `file_grep`, `file_find`).

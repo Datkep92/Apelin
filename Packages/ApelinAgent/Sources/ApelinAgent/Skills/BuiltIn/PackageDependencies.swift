@@ -30,8 +30,8 @@ extension BuiltInSkills {
         before you ask. If the user declines, or the package is in none of
         their repositories, ask them to install it with their package
         manager instead, then install your build again.
-        - Never `apt`, `dpkg` or `sudo`: they bypass Irisin, and newer
-          bootstraps no longer ship apt or dpkg at all.
+        - `apt`, `dpkg` or `sudo` may be used only when the user explicitly asks and
+          accepts the risk; they bypass Apelin's installer tracking.
         - What `root: true` writes belongs to root, so mobile cannot change
           it afterwards. Another step that needs root follows the system
           prompt's rule for root: said first, and a change outside the
