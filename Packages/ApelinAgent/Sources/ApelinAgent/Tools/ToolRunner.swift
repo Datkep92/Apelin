@@ -1100,7 +1100,10 @@ actor ToolRunner {
     ) async throws -> T {
         let task = Task { try await body() }
         let registration = cancellation?.onCancel { _ in task.cancel() }
-        defer { registration?.cancel() }
+        defer {
+            registration?.cancel()
+            task.cancel()
+        }
         return try await withTaskCancellationHandler {
             try await task.value
         } onCancel: {
