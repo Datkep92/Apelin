@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Demo style — Phiên chat & Cài đặt (Apelin)</title>
+<style>
+  :root {
+    --accent: #0A84FF;
+    --accent-2: #007AFF;
+    --bg: #F2F2F7;
+    --bg2: #FFFFFF;
+    --surface: rgba(255,255,255,0.72);
+    --surface-solid: #FFFFFF;
+    --separator: rgba(60,60,67,0.18);
+    --label: #1C1C1E;
+    --secondary: #636366;
+    --tertiary: #8E8E93;
+    --blue: #0A84FF;
+    --orange: #FF9F0A;
+    --red: #FF453A;
+    --green: #30D158;
+    --radius: 16px;
+    --shadow: 0 3px 8px rgba(0,0,0,0.12);
+    --motion: 0.2s;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000; --bg2: #1C1C1E;
+      --surface: rgba(44,44,46,0.72); --surface-solid: #1C1C1E;
+      --separator: rgba(255,255,255,0.12);
+      --label: #F5F5F7; --secondary: #AEAEB2; --tertiary: #636366;
+    }
+  }
+  body[data-variant="minimal"] {
+    --surface: rgba(255,255,255,0.95); --radius: 12px; --shadow: none;
+  }
+  body[data-variant="bold"] {
+    --accent: #0066FF; --radius: 20px; --shadow: 0 6px 16px rgba(0,0,0,0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    body[data-variant="minimal"] { --surface: rgba(44,44,46,0.95); }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  body { min-height: 100vh; background: var(--bg); color: var(--label); transition: background var(--motion); }
+  .reduce-motion * { transition: none !important; animation: none !important; }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    padding: 12px 16px; background: var(--bg); border-bottom: 0.5px solid var(--separator);
+  }
+  .toolbar h1 { font-size: 17px; font-weight: 700; margin: 0; flex: 1; }
+  .toolbar button, .toolbar select, .toolbar label {
+    border: 0; border-radius: 10px; padding: 7px 11px; font-size: 13px; font-weight: 600;
+    background: rgba(120,120,128,0.16); color: var(--label); cursor: pointer;
+  }
+  .toolbar button.active { background: var(--accent); color: #fff; }
+  .toolbar .toggle { display: inline-flex; align-items: center; gap: 6px; }
+
+  .screens { display: grid; gap: 20px; padding: 16px; }
+  @media (min-width: 900px) { .screens { grid-template-columns: 1fr 1fr; } }
+
+  .phone {
+    border-radius: 32px; overflow: hidden; background: var(--bg2);
+    box-shadow: var(--shadow); border: 0.5px solid var(--separator);
+    display: flex; flex-direction: column; height: 720px;
+  }
+  .nav {
+    height: 52px; display: flex; align-items: center; gap: 8px;
+    padding: 0 14px; background: var(--surface); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 0.5px solid var(--separator); font-weight: 600; font-size: 16px;
+  }
+  .nav .back { color: var(--accent); font-size: 15px; }
+  .nav .title { flex: 1; text-align: center; }
+  .nav .action { color: var(--accent); font-size: 15px; }
+
+  .chat-body { flex: 1; overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 78%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.45; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 6px; }
+  .msg.assistant { align-self: flex-start; background: var(--surface-solid); border: 0.5px solid var(--separator); border-bottom-left-radius: 6px; }
+  .msg .time { font-size: 10px; opacity: 0.6; margin-top: 4px; }
+
+  .planbar-wrap { padding: 0 10px 6px; }
+  .planbar { filter: drop-shadow(0 3px 8px rgba(0,0,0,0.12)); }
+  .surface { border-radius: var(--radius); background: var(--surface); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); overflow: hidden; border: 0.5px solid var(--separator); }
+  .content { padding: 5px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .header { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 12px; cursor: pointer; position: relative; }
+  .header .icon { font-size: 17px; }
+  .header .title { flex: 1; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header .chevron { font-size: 14px; color: var(--secondary); transition: transform 0.2s ease-in-out; }
+  .planbar.expanded .header .chevron { transform: rotate(180deg); }
+  .reduce-motion .planbar.expanded .header .chevron { transition: none; transform: none; }
+  .progress-track { position: absolute; left: 10px; right: 10px; bottom: 6px; height: 3px; border-radius: 1.5px; background: rgba(60,60,67,0.12); overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 1.5px; background: var(--accent); width: 40%; transition: width 0.26s ease-in-out; }
+  .steps { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+  .step { height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 8px; font-size: 13px; font-weight: 500; opacity: 0; animation: fadeIn 0.22s ease-out 0.04s forwards; }
+  .reduce-motion .step { animation: none; opacity: 1; }
+  .step.done { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  body[data-variant="bold"] .step.done { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  body[data-variant="minimal"] .step.done { background: transparent; }
+  .step .num { color: var(--secondary); }
+
+  .composer { display: flex; gap: 8px; padding: 8px 10px 10px; border-top: 0.5px solid var(--separator); background: var(--surface); }
+  .composer input { flex: 1; border: 0; border-radius: 18px; padding: 9px 14px; background: var(--surface-solid); color: var(--label); font-size: 14px; outline: none; border: 0.5px solid var(--separator); }
+  .composer button { width: 34px; height: 34px; border-radius: 17px; border: 0; background: var(--accent); color: #fff; font-size: 16px; cursor: pointer; }
+
+  .settings-body { flex: 1; overflow: auto; background: var(--bg); padding: 12px 0; }
+  .section-title { font-size: 12px; font-weight: 600; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.4px; padding: 14px 18px 6px; }
+  .group { margin: 0 14px 14px; border-radius: var(--radius); overflow: hidden; background: var(--surface-solid); border: 0.5px solid var(--separator); }
+  .row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 14px; border-bottom: 0.5px solid var(--separator); cursor: pointer; }
+  .row:last-child { border-bottom: 0; }
+  .row .label { flex: 1; }
+  .row .value { color: var(--secondary); font-size: 13px; }
+  .row .chev { color: var(--tertiary); font-size: 13px; }
+  .toggle { width: 42px; height: 24px; border-radius: 12px; background: rgba(120,120,128,0.3); position: relative; }
+  .toggle.on { background: var(--green); }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 10px; background: #fff; transition: transform var(--motion); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle.on::after { transform: translateX(18px); }
+  .row-icon { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; }
+  .row-icon.blue { background: var(--blue); }
+  .row-icon.orange { background: var(--orange); }
+  .row-icon.green { background: var(--green); }
+  .row-icon.red { background: var(--red); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .caption { padding: 8px 16px 0; color: var(--secondary); font-size: 12px; line-height: 1.5; }
+</style>
+</head>
+<body data-variant="modern">
+  <div class="toolbar">
+    <h1>Demo style — Phiên chat & Cài đặt</h1>
+    <select id="variant">
+      <option value="modern">Hiện đại (glass)</option>
+      <option value="minimal">Tối giản (flat)</option>
+      <option value="bold">Đậm (bold)</option>
+    </select>
+    <label class="toggle"><input type="checkbox" id="reduceMotion"> Reduce Motion</label>
+    <label class="toggle"><input type="checkbox" id="darkMode"> Dark</label>
+  </div>
+
+  <div class="screens">
+    <!-- Chat screen -->
+    <div class="phone">
+      <div class="nav">
+        <span class="back">‹ Back</span>
+        <span class="title">Cuộc trò chuyện</span>
+        <span class="action">⋯</span>
+      </div>
+      <div class="chat-body">
+        <div class="msg assistant">Xin chào! Tôi có thể giúp gì cho Sếp hôm nay?</div>
+        <div class="msg user">Tạo thanh tiến trình mới cho plan</div>
+        <div class="msg assistant">Đã thêm style hiện đại + hiệu ứng động. Sếp xem demo bên dưới nhé.</div>
+        <div class="msg user">OK, cho xem settings luôn</div>
+        <div class="msg assistant">Đây là màn hình cài đặt mẫu với các hàng và toggle.</div>
+      </div>
+      <div class="planbar-wrap">
+        <div class="planbar expanded" id="planbar">
+          <div class="surface">
+            <div class="content">
+              <div class="header">
+                <span class="icon">☑</span>
+                <span class="title">Plan · 2/5 done · đang chạy</span>
+                <span class="chevron">⌃</span>
+                <div class="progress-track"><div class="progress-fill"></div></div>
+              </div>
+              <div class="steps">
+                <div class="step done"><span class="num">1.</span> ✓ Đọc yêu cầu</div>
+                <div class="step done"><span class="num">2.</span> ✓ Viết mã</div>
+                <div class="step"><span class="num">3.</span> • Chạy kiểm tra</div>
+                <div class="step"><span class="num">4.</span> ○ Đẩy CI</div>
+                <div class="step"><span class="num">5.</span> ○ Cài đặt</div>
+              </div>
+              <div class="composer" style="margin-top:6px;border-top:0;padding:0;">
+                <button style="background:transparent;color:var(--accent);font-size:13px;font-weight:600;">Tạm dừng</button>
+                <button style="background:transparent;color:var(--label);font-size:13px;font-weight:600;">Kết thúc</button>
+                <button style="background:transparent;color:var(--label);font-size:13px;font-weight:600;">Xoá</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="composer">
+        <input placeholder="Nhập tin nhắn…" />
+        <button>↑</button>
+      </div>
+    </div>
+
+    <!-- Settings screen -->
+    <div class="phone">
+      <div class="nav">
+        <span class="back">‹ Back</span>
+        <span class="title">Cài đặt</span>
+        <span class="action"></span>
+      </div>
+      <div class="settings-body">
+        <div class="section-title">Giao diện</div>
+        <div class="group">
+          <div class="row"><span class="row-icon blue">🎨</span><span class="label">Chủ đề</span><span class="value">Hiện đại</span><span class="chev">›</span></div>
+          <div class="row"><span class="row-icon orange">✨</span><span class="label">Hiệu ứng động</span><div class="toggle on"></div></div>
+          <div class="row"><span class="row-icon green">🌙</span><span class="label">Chế độ tối</span><div class="toggle"></div></div>
+        </div>
+        <div class="section-title">Kế hoạch & Phiên chat</div>
+        <div class="group">
+          <div class="row"><span class="row-icon blue">📋</span><span class="label">Hiển thị thanh tiến trình</span><div class="toggle on"></div></div>
+          <div class="row"><span class="row-icon orange">🔔</span><span class="label">Thông báo hoàn tất</span><div class="toggle on"></div></div>
+          <div class="row"><span class="row-icon green">💬</span><span class="label">Âm thanh gửi tin</span><div class="toggle"></div></div>
+        </div>
+        <div class="section-title">Nâng cao</div>
+        <div class="group">
+          <div class="row"><span class="row-icon red">🗑</span><span class="label">Xoá dữ liệu cache</span><span class="chev">›</span></div>
+          <div class="row"><span class="row-icon blue">ℹ</span><span class="label">Phiên bản</span><span class="value">0.4.21</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">Demo HTML mô phỏng UI. Chọn biến thể ở thanh trên để so sánh. Reduce Motion tắt hiệu ứng. Dark mode bật theme tối.</p>
+
+<script>
+  const variant = document.getElementById("variant");
+  const reduce = document.getElementById("reduceMotion");
+  const dark = document.getElementById("darkMode");
+
+  function apply() {
+    document.body.setAttribute("data-variant", variant.value);
+    document.body.classList.toggle("reduce-motion", reduce.checked);
+    if (dark.checked) document.documentElement.style.colorScheme = "dark";
+    else document.documentElement.style.colorScheme = "light";
+  }
+  variant.addEventListener("change", apply);
+  reduce.addEventListener("change", apply);
+  dark.addEventListener("change", apply);
+  apply();
+</script>
+</body>
+</html>

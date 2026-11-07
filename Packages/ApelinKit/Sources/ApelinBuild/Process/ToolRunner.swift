@@ -199,10 +199,16 @@ public enum ToolRunner {
         while true {
             if cancellation.isCancelled {
                 cancellation.kill()
+                close(readEnd)
+                var ignored: Int32 = 0
+                while waitpid(pid, &ignored, 0) < 0, errno == EINTR {}
                 throw BuildCancelled()
             }
             if Date().timeIntervalSince(startedAt) >= deadline {
                 killpg(pid, SIGKILL)
+                close(readEnd)
+                var ignored: Int32 = 0
+                while waitpid(pid, &ignored, 0) < 0, errno == EINTR {}
                 throw ToolFailure(description: "timed out after \(deadline) seconds: \(invocation.executable)")
             }
             var descriptor = pollfd(fd: readEnd, events: Int16(POLLIN), revents: 0)
@@ -224,12 +230,14 @@ public enum ToolRunner {
                 break
             }
             guard count > 0 else { break }
-            if collected.count < Self.maximumOutputBytes {
-                let remaining = Self.maximumOutputBytes - collected.count
-                collected.append(buffer, count: min(count, remaining))
+            let persisted = (collected.count >= Self.maximumOutputBytes)
+                ? 0
+                : min(count, Self.maximumOutputBytes - collected.count)
+            if persisted > 0 {
+                collected.append(buffer, count: persisted)
             }
-            if let onLine {
-                pending.append(buffer, count: count)
+            if let onLine, persisted > 0 {
+                pending.append(buffer, count: persisted)
                 while let newline = pending.firstIndex(of: 0x0A) {
                     onLine(String(decoding: pending[pending.startIndex ..< newline], as: UTF8.self))
                     pending.removeSubrange(pending.startIndex ... newline)

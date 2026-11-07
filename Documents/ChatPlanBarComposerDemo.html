@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Demo — Composer + Nút ẩn thanh tiến trình</title>
+<style>
+  :root {
+    --blue: #0A84FF;
+    --orange: #FF9F0A;
+    --red: #FF453A;
+    --surface: rgba(255,255,255,0.72);
+    --separator: rgba(60,60,67,0.18);
+    --label: #1C1C1E;
+    --secondary: #636366;
+    --tertiary: #8E8E93;
+    --composer-bg: rgba(255,255,255,0.85);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  body {
+    min-height: 100vh;
+    background: linear-gradient(180deg, #F2F2F7 0%, #E5E5EA 100%);
+    color: var(--label);
+    padding: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: linear-gradient(180deg, #000 0%, #1C1C1E 100%); color: #F5F5F7; }
+    :root { --surface: rgba(44,44,46,0.72); --label: #F5F5F7; --secondary: #AEAEB2; --tertiary: #636366; --separator: rgba(255,255,255,0.12); --composer-bg: rgba(30,30,32,0.85); }
+  }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px; }
+  .intro { color: var(--secondary); font-size: 13px; margin: 0 0 16px; line-height: 1.5; }
+
+  /* Radio toggle (CSS-only) */
+  .state-radio { display: none; }
+  .toggle-btn {
+    border: 0; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600;
+    background: rgba(120,120,128,0.16); color: var(--label); cursor: pointer;
+  }
+  #state-expanded:checked ~ .controls .btn-expanded { background: var(--blue); color: #fff; }
+  #state-compact:checked ~ .controls .btn-compact { background: var(--blue); color: #fff; }
+
+  .chat {
+    position: relative;
+    max-width: 420px;
+    margin: 0 auto;
+    height: 640px;
+    border-radius: 28px;
+    overflow: hidden;
+    background: #F2F2F7;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  }
+  @media (prefers-color-scheme: dark) { .chat { background: #1C1C1E; } }
+
+  .messages {
+    position: absolute; inset: 0 0 120px 0;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .msg { max-width: 78%; padding: 10px 12px; border-radius: 16px; font-size: 14px; line-height: 1.4; }
+  .msg.user { align-self: flex-end; background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.ai { align-self: flex-start; background: rgba(120,120,128,0.16); border-bottom-left-radius: 4px; }
+
+  .composer {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 8px 10px 12px;
+    background: var(--composer-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 0.5px solid var(--separator);
+  }
+  .composer-row { display: flex; align-items: flex-end; gap: 8px; }
+  .composer-input {
+    flex: 1; min-height: 36px; max-height: 120px;
+    border: 0; border-radius: 18px; padding: 8px 12px;
+    background: rgba(120,120,128,0.12); color: var(--label);
+    font-size: 15px; resize: none; outline: none;
+  }
+  .send-btn {
+    width: 36px; height: 36px; border: 0; border-radius: 50%;
+    background: var(--blue); color: #fff; font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .planbar-host {
+    position: absolute; left: 0; right: 0; bottom: 78px;
+    padding: 0 10px;
+    pointer-events: none;
+  }
+  .planbar-host > * { pointer-events: auto; }
+
+  .expanded-bar { display: none; }
+  .compact-badge { display: none; }
+
+  #state-expanded:checked ~ .chat .expanded-bar { display: block; }
+  #state-expanded:checked ~ .chat .compact-badge { display: none; }
+  #state-compact:checked ~ .chat .expanded-bar { display: none; }
+  #state-compact:checked ~ .chat .compact-badge { display: flex; }
+
+  .planbar { --accent: var(--blue); width: 100%; filter: drop-shadow(0 3px 8px rgba(0,0,0,0.12)); }
+  .surface {
+    border-radius: 16px;
+    background: var(--surface);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    overflow: hidden;
+    border: 0.5px solid var(--separator);
+  }
+  .content { padding: 5px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .header {
+    height: 42px; display: flex; align-items: center; gap: 8px;
+    padding: 0 10px; border-radius: 12px; cursor: pointer;
+    position: relative; user-select: none;
+  }
+  .header .icon { font-size: 17px; }
+  .header .title { flex: 1; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header .chevron { font-size: 14px; color: var(--secondary); }
+  .progress-track {
+    position: absolute; left: 10px; right: 10px; bottom: 6px; height: 3px;
+    border-radius: 1.5px; background: rgba(60,60,67,0.12);
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; border-radius: 1.5px; background: var(--accent); width: 35%; }
+
+  .hide-btn {
+    width: 24px; height: 24px; border: 0; border-radius: 12px;
+    background: rgba(120,120,128,0.16); color: var(--secondary);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-size: 13px;
+  }
+
+  .compact-badge {
+    position: absolute; right: 12px; bottom: 0;
+    width: 44px; height: 44px; border-radius: 22px;
+    background: rgba(255,255,255,0.85);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    align-items: center; justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    opacity: 1; transform: scale(1);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  @media (prefers-color-scheme: dark) { .compact-badge { background: rgba(44,44,46,0.85); } }
+  .compact-ring { width: 36px; height: 36px; }
+  .compact-label { position: absolute; font-size: 11px; font-weight: 700; color: var(--blue); }
+
+  .controls {
+    max-width: 420px; margin: 16px auto 0;
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+  <input type="radio" name="planState" id="state-expanded" class="state-radio" checked>
+  <input type="radio" name="planState" id="state-compact" class="state-radio">
+
+  <h1>Demo — Composer + Nút ẩn thanh tiến trình</h1>
+  <p class="intro">Mô phỏng vị trí compact badge nổi overlay, nút ẩn ở header và composer. Dùng nút bên dưới hoặc nút 👁‍🗨 trên header để ẩn/hiện (CSS-only).</p>
+
+  <div class="chat">
+    <div class="messages">
+      <div class="msg ai">Xin chào! Tôi có thể giúp gì?</div>
+      <div class="msg user">Demo thanh tiến trình compact</div>
+      <div class="msg ai">Khi ẩn thanh, chỉ còn huy hiệu tròn nhỏ ở góc phải, không đẩy nội dung.</div>
+    </div>
+
+    <div class="planbar-host">
+      <div class="expanded-bar planbar state-active expanded">
+        <div class="surface">
+          <div class="content">
+            <div class="header">
+              <span class="icon">☑</span>
+              <span class="title">Plan · 2/5 done · đang chạy</span>
+              <label for="state-compact" class="hide-btn" title="Ẩn tiến trình">👁‍🗨</label>
+              <span class="chevron">⌃</span>
+              <div class="progress-track"><div class="progress-fill"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <label for="state-expanded" class="compact-badge state-active">
+        <svg class="compact-ring" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(60,60,67,0.12)" stroke-width="3"/>
+          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--blue)" stroke-width="3" stroke-linecap="round"
+                  stroke-dasharray="94.2" stroke-dashoffset="61.2" transform="rotate(-90 18 18)"/>
+        </svg>
+        <span class="compact-label">40%</span>
+      </label>
+    </div>
+
+    <div class="composer">
+      <div class="composer-row">
+        <textarea class="composer-input" rows="1" placeholder="Nhập tin nhắn..."></textarea>
+        <button class="send-btn">➤</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label for="state-expanded" class="toggle-btn btn-expanded">Hiện thanh</label>
+    <label for="state-compact" class="toggle-btn btn-compact">Ẩn (compact)</label>
+  </div>
+</body>
+</html>
