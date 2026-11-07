@@ -119,9 +119,13 @@ public struct BuildCancelled: Error, CustomStringConvertible, Sendable {
 /// a process group of its own. It runs as whoever calls it: apelin-build is
 /// already mobile, and nothing here changes identity.
 public enum ToolRunner {
+    public static let defaultTimeout: TimeInterval = 1800
+    public static let maximumOutputBytes = 64 * 1024 * 1024
+
     public static func run(
         _ invocation: ToolInvocation,
         cancellation: BuildCancellation,
+        timeout: TimeInterval? = nil,
         onLine: ((String) -> Void)? = nil,
     ) throws -> ToolResult {
         if cancellation.isCancelled {
@@ -138,6 +142,10 @@ public enum ToolRunner {
         posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
         posix_spawn_file_actions_adddup2(&actions, writeEnd, 1)
         posix_spawn_file_actions_adddup2(&actions, writeEnd, 2)
+        // The read end stays open only in this process; POSIX_SPAWN_CLOEXEC_DEFAULT
+        // closes descriptors in the child, but an explicit close is cheap and keeps
+        // the intent obvious.
+        posix_spawn_file_actions_addclose(&actions, readEnd)
         guard spawnAddChdir(&actions, invocation.workingDirectory) == 0 else {
             close(readEnd)
             close(writeEnd)
@@ -183,16 +191,43 @@ public enum ToolRunner {
         }
         defer { cancellation.unregister(pid) }
 
+        let startedAt = Date()
+        let deadline = (timeout ?? Self.defaultTimeout)
         var collected = Data()
         var pending = Data()
         var buffer = [UInt8](repeating: 0, count: 16384)
         while true {
-            let count = read(readEnd, &buffer, buffer.count)
-            if count < 0, errno == EINTR {
+            if cancellation.isCancelled {
+                cancellation.kill()
+                throw BuildCancelled()
+            }
+            if Date().timeIntervalSince(startedAt) >= deadline {
+                killpg(pid, SIGKILL)
+                throw ToolFailure(description: "timed out after \(deadline) seconds: \(invocation.executable)")
+            }
+            var descriptor = pollfd(fd: readEnd, events: Int16(POLLIN), revents: 0)
+            let polled = Darwin.poll(&descriptor, 1, 100)
+            if polled < 0 {
+                if errno == EINTR {
+                    continue
+                }
+                break
+            }
+            if polled == 0 {
                 continue
             }
+            let count = read(readEnd, &buffer, buffer.count)
+            if count < 0 {
+                if errno == EINTR {
+                    continue
+                }
+                break
+            }
             guard count > 0 else { break }
-            collected.append(buffer, count: count)
+            if collected.count < Self.maximumOutputBytes {
+                let remaining = Self.maximumOutputBytes - collected.count
+                collected.append(buffer, count: min(count, remaining))
+            }
             if let onLine {
                 pending.append(buffer, count: count)
                 while let newline = pending.firstIndex(of: 0x0A) {
