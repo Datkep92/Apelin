@@ -25,11 +25,15 @@ private enum StatusNumber {
 /// host passes the provider's own text through, which is where the status
 /// numbers and the other wordings come from.
 enum RateLimitSignal {
-    /// Wordings that name a spent allowance.
+    /// Wordings that name a spent allowance. Keep these words in sync with the
+    /// ones `AgentSession` uses to word the same failure (`Packages/ApelinAgent/...`).
     private static let wordings = [
         "rate limit", "rate-limit", "rate_limit", "ratelimit",
         "too many requests", "resource exhausted", "resource_exhausted",
         "quota", "usage limit", "retry-after",
+        "allowance", "free usage", "free tier", "free allowance", "free plan",
+        "exhausted", "depleted", "spent", "used up", "insufficient", "budget",
+        "token harbor", "tokenharbor",
     ]
 
     static func matches(_ message: String) -> Bool {
@@ -37,6 +41,7 @@ enum RateLimitSignal {
         guard !text.isEmpty else { return false }
         if wordings.contains(where: { text.contains($0) }) { return true }
         return StatusNumber.isNamed("429", in: text)
+            || StatusNumber.isNamed("402", in: text)
     }
 }
 

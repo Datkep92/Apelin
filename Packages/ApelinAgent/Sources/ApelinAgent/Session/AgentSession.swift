@@ -914,9 +914,32 @@ public actor AgentSession {
             await record(.messageFinished(text: Self.text(of: assistant.content)))
             if assistant.stopReason == .error {
                 let raw = assistant.errorMessage ?? ""
-                let isRateLimited = raw.localizedCaseInsensitiveContains("429")
-                    || raw.localizedCaseInsensitiveContains("rate limit")
-                    || raw.localizedCaseInsensitiveContains("quota")
+                let lowered = raw.lowercased()
+                let spentWords = [
+                    "rate limit", "rate-limit", "rate_limit",
+                    "ratelimit", "too many requests", "resource exhausted",
+                    "resource_exhausted", "quota", "usage limit", "retry-after",
+                    "allowance", "free usage", "free tier", "free allowance",
+                    "free plan", "exhausted", "depleted", "spent", "used up",
+                    "insufficient", "budget", "token harbor", "tokenharbor",
+                ]
+                func containsWholeCode(_ code: String, in text: String) -> Bool {
+                    var index = text.startIndex
+                    while let found = text[index...].range(of: code) {
+                        let before = found.lowerBound == text.startIndex
+                            ? nil : text[text.index(before: found.lowerBound)]
+                        let after = found.upperBound == text.endIndex
+                            ? nil : text[found.upperBound]
+                        if !(before?.isNumber ?? false) && !(after?.isNumber ?? false) {
+                            return true
+                        }
+                        index = found.upperBound
+                    }
+                    return false
+                }
+                let isRateLimited = spentWords.contains { lowered.contains($0) }
+                    || containsWholeCode("429", in: lowered)
+                    || containsWholeCode("402", in: lowered)
                 await record(.error(
                     message: isRateLimited
                         ? "Rate limit / quota reached for this model. Try again, or switch models."

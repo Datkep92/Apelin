@@ -87,7 +87,9 @@ enum ModelCandidates {
         }
 
         // 1. The same model on another key of the same Base URL.
-        if let endpoint = enabled.first(where: isCurrent)?.endpoint {
+        let currentAccount = enabled.first(where: isCurrent)
+            ?? enabled.first(where: { $0.provider == current.provider && offers($0, current.model) })
+        if let endpoint = currentAccount?.endpoint {
             for account in enabled
                 where account.endpoint == endpoint && !isCurrent(account) && offers(account, current.model)
             {

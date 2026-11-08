@@ -17,7 +17,12 @@ require(RateLimitSignal.matches("You have hit your usage limit"), "A usage limit
 require(RateLimitSignal.matches("resource_exhausted: quota exceeded"), "An exhausted resource is one")
 require(RateLimitSignal.matches("RateLimitError: too many requests"), "A camel-cased name is one")
 require(RateLimitSignal.matches("Please retry-after 20 seconds"), "A retry-after hint is one")
-require(RateLimitSignal.matches("Quota exceeded for quota metric"), "A capitalised quota is one")
+require(RateLimitSignal.matches("You've used this period's free allowance"), "A free allowance is one")
+require(RateLimitSignal.matches("You've used today's Free usage"), "Today's free usage is one")
+require(RateLimitSignal.matches("Credits exhausted"), "Exhausted credits are one")
+require(RateLimitSignal.matches("Insufficient credits for this request"), "Insufficient credits are one")
+require(RateLimitSignal.matches("402 Payment Required"), "A payment-required status is one")
+require(RateLimitSignal.matches("Token harbor allowance used"), "A token-harbor allowance is one")
 
 /// A failure of another kind is not a spent allowance.
 require(!RateLimitSignal.matches(""), "Nothing said is not one")
