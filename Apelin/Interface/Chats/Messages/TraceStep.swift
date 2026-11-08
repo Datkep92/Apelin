@@ -83,9 +83,10 @@ struct TraceStep: Hashable {
     }
 
     /// What a call's row says under its title: the reason the agent gave
-    /// it, else its command line, else the file or pattern it names, else
-    /// its result, else whatever it was given first. The reason is shown
-    /// first so compact rows prefer the agent's own (often localized) text.
+    /// it, then its result, which often holds what happened, then whatever
+    /// it runs or names, and as a last resort whatever it was given first.
+    /// The reason and the result come before code-like details (argv,
+    /// command, script, path, pattern), so a row is read faster.
     private static func callLine(_ detail: ToolCallDetail) -> String {
         var values: [String: String] = [:]
         for section in detail.sections {
@@ -96,7 +97,7 @@ struct TraceStep: Hashable {
         if let argv = values["argv"], let words = try? JSONDecoder().decode([String].self, from: Data(argv.utf8)) {
             values["argv"] = CommandLineText.quoted(words)
         }
-        let named = ["reason", "argv", "command", "script", "path", "pattern", String(localized: "Result")]
+        let named = ["reason", String(localized: "Result"), "argv", "command", "script", "path", "pattern"]
             .lazy.compactMap { values[$0] }
             .first { !$0.allSatisfy(\.isWhitespace) }
         return named ?? detail.sections.first?.value ?? ""
