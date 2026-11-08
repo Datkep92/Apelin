@@ -4,9 +4,8 @@ import Foundation
 /// A step of a summary's trace as the trace sheet lists it: its kind over
 /// one line of its detail, and whether it has a page to open. A thought is
 /// "Thoughts" over the start of its text; a call is its title, as the
-/// transcript names it, over what the call did — the file or folder it
-/// names, the command it runs, the pattern it searches — else the reason the
-/// agent gave it, else its result; an approval is the call it asked about
+/// transcript names it, over the reason the agent gave it (else the command
+/// it runs or what it names, else its result); an approval is the call it asked about
 /// over the decision.
 struct TraceStep: Hashable {
     let id: UUID
@@ -83,12 +82,10 @@ struct TraceStep: Hashable {
         }
     }
 
-    /// What a call's row says under its title: what the call did — the file
-    /// or folder it names, the command or script it runs, the pattern it
-    /// searches — else the reason the agent gave it, else its result, else
-    /// whatever it was given first. The reason is the agent's own sentence
-    /// about why it made the call, in the language it reasons in, so it
-    /// names the work only when there is nothing else to name.
+    /// What a call's row says under its title: the reason the agent gave
+    /// it, else its command line, else the file or pattern it names, else
+    /// its result, else whatever it was given first. The reason is shown
+    /// first so compact rows prefer the agent's own (often localized) text.
     private static func callLine(_ detail: ToolCallDetail) -> String {
         var values: [String: String] = [:]
         for section in detail.sections {
@@ -99,7 +96,7 @@ struct TraceStep: Hashable {
         if let argv = values["argv"], let words = try? JSONDecoder().decode([String].self, from: Data(argv.utf8)) {
             values["argv"] = CommandLineText.quoted(words)
         }
-        let named = ["path", "argv", "command", "script", "pattern", "reason", String(localized: "Result")]
+        let named = ["reason", "argv", "command", "script", "path", "pattern", String(localized: "Result")]
             .lazy.compactMap { values[$0] }
             .first { !$0.allSatisfy(\.isWhitespace) }
         return named ?? detail.sections.first?.value ?? ""

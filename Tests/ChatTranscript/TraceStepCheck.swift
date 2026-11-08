@@ -3,8 +3,8 @@ import ApelinProtocol
 import Foundation
 
 /// The trace sheet lists each step as its kind over one line of its detail:
-/// a thought's start, a call's work (the file or command it names, else its
-/// reason, else its result), an approval's decision; a step with nothing
+/// a thought's start, a call's reason (else what it runs or names, else its
+/// result), an approval's decision; a step with nothing
 /// more opens nothing.
 func checkTraceStep() {
     func json(_ values: [String: JSONValue]) -> String {
@@ -31,12 +31,8 @@ func checkTraceStep() {
     let starting = TraceStep(ChatMessage(role: .thinking(seconds: nil, tools: 0), text: " \n"))
     precondition(starting.subtitle.isEmpty && !starting.hasDetail, "a thought with no text yet has nothing to open")
 
-    let named = call("Read README.md", json(["reason": .string("See how it builds"), "path": .string("README.md")]))
-    precondition(named.title == "Read README.md" && named.subtitle == "README.md" && named.hasDetail,
-                 "what the call did, over why it did it: \(named.subtitle)")
-    let reasoned = call("Inspect the build", json(["reason": .string("See how it builds"), "cwd": .string("Sources")]))
-    precondition(reasoned.subtitle == "See how it builds",
-                 "with nothing of its own to name, the reason stands: \(reasoned.subtitle)")
+    let reasoned = call("Read README.md", json(["reason": .string("See how it builds"), "path": .string("README.md")]))
+    precondition(reasoned.title == "Read README.md" && reasoned.subtitle == "See how it builds" && reasoned.hasDetail)
     let argv = call("Run a command", json(["argv": .array([.string("make"), .string("-C"), .string("My Tweak")])]))
     precondition(argv.subtitle == "make -C 'My Tweak'", "the command line it ran: \(argv.subtitle)")
     let shell = call("Run a command", json(["command": .string("ls\n  | wc -l"), "cwd": .string("Sources")]))
@@ -76,7 +72,7 @@ func checkTraceStep() {
     let steps = TraceStep.messages(of: summary).map(TraceStep.init)
     precondition(steps.map(\.title) == [String(localized: "Thoughts"), "Read README.md", "Run a command"],
                  "one row per step, in order: \(steps.map(\.title))")
-    precondition(steps.map(\.subtitle) == ["Look first.", "README.md", String(localized: "Allowed Once")],
+    precondition(steps.map(\.subtitle) == ["Look first.", "Read the docs", String(localized: "Allowed Once")],
                  "\(steps.map(\.subtitle))")
     precondition(steps.allSatisfy(\.hasDetail))
 
