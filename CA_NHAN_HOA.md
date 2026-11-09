@@ -226,6 +226,7 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 67 | 2026-11-07 | Cá nhân hoá | **Thanh tiến trình: badge compact mờ và đổ bóng nhẹ để nhìn chuyên nghiệp hơn.** Nền badge đổi sang `systemBackground` độ mờ 0,72, thêm viền separator mờ, đổ bóng opacity 0,18 bán kính 10 offset cao 3. | `5b49913` | Giữ `clipsToBounds = false` trên badge compact; không thêm hiệu ứng khác. |
 | 68 | 2026-11-07 | Bản vá | **Sửa lỗi biên dịch CI ở `DeviceLanguages.swift`:** khối nhiều dòng Swift trong skill bị thụt lề không đủ (Swift báo lỗi 41:1) và typo `requestedre` → `requested`. Chỉ sửa wording, không đổi logic toolchain/install. | `8ba5b98` | Giữ thụt lề của khối nhiều dòng trong `DeviceLanguages.swift`; không nới lỏng safeguard về external toolchain/install. |
 | 69 | 2026-11-09 | Cá nhân hoá | **Bộ chọn model của phiên chat gộp cấu hình theo Base URL thay vì nhà cung cấp:** các cấu hình trỏ cùng một endpoint chuẩn hoá (canonical) gộp về một nhóm, nhóm giữ thứ tự gặp lần đầu; tiêu đề nhóm là tên rút gọn của địa chỉ, nhóm chỉ một cấu hình hiện tên cấu hình; helper `ModelPickerGrouping` không dùng UIKit nên chạy được trong harness transcript (6 kịch bản `ModelPickerGroupingCheck`). Chọn khoá, retry và gửi model không đổi. | `f79b70f` | Giữ `ModelPickerGrouping.swift` (enum + `Group.indices/provider/title` + `groups(of:title:)` theo `AgentEndpoint.canonical`), grouping theo canonical trong `ChatModelPicker`, `groupTitle` trong `ChatModelListController`; không quay lại `modelFamily`. |
+| 70 | 2026-11-09 | Bản vá | **Sửa tiêu đề nhóm của bộ chọn model khi nhóm chỉ một cấu hình có Base URL:** CI đỏ ở kịch bản “hai địa chỉ trên một host” (`ModelPickerGroupingCheck` dòng 48) — nhóm một cấu hình không tên hiện tên nhà cung cấp thay vì địa chỉ. Giờ nhóm hình thành từ một địa chỉ thì gọi bằng địa chỉ (dù một hay nhiều khoá), trừ khi cấu hình đó do người dùng tự đặt tên; cấu hình không có Base URL vẫn giữ tên riêng. | `4e5d211` | Giữ luật: `title = AgentEndpoint.title(key)` khi nhóm có địa chỉ và không phải “một cấu hình đã đặt tên” (`namedAlone = indices.count == 1 && first.name != nil`); không quay lại hiển thị tên nhà cung cấp cho nhóm có địa chỉ. |
 
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
@@ -307,6 +308,14 @@ gói rootless, đối chiếu SHA256SUMS, cài lên máy. Chưa kiểm chứng: 
 kịch bản transcript chưa qua compiler (CI là lần biên dịch đầu), bộ chọn chưa
 từng thấy trên màn hình.
 
+**Cập nhật cùng ngày — CI run 170 đỏ ở Host tests:** `ModelPickerGroupingCheck`
+dòng 48 — nhóm một cấu hình có Base URL không tên hiện tên nhà cung cấp thay vì
+địa chỉ. Đã sửa `ModelPickerGrouping.groups(of:title:)` (nhóm có địa chỉ gọi bằng
+địa chỉ, trừ một cấu hình tự đặt tên) — commit `4e5d211` — và push lại CI ngay,
+không hỏi lại. Vẫn giữ version 0.4.30/62 (bản sửa cho cùng tính năng chưa phát
+hành). Kế tiếp: theo dõi CI run mới cho tới xanh, rồi tag + phát hành + cài như
+trên.
+
 ---
 
 ## 9. Trạng thái hiện tại — đọc mục này là đủ để làm tiếp
@@ -318,7 +327,7 @@ từng thấy trên màn hình.
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `f79b70f` (tính năng gộp bộ chọn model theo Base URL; `main` hơn `origin/main` **1 commit** — `origin/main` đứng ở `075e91f` "Bump version to 0.4.29 (build 61)"; tag mới nhất `v0.4.29`). Đang chạy **luật CI cho 0.4.30 (build 62)**: tài liệu + bump version xong sẽ push origin/main, theo dõi CI, xanh thì tag `v0.4.30`, tải gói rootless, đối chiếu SHA256SUMS, cài lên máy.
+**HEAD khi cập nhật mục này:** `4e5d211` (sửa tiêu đề nhóm bộ chọn model sau CI đỏ — commit trước là `a311bdb` "Bump version to 0.4.30 (build 62)", tính năng `f79b70f`; `origin/main` đang đứng ở commit trước bản sửa, chuẩn bị push). Đang chạy **luật CI cho 0.4.30 (build 62)**: CI run 170 đỏ ở Host tests → đã sửa và chuẩn bị push lại, theo dõi CI tới xanh, xanh thì tag `v0.4.30`, tải gói rootless, đối chiếu SHA256SUMS, cài lên máy.
 
 > Ghi chú đồng bộ 2026-11-06: bảng việc dở bên dưới còn dữ liệu từ giai đoạn 0.4.7/0.4.9. Các mốc Git thực tế mới hơn là `38a9542` (khôi phục background survival), `d67b84e` (`v0.4.11`, animated progress), `d335b96` (`v0.4.12`, UI polish) và `66eb3cf` (nâng task progress). Các đầu mục cũ trong bảng chưa xác nhận là việc còn mở.
 
@@ -334,9 +343,9 @@ từng thấy trên màn hình.
 | 8 | **Hiệu năng cold launch / chat list / daemon handshake** (`8c53479`) | đo baseline và đối chiếu hotspot trước khi sửa | chưa có số liệu |
 | 9 | **Bản cục bộ `.apelinbak` / ConfigBundle Phase 1 + app-side export/import v1** (`0cd1891` + uncommitted) | Đã thêm UI Settings ▸ Configuration: export memories/skills/commands/settings/provider metadata/project display names thành `.apelinbak`, import với backup/rollback và reload notification. Build/cài chưa xác thực. | chưa build CI; chưa chạy UI/runtime; scope secret pack chưa triển khai; chưa push |
 | 10 | **Panel “Quá trình” của một lượt** (`2a02414`, `fb2750b`, `f4667ff`) | 3 điểm Sếp chốt đã phát hành trong **0.4.29** (CI xanh, tag `v0.4.29`). Việc kế tiếp: cài bản mới rồi **mở panel xem thật** trên máy (mới nhất trước, phụ đề nêu việc đã làm trước lý do). | chưa từng thấy trên màn hình máy; `checkTraceStep` chỉ chạy ở CI |
-| 11 | **Bộ chọn model gộp theo Base URL** (`f79b70f`) | Commit xong; đang trong luồng CI 0.4.30: tài liệu + bump version → push → tag `v0.4.30` → cài. | `ModelPickerGrouping` + 6 kịch bản transcript chưa qua compiler (CI là lần đầu); chưa thấy trên màn hình |
+| 11 | **Bộ chọn model gộp theo Base URL** (`f79b70f`) | CI run 170 đỏ ở `ModelPickerGroupingCheck` (nhóm một cấu hình không tên hiện tên nhà cung cấp) — đã sửa `4e5d211` (nhóm có địa chỉ gọi bằng địa chỉ, trừ cấu hình tự đặt tên), đang push lại CI. Xanh → tag `v0.4.30` → cài. | `ModelPickerGrouping` + 6 kịch bản transcript chỉ mới chạy ở CI lần đầu (đang chạy lại sau sửa); chưa thấy trên màn hình |
 
-**Ràng buộc chung của các việc trên:** HEAD mới nhất `f79b70f` (local hơn `origin/main` `075e91f` **1 commit** — tính năng picker theo Base URL). Sếp đã ra lệnh **Luật CI** nên đang chạy đủ luồng cho 0.4.30: bump version → push → CI xanh thì tag + phát hành + cài gói rootless; CI đỏ thì sửa và push lại ngay.
+**Ràng buộc chung của các việc trên:** HEAD mới nhất `4e5d211` (local hơn `origin/main` **1 commit** — bản sửa nhóm model sau CI đỏ; tính năng `f79b70f` và bump `a311bdb` đã push). Sếp đã ra lệnh **Luật CI** nên đang chạy đủ luồng cho 0.4.30: bump version → push → CI xanh thì tag + phát hành + cài gói rootless; CI đỏ thì sửa và push lại ngay (đang ở bước này sau run 170 đỏ).
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
