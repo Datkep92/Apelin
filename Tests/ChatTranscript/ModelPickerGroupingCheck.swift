@@ -61,7 +61,7 @@ func checkModelPickerGrouping() {
         account(.anthropicOAuth, baseURL: nil),
     ])
     precondition(noURL.map(\.indices) == [[0], [1]], "\(noURL.map(\.indices))")
-    precondition(noURL.map(\.title) == ["Work", "anthropic-oauth"], "\(noURL.map(\.title))")
+    precondition(noURL.map(\.title) == ["Work", "anthropicOAuth"], "\(noURL.map(\.title))")
 
     // The same address groups whatever provider family wrote the keys, and a
     // group of several is named after the address, not a family.
