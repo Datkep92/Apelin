@@ -1096,3 +1096,5 @@ try checkSidebarOrder()
 checkProjectMenuOrder()
 
 checkChatDeletion()
+
+checkModelPickerGrouping()

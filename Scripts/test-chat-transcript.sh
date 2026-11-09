@@ -21,6 +21,7 @@ sources=(
     "$root/Apelin/Interface/Chats/ChatSummary.swift"
     "$root/Apelin/Interface/Chats/ChatUnread.swift"
     "$root/Apelin/Interface/Chats/Composer/ComposerDraft.swift"
+    "$root/Apelin/Interface/Chats/Composer/ModelPickerGrouping.swift"
     "$root/Apelin/Interface/Chats/Messages/ChatMessage.swift"
     "$root/Apelin/Interface/Chats/Messages/ApprovalCardText.swift"
     "$root/Apelin/Interface/Chats/Messages/ToolCallBanner.swift"
@@ -56,6 +57,7 @@ sources=(
     "$root/Tests/ChatTranscript/ChatUnreadCheck.swift"
     "$root/Tests/ChatTranscript/ForcePushCardCheck.swift"
     "$root/Tests/ChatTranscript/SquashCardCheck.swift"
+    "$root/Tests/ChatTranscript/ModelPickerGroupingCheck.swift"
     "$root/Tests/ChatTranscript/main.swift"
 )
 

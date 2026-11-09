@@ -145,7 +145,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     /// The configurations as the composer's own list held them when the
     /// sheet opened: signed in, enabled, each with something to choose.
     private let accounts: [AgentAccount]
-    private let groups: [(provider: AgentProvider, indices: [Int])]
+    private let groups: [ModelPickerGrouping.Group]
     private var selected: ComposerModelSelection?
     private var query = ""
     private var sections: [(Section, [PickerRow])] = []
@@ -163,14 +163,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         self.accounts = accounts
         self.selected = selected
         self.onPickModel = onPickModel
-        var seen: [AgentProvider] = []
-        var map: [AgentProvider: [Int]] = [:]
-        for (i, account) in accounts.enumerated() {
-            let family = account.provider.modelFamily
-            if !seen.contains(family) { seen.append(family) }
-            map[family, default: []].append(i)
-        }
-        self.groups = seen.map { family in (family, map[family]!) }
+        self.groups = ModelPickerGrouping.groups(of: accounts, title: \.title)
         super.init(style: .insetGrouped)
     }
 
@@ -218,9 +211,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         guard !query.isEmpty else {
             let rows = groups.enumerated().map { groupIndex, group -> PickerRow in
                 let first = accounts[group.indices[0]]
-                let title = group.indices.count > 1
-                    ? group.provider.displayName
-                    : first.title
+                let title = group.title
                 let detail: String? = group.indices.count > 1
                     ? "\(group.indices.count) configurations"
                     : pickerDetail(for: first)
@@ -253,6 +244,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
             let page = ChatModelListController(
                 accounts: accounts,
                 indices: indices,
+                groupTitle: groups[groupIndex].title,
                 selected: selected,
                 onPick: { [weak self] account, model in
                     guard let self else { return }
@@ -284,6 +276,9 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
 private final class ChatModelListController: TableController {
     private let accounts: [AgentAccount]
     private let indices: [Int]
+    /// What the picker's row this page was pushed from is called: the shared
+    /// Base URL when the group holds several configurations.
+    private let groupTitle: String
     private let selected: ComposerModelSelection?
     private let onPick: (AgentAccount, String) -> Void
 
@@ -297,11 +292,13 @@ private final class ChatModelListController: TableController {
     init(
         accounts: [AgentAccount],
         indices: [Int],
+        groupTitle: String,
         selected: ComposerModelSelection?,
         onPick: @escaping (AgentAccount, String) -> Void,
     ) {
         self.accounts = accounts
         self.indices = indices
+        self.groupTitle = groupTitle
         self.selected = selected
         self.onPick = onPick
         super.init(style: .insetGrouped)
@@ -316,7 +313,7 @@ private final class ChatModelListController: TableController {
         super.viewDidLoad()
         title = indices.count == 1
             ? accounts[indices[0]].title
-            : (indices.isEmpty ? "" : accounts[indices[0]].provider.modelFamily.displayName)
+            : groupTitle
         rewrite()
     }
 
