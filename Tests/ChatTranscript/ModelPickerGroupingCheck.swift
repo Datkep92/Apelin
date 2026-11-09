@@ -82,7 +82,7 @@ func checkModelPickerGrouping() {
         account(.openAICompatible, baseURL: nil),
     ])
     precondition(ordered.map(\.indices) == [[0, 2], [1], [3]], "\(ordered.map(\.indices))")
-    precondition(ordered.flatMap(\.indices) == [0, 1, 2, 3], "every configuration exactly once")
+    precondition(ordered.flatMap(\.indices).sorted() == [0, 1, 2, 3], "every configuration exactly once")
     precondition(ordered[0].provider == .openAICompatible && ordered[0].title == "b.example/v1", "\(ordered[0].title)")
 
     print("ok: the model picker groups configurations by Base URL, one per address and first-seen order")
