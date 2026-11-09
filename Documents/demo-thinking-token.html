@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đang suy nghĩ · token</title>
+<style>
+  :root {
+    --bg: #1c1c1e;
+    --card: #2c2c2e;
+    --text: #f2f2f7;
+    --muted: rgba(242,242,247,0.55);
+    --accent: #0a84ff;
+  }
+  body { margin:0; min-height:100vh; background:linear-gradient(160deg,#000,#141416); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"SF Pro",system-ui,sans-serif; display:grid; place-items:center; padding:24px; }
+  .card { width:min(420px,100%); background:var(--card); border-radius:26px; padding:20px 20px 16px; box-shadow:0 24px 60px rgba(0,0,0,.45); }
+  .row { display:flex; align-items:center; gap:10px; }
+  .status { flex:1; font-weight:600; font-size:19px; letter-spacing:-.2px; position:relative; overflow:hidden; }
+  .shimmer { display:inline-block; position:relative; }
+  .shimmer::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent 35%, rgba(255,255,255,.32) 50%, transparent 65%); animation:move 1.6s linear infinite; mix-blend-mode:screen; }
+  @keyframes move { from { transform:translateX(-100%);} to {transform:translateX(100%);}}
+  .dots { display:inline-flex; gap:4px; margin-left:6px; }
+  .dot { width:6px; height:6px; border-radius:50%; background:var(--accent); opacity:.35; animation:blink 1.2s infinite; }
+  .dot:nth-child(2){animation-delay:.15s;}
+  .dot:nth-child(3){animation-delay:.3s;}
+  @keyframes blink { 0%,100%{opacity:.25; transform:scale(.8)} 50%{opacity:1; transform:scale(1)}}
+  .subtitle { margin-top:6px; font-size:14px; color:var(--muted); line-height:1.35; }
+  .token { margin-top:14px; display:flex; align-items:center; justify-content:flex-end; gap:6px; }
+  .badge { background:rgba(10,132,255,.12); color:var(--accent); border-radius:999px; padding:6px 10px; font-variant-numeric:tabular-nums; font-weight:700; letter-spacing:.1px; }
+  .arrow { opacity:.8; }
+  .note { margin-top:14px; font-size:12px; color:rgba(242,242,247,.38); }
+  button { margin-top:14px; border:0; background:#0a84ff; color:#fff; font-weight:700; padding:10px 14px; border-radius:12px; cursor:pointer; }
+  button:active { transform:scale(.98);}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="row">
+      <div class="status"><span class="shimmer" id="status">Đang suy nghĩ…</span><span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+    </div>
+    <div class="subtitle" id="detail">Đang đọc SignInSupport.framework để xem điều gì gọi nó.</div>
+    <div class="token">
+      <span class="badge"><span id="digits">0</span> <span class="arrow">↓</span></span>
+    </div>
+    <div class="note">Tốc độ chữ sẽ bị throttle khoảng 1s để không bị cắt transitions; token rolling là ví dụ.</div>
+    <button id="replay">Phát lại</button>
+  </div>
+<script>
+const target = 12847;
+let start = 0, running=false;
+function fmt(n){ return new Intl.NumberFormat('vi-VN').format(n);}
+const el=document.getElementById('digits');
+const status=document.getElementById('status');
+const detail=document.getElementById('detail');
+function climb(){
+  if(running) return;
+  running=true; start=Date.now();
+  const dur=3200;
+  const tick=()=>{
+    const t=(Date.now()-start)/dur;
+    if(t>=1){ running=false; finish(); return;}
+    const eased=t<.5?2*t*t:1-(-2*t+3)*(-2*t+3)/2;
+    el.textContent=fmt(Math.round(eased*target));
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function finish(){
+  el.textContent=fmt(target);
+  setTimeout(()=>{status.textContent='Đang thực thi công cụ…'; detail.textContent='Chạy git status để kiểm tra repo hiện tại.';},600);
+  setTimeout(()=>{status.textContent='Đang suy nghĩ…'; detail.textContent='Đang tổng hợp kết quả trước coding.';},3200);
+  setTimeout(()=>{start=Date.now();status.textContent='Đang suy nghĩ…';detail.textContent='T.AddTransient...';climb();},5200);
+}
+document.getElementById('replay').onclick=()=>{status.textContent='Đang suy nghĩ…';detail.textContent='Đang đọc SignInSupport.framework để xem điều gì gọi nó.';el.textContent=fmt(0);climb();};
+climb();
+</script>
+</body>
+</html>

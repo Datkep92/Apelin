@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phong cách status + token</title>
+<style>
+  :root { --bg:#1c1c1e; --card:#2c2c2e; --text:#f2f2f7; --muted:rgba(242,242,247,.58); --accent:#0a84ff; }
+  body { margin:0; min-height:100vh; background:linear-gradient(160deg,#000,#141416); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"SF Pro",system-ui,sans-serif; padding:24px; display:grid; gap:18px; place-items:center; }
+  .card { width:min(470px,100%); background:var(--card); border-radius:26px; padding:20px; box-shadow:0 24px 60px rgba(0,0,0,.45); }
+  .title { font-weight:700; font-size:18px; margin-bottom:14px; color:var(--muted); }
+  .shimmer { position:relative; display:inline-block; overflow:hidden; }
+  .shimmer::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent 35%,rgba(255,255,255,.32) 50%,transparent 65%); animation:move 1.6s linear infinite; mix-blend-mode:screen; }
+  @keyframes move { from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+  .dots { display:inline-flex; gap:4px; margin-left:6px; vertical-align:middle; }
+  .dot { width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.25;animation:blink 1.2s infinite; }
+  .dot:nth-child(2){animation-delay:.15s;}
+  .dot:nth-child(3){animation-delay:.3s;}
+  @keyframes blink { 0%,100%{opacity:.25;transform:scale(.8)} 50%{opacity:1;transform:scale(1)} }
+  .token { font-variant-numeric:tabular-nums; font-weight:700; color:var(--accent); background:rgba(10,132,255,.12); border-radius:999px; padding:6px 10px; display:inline-flex; gap:6px; align-items:center; }
+  .muted { color:var(--muted); }
+  .gap { margin-top:8px; }
+  /* Style 1 */
+  .s1 .status { font-size:19px; font-weight:600; }
+  .s1 .token { float:right; margin-top:-2px; }
+  /* Style 2 */
+  .s2 .status { font-size:22px; font-weight:700; letter-spacing:-.4px; }
+  .s2 .subtitle { margin-top:8px; line-height:1.45; }
+  .s2 .token { margin-top:12px; }
+  /* Style 3 */
+  .s3 .row { display:flex; justify-content:space-between; align-items:center; }
+  .s3 .status { font-size:16px; font-weight:600; }
+  .s3 .meta { font-size:13px; color:var(--muted); margin-top:4px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="title">Kiểu 1 — hiện tại cải thiện nhẹ</div>
+    <div class="s1">
+      <div class="row" style="display:flex; align-items:center; gap:10px">
+        <div class="status"><span class="shimmer">Đang suy nghĩ…</span><span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+        <div class="token"><span>12,847</span><span style="opacity:.8">↓</span></div>
+      </div>
+      <div class="gap muted">Đang đọc SignInSupport.framework để xem điều gì gọi nó.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="title">Kiểu 2 — chữ to hơn, token xuống dưới</div>
+    <div class="s2">
+      <div class="status"><span class="shimmer">Đang thực thi công cụ…</span><span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+      <div class="subtitle muted">Chạy git status để kiểm tra repo hiện tại.</div>
+      <div class="token"><span>9,482</span><span style="opacity:.8">↓</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="title">Kiểu 3 — compact một dòng + chi tiết capsule</div>
+    <div class="s3">
+      <div class="row">
+        <div class="status"><span class="shimmer">Đang tổng hợp…</span></div>
+        <div class="token"><span>3,106</span><span style="opacity:.8">↓</span></div>
+      </div>
+      <div class="meta">Lý do: tổng hợp các log keyboardservices và báo cáo RTP.</div>
+    </div>
+  </div>
+</body>
+</html>

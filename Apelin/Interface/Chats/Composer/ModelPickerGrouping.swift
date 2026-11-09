@@ -4,7 +4,10 @@ import ApelinProtocol
 /// grouped by the Base URL their requests go to — several keys at one address
 /// (whatever provider family wrote them) are one group, two addresses on one
 /// host are two, and a configuration that names no Base URL stands alone.
-/// Groups keep the order their first configuration appears in.
+/// A group formed by an address is called by that address, unless it holds a
+/// single configuration the reader gave its own name; a configuration with no
+/// Base URL keeps its own title. Groups keep the order their first
+/// configuration appears in.
 ///
 /// This file is compiled by the transcript tests too, so it imports nothing
 /// but ApelinProtocol: the app passes its own `AgentAccount.title` in.
@@ -35,10 +38,16 @@ enum ModelPickerGrouping {
         return seen.map { key in
             let indices = map[key]!
             let first = accounts[indices[0]]
+            // A group formed by a Base URL is called by that address — one
+            // key at the address or several — unless it holds a single
+            // configuration the reader named itself. One with no Base URL
+            // keeps its own title.
+            let address = key.contains("://")
+            let namedAlone = indices.count == 1 && first.name != nil
             return Group(
                 indices: indices,
                 provider: first.provider,
-                title: indices.count > 1 ? AgentEndpoint.title(key) : title(first)
+                title: address && !namedAlone ? AgentEndpoint.title(key) : title(first)
             )
         }
     }
