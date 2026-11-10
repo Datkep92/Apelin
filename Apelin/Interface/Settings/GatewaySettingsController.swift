@@ -129,7 +129,7 @@ final class GatewaySettingsController: UIViewController {
                         message: error.localizedDescription,
                         preferredStyle: .alert,
                     )
-                    alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default))
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
                     self.present(alert, animated: true)
                 }
             }
