@@ -39,63 +39,76 @@ enum GatewayHandler: DomainHandler {
     }
 
     private static func readState(file: URL) async -> GatewayRecord {
-        let isRunning = gatewayIsRunning()
-        let pid = lastPID(from: URL(fileURLWithPath: "/var/run/gateway-session.pid"))
+        let stateString = gatewayStateString()
+        let isRunning = stateString == "dang_chay"
         guard let data = try? Data(contentsOf: file),
               let record = try? JSONDecoder().decode(GatewayRecord.self, from: data) else {
-            return GatewayRecord(state: .dang_treo, enabled: false, pid: nil, since: nil)
+            return GatewayRecord(state: isRunning ? .dang_chay : .khong_chay, enabled: false, pid: nil, since: nil)
         }
-        let state: GatewayState = isRunning ? .dang_chay : .dang_treo
-        return GatewayRecord(state: state, enabled: record.enabled, pid: isRunning ? pid : nil, since: isRunning ? nil : record.since)
+        let state: GatewayState
+        switch stateString {
+        case "dang_chay": state = .dang_chay
+        case "dang_treo": state = .dang_treo
+        default: state = .khong_chay
+        }
+        return GatewayRecord(state: state, enabled: record.enabled, pid: nil, since: isRunning ? nil : record.since)
     }
 
     private static func writeStateFile(file: URL, enabled: Bool, since: Date) async throws {
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let record = GatewayRecord(state: .dang_treo, enabled: enabled, since: since)
+        let record = GatewayRecord(state: .khong_chay, enabled: enabled, since: since)
         let data = try JSONEncoder().encode(record)
         try data.write(to: file)
     }
 
-    private static func gatewayIsRunning() -> Bool {
-        let exists = FileManager.default.fileExists(atPath: bin)
-        let pid = lastPID(from: URL(fileURLWithPath: "/var/run/gateway-session.pid"))
-        let isRunning = pid.map { kill(Int32($0), 0) == 0 } ?? false
-        return exists && isRunning
+    static func gatewayStateString() -> String {
+        runGatewayCtl(["state"])
     }
 
-    private static func lastPID(from url: URL) -> Int? {
-        guard let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8),
-              let pid = Int(text.trimmingCharacters(in: .whitespaces)) else {
-            return nil
+    static func gatewayIsRunning() -> Bool {
+        gatewayStateString() == "dang_chay"
+    }
+
+    static func gatewayHasProcess() -> Bool {
+        let state = gatewayStateString()
+        return state != "khong_chay"
+    }
+
+    private static func runGatewayCtl(_ args: [String]) -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: shell)
+        process.arguments = [ctl] + args
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        process.standardInput = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return ""
         }
-        return pid
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private static func start(host: SessionHost) async throws {
         let home = host.home
-        let pipe = Pipe()
-        let readHandle = pipe.fileHandleForReading
-        let writeHandle = pipe.fileHandleForWriting
-        readHandle.closeFile()
-        let writeFd = writeHandle.fileDescriptor
-        
-        // Set environment with HOME and possibly PATH, but we only set HOME for simplicity
-        let environment: [String] = ["HOME=\(home)"]
-        
-        // Use spawnProcess to start gateway as non-root (mobile identity)
-        _ = try spawnProcess(path: shell, arguments: ["sh", bin], environment: environment, channel: Int32(writeFd), identity: .mobile)
-        
-        // Close our end of the channel after starting
-        writeHandle.closeFile()
-        try await Task.sleep(nanoseconds: 500_000_000) // give gateway time to bind the socket
+        // Already running: nothing to do.
+        if gatewayStateString() == "dang_chay" {
+            return
+        }
+        // Use gatewayctl's standalone launch, which backgrounds gateway-session
+        // in standalone mode and waits for the port to answer.
+        let pid = try spawnProcess(path: shell, arguments: [ctl, "on"], environment: ["HOME=\(home)"], channel: 0, identity: .mobile)
+        var status: Int32 = 0
+        waitpid(pid, &status, 0)
     }
 
     private static func stop() async throws {
-        let pid = try spawnProcess(path: shell, arguments: ["sh", ctl, "stop"], environment: [], channel: 0, identity: nil)
+        let pid = try spawnProcess(path: shell, arguments: [ctl, "off"], environment: [], channel: 0, identity: .mobile)
         var status: Int32 = 0
         waitpid(pid, &status, 0)
-        let pidFile = URL(fileURLWithPath: "/var/run/gateway-session.pid")
-        try? FileManager.default.removeItem(at: pidFile)
     }
 }

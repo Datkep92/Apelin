@@ -229,19 +229,7 @@ final class SessionHost: @unchecked Sendable {
         // sessions and installs are tasks; workers and tool extensions are
         // processes. The proxy counts the connected app itself.
         let isGatewayRunning: Bool = {
-            let bin = "/var/jb/usr/bin/gateway-session"
-            let exists = FileManager.default.fileExists(atPath: bin)
-            let pidURL = URL(fileURLWithPath: "/var/run/gateway-session.pid")
-            let pid: Int?
-            do {
-                let data = try Data(contentsOf: pidURL)
-                let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespaces)
-                pid = Int(text ?? "")
-            } catch {
-                pid = nil
-            }
-            let isRunning = pid.map { kill(Int32($0), 0) == 0 } ?? false
-            return exists && isRunning
+            GatewayHandler.gatewayHasProcess()
         }()
         let report = await WorkReport(
             activeTasks: registry.activeCount,
