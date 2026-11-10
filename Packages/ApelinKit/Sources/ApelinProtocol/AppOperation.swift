@@ -118,6 +118,9 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
     case transferInspect
     case transferImport
 
+    case gatewayStatus
+    case gatewaySetEnabled
+
     /// Which `Operations/<Domain>.swift` and `Dispatch/<Domain>Handler.swift`
     /// own the operation.
     public var domain: OperationDomain {
@@ -149,6 +152,7 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
              .distributionRepositoryUnlink, .distributionPublish, .feedbackSend, .feedbackRead, .feedbackEdit,
              .feedbackStarState, .feedbackStar:
             .distribution
+        case .gatewayStatus, .gatewaySetEnabled: .gateway
         }
     }
 
@@ -250,6 +254,8 @@ public enum AppOperation: String, Codable, CaseIterable, Sendable {
         case .transferExport: TransferExportRequest.self
         case .transferInspect: TransferInspectRequest.self
         case .transferImport: TransferImportRequest.self
+        case .gatewayStatus: GatewayStatusRequest.self
+        case .gatewaySetEnabled: GatewaySetEnabledRequest.self
         }
     }
 }
@@ -272,6 +278,7 @@ public enum OperationDomain: String, Codable, CaseIterable, Sendable {
     case git
     case transfer
     case distribution
+    case gateway
 }
 
 /// A request on the wire. Each operation has exactly one request type, and
