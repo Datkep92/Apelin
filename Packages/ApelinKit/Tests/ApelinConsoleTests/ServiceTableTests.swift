@@ -220,6 +220,12 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: handle, call: {
                 _ = try await $0.transferImport(TransferImportRequest(source: .file(Self.slot), fileName: "x.apesdk"), descriptors: [OwnedDescriptor(adopting: open("/dev/null", O_RDONLY))])
             }, descriptors: 1)
+        case .gatewayStatus:
+            return Row(reply: GatewayStatusResponse(record: GatewayRecord(state: .khong_chay, enabled: false))) {
+                _ = try await $0.gatewayStatus()
+            }
+        case .gatewaySetEnabled:
+            return Row(reply: ack) { try await $0.gatewaySetEnabled(true) }
         case .toolHostOpen:
             return Row(reply: ToolHostOpenResponse(sessionID: "s")) { _ = try await $0.toolHostOpen(id: "wiki.qaq.apelin.tools.disassembler") }
         case .toolHostClose:

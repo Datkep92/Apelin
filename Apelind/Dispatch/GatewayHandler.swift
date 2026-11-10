@@ -58,7 +58,7 @@ enum GatewayHandler: DomainHandler {
     private static func gatewayIsRunning() -> Bool {
         let exists = FileManager.default.fileExists(atPath: bin)
         let pid = lastPID(from: URL(fileURLWithPath: "/var/run/gateway-session.pid"))
-        let isRunning = pid.map { kill($0, 0) == 0 } ?? false
+        let isRunning = pid.map { kill(Int32($0), 0) == 0 } ?? false
         return exists && isRunning
     }
 
@@ -83,7 +83,7 @@ enum GatewayHandler: DomainHandler {
         let environment: [String] = ["HOME=\(home)"]
         
         // Use spawnProcess to start gateway as non-root (mobile identity)
-        try spawnProcess(path: bin, arguments: [], environment: environment, channel: writeFd, identity: .mobile)
+        _ = try spawnProcess(path: bin, arguments: [], environment: environment, channel: Int32(writeFd), identity: .mobile)
         
         // Close our end of the channel after starting
         writeHandle.closeFile()
@@ -91,13 +91,10 @@ enum GatewayHandler: DomainHandler {
     }
 
     private static func stop() async throws {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: ctl)
-        task.arguments = ["stop"]
-        task.standardOutput = nil
-        task.standardError = nil
-        try task.run()
+        let pid = try spawnProcess(path: ctl, arguments: ["stop"], environment: [], channel: 0, identity: nil)
+        var status: Int32 = 0
+        waitpid(pid, &status, 0)
         let pidFile = URL(fileURLWithPath: "/var/run/gateway-session.pid")
-        try FileManager.default.removeItem(at: pidFile)
+        try? FileManager.default.removeItem(at: pidFile)
     }
 }
