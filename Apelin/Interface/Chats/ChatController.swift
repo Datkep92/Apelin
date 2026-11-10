@@ -431,7 +431,9 @@ final class ChatController: UIViewController {
             do {
                 let response = try await ApelinService.app.gatewayStatus()
                 await MainActor.run {
-                    self.gatewayRunning = response.record.state == .dang_chay
+                    // The switch controls the gateway process: a process that is
+                    // there but not answering stays on so it can be turned off.
+                    self.gatewayRunning = response.record.state != .khong_chay
                     self.updateGatewayUI()
                 }
             } catch {

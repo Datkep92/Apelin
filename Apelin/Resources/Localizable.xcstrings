@@ -82684,13 +82684,13 @@
         }
       }
     },
-    "Connects to GitHub, Firebase, Cloudflare, Google Script and Telegram": {
+    "Controls the local gateway on port 15199": {
       "shouldTranslate": false,
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connects to GitHub, Firebase, Cloudflare, Google Script and Telegram"
+            "value": "Controls the local gateway on port 15199"
           }
         }
       }
@@ -82702,6 +82702,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gateway"
+          }
+        }
+      }
+    },
+    "Gateway is not responding": {
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gateway is not responding"
           }
         }
       }

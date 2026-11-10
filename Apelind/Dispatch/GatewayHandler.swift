@@ -22,14 +22,23 @@ enum GatewayHandler: DomainHandler {
         case .gatewaySetEnabled:
             return await request.serve(GatewaySetEnabledRequest.self) { [self] req in
                 let stateFile = host.dataFolder.root.appendingPathComponent("gateway.json")
-                try await writeStateFile(file: stateFile, enabled: req.enabled, since: Date())
-                let isRunning = gatewayIsRunning()
-                if isRunning {
+                let state = gatewayStateString()
+                let isRunning = state == "dang_chay"
+                let hasProcess = state != "khong_chay"
+
+                if req.enabled {
+                    // Already serving: nothing to do. A process that is there but
+                    // not answering is restarted; no process is simply started.
+                    if !isRunning {
+                        if hasProcess {
+                            try? await stop()
+                        }
+                        try? await start(host: host)
+                    }
+                } else if hasProcess {
                     try? await stop()
                 }
-                if req.enabled {
-                    try? await start(host: host)
-                }
+                try await writeStateFile(file: stateFile, enabled: req.enabled, since: Date())
                 return Acknowledged()
             }
 
@@ -63,10 +72,6 @@ enum GatewayHandler: DomainHandler {
 
     static func gatewayStateString() -> String {
         runGatewayCtl(["state"])
-    }
-
-    static func gatewayIsRunning() -> Bool {
-        gatewayStateString() == "dang_chay"
     }
 
     static func gatewayHasProcess() -> Bool {

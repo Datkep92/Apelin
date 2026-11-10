@@ -8,6 +8,7 @@ final class GatewaySettingsController: UIViewController {
     private let refreshButton = UIButton()
     private var observable: Task<Void, Never>?
     private var isRunning = false
+    private var isHung = false
     private var isUpdating = false
 
     init() {
@@ -79,6 +80,7 @@ final class GatewaySettingsController: UIViewController {
                 let response = try await ApelinService.app.gatewayStatus()
                 await MainActor.run {
                     self.isRunning = response.record.state == .dang_chay
+                    self.isHung = response.record.state == .dang_treo
                     self.updateUI()
                 }
             } catch {
@@ -100,12 +102,16 @@ final class GatewaySettingsController: UIViewController {
     private func updateUI() {
         if isRunning {
             statusLabel.text = String(localized: "Gateway is running")
+        } else if isHung {
+            statusLabel.text = String(localized: "Gateway is not responding")
         } else {
             statusLabel.text = String(localized: "Gateway is stopped")
         }
-        toggleSwitch.isOn = isRunning
+        // The switch controls the process, not only a port that answers: a hung
+        // gateway stays on so it can be turned off from here.
+        toggleSwitch.isOn = isRunning || isHung
         toggleSwitch.isEnabled = !isUpdating
-        toggleSwitch.accessibilityValue = isRunning
+        toggleSwitch.accessibilityValue = (isRunning || isHung)
             ? String(localized: "On")
             : String(localized: "Off")
     }

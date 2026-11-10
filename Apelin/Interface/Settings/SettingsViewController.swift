@@ -176,7 +176,7 @@ final class SettingsViewController: TableController {
             content.text = String(localized: "Services")
         case .gateway:
             content.text = String(localized: "Gateway")
-            content.secondaryText = String(localized: "Connects to GitHub, Firebase, Cloudflare, Google Script and Telegram")
+            content.secondaryText = String(localized: "Controls the local gateway on port 15199")
         case .version:
             let info = Bundle.main.infoDictionary
             let version = info?["CFBundleShortVersionString"] as? String ?? "?"
