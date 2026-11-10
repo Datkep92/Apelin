@@ -91,12 +91,15 @@ public struct WorkReport: Codable, Sendable, Equatable {
     public var toolHosts: Int
     /// Active tasks by `TaskKind` raw value.
     public var tasksByKind: [String: Int]
+    /// Whether the gateway process is running (for UI feedback).
+    public var gatewayRunning: Bool
 
-    public init(activeTasks: Int, workers: Int, toolHosts: Int = 0, tasksByKind: [String: Int] = [:]) {
+    public init(activeTasks: Int, workers: Int, toolHosts: Int = 0, tasksByKind: [String: Int] = [:], gatewayRunning: Bool = false) {
         self.activeTasks = activeTasks
         self.workers = workers
         self.toolHosts = toolHosts
         self.tasksByKind = tasksByKind
+        self.gatewayRunning = gatewayRunning
     }
 
     public var isIdle: Bool {

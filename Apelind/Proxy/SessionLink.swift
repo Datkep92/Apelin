@@ -60,7 +60,7 @@ final class SessionLink: @unchecked Sendable {
             channel.onControl { [weak self] frame in
                 guard let self, frame.header.name == WorkerControl.work,
                       let report = try? JSONDecoder().decode(WorkReport.self, from: frame.body) else { return }
-                queue.async { self.ledger.sessionReported(busy: !report.isIdle) }
+                queue.async { self.ledger.sessionReported(busy: !report.isIdle, gatewayRunning: report.gatewayRunning) }
             }
             channel.onClose { [weak self] in
                 guard let self else { return }

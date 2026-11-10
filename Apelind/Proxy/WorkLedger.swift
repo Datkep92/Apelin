@@ -14,12 +14,13 @@ import Foundation
 /// Every method runs on `queue`.
 final class WorkLedger: @unchecked Sendable {
     private let queue: DispatchQueue
-    private static let idleGraceSeconds = 15 * 60
-    private let idleGrace: DispatchTimeInterval = .seconds(WorkLedger.idleGraceSeconds)
+    private static let normalIdleGraceSeconds = 15 * 60
+    private static let gatewayIdleGraceSeconds = 30
     private let onIdle: () -> Void
     private var connections = 0
     private var requests = 0
     private(set) var sessionBusy = false
+    private var gatewayRunning = false
     private var idleTimer: DispatchWorkItem?
 
     init(queue: DispatchQueue, onIdle: @escaping () -> Void) {
@@ -56,8 +57,9 @@ final class WorkLedger: @unchecked Sendable {
         reevaluate()
     }
 
-    func sessionReported(busy: Bool) {
-        sessionBusy = busy
+    func sessionReported(busy: Bool, gatewayRunning: Bool) {
+        self.sessionBusy = busy
+        self.gatewayRunning = gatewayRunning
         reevaluate()
     }
 
@@ -66,12 +68,13 @@ final class WorkLedger: @unchecked Sendable {
         idleTimer?.cancel()
         idleTimer = nil
         guard isIdle else { return }
-        NSLog("apelind: idle, exiting in %d s unless work arrives", Self.idleGraceSeconds)
+        let timeout = gatewayRunning ? Self.gatewayIdleGraceSeconds : Self.normalIdleGraceSeconds
+        NSLog("apelind: idle, exiting in %d s unless work arrives", timeout)
         let timer = DispatchWorkItem { [weak self] in
             guard let self else { return }
             onIdle()
         }
         idleTimer = timer
-        queue.asyncAfter(deadline: .now() + idleGrace, execute: timer)
+        queue.asyncAfter(deadline: .now() + .seconds(timeout), execute: timer)
     }
 }

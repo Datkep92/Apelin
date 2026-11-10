@@ -28,6 +28,7 @@ final class SettingsViewController: TableController {
         case templates
         case git
         case services
+        case gateway
         case version
         case licenses
         case logs
@@ -104,7 +105,7 @@ final class SettingsViewController: TableController {
         case .agent: [.modelProviders, .permissionMode, .memories, .skills, .commands, .configuration]
         case .environment: [.toolchain, .sdks, .templates]
         case .git: [.git]
-        case .services: [.services]
+        case .services: [.services, .gateway]
         case .about: [.version, .licenses, .logs]
         }
     }
@@ -173,6 +174,9 @@ final class SettingsViewController: TableController {
             content.text = String(localized: "Git")
         case .services:
             content.text = String(localized: "Services")
+        case .gateway:
+            content.text = String(localized: "Gateway")
+            content.secondaryText = String(localized: "Connects to GitHub, Firebase, Cloudflare, Google Script and Telegram")
         case .version:
             let info = Bundle.main.infoDictionary
             let version = info?["CFBundleShortVersionString"] as? String ?? "?"
@@ -229,7 +233,12 @@ final class SettingsViewController: TableController {
                 navigation.pushViewController(picker, animated: true)
             }
             return
-        case .licenses: page = LicensesViewController()
+        case .gateway:
+            let page = GatewaySettingsController()
+            navigationController?.pushViewController(page, animated: true)
+            return
+        case .licenses:
+            page = LicensesViewController()
         case .logs: page = LogsController()
         case .version: return
         }
