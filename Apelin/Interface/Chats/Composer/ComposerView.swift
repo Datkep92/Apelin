@@ -166,6 +166,10 @@ class ComposerView: ComposerSectionView {
 
         var finalHeight = shadowContainer.frame.maxY
         var y = finalHeight + spacing
+        y = place(quickReplySection, at: y)
+        if quickReplySection.heightPublisher.value > 0 {
+            finalHeight = quickReplySection.frame.maxY
+        }
         for band in [modelBar, controlPanel] {
             y = place(band, at: y)
             if band.heightPublisher.value > 0 {
