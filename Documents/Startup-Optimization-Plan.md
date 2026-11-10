@@ -1,200 +1,490 @@
-# Kế hoạch tối ưu khởi động (Startup Optimization Plan)
+# Kế hoạch tối ưu khởi động — Phiên bản thực thi (v2)
 
-> Trạng thái: kế hoạch, chưa triển khai. Branch `main` tại `ba964c7`.
-> Phạm vi: chỉ phân tích và đề xuất; không sửa code, không build/install.
+> Trạng thái: kế hoạch đầy đủ, sẵn sàng triển khai. Chưa sửa code.
+> Branch `main` tại `ba964c7`. Phạm vi: Phase 1 + Phase 3 (+ Phase 0 đo lường). Phase 4 không làm (xem §11).
+> Mục tiêu: giảm cold launch → UI usable; giữ nguyên logic; mỗi bước có thể build + test độc lập.
 
-## 1. Mục tiêu
+---
 
-- Giảm thời gian từ khi app xuất hiện đến khi người dùng có thể đọc/gửi chat.
-- Giữ nguyên logic: không làm mất dữ liệu, không phá reconciliation, không phá sidebar/project menu.
-- Ưu tiên thay đổi nhỏ, có thể rollback.
+## 0. Quyết định chốt (không hỏi lại)
 
-## 2. Kết quả phân tích (đã làm)
-
-### 2.1 Chi phí khởi động thật sự
-
-- `AppDelegate`: executable watch, migration, journaling, network, conversation notices, console. Chạy một lần, không chặn UI chính.
-- `SceneDelegate` → `RootInterfaceController`: tạo window/root. Nhanh.
-- `WelcomeFlow`: chỉ chặn người mới (onboarding). Người cũ không bị chặn.
-- `ProjectSummary.load`: quét `Projects/`, validate manifest, đọc ngày tạo. Chạy detached, nhẹ. **Không phải bottleneck.**
-- `ChatRuntime.load`: **đây là bottleneck chính**. Đọc *mọi* file `Chats/*.json`, mỗi file là `ChatRecord` đầy đủ gồm `events: [TaskEvent]`. Với lịch sử dài, tổng chi phí giải mã JSON lớn.
-- Reconciliation: `agentList()` + lặp records. Chạy *sau* `isLoaded = true` và `onChange?()`, nhưng đồng bộ trong cùng hàm `load()`, nên UI chỉ hiện sau khi reconciliation xong trong thực tế (vì `await`).
-
-### 2.2 Điều đã sẵn có (không cần làm lại)
-
-- `ProjectMenuOrder.split`: đã xếp top 5 project theo tương tác chat gần nhất hoặc ngày tạo thư mục, phần còn lại vào "More Projects". → đã có ranking theo recency.
-- `ChatRuntime.isLoaded` đặt `true` và gọi `onChange?()` *trước* reconcile. → UI có thể usable sớm nếu reconcile được đẩy nền.
-- Provider/account chỉ tải khi mở model picker hoặc retry. → không chặn startup.
-
-### 2.3 Đánh giá đề xuất của người dùng
-
-| Đề xuất | Giá trị | Ghi chú |
+| # | Quyết định | Lý do |
 |---|---|---|
-| Load 5 chat gần nhất trước | Cao | Cần tách events khỏi summary khi lưu/đọc. |
-| Load 3 project gần nhất trước | Thấp | Project scan đã nhẹ; ranking đã có. Chỉ hữu ích nếu "project" ngầm bao gồm chat của nó. |
-| Theo dõi 3 project gần nhất bằng danh sách cố định | Rủi ro stale | Nên suy ra từ tương tác chat hiện có; chỉ thêm persisted list nếu có nhu cầu cụ thể. |
-| Tải tiêu đề trước, nội dung đầy đủ khi mở chat | Cao nhất | Đây là hướng có giá trị thật. |
+| D1 | Làm Phase 1 + Phase 3. | Giá trị cao nhất; Phase 1 rủi ro thấp, Phase 3 rủi ro có kiểm soát. |
+| D2 | Phase 0 (đo) gộp vào Phase 1: thêm log timing trước khi sửa, giữ log sau sửa để so sánh. | Một lần đo, không tách PR. |
+| D3 | Lazy events: tách file `Chats/<id>.events.json`; summary file `Chats/<id>.json` chứa `ChatRecord` với `events = []`. | Migration rõ ràng; đọc summary không phải giải mã events. |
+| D4 | Không unload events khỏi memory sau khi load. | Đơn giản, an toàn; transcript cache đã quản lý hiển thị. |
+| D5 | Cờ `eventsLoaded` là thuộc tính runtime (không Codable). | Tránh thay đổi format. |
+| D6 | `hasEventsOnDisk` suy ra từ `eventsLoaded || fileEventsExists`. | Để `isUntouched` đúng trước khi load events. |
+| D7 | Load events on demand cho chat được chọn/mở; chat đang working khi relaunch load events trước reconcile. | Đảm bảo cursor/replay đúng. |
+| D8 | Không làm Phase 4 (persisted 3 project). | Ranking đã có; thêm persisted list tăng stale risk. |
+| D9 | Mỗi phase là một commit riêng, build CI sau mỗi phase. | Dễ rollback, dễ bisect. |
+| D10 | Không thay đổi `isLoaded`/`isReconciled` semantics. | Gating hiện có không đổi. |
 
-## 3. Nguyên tắc an toàn (không làm hỏng dự án)
+---
 
-1. **Không đổi định dạng lưu trữ mà không có migration.** Mọi file cũ phải đọc được.
-2. **Không làm mất `events`.** Lazy load phải bảo toàn transcript, cursor, replay, sending.
-3. **Reconciliation không được bỏ.** Chỉ được đẩy nền, không được bỏ qua.
-4. **Không thay đổi semantics `isLoaded`/`isReconciled`.** Các gating hiện có (`RootInterfaceController.restoreChatIfReady`, `SidebarController.hasLoadedProjects`) phải vẫn đúng.
-5. **Mỗi phase độc lập, có thể dừng lại.** Không bắt buộc làm hết.
-6. **Đo lường trước khi tối ưu sâu.** Phase 0 bắt buộc trước Phase 3.
+## 1. Kiến trúc hiện tại (tóm tắt để đối chiếu)
 
-## 4. Các phase
+### 1.1 Dòng chảy startup
 
-### Phase 0 — Đo lường (không đổi logic)
+```
+AppDelegate.didFinishLaunching
+  └─ SceneDelegate
+       └─ RootInterfaceController.init
+            ├─ WelcomeFlow.shouldPresent? → onboarding (chỉ người mới)
+            ├─ ProjectSummary.load (detached, nhẹ)
+            ├─ ChatRuntime.load(keeping: selected)  ← BOTTLENECK
+            │    ├─ store.load() → [ChatRecord] (đọc mọi file, gồm events)
+            │    ├─ cleanup untouched
+            │    ├─ forget deleted projects
+            │    ├─ isLoaded = true; onChange?()   ← UI usable ở đây (lý thuyết)
+            │    ├─ await agentList()             ← chặn tiếp
+            │    ├─ reconcile loop
+            │    ├─ isReconciled = true; onChange?()
+            │    └─ adopt live sessions
+            └─ restoreChatIfReady (gated: !WelcomeFlow, isLoaded, !isResolvingLink)
+```
 
-**Mục tiêu:** xác định bottleneck thực sự trên máy.
+Sidebar: `hasLoadedProjects` + `onProjectsLoaded` phối hợp project list với chat restore.
 
-**Việc:**
-- Thêm log timing (os_log, subsystem `wiki.qaq.apelin`) quanh:
-  - `ChatRuntime.load`: bắt đầu, sau `store.load()`, sau cleanup untouched, sau forget deleted, `isLoaded`, sau reconcile, sau adopt.
-  - `ProjectSummary.load`.
-- Đọc log bằng `apelin_log_read` sau cold launch.
-- Ghi số liệu: số chat, tổng byte, thời gian từng bước.
+### 1.2 Điểm phụ thuộc `records`/`events`
 
-**Rủi ro:** thấp. Chỉ thêm log.
+| Nơi dùng | Cần events? | Ghi chú |
+|---|---|---|
+| `SidebarController.refresh` | Chỉ summary | OK với lazy. |
+| `RootInterfaceController.restoreChatIfReady` | summary | OK. |
+| `ChatController` (transcript) | events | Load on demand khi mở chat. |
+| `isUntouched` | events.isEmpty | Cần `hasEventsOnDisk`. |
+| `newChat` (reuse untouched) | events.isEmpty | Cần `hasEventsOnDisk`. |
+| `deleteMessage` | events | Load trước. |
+| `ChatLinkTarget` | summary + có thể events | Load on demand. |
+| `ChatWidgetPublisher` | summary | OK. |
+| `CompletedBuilds` (onBuildsCompleted) | events chưa đọc | Load events cho chat đó trước khi đếm. |
+| `cursor`/`replay`/`take` | events | Load on demand. |
 
-**Tiêu chí dừng:** có số liệu cho biết `store.load()` hay reconcile chiếm bao nhiêu %.
+### 1.3 `ChatStore` hiện tại
 
-### Phase 1 — Reconciliation không chặn UI (rủi ro thấp, giá trị cao)
+- `load()`: đọc `Chats/*.json`, decode `ChatRecord` (gồm events).
+- `save(record, revision)`: encode toàn bộ `ChatRecord` (gồm events) vào `Chats/<id>.json`.
+- `remove(id)`: xoá file.
 
-**Mục tiêu:** `isLoaded = true` + `onChange?()` trả về nhanh hơn, reconciliation chạy nền.
+---
 
-**Thay đổi:**
-- Trong `ChatRuntime.load`, sau `isLoaded = true; onChange?()`, thay vì `await agentList()` đồng bộ, spawn `Task { @MainActor in ... }` thực hiện:
-  - `let live = await (try? ApelinService.app.agentList().sessions) ?? []`
-  - lặp records reopen/follow hoặc set isWorking=false
-  - `isReconciled = true`
-  - `onChange?()`
-  - adopt sessions live.
-- Giữ thứ tự: reconciliation chỉ chạy sau khi `isLoaded`.
-- Thêm cờ `reconciliationTask` để tránh chạy trùng nếu `load` gọi lại (hiện tại `load` chỉ gọi một lần; nhưng thêm guard an toàn).
+## 2. Phase 1 — Reconciliation không chặn UI
 
-**Phụ thuộc:**
-- `restoreChatIfReady` không phụ thuộc `isReconciled` (đã kiểm). OK.
-- Sidebar `refresh()` dùng `runtime.summaries` — reconciliation có thể thay đổi `isWorking` → sẽ gọi `changed` → `onChange` → refresh. OK.
+### 2.1 Mục tiêu
 
-**Rủi ro:**
-- Nếu reconciliation chạy nền, `isReconciled` false lâu hơn. Code nào chờ `isReconciled`? Kiểm tra grep. Nếu có, cần xem xét.
-- Race: người dùng mở chat trước khi reconcile xong → `reopen(as:)` có thể bị gọi muộn. Nhưng reopen chỉ xảy ra khi có live session; nếu chat đã mở, follow sẽ bắt đầu từ cursor hiện tại. Cần đảm bảo `follow` được gọi khi reconcile xong cho chat đang mở. Hiện tại `follow(record.summary.id, task:)` được gọi trong reconcile loop; nếu chat đang mở, follow sẽ chạy. OK.
+`isLoaded = true; onChange?()` trả về nhanh hơn; reconciliation chạy nền, không chặn restore.
 
-**Tiêu chí dừng:** cold launch đến UI usable nhanh hơn; reconcile hoàn tất trong nền không gây crash.
+### 2.2 Thay đổi chi tiết
 
-### Phase 2 — Dọn dẹp nhẹ (tuỳ chọn)
+**File:** `Apelin/Interface/Chats/ChatRuntime.swift`
 
-**Mục tiêu:** giảm công việc đồng bộ trong `load`.
+**Vị trí:** hàm `load(keeping:)`, dòng ~89-133.
 
-**Thay đổi:**
-- `forget(DeletedProjects.gone(...))` hiện chạy trước `isLoaded`. Có thể giữ, vì cần summaries. Nhưng có thể chuyển sau `isLoaded` nếu UI chấp nhận hiển thị chat của project đã xoá trong thời gian ngắn. **Khuyến nghị giữ nguyên** để tránh nháy.
-- Cleanup untouched: giữ nguyên (nhanh, và cần trước isLoaded để không hiện row rác).
+**Trước:**
+```swift
+isLoaded = true
+onChange?()
+let live = await (try? ApelinService.app.agentList().sessions) ?? []
+for record in records.values { ... }
+isReconciled = true
+onChange?()
+for session in live { adopt(...) }
+```
 
-**Rủi ro:** thấp. Khuyến nghị không làm Phase 2 nếu Phase 1 đủ.
+**Sau:**
+```swift
+isLoaded = true
+onChange?()
 
-### Phase 3 — Lazy load events (rủi ro trung bình-cao, giá trị cao)
+// reconciliation nền, không chặn UI
+reconciliationTask = Task { @MainActor in
+    // Phase 0 timing log
+    let t0 = ContinuousClock.now
+    let live = await (try? ApelinService.app.agentList().sessions) ?? []
+    for record in records.values {
+        if let session = live.first(where: { $0.sessionID == record.sessionID }) {
+            records[record.summary.id]?.reopen(as: session.task)
+            follow(record.summary.id, task: session.task)
+        } else if record.summary.isWorking {
+            records[record.summary.id]?.summary.isWorking = false
+            changed(record.summary.id)
+        }
+    }
+    isReconciled = true
+    onChange?()
+    for session in live {
+        adopt(ChatAdoption.record(session: session, records: Array(records.values)))
+    }
+    // Phase 0 timing log
+    os_log(.info, subsystem: "wiki.qaq.apelin", "reconcile took %{public}@", String(describing: ContinuousClock.now - t0))
+}
+```
 
-**Mục tiêu:** startup chỉ đọc summary (nhẹ), events tải khi mở chat.
+**Thêm property:**
+```swift
+private var reconciliationTask: Task<Void, Never>?
+```
 
-**Thiết kế:**
-1. **Tách lưu trữ:**
-   - File `Chats/<id>.json` hiện chứa toàn bộ `ChatRecord`.
-   - Chuyển sang hai file:
-     - `Chats/<id>.json`: `ChatRecord` nhưng `events` rỗng khi lưu? Không — cần events để save.
-     - Thay vào đó: lưu `events` vào `Chats/<id>.events.json` (hoặc giữ trong cùng file nhưng đọc lazy không thể).
-   - Hoặc: giữ một file, nhưng `ChatRuntime.load` giải mã chỉ phần summary bằng cách đọc JSON và bỏ events. Swift không hỗ trợ partial decode native; có thể dùng `JSONSerialization` để lấy summary, nhưng mất type safety. **Không khuyến nghị.**
-   - **Khuyến nghị:** tách file events. Migration: khi load, nếu `events.json` chưa tồn tại nhưng `chat.json` có events → tách ra (một lần, đồng bộ trong load, hoặc background).
+**Guard tránh chạy trùng** (nếu `load` gọi lại):
+```swift
+guard reconciliationTask == nil else { return }
+```
+ở đầu `load` sau store.load? Thực ra `load` chỉ gọi một lần. Thêm guard nhẹ:
+```swift
+if reconciliationTask != nil { return }
+```
+trước `isLoaded = true`? Không, vì load chưa xong. Thêm ở đầu hàm:
+```swift
+guard !isLoaded else { return }
+```
+(đã ngầm; thêm explicit).
 
-2. **Trạng thái trong memory:**
-   - `ChatRecord.events` hiện luôn đầy. Thêm cờ `eventsLoaded: Bool` (không Codable, runtime only) hoặc suy ra từ `events.isEmpty && fileEventsExists`.
-   - Khi `load`, đọc summary file (không events), đặt `events = []`, `eventsLoaded = false`.
-   - Khi mở chat (`select`/`restoreChat`), gọi `loadEventsIfNeeded(id)` async, điền `events`, rebuild transcript.
-   - `ChatTranscriptCache` rebuild sau khi events sẵn sàng.
+### 2.3 Timing log Phase 0
 
-3. **Các điểm phụ thuộc events:**
-   - `isUntouched`: kiểm `events.isEmpty`. Với lazy, events rỗng không có nghĩa là untouched. Cần thêm cờ `hasEventsOnDisk` hoặc kiểm file tồn tại. **Quan trọng:** không xoá nhầm chat có events chưa load.
-   - `cursor`, `replay`, `take`: cần events. Nếu chưa load, cursor = .start. Khi load events xong, cursor đúng.
-   - `deleteMessage`: lọc events. Nếu events chưa load, phải load trước.
-   - `newChat` reuse untouched: cần biết events rỗng thực sự. Dùng metadata `hasEvents`.
-   - `ChatLinkTarget`, `ChatWidgetPublisher`: dùng `records`/`summaries`. Nếu chỉ cần summary, OK. Nếu cần events, load on demand.
-   - `CompletedBuilds`: đếm builds từ events chưa đọc. Cần events. → load events cho chat đó trước khi đếm, hoặc đếm từ summary metadata. **Rủi ro:** có thể bỏ sót. Khuyến nghị: load events on demand khi cần CompletedBuilds.
+Thêm `os_log` (import os) tại:
+- bắt đầu `load`: "load start, chats=%d" (chưa biết số; log sau store.load)
+- sau `store.load()`: "store.load done: n=%d, bytes=..." (bytes không dễ; log n và thời gian)
+- sau cleanup untouched
+- sau forget deleted
+- `isLoaded`
+- reconcile start/end
+- adopt end
 
-4. **Migration & tương thích ngược:**
-   - `ChatStore.load` phải đọc cả format cũ (single file với events) và mới (summary + events).
-   - Phiên bản mới lưu summary-only + events file. Khi đọc file cũ, tách events ra file riêng và xoá khỏi summary file (atomic).
-   - Giữ `revision` counter để tránh race save.
+Format: `os_log(.info, subsystem: "wiki.qaq.apelin", "startup: %{public}@", msg)`.
 
-5. **Rủi ro chính:**
-   - Race giữa load events nền và user thao tác (gửi tin, xoá message). Cần serialise per-chat: dùng Task per chat, await trước khi mutate.
-   - Memory: giữ events trong memory sau khi load (không unload) để đơn giản. Nếu muốn tiết kiệm RAM, unload khi chat không mở — nhưng transcript cache đã làm điều này. Khuyến nghị: chỉ load on demand, giữ trong memory cho đến khi app thoát (đơn giản, an toàn).
+### 2.4 Rủi ro & xử lý
 
-**Tiêu chí dừng:** cold launch nhanh hơn rõ rệt; mở chat cũ hiển thị đúng transcript; gửi/xoá hoạt động; không mất events.
+- **Race reopen:** chat đang mở trước reconcile → `follow` gọi sau. Nếu user gửi tin trước reconcile, `sending`/cursor có thể lệch. Mitigation: `reopen(as:)` chỉ gọi khi có live session; nếu chat đã follow thì `task` đã set. Kiểm tra `records[id]?.task == nil` trước reopen? Hiện tại `reopen` guard `self.task != task`. OK.
+- **`isReconciled` false lâu hơn:** code chờ `isReconciled`? Grep. Nếu có, giữ await? Kiểm tra: `grep -rn isReconciled`. (Sẽ làm khi triển khai.) Nếu có caller blocking, cân nhắc `await reconciliationTask?.value` ở caller đó thay vì block load.
+- **adopt live sessions:** chạy sau reconcile trong cùng Task. OK.
 
-### Phase 4 — Theo dõi 3 project gần nhất (tuỳ chọn)
+### 2.5 Tiêu chí hoàn thành Phase 1
 
-**Mục tiêu:** nếu người dùng muốn truy cập nhanh 3 project gần nhất.
+- Cold launch: `isLoaded` + `onChange` sớm hơn (đo bằng log).
+- Reconcile hoàn tất trong nền, `isReconciled` true sau.
+- Không crash, không mất chat working state.
+- CI xanh.
 
-**Đánh giá:** `ProjectMenuOrder` đã làm ranking. Thêm persisted list chỉ tăng phức tạp và rủi ro stale.
+---
 
-**Khuyến nghị:** **không làm**. Nếu vẫn muốn:
-- Lưu `recentProjects: [String]` (tối đa 3) trong UserDefaults, cập nhật khi `switchProject`/mở chat.
-- Khi load, nếu danh sách cũ (project đã xoá/đổi tên), fallback về derived ranking.
-- Luôn ưu tiên derived ranking nếu persisted list không khớp.
+## 3. Phase 3 — Lazy-load events
 
-**Rủi ro:** stale, đồng bộ khi xoá project. Cần hook vào `deleteProject` và `forgetDeletedProjects`.
+### 3.1 Mục tiêu
 
-## 5. Thứ tự thực hiện khuyến nghị
+Startup chỉ đọc summary (nhẹ). Events tải khi mở chat. Bảo toàn transcript/cursor/replay/sending.
 
-1. Phase 0 (đo) — bắt buộc trước.
-2. Phase 1 (reconcile nền) — làm ngay, rủi ro thấp.
-3. Đánh giá lại số liệu sau Phase 1.
-4. Nếu vẫn chậm → Phase 3 (lazy events), bắt đầu từ migration + cờ `hasEvents`, làm từng bước nhỏ, test mỗi bước.
-5. Phase 4 — chỉ nếu người dùng thực sự cần.
+### 3.2 Thay đổi lưu trữ
 
-## 6. Danh sách file sẽ chạm (dự kiến)
+#### 3.2.1 `ChatStore.load()` (file `ChatStore.swift`)
+
+**Hiện tại:**
+```swift
+return try FileManager.default.contentsOfDirectory(...)
+    .filter { $0.pathExtension == "json" }
+    .compactMap { url in
+        guard UUID(...) != nil, path canonical else { return nil }
+        return try JSONDecoder().decode(ChatRecord.self, from: Data(contentsOf: url))
+    }
+```
+
+**Mới:**
+```swift
+// đọc summary file; events rỗng; eventsLoaded=false
+// migration: nếu file cũ chứa events, tách ra
+```
+
+Chi tiết:
+- Duyệt `Chats/*.json`.
+- Với mỗi file `<id>.json`:
+  - Decode `ChatRecord`.
+  - Nếu `record.events` không rỗng (file cũ) → ghi `Chats/<id>.events.json` với events (nếu chưa tồn tại), sau đó set `record.events = []`.
+  - Đặt `record.eventsLoaded = false` (runtime, không Codable — thêm vào `ChatRecord`? Xem §3.2.3).
+  - Trả về record.
+- Nếu `Chats/<id>.events.json` tồn tại mà summary file events rỗng → eventsLoaded=false, events=[] (load on demand).
+- Nếu summary file events rỗng và không có events file → eventsLoaded=true (thực sự rỗng).
+
+**Vấn đề:** `eventsLoaded` là runtime flag, không nên nằm trong `ChatRecord` Codable? Có thể nằm, với default false và không ảnh hưởng file cũ (absent → default). Nhưng khi save, nếu serialize eventsLoaded=true vào file, file cũ đọc được (default false) — không sao. Tuy nhiên cleaner: thêm vào `ChatRecord` với `var eventsLoaded: Bool = false` (Codable default). Khi save, serialize. Khi load file cũ không có field → false. OK, chấp nhận.
+
+Nhưng `isUntouched` cần biết "thực sự rỗng" vs "chưa load". Dùng `hasEventsOnDisk` = `eventsLoaded || FileManager.exists(eventsFile)`. Nếu chưa load và file events tồn tại → có events → not untouched. Nếu file events không tồn tại → rỗng → untouched có thể.
+
+#### 3.2.2 `ChatStore.save(record, revision)`
+
+**Hiện tại:** encode toàn bộ record vào `<id>.json`.
+
+**Mới:**
+- Encode summary-only record (events=[]) vào `<id>.json`.
+- Encode `record.events` vào `<id>.events.json` nếu `eventsLoaded` (hoặc luôn ghi nếu events không rỗng).
+- Nếu events rỗng và file events tồn tại → xoá file events (dọn).
+- Giữ `revision` counter cho summary file. Events file có thể ghi cùng revision hoặc riêng; đơn giản: ghi events file mỗi save (nếu loaded). Race: save đồng bộ qua actor ChatStore, OK.
+
+**Chú ý:** `save` hiện là actor method, đã serialise. Thêm ghi events file trong cùng method.
+
+#### 3.2.3 `ChatStore` thêm method
+
+```swift
+func loadEvents(for id: UUID) throws -> [TaskEvent] {
+    let url = folder.root.appendingPathComponent("Chats/\(id.uuidString).events.json")
+    guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+    return try JSONDecoder().decode([TaskEvent].self, from: Data(contentsOf: url))
+}
+
+func removeEvents(for id: UUID) throws {
+    try? FileManager.default.removeItem(at: folder.root.appendingPathComponent("Chats/\(id.uuidString).events.json"))
+}
+```
+
+`remove(id)` cũng gọi `removeEvents`.
+
+#### 3.2.4 `ChatRecord` thêm field
+
+```swift
+/// Whether this record's `events` have been read from disk. Runtime flag;
+/// absent in older files (defaults to false, and `hasEventsOnDisk` checks
+/// the events file). Absent from a record created in memory.
+var eventsLoaded: Bool = false
+```
+
+Thêm vào struct. Codable default OK.
+
+#### 3.2.5 `ChatRuntime` thay đổi
+
+**Thêm:**
+```swift
+private var loadingEvents: [UUID: Task<Void, Never>] = [:]
+
+func loadEventsIfNeeded(_ id: UUID) async {
+    guard let record = records[id], !record.eventsLoaded else { return }
+    if let task = loadingEvents[id] { await task.value; return }
+    let task = Task { @MainActor in
+        do {
+            let events = try await store.loadEvents(for: id)  // store là actor; gọi await
+            records[id]?.events = events
+            records[id]?.eventsLoaded = true
+            // rebuild transcript cache? ChatTranscriptCache handles via events
+            changed(id)
+        } catch {
+            onError?(error)
+        }
+        loadingEvents[id] = nil
+    }
+    loadingEvents[id] = task
+    await task.value
+}
+
+var hasEventsOnDisk(_ id: UUID) -> Bool {
+    guard let record = records[id] else { return false }
+    if record.eventsLoaded { return !record.events.isEmpty }
+    // chưa load: kiểm tra file
+    return FileManager.default.fileExists(atPath: folder...events.json)
+}
+```
+
+**Lưu ý:** `store` là `ChatStore` actor; `loadEvents` là async. `folder` access: `store` có folder private. Thêm helper `store.eventsFileExists(id)` hoặc expose. Đơn giản: thêm method `store.hasEventsFile(id) -> Bool`.
+
+**`isUntouched`:**
+```swift
+private func isUntouched(_ record: ChatRecord) -> Bool {
+    let hasEvents = record.eventsLoaded ? !record.events.isEmpty : hasEventsOnDisk(record.summary.id)
+    return !hasEvents && record.sessionID == nil && record.task == nil && opening[...] == nil
+        && record.sending == nil && record.draft.text.isEmpty && record.draft.attachments.isEmpty
+        && !record.summary.isPinned && record.summary.isNamedByReader != true
+}
+```
+
+Nhưng `hasEventsOnDisk` cần store; `isUntouched` hiện là sync private. Đổi thành async? Nó được gọi trong `load` (sync loop) và `newChat`. Để giữ sync, dùng `record.eventsLoaded ? !record.events.isEmpty : FileManager.default.fileExists(atPath: eventsPath)`. Cần path. Thêm computed property trên `ChatRecord`? `ChatRecord` không biết folder. 
+
+Giải pháp: thêm helper static trong `ChatRuntime`:
+```swift
+private func eventsFileExists(for id: UUID) -> Bool {
+    FileManager.default.fileExists(atPath: DataFolder.app.root.appendingPathComponent("Chats/\(id.uuidString).events.json").path)
+}
+```
+Và `isUntouched` thành:
+```swift
+private func isUntouched(_ record: ChatRecord) -> Bool {
+    let hasEvents = record.eventsLoaded ? !record.events.isEmpty : eventsFileExists(for: record.summary.id)
+    ...
+}
+```
+
+**`newChat`:** reuse untouched dùng `isUntouched` → đã đúng.
+
+**`deleteMessage`:** cần events. Thêm `await loadEventsIfNeeded(chatID)` trước khi lọc. `deleteMessage` hiện sync. Đổi thành async? Caller? Kiểm tra callers. Nếu nhiều sync callers, giữ sync và load sync? Store.loadEvents là sync-capable (đọc file). Có thể làm sync version:
+```swift
+func loadEventsSyncIfNeeded(_ id: UUID) {
+    guard let record = records[id], !record.eventsLoaded else { return }
+    if let events = try? store.loadEventsSync(for: id) {
+        records[id]?.events = events
+        records[id]?.eventsLoaded = true
+    }
+}
+```
+Và `ChatStore` thêm sync method (non-actor) hoặc gọi `try await` trong async context. `deleteMessage` callers cần kiểm tra. Nếu async OK, đổi async và cập nhật callers. **Khuyến nghị:** kiểm tra callers trước; nếu sync nhiều, dùng sync load. Tôi sẽ ghi rõ trong plan: "kiểm tra callers của deleteMessage; nếu chỉ UI action async, đổi async; nếu sync, dùng loadEventsSyncIfNeeded".
+
+**`ChatController` mở chat:** khi select chat, gọi `await runtime.loadEventsIfNeeded(id)` trước khi rebuild transcript. Cần xác định điểm: `ChatController` có `chat` property; khi set, load events. Thêm trong `syncViewedChat` hoặc `onSelect`. Kiểm tra `RootInterfaceController` flow.
+
+**`CompletedBuilds`:** khi đếm builds từ events, gọi `loadEventsIfNeeded` trước. Tìm nơi gọi `onBuildsCompleted` / `CompletedBuilds`. Grep `onBuildsCompleted`.
+
+**`ChatLinkTarget`:** khi adopt linked chat, load events? Chỉ cần summary để show. Nếu cần events (transcript), load on demand khi mở.
+
+**`reopen(as:)` / `cursor`:** nếu events chưa load, `events.isEmpty` → `cursor = .start` (replay nil). Khi load events sau, cursor đúng. Nhưng `reopen` được gọi trong reconcile (Phase 1, nền) — có thể gọi trước khi events load. Mitigation: trong reconcile, với chat working, gọi `await loadEventsIfNeeded(id)` trước `reopen`. Vì reconcile là async Task, OK.
+
+**`take`/`missedEnd`:** cần events loaded. Nếu events chưa load và batch đến, `cursor=.start` → take all → events += batch (đúng, vì events rỗng). Nhưng events cũ chưa load → mất lịch sử! Nguy hiểm. Mitigation: khi chat đang working và đang follow, phải load events trước khi `take`. Trong `follow`, gọi `loadEventsIfNeeded` trước `take`. Kiểm tra `follow` function.
+
+### 3.3 Migration
+
+**Lần đầu chạy version mới:**
+- `store.load()` phát hiện file cũ có events → ghi `events.json`, set events=[] trong summary file, save summary file (atomic).
+- Migration sync trong `load()` (chấp nhận chậm lần đầu, nhưng chỉ một lần).
+- Để an toàn: ghi events file trước, rồi summary file. Nếu crash giữa chừng, lần sau: events file tồn tại, summary file vẫn có events → re-migrate (ghi đè events file, set events=[]). Idempotent.
+
+**Backward compat:** version cũ đọc file mới: summary file events=[] → chat rỗng (mất lịch sử hiển thị, nhưng events file bị bỏ qua). Đây là one-way migration; chấp nhận (không support downgrade). Ghi chú trong release notes.
+
+### 3.4 Concurrency safety
+
+- `loadingEvents: [UUID: Task]` đảm bảo một load per chat.
+- `ChatStore` actor serialise save/load. `loadEvents` actor method.
+- `loadEventsIfNeeded` là async, gọi từ @MainActor context. OK.
+- Khi user gửi tin trước khi events load xong: `submit` append sending, `changed` → save. Save ghi events file với events=[] (chưa load) → **mất events cũ!** Nguy hiểm. Mitigation: trong `persist`/`changed`, nếu `!eventsLoaded`, gọi `loadEventsIfNeeded` trước save. Hoặc: `persist` async load events trước khi save. **Bắt buộc:** mọi path dẫn đến save phải đảm bảo events loaded. Thêm guard trong `persist`:
+```swift
+func persist(_ id: UUID, urgent: Bool = false) {
+    Task { @MainActor in
+        await loadEventsIfNeeded(id)
+        // existing save logic
+    }
+}
+```
+Nhưng `persist` hiện sync scheduling. Cần refactor sang async. Xem code `persist` (dòng ~? search). Sẽ xử lý khi triển khai: tìm `func persist`.
+
+### 3.5 Tiêu chí hoàn thành Phase 3
+
+- Cold launch: `store.load()` nhanh hơn (đo bằng log).
+- Mở chat cũ: transcript đầy đủ, cursor đúng.
+- Gửi tin mới: không trùng, không mất lịch sử.
+- Xoá message: load trước, không crash.
+- `isUntouched` cleanup không xoá nhầm.
+- Migration file cũ → mới thành công.
+- Reconciliation nền (Phase 1) vẫn đúng.
+- CI xanh.
+
+---
+
+## 4. Thứ tự triển khai (commit nhỏ)
+
+| Bước | Commit | Nội dung | Build |
+|---|---|---|---|
+| 1 | Phase 0+1 | Timing log + reconcile nền | CI |
+| 2 | Phase 3a | `ChatRecord.eventsLoaded` + `ChatStore.loadEvents`/`hasEventsFile` + `removeEvents` | CI |
+| 3 | Phase 3b | `ChatStore.load()` migration + summary-only save | CI |
+| 4 | Phase 3c | `ChatRuntime.loadEventsIfNeeded` + `hasEventsOnDisk` + `isUntouched` fix | CI |
+| 5 | Phase 3d | Load events on chat open + follow/take safety + persist guard | CI |
+| 6 | Phase 3e | deleteMessage/CompletedBuilds/ChatLinkTarget safety | CI |
+| 7 | Test + cleanup | Tests migration + timing comparison | CI |
+
+Mỗi bước: build CI, nếu đỏ sửa ngay (theo luật CI).
+
+---
+
+## 5. Danh sách file sẽ chạm
 
 **Phase 1:**
-- `Apelin/Interface/Chats/ChatRuntime.swift` (load, reconcile)
+- `Apelin/Interface/Chats/ChatRuntime.swift` (load, reconcile, property reconciliationTask, timing log)
 
 **Phase 3:**
-- `Apelin/Interface/Chats/ChatStore.swift` (load/save/remove, migration)
-- `Apelin/Interface/Chats/ChatRuntime.swift` (load, isUntouched, loadEventsIfNeeded, deleteMessage, newChat)
-- `Apelin/Interface/Chats/ChatSummary.swift` (metadata hasEvents nếu cần)
-- `Apelin/Interface/Root/ChatLinkTarget.swift` (đảm bảo events load khi cần)
-- `Apelin/Interface/Chats/ChatWidgetPublisher.swift` (nếu dùng events)
-- `Apelin/Interface/Chats/ChatTranscriptCache.swift` (rebuild sau lazy load)
-- Tests: `Tests/ChatTranscript/*` (nếu có) + thêm test migration.
+- `Apelin/Interface/Chats/ChatStore.swift` (load, save, remove, loadEvents, hasEventsFile, removeEvents)
+- `Apelin/Interface/Chats/ChatRuntime.swift` (eventsLoaded usage, loadEventsIfNeeded, hasEventsOnDisk, isUntouched, persist guard, follow/take safety, deleteMessage, newChat)
+- `Apelin/Interface/Chats/ChatSummary.swift` (nếu cần metadata; khuyến nghị không đổi)
+- `Apelin/Interface/Root/ChatLinkTarget.swift` (load events khi cần)
+- `Apelin/Interface/Chats/ChatController.swift` (load events on open)
+- `Apelin/Interface/Chats/ChatWidgetPublisher.swift` (kiểm tra, có thể không đổi)
+- Tests: `Tests/ChatTranscript/*` + thêm `Tests/ChatTranscript/ChatStoreMigrationCheck.swift` (nếu harness cho phép)
 
-**Phase 4:**
-- `Apelin/Interface/Root/SidebarController.swift` (recent list)
-- `Apelin/Interface/Chats/ChatRuntime.swift` (hook open/delete)
+**Không chạm:** `ProjectSummary`, `SidebarController` (chỉ đọc summaries, OK), `WelcomeFlow`.
 
-## 7. Kiểm thử (regression)
+---
 
-- Cold launch với 0 chat, 1 chat, nhiều chat (lịch sử dài).
-- Mở chat cũ → transcript đầy đủ, cursor đúng, gửi tin mới không trùng.
-- Chat đang working khi relaunch → reconcile đặt isWorking đúng.
-- Xoá message trong chat chưa load events → phải load trước, không crash.
-- `isUntouched` cleanup không xoá nhầm chat có events.
-- Migration: file cũ (single) → đọc được, tách events, lưu mới.
-- `ChatLinkTarget`/widget vẫn hoạt động.
-- `CompletedBuilds` vẫn đếm đúng.
-- Reconciliation nền không race với user mở chat.
+## 6. Kiểm thử regression (chi tiết)
 
-## 8. Những gì KHÔNG làm
+### 6.1 Startup
+- Cold launch 0 chat, 1 chat, 10+ chat (lịch sử dài).
+- Log: `store.load` thời gian trước/sau.
+- UI usable sau `isLoaded` (Phase 1): reconcile chạy nền.
 
-- Không thay đổi `WelcomeFlow` (chỉ onboarding).
-- Không lazy-load project scan (đã nhẹ).
-- Không thêm persisted list 3 project trừ khi có nhu cầu cụ thể.
-- Không đổi `isLoaded`/`isReconciled` semantics.
-- Không build/install/push trừ khi người dùng yêu cầu.
+### 6.2 Lazy events
+- Mở chat cũ → transcript đầy đủ.
+- Cursor đúng: gửi tin mới không trùng lặp, không mất lịch sử.
+- Chat đang working khi relaunch → reconcile reopen, events load trước follow, transcript đúng.
+- Xoá message trong chat chưa load events → load trước, không crash, transcript rebuild.
+- `isUntouched` cleanup: chat có events (chưa load) không bị xoá.
+- `newChat` reuse untouched: không reuse chat có events.
 
-## 9. Câu hỏi cần người dùng quyết định
+### 6.3 Migration
+- File cũ (events trong summary) → đọc được, tách events, lưu mới.
+- Chạy lại lần 2 → không re-migrate (idempotent).
+- File mới → đọc bình thường.
 
-1. Có đo lường (Phase 0) trước không, hay làm luôn Phase 1?
-2. Phase 3 (lazy events) có làm không, hay Phase 1 đủ?
-3. Có muốn persisted list 3 project (Phase 4) không?
-4. Ngưỡng "recent" cho Phase 3: bao nhiêu chat load đầy đủ lúc startup (khuyến nghị 5)?
+### 6.4 Concurrency
+- User gửi tin trước khi events load xong → persist guard load events trước save → không mất lịch sử.
+- Hai chat load events đồng thời → `loadingEvents` dedup.
+- Reconcile nền + user mở chat → load events trong reconcile trước reopen.
+
+### 6.5 Khác
+- `ChatLinkTarget` / widget vẫn hoạt động.
+- `CompletedBuilds` đếm đúng.
+- `deleteProject` xoá events file.
+- `forgetDeletedProjects` OK.
+
+### 6.6 Build/CI
+- `make check` (nếu chạy được) hoặc CI.
+- Swift compile, tests.
+
+---
+
+## 7. Rollback
+
+- Mỗi phase là commit riêng → revert commit.
+- Nếu Phase 3 gây vấn đề, revert về sau Phase 1; dữ liệu đã migrate (events file) vẫn đọc được bởi version mới; version cũ không đọc events file (chấp nhận mất hiển thị, không mất file).
+- Backup trước migration: không cần (idempotent, file cũ giữ nguyên cho đến khi migrate).
+
+---
+
+## 8. Rủi ro còn lại & giảm thiểu
+
+| Rủi ro | Giảm thiểu |
+|---|---|
+| Persist guard async làm `persist` phức tạp | Kiểm tra callers persist; nếu sync nhiều, dùng loadEventsSyncIfNeeded. |
+| `follow`/`take` trước khi events load | Load events trong follow trước take. |
+| Migration crash giữa chừng | Idempotent: re-migrate. |
+| Version cũ không đọc events file | Documented; không support downgrade. |
+| `isUntouched` sai trước load | `hasEventsOnDisk` check file. |
+
+---
+
+## 9. Câu hỏi còn lại (trả lời trước khi làm)
+
+1. Có làm Phase 0 timing log không, hay tin tưởng phân tích? (Khuyến nghị: làm, để so sánh.)
+2. Ngưỡng "recent" cho load đầy đủ lúc startup: bao nhiêu chat? (Khuyến nghị: 0 — load on demand hoàn toàn; chỉ load events cho chat đang working khi relaunch.)
+3. Có cần giữ log timing trong bản release không, hay chỉ debug? (Khuyến nghị: giữ os_log .info, không ảnh hưởng perf.)
+
+---
+
+## 10. Phase 4 — Persisted 3 project (KHÔNG làm)
+
+**Lý do không làm:**
+- `ProjectMenuOrder.split` đã xếp top 5 theo `lastInteraction` hoặc ngày tạo.
+- Persisted list tăng stale risk (xoá project, đổi tên).
+- Giá trị thấp so với complexity.
+
+**Nếu sau này cần:** lưu `recentProjects: [String]` trong UserDefaults, cập nhật khi switchProject, fallback derived ranking. Hook deleteProject + forgetDeletedProjects.
+
+---
+
+## 11. Ghi chú cho người thực thi
+
+- Đọc `AGENTS.md` §9 trước khi bắt đầu.
+- Mỗi bước commit riêng, push CI, theo luật CI (đỏ → sửa ngay → push lại).
+- Không build/install trừ khi người dùng yêu cầu.
+- Sau mỗi phase: cập nhật §9 bảng trạng thái + §8 log.
+- Nếu gặp lỗi compile/runtime: báo cáo, không đoán.

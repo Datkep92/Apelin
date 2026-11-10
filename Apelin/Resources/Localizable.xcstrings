@@ -82782,6 +82782,28 @@
           }
         }
       }
+    },
+    "On": {
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        }
+      }
+    },
+    "Stop Gateway": {
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop Gateway"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
