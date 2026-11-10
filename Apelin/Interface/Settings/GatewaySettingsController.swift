@@ -1,4 +1,4 @@
-import ApelinCore
+import ApelinProtocol
 import Foundation
 import UIKit
 
@@ -8,6 +8,7 @@ final class GatewaySettingsController: UIViewController {
     private let refreshButton = UIButton()
     private var observable: Task<Void, Never>?
     private var isRunning = false
+    private var isUpdating = false
 
     init() {
         super.init(nibName: nil, bundle: nil)
@@ -42,8 +43,6 @@ final class GatewaySettingsController: UIViewController {
         statusLabel.font = .preferredFont(forTextStyle: .body)
         statusLabel.textColor = .secondaryLabel
         statusLabel.numberOfLines = 0
-        let statusText = String(localized: "Gateway status will be updated automatically")
-        statusLabel.text = statusText
 
         let hbox = UIStackView()
         hbox.axis = .horizontal
@@ -76,31 +75,24 @@ final class GatewaySettingsController: UIViewController {
     }
 
     private func refreshStatus() {
-        isRunning = checkGatewayRunning()
-        updateUI()
-    }
-
-    private func checkGatewayRunning() -> Bool {
-        let bin = "/var/jb/usr/bin/gateway-session"
-        let exists = FileManager.default.fileExists(atPath: bin)
-        let pidURL = URL(fileURLWithPath: "/var/run/gateway-session.pid")
-        let pid: Int?
-        do {
-            let data = try Data(contentsOf: pidURL)
-            let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespaces)
-            pid = Int(text ?? "")
-        } catch {
-            pid = nil
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let response = try await ApelinService.app.gatewayStatus()
+                await MainActor.run {
+                    self.isRunning = response.record.state == .dang_chay
+                    self.updateUI()
+                }
+            } catch {
+                await MainActor.run { self.updateUI() }
+            }
         }
-        let isRunning = pid.map { kill(Int32($0), 0) == 0 } ?? false
-        return exists && isRunning
     }
 
     private func startObserving() {
-        // For simplicity, refresh periodically
         observable = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(3))
                 guard !Task.isCancelled, let self else { break }
                 await MainActor.run { self.refreshStatus() }
             }
@@ -108,34 +100,43 @@ final class GatewaySettingsController: UIViewController {
     }
 
     private func updateUI() {
-        isRunning = checkGatewayRunning()
         if isRunning {
             statusLabel.text = String(localized: "Gateway is running")
             toggleButton.setTitle(String(localized: "Stop"), for: .normal)
+            toggleButton.accessibilityLabel = String(localized: "Stop Gateway")
         } else {
             statusLabel.text = String(localized: "Gateway is stopped")
             toggleButton.setTitle(String(localized: "Start"), for: .normal)
+            toggleButton.accessibilityLabel = String(localized: "Start Gateway")
         }
+        toggleButton.isEnabled = !isUpdating
     }
 
     @objc private func toggleTapped() {
-        let bin = "/var/jb/usr/bin/gateway-session"
-        let pidURL = URL(fileURLWithPath: "/var/run/gateway-session.pid")
-
-        if isRunning {
-            // Reaching to pidURL: get pid, kill 0, remove it
-            if let data = try? Data(contentsOf: pidURL),
-               let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespaces),
-               let pid = Int(text) {
-                kill(Int32(pid), 0) // check it's alive
-                kill(Int32(pid), 9)
-                try? FileManager.default.removeItem(at: pidURL)
-            } else {
-                // Force kill any process listening? Too complex.
+        guard !isUpdating else { return }
+        isUpdating = true
+        updateUI()
+        Task { [weak self] in
+            guard let self else { return }
+            let target = !self.isRunning
+            do {
+                try await ApelinService.app.gatewaySetEnabled(target)
+                await self.refreshStatus()
+            } catch {
+                await MainActor.run {
+                    let alert = UIAlertController(
+                        title: String(localized: "Gateway"),
+                        message: error.localizedDescription,
+                        preferredStyle: .alert,
+                    )
+                    alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default))
+                    self.present(alert, animated: true)
+                }
             }
-        } else {
-            // Maybe needed a wheel of expand to start gateway.
-            // For now, treat as unavailable.
+            await MainActor.run {
+                self.isUpdating = false
+                self.updateUI()
+            }
         }
     }
 

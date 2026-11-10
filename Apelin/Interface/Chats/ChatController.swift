@@ -23,6 +23,14 @@ final class ChatController: UIViewController {
     /// as its own Delete does.
     var onDelete: ((UUID) -> Void)?
     private let titleView = ChatTitleView()
+    private let gatewayButton = UIBarButtonItem(
+        image: UIImage(systemName: "power"),
+        style: .plain,
+        target: nil,
+        action: nil,
+    )
+    private var gatewayRunning = false
+    private var gatewayUpdating = false
     private var messageList = ListView<ChatMessage>()
     private let composer = ComposerView()
     /// Behind the composer and down past the page's edge, so the list does
@@ -120,6 +128,10 @@ final class ChatController: UIViewController {
         super.init(nibName: nil, bundle: nil)
         navigationItem.titleView = titleView
         navigationItem.largeTitleDisplayMode = .never
+        gatewayButton.target = self
+        gatewayButton.action = #selector(gatewayTapped)
+        gatewayButton.accessibilityLabel = String(localized: "Gateway")
+        navigationItem.leftBarButtonItem = gatewayButton
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: nil)
         more.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self, weak more] completion in
             guard let self, let more, let chat else { completion([]); return }
@@ -384,8 +396,61 @@ final class ChatController: UIViewController {
         }
         sayUnsent()
         startHTMLFileWatch()
+        refreshGatewayStatus()
     }
 
+    @objc private func gatewayTapped() {
+        guard !gatewayUpdating else { return }
+        gatewayUpdating = true
+        updateGatewayUI()
+        Task { [weak self] in
+            guard let self else { return }
+            let target = !self.gatewayRunning
+            do {
+                try await ApelinService.app.gatewaySetEnabled(target)
+                await self.refreshGatewayStatus()
+            } catch {
+                await MainActor.run {
+                    let alert = UIAlertController(
+                        title: String(localized: "Gateway"),
+                        message: error.localizedDescription,
+                        preferredStyle: .alert,
+                    )
+                    alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default))
+                    self.present(alert, animated: true)
+                }
+            }
+            await MainActor.run {
+                self.gatewayUpdating = false
+                self.updateGatewayUI()
+            }
+        }
+    }
+
+    private func refreshGatewayStatus() {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let response = try await ApelinService.app.gatewayStatus()
+                await MainActor.run {
+                    self.gatewayRunning = response.record.state == .dang_chay
+                    self.updateGatewayUI()
+                }
+            } catch {
+                await MainActor.run { self.updateGatewayUI() }
+            }
+        }
+    }
+
+    private func updateGatewayUI() {
+        gatewayButton.isEnabled = !gatewayUpdating
+        let running = gatewayRunning
+        gatewayButton.image = UIImage(systemName: "power")
+        gatewayButton.tintColor = running ? .systemGreen : .secondaryLabel
+        gatewayButton.accessibilityValue = running
+            ? String(localized: "On")
+            : String(localized: "Off")
+    }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         htmlFileWatchTimer?.invalidate()

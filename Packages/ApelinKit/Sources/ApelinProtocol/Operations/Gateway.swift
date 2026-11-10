@@ -1,9 +1,8 @@
 import Foundation
 
-/// Gateway: a second session host running on 127.0.0.1:15199, controlled by
-/// Apelin. Start when Apelin runs if enabled; stop an idle grace after Apelin
-/// becomes free. The binary `/var/jb/usr/bin/gateway-session` listens on that
-/// port; `/var/jb/usr/bin/gatewayctl` queries its state.
+/// Gateway: a second session host running on 127.0.0.1:15199, controlled
+/// manually by the user from Apelin. The binary `/var/jb/usr/bin/gateway-session`
+/// listens on that port; `/var/jb/usr/bin/gatewayctl` queries its state.
 ///
 /// The app stores enabled state in `~/Documents/wiki.qaq.apelin/gateway.json`.
 /// The host checks on launch and updates the cache.

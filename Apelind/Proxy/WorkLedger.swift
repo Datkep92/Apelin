@@ -15,12 +15,10 @@ import Foundation
 final class WorkLedger: @unchecked Sendable {
     private let queue: DispatchQueue
     private static let normalIdleGraceSeconds = 15 * 60
-    private static let gatewayIdleGraceSeconds = 30
     private let onIdle: () -> Void
     private var connections = 0
     private var requests = 0
     private(set) var sessionBusy = false
-    private var gatewayRunning = false
     private var idleTimer: DispatchWorkItem?
 
     init(queue: DispatchQueue, onIdle: @escaping () -> Void) {
@@ -59,7 +57,6 @@ final class WorkLedger: @unchecked Sendable {
 
     func sessionReported(busy: Bool, gatewayRunning: Bool) {
         self.sessionBusy = busy
-        self.gatewayRunning = gatewayRunning
         reevaluate()
     }
 
@@ -68,7 +65,7 @@ final class WorkLedger: @unchecked Sendable {
         idleTimer?.cancel()
         idleTimer = nil
         guard isIdle else { return }
-        let timeout = gatewayRunning ? Self.gatewayIdleGraceSeconds : Self.normalIdleGraceSeconds
+        let timeout = Self.normalIdleGraceSeconds
         NSLog("apelind: idle, exiting in %d s unless work arrives", timeout)
         let timer = DispatchWorkItem { [weak self] in
             guard let self else { return }
