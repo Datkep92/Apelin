@@ -92,7 +92,7 @@ final class GatewaySettingsController: UIViewController {
         } catch {
             pid = nil
         }
-        let isRunning = pid.map { kill($0, 0) == 0 } ?? false
+        let isRunning = pid.map { kill(Int32($0), 0) == 0 } ?? false
         return exists && isRunning
     }
 
@@ -100,7 +100,7 @@ final class GatewaySettingsController: UIViewController {
         // For simplicity, refresh periodically
         observable = Task { [weak self] in
             while !Task.isCancelled {
-                await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled, let self else { break }
                 await MainActor.run { self.refreshStatus() }
             }
@@ -127,8 +127,8 @@ final class GatewaySettingsController: UIViewController {
             if let data = try? Data(contentsOf: pidURL),
                let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespaces),
                let pid = Int(text) {
-                kill(pid, 0) // check it's alive
-                kill(pid, 9)
+                kill(Int32(pid), 0) // check it's alive
+                kill(Int32(pid), 9)
                 try? FileManager.default.removeItem(at: pidURL)
             } else {
                 // Force kill any process listening? Too complex.
