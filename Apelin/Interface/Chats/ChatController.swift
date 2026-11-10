@@ -163,6 +163,9 @@ final class ChatController: UIViewController {
             guard let self, let chat else { return }
             Task { await self.decide(request, decision, in: chat.id) }
         }
+        composer.quickReplySection.onReply = { [weak self] text in
+            self?.sendPrompt(text)
+        }
         composer.modelBar.onEffortChanged = { ComposerModelPreferences.effort = $0 }
         composer.modelBar.onTierChanged = { ComposerModelPreferences.tier = $0 }
         composer.modelBar.onKeyChanged = { [weak self] account in self?.switchKey(to: account) }
@@ -641,6 +644,13 @@ final class ChatController: UIViewController {
             revealLatestMessage()
         }
         updateLatestMessageButton()
+        // Quick reply buttons for a question the assistant just asked.
+        let lastAssistant = items.last(where: { $0.role == .assistant })
+        let isWorking = chat?.isWorking ?? false
+        let hasApproval = items.contains { $0.role.needsApproval }
+        let replies: [String] = (!isWorking && !hasApproval && (lastAssistant?.text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?") ?? false))
+            ? ["Có", "Không", "Tiếp tục", "Giải thích"] : []
+        composer.showQuickReplies(replies)
     }
 
     /// Moves the list with the followed turn's output: to its end while the

@@ -20,6 +20,7 @@ class ComposerView: ComposerSectionView {
 
     let inputEditor = ComposerInputView()
     let approvalSection = ComposerApprovalSection()
+    let quickReplySection = ComposerQuickReplySection()
     let commandSuggestionsTable = UITableView()
     private var commandSuggestions: [ChatCommand] = []
     let attachmentsBar = ComposerAttachmentsBar()
@@ -36,6 +37,7 @@ class ComposerView: ComposerSectionView {
 
     lazy var sectionSubviews: [ComposerSectionView] = [
         approvalSection,
+        quickReplySection,
         attachmentsBar,
         inputEditor,
         modelBar,
@@ -230,8 +232,13 @@ class ComposerView: ComposerSectionView {
         updateModelBarVisibility()
     }
 
+    func showQuickReplies(_ replies: [String]) {
+        quickReplySection.show(replies)
+        updateModelBarVisibility()
+    }
+
     private func updateModelBarVisibility() {
-        modelBar.setVisible(!approvalSection.isPresentingRequest && !controlPanel.isPanelOpen.value)
+        modelBar.setVisible(!approvalSection.isPresentingRequest && !quickReplySection.isPresentingReplies && !controlPanel.isPanelOpen.value)
     }
 
     /// What is typed, trimmed.
