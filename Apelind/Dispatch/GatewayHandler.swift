@@ -75,22 +75,85 @@ enum GatewayHandler: DomainHandler {
     }
 
     private static func runGatewayCtl(_ args: [String]) -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: shell)
-        process.arguments = [ctl] + args
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-        process.standardInput = FileHandle.nullDevice
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
+        var fds: [Int32] = [0, 0]
+        guard pipe(&fds) == 0 else { return "" }
+        let readFD = fds[0]
+        let writeFD = fds[1]
+
+        var actions: posix_spawn_file_actions_t?
+        var attributes: posix_spawnattr_t?
+        posix_spawn_file_actions_init(&actions)
+        posix_spawnattr_init(&attributes)
+        defer {
+            posix_spawn_file_actions_destroy(&actions)
+            posix_spawnattr_destroy(&attributes)
+        }
+
+        posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0)
+        posix_spawn_file_actions_adddup2(&actions, writeFD, STDOUT_FILENO)
+        posix_spawn_file_actions_addclose(&actions, readFD)
+        posix_spawn_file_actions_addclose(&actions, writeFD)
+
+        var everySignal = sigset_t()
+        var noSignal = sigset_t()
+        sigfillset(&everySignal)
+        sigemptyset(&noSignal)
+        posix_spawnattr_setsigdefault(&attributes, &everySignal)
+        posix_spawnattr_setsigmask(&attributes, &noSignal)
+        let flags = Int16(POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK)
+        posix_spawnattr_setflags(&attributes, flags)
+
+        var groups: [gid_t] = [501]
+        _ = spawnSetGroups(&attributes, 1, &groups, 501)
+        _ = spawnSetGID(&attributes, 501)
+        _ = spawnSetUID(&attributes, 501)
+
+        let commandArgs = [shell, ctl] + args
+        var cArgs = commandArgs.map { strdup($0) }
+        cArgs.append(nil)
+        let envStrings = ["HOME=/var/mobile", "PATH=/var/jb/usr/local/bin:/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin"]
+        var cEnv = envStrings.map { strdup($0) }
+        cEnv.append(nil)
+
+        var pid: pid_t = 0
+        let status = cArgs.withUnsafeMutableBufferPointer { argvPtr in
+            cEnv.withUnsafeMutableBufferPointer { envPtr in
+                posix_spawn(&pid, shell, &actions, &attributes, argvPtr.baseAddress, envPtr.baseAddress)
+            }
+        }
+        cArgs.forEach { free($0) }
+        cEnv.forEach { free($0) }
+
+        guard status == 0 else {
+            close(readFD)
+            close(writeFD)
             return ""
         }
-        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        do {
+            try verifyDropped(pid, to: .mobile)
+        } catch {
+            kill(pid, SIGKILL)
+            var ignored: Int32 = 0
+            waitpid(pid, &ignored, 0)
+            close(readFD)
+            close(writeFD)
+            return ""
+        }
+
+        close(writeFD)
+        var output = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let n = read(readFD, &buffer, buffer.count)
+            if n <= 0 { break }
+            output.append(buffer, count: Int(n))
+        }
+        close(readFD)
+
+        var waitStatus: Int32 = 0
+        waitpid(pid, &waitStatus, 0)
+        return String(data: output, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private static func start(host: SessionHost) async throws {
