@@ -638,18 +638,37 @@ final class ChatController: UIViewController {
         if let followedTurn {
             turnPace.observe(tokens: TurnFollowing.replyTokens(in: items, after: followedTurn), at: CACurrentMediaTime())
         }
-        showTranscript(items)
+        // Quick reply buttons for a question the assistant just asked, or for
+        // options the assistant lists in a [[replies: A, B, C]] marker.
+        var displayItems = items
+        let isWorking = chat?.isWorking ?? false
+        let hasApproval = items.contains { $0.role.needsApproval }
+        var replies: [String] = []
+        if !isWorking && !hasApproval, let index = items.lastIndex(where: { $0.role == .assistant }) {
+            var text = items[index].text
+            let markerPattern = #"\[\[\s*replies:\s*(.+?)\s*\]\]"#
+            if let range = text.range(of: markerPattern, options: .regularExpression) {
+                let matched = String(text[range])
+                let inner = matched
+                    .replacingOccurrences(of: #"\[\[\s*replies:\s*"#, with: "", options: .regularExpression)
+                    .replacingOccurrences(of: #"\s*\]\]"#, with: "", options: .regularExpression)
+                replies = inner
+                    .split(whereSeparator: { $0 == "," || $0 == "|" || $0 == ";" || $0 == "\n" })
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                text.removeSubrange(range)
+                text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                displayItems[index].text = text
+            } else if text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?") {
+                replies = ["Có", "Không", "Tiếp tục", "Giải thích"]
+            }
+        }
+        showTranscript(displayItems)
         followTurn()
         if revealsCompaction {
             revealLatestMessage()
         }
         updateLatestMessageButton()
-        // Quick reply buttons for a question the assistant just asked.
-        let lastAssistant = items.last(where: { $0.role == .assistant })
-        let isWorking = chat?.isWorking ?? false
-        let hasApproval = items.contains { $0.role.needsApproval }
-        let replies: [String] = (!isWorking && !hasApproval && (lastAssistant?.text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?") ?? false))
-            ? ["Có", "Không", "Tiếp tục", "Giải thích"] : []
         composer.showQuickReplies(replies)
     }
 
