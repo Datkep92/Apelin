@@ -240,9 +240,9 @@ final class SessionHost: @unchecked Sendable {
             } catch {
                 pid = nil
             }
-            let isRunning = pid.map { kill($0, 0) == 0 } ?? false
+            let isRunning = pid.map { kill(Int32($0), 0) == 0 } ?? false
             return exists && isRunning
-        }
+        }()
         let report = await WorkReport(
             activeTasks: registry.activeCount,
             workers: workers.count,

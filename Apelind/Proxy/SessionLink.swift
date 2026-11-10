@@ -69,7 +69,7 @@ final class SessionLink: @unchecked Sendable {
                 // throttle. Its own report keeps apelind up from there.
                 queue.async {
                     let diedBusy = self.ledger.sessionBusy
-                    self.ledger.sessionReported(busy: false)
+                    self.ledger.sessionReported(busy: false, gatewayRunning: false)
                     if diedBusy {
                         self.queue.asyncAfter(deadline: .now() + 1.5) { _ = try? self.running() }
                     }
