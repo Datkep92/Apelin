@@ -164,13 +164,13 @@ enum GatewayHandler: DomainHandler {
         }
         // Use gatewayctl's standalone launch, which backgrounds gateway-session
         // in standalone mode and waits for the port to answer.
-        let pid = try spawnProcess(path: shell, arguments: [ctl, "on"], environment: ["HOME=\(home)"], channel: 0, identity: .mobile)
+        let pid = try spawnProcess(path: shell, arguments: [shell, ctl, "on"], environment: ["HOME=\(home)"], channel: 0, identity: .mobile)
         var status: Int32 = 0
         waitpid(pid, &status, 0)
     }
 
     private static func stop() async throws {
-        let pid = try spawnProcess(path: shell, arguments: [ctl, "off"], environment: [], channel: 0, identity: .mobile)
+        let pid = try spawnProcess(path: shell, arguments: [shell, ctl, "off"], environment: [], channel: 0, identity: .mobile)
         var status: Int32 = 0
         waitpid(pid, &status, 0)
     }
