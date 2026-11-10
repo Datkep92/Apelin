@@ -4,7 +4,7 @@ import UIKit
 
 final class GatewaySettingsController: UIViewController {
     private let statusLabel = UILabel()
-    private let toggleButton = UIButton()
+    private let toggleSwitch = UISwitch()
     private let refreshButton = UIButton()
     private var observable: Task<Void, Never>?
     private var isRunning = false
@@ -50,17 +50,15 @@ final class GatewaySettingsController: UIViewController {
         hbox.alignment = .center
         hbox.translatesAutoresizingMaskIntoConstraints = false
 
-        toggleButton.configuration = .filled()
-        toggleButton.setTitle(String(localized: "Start"), for: .normal)
-        toggleButton.accessibilityLabel = String(localized: "Start Gateway")
-        toggleButton.addTarget(self, action: #selector(toggleTapped), for: .touchUpInside)
+        toggleSwitch.addTarget(self, action: #selector(toggleSwitchChanged(_:)), for: .valueChanged)
+        toggleSwitch.accessibilityLabel = String(localized: "Gateway")
 
         refreshButton.configuration = .tinted()
         refreshButton.setTitle(String(localized: "Refresh"), for: .normal)
         refreshButton.accessibilityLabel = String(localized: "Refresh Status")
         refreshButton.addTarget(self, action: #selector(refreshTapped), for: .touchUpInside)
 
-        hbox.addArrangedSubview(toggleButton)
+        hbox.addArrangedSubview(toggleSwitch)
         hbox.addArrangedSubview(refreshButton)
 
         stack.addArrangedSubview(statusLabel)
@@ -102,23 +100,26 @@ final class GatewaySettingsController: UIViewController {
     private func updateUI() {
         if isRunning {
             statusLabel.text = String(localized: "Gateway is running")
-            toggleButton.setTitle(String(localized: "Stop"), for: .normal)
-            toggleButton.accessibilityLabel = String(localized: "Stop Gateway")
         } else {
             statusLabel.text = String(localized: "Gateway is stopped")
-            toggleButton.setTitle(String(localized: "Start"), for: .normal)
-            toggleButton.accessibilityLabel = String(localized: "Start Gateway")
         }
-        toggleButton.isEnabled = !isUpdating
+        toggleSwitch.isOn = isRunning
+        toggleSwitch.isEnabled = !isUpdating
+        toggleSwitch.accessibilityValue = isRunning
+            ? String(localized: "On")
+            : String(localized: "Off")
     }
 
-    @objc private func toggleTapped() {
-        guard !isUpdating else { return }
+    @objc private func toggleSwitchChanged(_ sender: UISwitch) {
+        guard !isUpdating else {
+            sender.setOn(isRunning, animated: true)
+            return
+        }
+        let target = sender.isOn
         isUpdating = true
-        updateUI()
+        toggleSwitch.isEnabled = false
         Task { [weak self] in
             guard let self else { return }
-            let target = !self.isRunning
             do {
                 try await ApelinService.app.gatewaySetEnabled(target)
                 await self.refreshStatus()
@@ -126,7 +127,7 @@ final class GatewaySettingsController: UIViewController {
                 await MainActor.run {
                     let alert = UIAlertController(
                         title: String(localized: "Gateway"),
-                        message: error.localizedDescription,
+                        message: error.readableMessage,
                         preferredStyle: .alert,
                     )
                     alert.addAction(UIAlertAction(title: "OK", style: .default))

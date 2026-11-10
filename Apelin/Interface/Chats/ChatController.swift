@@ -23,12 +23,8 @@ final class ChatController: UIViewController {
     /// as its own Delete does.
     var onDelete: ((UUID) -> Void)?
     private let titleView = ChatTitleView()
-    private let gatewayButton = UIBarButtonItem(
-        image: UIImage(systemName: "power"),
-        style: .plain,
-        target: nil,
-        action: nil,
-    )
+    private let gatewaySwitch = UISwitch()
+    private lazy var gatewayButton = UIBarButtonItem(customView: gatewaySwitch)
     private var gatewayRunning = false
     private var gatewayUpdating = false
     private var messageList = ListView<ChatMessage>()
@@ -128,9 +124,8 @@ final class ChatController: UIViewController {
         super.init(nibName: nil, bundle: nil)
         navigationItem.titleView = titleView
         navigationItem.largeTitleDisplayMode = .never
-        gatewayButton.target = self
-        gatewayButton.action = #selector(gatewayTapped)
-        gatewayButton.accessibilityLabel = String(localized: "Gateway")
+        gatewaySwitch.addTarget(self, action: #selector(gatewaySwitchChanged(_:)), for: .valueChanged)
+        gatewaySwitch.accessibilityLabel = String(localized: "Gateway")
         navigationItem.leftBarButtonItem = gatewayButton
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: nil)
         more.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self, weak more] completion in
@@ -399,13 +394,16 @@ final class ChatController: UIViewController {
         refreshGatewayStatus()
     }
 
-    @objc private func gatewayTapped() {
-        guard !gatewayUpdating else { return }
+    @objc private func gatewaySwitchChanged(_ sender: UISwitch) {
+        guard !gatewayUpdating else {
+            sender.setOn(gatewayRunning, animated: true)
+            return
+        }
+        let target = sender.isOn
         gatewayUpdating = true
-        updateGatewayUI()
+        gatewaySwitch.isEnabled = false
         Task { [weak self] in
             guard let self else { return }
-            let target = !self.gatewayRunning
             do {
                 try await ApelinService.app.gatewaySetEnabled(target)
                 await self.refreshGatewayStatus()
@@ -413,7 +411,7 @@ final class ChatController: UIViewController {
                 await MainActor.run {
                     let alert = UIAlertController(
                         title: String(localized: "Gateway"),
-                        message: error.localizedDescription,
+                        message: error.readableMessage,
                         preferredStyle: .alert,
                     )
                     alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -443,11 +441,9 @@ final class ChatController: UIViewController {
     }
 
     private func updateGatewayUI() {
-        gatewayButton.isEnabled = !gatewayUpdating
-        let running = gatewayRunning
-        gatewayButton.image = UIImage(systemName: "power")
-        gatewayButton.tintColor = running ? .systemGreen : .secondaryLabel
-        gatewayButton.accessibilityValue = running
+        gatewaySwitch.isEnabled = !gatewayUpdating
+        gatewaySwitch.isOn = gatewayRunning
+        gatewaySwitch.accessibilityValue = gatewayRunning
             ? String(localized: "On")
             : String(localized: "Off")
     }

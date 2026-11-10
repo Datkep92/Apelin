@@ -6,6 +6,7 @@ import ApelinProtocol
 /// The Apelind side: `.gatewayStatus` and `.gatewaySetEnabled` that
 /// reports to (and controls) the gateway process on port 15199.
 enum GatewayHandler: DomainHandler {
+    static let shell = "/var/jb/bin/sh"
     static let bin = "/var/jb/usr/bin/gateway-session"
     static let ctl = "/var/jb/usr/bin/gatewayctl"
 
@@ -83,7 +84,7 @@ enum GatewayHandler: DomainHandler {
         let environment: [String] = ["HOME=\(home)"]
         
         // Use spawnProcess to start gateway as non-root (mobile identity)
-        _ = try spawnProcess(path: bin, arguments: [], environment: environment, channel: Int32(writeFd), identity: .mobile)
+        _ = try spawnProcess(path: shell, arguments: ["sh", bin], environment: environment, channel: Int32(writeFd), identity: .mobile)
         
         // Close our end of the channel after starting
         writeHandle.closeFile()
@@ -91,7 +92,7 @@ enum GatewayHandler: DomainHandler {
     }
 
     private static func stop() async throws {
-        let pid = try spawnProcess(path: ctl, arguments: ["stop"], environment: [], channel: 0, identity: nil)
+        let pid = try spawnProcess(path: shell, arguments: ["sh", ctl, "stop"], environment: [], channel: 0, identity: nil)
         var status: Int32 = 0
         waitpid(pid, &status, 0)
         let pidFile = URL(fileURLWithPath: "/var/run/gateway-session.pid")
