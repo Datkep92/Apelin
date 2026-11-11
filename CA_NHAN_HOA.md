@@ -327,7 +327,7 @@ trên.
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `4e5d211` (sửa tiêu đề nhóm bộ chọn model sau CI đỏ — commit trước là `a311bdb` "Bump version to 0.4.30 (build 62)", tính năng `f79b70f`; `origin/main` đang đứng ở commit trước bản sửa, chuẩn bị push). Đang chạy **luật CI cho 0.4.30 (build 62)**: CI run 170 đỏ ở Host tests → đã sửa và chuẩn bị push lại, theo dõi CI tới xanh, xanh thì tag `v0.4.30`, tải gói rootless, đối chiếu SHA256SUMS, cài lên máy.
+**HEAD khi cập nhật mục này:** `2f3c347` (Tối ưu khởi động Phase 1 + Phase 3 lazy events đã commit; gateway logic commit `55fecfd` mới ở máy, chưa push). `origin/main` đang đứng ở commit trước startup; cây làm việc có 2 commit local chưa push: `2f3c347` (startup) và `55fecfd` (gateway). Đang chờ Sếp duyệt push theo luật CI.
 
 > Ghi chú đồng bộ 2026-11-06: bảng việc dở bên dưới còn dữ liệu từ giai đoạn 0.4.7/0.4.9. Các mốc Git thực tế mới hơn là `38a9542` (khôi phục background survival), `d67b84e` (`v0.4.11`, animated progress), `d335b96` (`v0.4.12`, UI polish) và `66eb3cf` (nâng task progress). Các đầu mục cũ trong bảng chưa xác nhận là việc còn mở.
 
@@ -340,7 +340,8 @@ trên.
 | 5 | **Task Progress Panel / Plan bar** (`b2cea5d`, `a4f0b77`, `5ed25ea`, `8c53479`) | manual pass; guard resume đã trích thành `AgentSession.shouldStartResumeRun`, có `PlanResumeRunTests` guard cơ bản | UX chưa từng mắt; chưa integrated `AgentSession.planState`; chưa đo baseline |
 | 6 | **Nhập file từ Recents/iCloud Drive** (`01b227b4`) | chọn PDF/XML tay từ máy | chưa build/cài |
 | 7 | **Kế hoạch phiên / thanh tiến đồ** (`b2cea5d`, `8c53479`) | manual pass; refactor tách mutation/side-effect nếu giữ ổn định | chưa từng kiểm bằng mắt |
-| 8 | **Hiệu năng cold launch / chat list / daemon handshake** (`8c53479`) | đo baseline và đối chiếu hotspot trước khi sửa | chưa có số liệu |
+| 8 | **Tối ưu cold launch / chat list / daemon handshake** (`2f3c347`) | Phase 1 + Phase 3 đã commit; còn kiểm compile/runtime: cold launch, mở chat cũ, gửi/xoá message, reconcile working, CompletedBuilds | chưa build/CI; chưa kiểm trên máy |
+| 12 | **Công tắc Gateway logic** (`55fecfd`, local) | chờ Sếp duyệt push theo luật CI | chưa compile/CI/cài |
 | 9 | **Bản cục bộ `.apelinbak` / ConfigBundle Phase 1 + app-side export/import v1** (`0cd1891` + uncommitted) | Đã thêm UI Settings ▸ Configuration: export memories/skills/commands/settings/provider metadata/project display names thành `.apelinbak`, import với backup/rollback và reload notification. Build/cài chưa xác thực. | chưa build CI; chưa chạy UI/runtime; scope secret pack chưa triển khai; chưa push |
 | 10 | **Panel “Quá trình” của một lượt** (`2a02414`, `fb2750b`, `f4667ff`) | 3 điểm Sếp chốt đã phát hành trong **0.4.29** (CI xanh, tag `v0.4.29`). Việc kế tiếp: cài bản mới rồi **mở panel xem thật** trên máy (mới nhất trước, phụ đề nêu việc đã làm trước lý do). | chưa từng thấy trên màn hình máy; `checkTraceStep` chỉ chạy ở CI |
 | 11 | **Bộ chọn model gộp theo Base URL** (`f79b70f`) | CI run 170 đỏ ở `ModelPickerGroupingCheck` (nhóm một cấu hình không tên hiện tên nhà cung cấp) — đã sửa `4e5d211` (nhóm có địa chỉ gọi bằng địa chỉ, trừ cấu hình tự đặt tên), đang push lại CI. Xanh → tag `v0.4.30` → cài. | `ModelPickerGrouping` + 6 kịch bản transcript chỉ mới chạy ở CI lần đầu (đang chạy lại sau sửa); chưa thấy trên màn hình |
