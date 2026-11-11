@@ -96,11 +96,11 @@ final class ChatRuntime {
         let clock = ContinuousClock()
         let start = clock.now
         do {
-            os_log(.info, subsystem: "wiki.qaq.apelin", "startup: load start")
+            os_log(.info, OSLog(subsystem: "wiki.qaq.apelin", category: "chat"), "startup: load start")
             async let storedRecords = try store.load()
             async let liveSessions = (try? ApelinService.app.agentList().sessions) ?? []
             let loaded = try await storedRecords
-            os_log(.info, subsystem: "wiki.qaq.apelin", "startup: store.load done n=%d in %{public}@", loaded.count, String(describing: clock.now - start))
+            os_log(.info, OSLog(subsystem: "wiki.qaq.apelin", category: "chat"), "startup: store.load done n=%d in %{public}@", loaded.count, String(describing: clock.now - start))
             for var record in loaded {
                 let unsent = record.sending != nil
                 if unsent {
@@ -129,15 +129,15 @@ final class ChatRuntime {
                 }
             }
             await forget(DeletedProjects.gone(from: summaries, listed: DeletedProjects.listing(in: .app)))
-            os_log(.info, subsystem: "wiki.qaq.apelin", "startup: cleanup + forget done in %{public}@", String(describing: clock.now - start))
+            os_log(.info, OSLog(subsystem: "wiki.qaq.apelin", category: "chat"), "startup: cleanup + forget done in %{public}@", String(describing: clock.now - start))
             isLoaded = true
             onChange?()
-            os_log(.info, subsystem: "wiki.qaq.apelin", "startup: isLoaded in %{public}@", String(describing: clock.now - start))
+            os_log(.info, OSLog(subsystem: "wiki.qaq.apelin", category: "chat"), "startup: isLoaded in %{public}@", String(describing: clock.now - start))
 
             let live = await liveSessions
             reconciliationTask = Task { @MainActor in
                 let reconcileStart = clock.now
-                os_log(.info, subsystem: "wiki.qaq.apelin", "startup: reconcile start")
+                os_log(.info, OSLog(subsystem: "wiki.qaq.apelin", category: "chat"), "startup: reconcile start")
                 for record in self.records.values {
                     let needsEvents = record.summary.isWorking || live.contains { $0.sessionID == record.sessionID }
                     if needsEvents { await self.loadEventsIfNeeded(record.summary.id) }
@@ -151,11 +151,11 @@ final class ChatRuntime {
                 }
                 self.isReconciled = true
                 self.onChange?()
-                os_log(.info, subsystem: "wiki.qaq.apelin", "startup: reconcile done in %{public}@", String(describing: clock.now - reconcileStart))
+                os_log(.info, OSLog(subsystem: "wiki.qaq.apelin", category: "chat"), "startup: reconcile done in %{public}@", String(describing: clock.now - reconcileStart))
                 for session in live {
                     self.adopt(ChatAdoption.record(session: session, records: Array(self.records.values)))
                 }
-                os_log(.info, subsystem: "wiki.qaq.apelin", "startup: adopt done in %{public}@", String(describing: clock.now - start))
+                os_log(.info, OSLog(subsystem: "wiki.qaq.apelin", category: "chat"), "startup: adopt done in %{public}@", String(describing: clock.now - start))
             }
         } catch { onError?(error) }
     }
