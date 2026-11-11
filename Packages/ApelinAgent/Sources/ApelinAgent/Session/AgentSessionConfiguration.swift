@@ -1,3 +1,4 @@
+import ApelinProtocol
 import struct ApelinToolCore.ToolManifestPolicy
 import Foundation
 import KWWKAgent
@@ -37,6 +38,9 @@ public struct AgentSessionConfiguration: Sendable {
     /// to for their tools to be offered: root, as the package manager
     /// installs them and the host requires; the tests' own user.
     public var toolExtensionPolicy: ToolManifestPolicy
+    /// The choice the app opened with, which a prompt of its own replaces and
+    /// which a failure reports back to it (`AgentSessionEvent.modelFailed`).
+    public var runChoice: AgentRunChoice
 
     public init(
         id: String = UUID().uuidString,
@@ -54,6 +58,7 @@ public struct AgentSessionConfiguration: Sendable {
         network: NetworkPath = .system,
         hostRestarted: Bool = false,
         toolExtensionPolicy: ToolManifestPolicy = ToolManifestPolicy(),
+        runChoice: AgentRunChoice = AgentRunChoice(provider: .githubCopilot),
     ) {
         self.id = id
         self.project = project
@@ -70,5 +75,6 @@ public struct AgentSessionConfiguration: Sendable {
         self.network = network
         self.hostRestarted = hostRestarted
         self.toolExtensionPolicy = toolExtensionPolicy
+        self.runChoice = runChoice
     }
 }

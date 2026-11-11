@@ -109,7 +109,19 @@ public enum AgentWorker {
                 if let from = prompt.fromSessionID {
                     sender = await AgentWorker.sender(from, context: context)
                 }
-                try await session.prompt(prompt.text, messageID: prompt.messageID, files: files, from: sender)
+                // The key this message asks with, which a failure reports to
+                // the app; a prompt with no provider keeps the session's.
+                let choice = prompt.provider.map {
+                    AgentRunChoice(provider: $0, configuration: prompt.profileID, model: prompt.model)
+                }
+                try await session.prompt(
+                    prompt.text,
+                    messageID: prompt.messageID,
+                    files: files,
+                    from: sender,
+                    retryOf: prompt.retryOf,
+                    choice: choice,
+                )
                 await session.generateTitle(for: prompt.text)
                 return Acknowledged()
             }
@@ -331,6 +343,11 @@ actor WorkerState {
                     serviceTier: AgentWorker.serviceTier(open.serviceTier),
                     installRoot: context.assignment.installRoot,
                     hostRestarted: open.hostRestarted == true,
+                    runChoice: AgentRunChoice(
+                        provider: open.provider ?? .githubCopilot,
+                        configuration: open.profileID,
+                        model: open.model,
+                    ),
                 ),
                 backend: ChannelHostBackend(
                     service: context.host,
@@ -533,12 +550,18 @@ actor EventRelay {
     /// listed in AGENTS.md ▸ Decisions ▸ Agent sessions.
     static func events(for event: AgentSessionEvent, waiting: inout Int) -> [(String, ApelinCore.JSONValue?)] {
         switch event {
-        case let .userMessage(id, text, attachments):
-            return [("prompt", .object([
+        case let .userMessage(id, text, attachments, retryOf):
+            var payload: [String: ApelinCore.JSONValue] = [
                 "id": .string(id.uuidString),
                 "text": .string(text),
                 "attachments": (try? ApelinCore.JSONValue(encoding: attachments)) ?? .array([]),
-            ]))]
+            ]
+            if let retryOf {
+                // The message this one stands in for, which the app shows as
+                // one row (`ChatRuntime`).
+                payload["retryOf"] = .string(retryOf.uuidString)
+            }
+            return [("prompt", .object(payload))]
         case let .userMessageQueued(id, text, attachments):
             return [("queued", .object([
                 "id": .string(id.uuidString),
@@ -626,6 +649,21 @@ actor EventRelay {
             return [(AgentPlan.eventKind, .null)]
         case let .error(message):
             return [("error", .object(["message": .string(message)]))]
+        case let .modelFailed(message, choice):
+            // Which key the run asked with, for the app's own switch
+            // (`ChatRuntime`): the row the reader sees comes with the `error`
+            // event beside it.
+            var payload: [String: ApelinCore.JSONValue] = [
+                "message": .string(message),
+                "provider": .string(choice.provider.rawValue),
+            ]
+            if let configuration = choice.configuration {
+                payload["configuration"] = .string(configuration)
+            }
+            if let model = choice.model {
+                payload["model"] = .string(model)
+            }
+            return [("modelFailed", .object(payload))]
         case let .finished(reason):
             return [("finished", .object(["reason": .string(reason.rawValue)]))]
         case .compactionStarted:

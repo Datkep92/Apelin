@@ -53,11 +53,21 @@ public actor AgentSession {
     private var aborted = false
     private let workspace: ScopedRoot
     private var submitted: Set<UUID> = []
+    /// The choice the run under way asks with — the provider, the saved
+    /// configuration and the model name the app's last prompt named — which a
+    /// failure reports back to it (`AgentSessionEvent.modelFailed`). A prompt
+    /// the run took as a queued message leaves it alone: that key is not in
+    /// use yet.
+    private var runChoice = AgentRunChoice(provider: .githubCopilot)
     /// A message sent while a run was going, until a run's loop takes it.
     private struct QueuedMessage {
         var id: UUID
         var text: String
         var attachments: [AgentAttachment]
+        /// The message this one is sent again in place of, when a model failed
+        /// to answer it and another candidate answers the same request
+        /// (`ChatRuntime`); nil for a message the user typed.
+        var retryOf: UUID?
         /// The text the loop is handed.
         var injected: String
         /// What the model had been told before this message's delta, and
@@ -206,6 +216,7 @@ public actor AgentSession {
         restartUntold = configuration.hostRestarted && !transcript.isEmpty
         resolvedFrom = (configuration.provider, resolved.credentials)
         self.configuration = configuration
+        runChoice = configuration.runChoice
         self.log = log
         self.agent = agent
         self.gate = gate
@@ -557,7 +568,14 @@ public actor AgentSession {
         messageID: UUID? = nil,
         files: [(name: String, mimeType: String, data: Data)] = [],
         from sender: ConversationSender? = nil,
+        retryOf: UUID? = nil,
+        choice: AgentRunChoice? = nil,
     ) async throws {
+        // What this run asks with, which a failure reports back to the app.
+        // A queued message leaves it alone: that key is not in use yet.
+        if let choice, runTask == nil || runEnding {
+            runChoice = choice
+        }
         if let messageID {
             // Claimed before the first suspension: the same message sent
             // again meanwhile is the duplicate.
@@ -570,7 +588,7 @@ public actor AgentSession {
             if let messageID {
                 try await log.append(queues
                     ? .userMessageQueued(id: messageID, text: text, attachments: attachments)
-                    : .userMessage(id: messageID, text: text, attachments: attachments))
+                    : .userMessage(id: messageID, text: text, attachments: attachments, retryOf: retryOf))
             } else {
                 try await log.append(.promptSubmitted(text: text, from: sender?.sessionID))
             }
@@ -612,6 +630,7 @@ public actor AgentSession {
                     id: messageID,
                     text: text,
                     attachments: attachments,
+                    retryOf: retryOf,
                     injected: prompt,
                     told: toldBefore,
                     restartUntold: restartUntoldBefore,
@@ -620,7 +639,7 @@ public actor AgentSession {
                 return
             }
             // The run ended while this was recorded: it starts the next one.
-            await record(.userMessage(id: messageID, text: text, attachments: attachments))
+            await record(.userMessage(id: messageID, text: text, attachments: attachments, retryOf: retryOf))
             await waitForEndingRun()
         }
         // the last wait: nothing below suspends before the run is started
@@ -884,9 +903,10 @@ public actor AgentSession {
                     }
                     return nil
                 }.joined()
-                let index = queued.firstIndex { $0.injected == injected } ?? 0
-                let taken = queued.remove(at: index)
-                await record(.userMessage(id: taken.id, text: taken.text, attachments: taken.attachments))
+                if let index = queued.firstIndex(where: { $0.injected == injected }) {
+                    let taken = queued.remove(at: index)
+                    await record(.userMessage(id: taken.id, text: taken.text, attachments: taken.attachments, retryOf: taken.retryOf))
+                }
             default:
                 break
             }
@@ -940,12 +960,12 @@ public actor AgentSession {
                 let isRateLimited = spentWords.contains { lowered.contains($0) }
                     || containsWholeCode("429", in: lowered)
                     || containsWholeCode("402", in: lowered)
-                await record(.error(
-                    message: isRateLimited
-                        ? "Rate limit / quota reached for this model. Try again, or switch models."
-                        : (assistant.errorMessage.map(ErrorDescription.localized)
-                            ?? "The model provider returned an error. Try again."),
-                ))
+                let message = isRateLimited
+                    ? "Rate limit / quota reached for this model. Try again, or switch models."
+                    : (assistant.errorMessage.map(ErrorDescription.localized)
+                        ?? "The model provider returned an error. Try again.")
+                await record(.error(message: message))
+                await record(.modelFailed(message: message, choice: runChoice))
             }
         case .streamRewind:
             // kwwk gave up the message it was streaming; the next one replaces it

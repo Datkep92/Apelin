@@ -9,7 +9,11 @@ public enum AgentSessionEvent: Sendable, Hashable, Codable {
     /// A prompt entered the session (also queued follow-ups). `from`: the
     /// conversation of this project whose agent sent it, not the user.
     case promptSubmitted(text: String, from: String? = nil)
-    case userMessage(id: UUID, text: String, attachments: [AgentAttachment])
+    /// `retryOf`: the message this one is sent again in place of, when a
+    /// model failed to answer it and another candidate answers the same
+    /// request (`ChatRuntime`), so the app keeps one row for both. nil for a
+    /// message the user typed.
+    case userMessage(id: UUID, text: String, attachments: [AgentAttachment], retryOf: UUID? = nil)
     /// A message sent while a run was going: queued for the run's next
     /// step, and a `userMessage` of the same id once the run takes it.
     case userMessageQueued(id: UUID, text: String, attachments: [AgentAttachment])
@@ -67,12 +71,39 @@ public enum AgentSessionEvent: Sendable, Hashable, Codable {
     /// stands any more.
     case planCleared
     case error(message: String)
+    /// The model the run asked failed, in a way another configuration of the
+    /// provider or another model may answer: an allowance that is spent, a
+    /// key the provider refused, a route that is not there. `choice` is the
+    /// choice the run was asking with, which the reader may have switched
+    /// past while it ran, so the app knows which of its configurations
+    /// failed. The `error` beside it is the row the reader sees.
+    case modelFailed(message: String, choice: AgentRunChoice)
     /// A run ended.
     case finished(reason: FinishReason)
     /// The app asked to compact the conversation, between runs.
     case compactionStarted
     /// The compaction ended; a message sent meanwhile starts its run now.
     case compactionFinished(AgentCompactionResult)
+}
+
+/// The choice a run was asking with when it failed (`modelFailed`): the
+/// provider, the saved configuration of it (`AgentProfileID`) and the model
+/// name the prompt asked for. The app compares it with the configurations it
+/// knows, and with the one that failed last, to decide which key to leave
+/// alone and which to try next.
+public struct AgentRunChoice: Sendable, Hashable, Codable {
+    public var provider: AgentProvider
+    /// The saved configuration of `provider`; nil is the provider's own,
+    /// first one.
+    public var configuration: String?
+    /// The model the prompt named; nil when it named none.
+    public var model: String?
+
+    public init(provider: AgentProvider, configuration: String? = nil, model: String? = nil) {
+        self.provider = provider
+        self.configuration = configuration
+        self.model = model
+    }
 }
 
 public enum FinishReason: String, Sendable, Hashable, Codable {

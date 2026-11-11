@@ -319,6 +319,11 @@ public struct AgentPromptRequest: OperationRequest {
     /// agent's prompt and cleared for the app's; the worker records it on
     /// the `prompt` event as `from`.
     public var fromSessionID: String?
+    /// The message this one is sent again in place of, when a model failed
+    /// to answer it and another candidate answers the same request
+    /// (`ChatRuntime`): the worker records it on the `prompt` event as
+    /// `retryOf`, and the app keeps one row for both messages.
+    public var retryOf: UUID?
 
     public init(
         sessionID: String,
@@ -333,6 +338,7 @@ public struct AgentPromptRequest: OperationRequest {
         approvalMode: ApprovalMode? = nil,
         asksBeforeScreen: Bool? = nil,
         fromSessionID: String? = nil,
+        retryOf: UUID? = nil,
     ) {
         self.sessionID = sessionID
         self.text = text
@@ -346,6 +352,7 @@ public struct AgentPromptRequest: OperationRequest {
         self.approvalMode = approvalMode
         self.asksBeforeScreen = asksBeforeScreen
         self.fromSessionID = fromSessionID
+        self.retryOf = retryOf
     }
 }
 

@@ -44,6 +44,10 @@ struct ModelRetryState: Codable, Sendable, Equatable {
     /// removed as it is sent. Empty means the reader is the only one who
     /// can ask again.
     var remaining: [ComposerModelSelection]
+    /// The keys (by `ComposerModelSelection.retryKey`) that have already
+    /// failed in this retry chain. They are never tried again, even after
+    /// their cooldown — the reader's own Retry does not revive them.
+    var triedKeys: Set<String> = []
     /// The text sent again, taken from the message the error answered. Kept
     /// for a state written before the message was read from the
     /// conversation's own events, which is what a retry sends.

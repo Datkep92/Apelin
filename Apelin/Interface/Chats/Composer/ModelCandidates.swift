@@ -41,6 +41,7 @@ extension ModelRetryState {
     /// themselves, which spends it anyway.
     func nextCandidate(readerAsked: Bool, now: Date = Date()) -> ComposerModelSelection? {
         remaining.first { selection in
+            guard !triedKeys.contains(selection.retryKey) else { return false }
             guard !readerAsked, let until = cooldowns?[selection.retryKey] else { return true }
             return until <= now
         }

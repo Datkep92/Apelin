@@ -864,8 +864,10 @@ final class ChatRuntime {
             // later errors of the same run keep the tries and the list
             state = known
         } else {
+            let failedKey = (records[id]?.modelSelection ?? ComposerModelSelection.current)?.retryKey
             state = ModelRetryState(
                 remaining: await fallbackCandidates(after: id),
+                triedKeys: failedKey.map { Set([$0]) } ?? Set(),
                 text: "",
             )
         }
@@ -880,8 +882,12 @@ final class ChatRuntime {
                 var cooldowns = state.cooldowns ?? [:]
                 cooldowns[failed] = Date().addingTimeInterval(wait)
                 state.cooldowns = cooldowns
+                // Never try this key again in this retry chain.
+                state.triedKeys.insert(failed)
             }
         }
+        // Drop any candidate that has already failed.
+        state.remaining = state.remaining.filter { !state.triedKeys.contains($0.retryKey) }
         // The message the error answered, which a newer one the reader sent
         // meanwhile takes over: the retry sends what failed.
         let draft = retryDraft(in: id, fallbackText: state.text)
