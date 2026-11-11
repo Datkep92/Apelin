@@ -327,7 +327,7 @@ trên.
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `2f3c347` (Tối ưu khởi động Phase 1 + Phase 3 lazy events đã commit; gateway logic commit `55fecfd` mới ở máy, chưa push). `origin/main` đang đứng ở commit trước startup; cây làm việc có 2 commit local chưa push: `2f3c347` (startup) và `55fecfd` (gateway). Đang chờ Sếp duyệt push theo luật CI.
+**HEAD khi cập nhật mục này:** `8b88f03` (Tối ưu khởi động Phase 1 + Phase 3 lazy events đã commit; các fix rủi ro lazy-loading đã áp dụng và commit: guard sync load trong compact/open/retry/failure/sendNext, removeRecord cancel, store filter chính xác, ChatController refreshRuntime). `origin/main` đang đứng ở commit trước startup; cây làm việc có 2 commit local chưa push: `2f3c347` (startup) và `55fecfd` (gateway). Đang chờ Sếp duyệt push theo luật CI.
 
 > Ghi chú đồng bộ 2026-11-06: bảng việc dở bên dưới còn dữ liệu từ giai đoạn 0.4.7/0.4.9. Các mốc Git thực tế mới hơn là `38a9542` (khôi phục background survival), `d67b84e` (`v0.4.11`, animated progress), `d335b96` (`v0.4.12`, UI polish) và `66eb3cf` (nâng task progress). Các đầu mục cũ trong bảng chưa xác nhận là việc còn mở.
 
