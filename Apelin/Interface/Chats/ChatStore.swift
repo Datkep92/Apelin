@@ -1,6 +1,7 @@
 import ApelinCore
 import ApelinProtocol
 import Foundation
+import os
 
 struct ChatRecord: Codable, Sendable {
     var summary: ChatSummary
@@ -39,16 +40,31 @@ extension ChatRecord {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // The summary is what the sidebar lists: a file without a readable
+        // one is no conversation, and `load` names it and reads the rest.
         summary = try container.decode(ChatSummary.self, forKey: .summary)
-        draft = try container.decodeIfPresent(ComposerDraft.self, forKey: .draft) ?? ComposerDraft()
+        // Everything else is read for what it is, and a value this build
+        // cannot decode is dropped rather than failing the whole record: one
+        // such value used to empty every conversation's list at launch.
+        draft = Self.read(ComposerDraft.self, from: container, forKey: .draft) ?? ComposerDraft()
         sessionID = try container.decodeIfPresent(String.self, forKey: .sessionID)
-        task = try container.decodeIfPresent(TaskHandle.self, forKey: .task)
+        task = Self.read(TaskHandle.self, from: container, forKey: .task)
+        // Kept strict: inline events are an older file's whole transcript, so
+        // a record whose events do not read is left on disk untouched.
         events = try container.decodeIfPresent([TaskEvent].self, forKey: .events) ?? []
         eventsLoaded = try container.decodeIfPresent(Bool.self, forKey: .eventsLoaded) ?? false
-        sending = try container.decodeIfPresent([ComposerDraft].self, forKey: .sending)
-        replay = try container.decodeIfPresent(SessionReplay.self, forKey: .replay)
-        modelSelection = try container.decodeIfPresent(ComposerModelSelection.self, forKey: .modelSelection)
-        retryState = try container.decodeIfPresent(ModelRetryState.self, forKey: .retryState)
+        sending = Self.read([ComposerDraft].self, from: container, forKey: .sending)
+        replay = Self.read(SessionReplay.self, from: container, forKey: .replay)
+        modelSelection = Self.read(ComposerModelSelection.self, from: container, forKey: .modelSelection)
+        retryState = Self.read(ModelRetryState.self, from: container, forKey: .retryState)
+    }
+
+    /// The value under `key`, or nil when the file holds none or one this
+    /// build cannot decode.
+    private static func read<T: Decodable>(
+        _ type: T.Type, from container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys,
+    ) -> T? {
+        try? container.decodeIfPresent(T.self, forKey: key)
     }
 }
 
@@ -88,6 +104,38 @@ struct ModelRetryState: Codable, Sendable, Equatable {
     /// automatic retry steps over one still waiting; the reader's own Retry
     /// takes it anyway, since they asked.
     var cooldowns: [String: Date]?
+}
+
+extension ModelRetryState {
+    private enum CodingKeys: String, CodingKey {
+        case remaining, triedKeys, text, attempts, awaitingTurn, kind, cooldowns
+    }
+
+    /// Reads what the file holds and no more: a value added by a later build
+    /// (`triedKeys`) or one this build cannot name (`kind`) costs that value
+    /// alone. A state written before `triedKeys` existed used to fail its
+    /// whole record, and with it every conversation in the sidebar.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        remaining = ((try? container.decode([TolerantValue<ComposerModelSelection>].self, forKey: .remaining)) ?? [])
+            .compactMap { $0.value }
+        triedKeys = (try? container.decode(Set<String>.self, forKey: .triedKeys)) ?? []
+        text = (try? container.decode(String.self, forKey: .text)) ?? ""
+        attempts = (try? container.decode(Int.self, forKey: .attempts)) ?? 0
+        awaitingTurn = try? container.decodeIfPresent(Bool.self, forKey: .awaitingTurn)
+        kind = try? container.decodeIfPresent(ModelFailureKind.self, forKey: .kind)
+        cooldowns = try? container.decodeIfPresent([String: Date].self, forKey: .cooldowns)
+    }
+}
+
+/// One element of a list read on its own, so a value this build cannot decode
+/// costs that element rather than the list that holds it.
+struct TolerantValue<Wrapped: Decodable>: Decodable {
+    let value: Wrapped?
+
+    init(from decoder: Decoder) throws {
+        value = try? Wrapped(from: decoder)
+    }
 }
 
 /// The replay a reopened session's task starts with: every event of the
@@ -278,6 +326,10 @@ extension ChatRecord {
     }
 }
 
+/// One conversation this build cannot read is named here and left on disk as
+/// it is: it is not a reason to lose the others.
+private let chatStoreLog = Logger(subsystem: "wiki.qaq.apelin", category: "chat-store")
+
 /// Serial disk writes keep a slow earlier save from replacing a newer transcript.
 actor ChatStore {
     private let folder: DataFolder
@@ -299,25 +351,36 @@ actor ChatStore {
                   let path = CanonicalPath.resolve(url.path),
                   CanonicalPath.isCanonical(path, inside: directoryPath)
             else { continue }
-            var record = try JSONDecoder().decode(ChatRecord.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
-            let id = record.summary.id
-            let eventsURL = directory.appendingPathComponent(id.uuidString + ".events.json")
-            // Migration from the old single-file format: move events out.
-            if !record.events.isEmpty {
-                if !FileManager.default.fileExists(atPath: eventsURL.path) {
-                    let data = try JSONEncoder().encode(record.events)
-                    try data.write(to: eventsURL, options: .atomic)
+            do {
+                var record = try JSONDecoder().decode(ChatRecord.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
+                let id = record.summary.id
+                let eventsURL = directory.appendingPathComponent(id.uuidString + ".events.json")
+                // Migration from the old single-file format: move events out.
+                if !record.events.isEmpty {
+                    if !FileManager.default.fileExists(atPath: eventsURL.path) {
+                        let data = try JSONEncoder().encode(record.events)
+                        try data.write(to: eventsURL, options: .atomic)
+                    }
+                    record.events = []
+                    record.eventsLoaded = false
+                    let summaryData = try JSONEncoder().encode(record)
+                    try summaryData.write(to: url, options: .atomic)
+                } else if FileManager.default.fileExists(atPath: eventsURL.path) {
+                    record.eventsLoaded = false
+                } else {
+                    record.eventsLoaded = true
                 }
-                record.events = []
-                record.eventsLoaded = false
-                let summaryData = try JSONEncoder().encode(record)
-                try summaryData.write(to: url, options: .atomic)
-            } else if FileManager.default.fileExists(atPath: eventsURL.path) {
-                record.eventsLoaded = false
-            } else {
-                record.eventsLoaded = true
+                result.append(record)
+            } catch {
+                // One file this build cannot read costs its own conversation,
+                // never the list: it stays on disk as it is, named here, so
+                // the reader can still be told which one and a later build or
+                // a report can read it again.
+                chatStoreLog.error("""
+                    chat \(url.lastPathComponent, privacy: .public) not read: \
+                    \(String(describing: error), privacy: .public)
+                    """)
             }
-            result.append(record)
         }
         return result
     }
@@ -428,6 +491,24 @@ struct ComposerModelSelection: Codable, Equatable {
     }
 
     fileprivate static let key = "composer.modelSelection"
+}
+
+extension ComposerModelSelection {
+    private enum CodingKeys: String, CodingKey {
+        case provider, model, profileID, supportedEfforts, supportedTiers
+    }
+
+    /// A snapshot a later build wrote an effort or a tier this one cannot name
+    /// into costs that list, not the selection, and never the conversation
+    /// that holds it. Without a provider or a model there is no selection.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        provider = try container.decode(AgentProvider.self, forKey: .provider)
+        model = try container.decode(String.self, forKey: .model)
+        profileID = try container.decodeIfPresent(String.self, forKey: .profileID)
+        supportedEfforts = (try? container.decode([AgentReasoningEffort].self, forKey: .supportedEfforts)) ?? []
+        supportedTiers = try? container.decodeIfPresent([AgentServiceTier].self, forKey: .supportedTiers)
+    }
 }
 
 /// The reader's own picks on the effort and Speed controls, each kept

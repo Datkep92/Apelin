@@ -6,9 +6,10 @@
 # takes with it, which tool results are builds the star prompt counts and
 # how often it asks, the order the sidebar lists conversations in, which
 # projects the project menu lists at its top, which conversations offer
-# Delete and when it asks first, which replies leave a conversation
-# unread, and what a forced push's and a squash's approval cards show,
-# against the harness modules.
+# Delete and when it asks first, which saved file this build cannot read it
+# leaves behind rather than losing every conversation, which replies leave a
+# conversation unread, and what a forced push's and a squash's approval cards
+# show, against the harness modules.
 # Usage: test-chat-transcript.sh <ApelinKit modules directory>
 set -euo pipefail
 
@@ -54,6 +55,7 @@ sources=(
     "$root/Tests/ChatTranscript/SidebarOrderCheck.swift"
     "$root/Tests/ChatTranscript/ProjectMenuOrderCheck.swift"
     "$root/Tests/ChatTranscript/ChatDeletionCheck.swift"
+    "$root/Tests/ChatTranscript/ChatStoreDecodeCheck.swift"
     "$root/Tests/ChatTranscript/ChatUnreadCheck.swift"
     "$root/Tests/ChatTranscript/ForcePushCardCheck.swift"
     "$root/Tests/ChatTranscript/SquashCardCheck.swift"
