@@ -75,7 +75,7 @@ struct WebSearchToolTests {
         #expect(hits.first?.title == "XcodeGhost")
         #expect(hits.first?.url == "https://en.wikipedia.org/?curid=48467799")
         #expect(hits.first?.detail?.contains("<span") == false, "a snippet is text, not markup")
-        #expect(hits.first?.detail.contains("The UIWindow class is \"an object") == true)
+        #expect(hits.first?.detail?.contains("The UIWindow class is \"an object") == true)
     }
 
     @Test
