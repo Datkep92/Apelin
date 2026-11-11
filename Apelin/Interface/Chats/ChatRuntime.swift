@@ -103,6 +103,19 @@ final class ChatRuntime {
             os_log(.info, subsystem: "wiki.qaq.apelin", "startup: store.load done n=%d in %{public}@", loaded.count, String(describing: clock.now - start))
             for var record in loaded {
                 let unsent = record.sending != nil
+                if unsent {
+                    // Events must be loaded before reclaimUnsent: takeEchoed
+                    // reads them to decide which unsent messages the host took.
+                    let id = record.summary.id
+                    let url = DataFolder.app.root.appendingPathComponent("Chats/\(id.uuidString).events.json")
+                    if let data = try? Data(contentsOf: url),
+                       let events = try? JSONDecoder().decode([TaskEvent].self, from: data) {
+                        record.events = events
+                        record.eventsLoaded = true
+                    } else if !FileManager.default.fileExists(atPath: url.path) {
+                        record.eventsLoaded = true
+                    }
+                }
                 record.reclaimUnsent()
                 records[record.summary.id] = record
                 if unsent {
@@ -216,11 +229,16 @@ final class ChatRuntime {
     func loadEventsSyncIfNeeded(_ id: UUID) {
         guard let record = records[id], !record.eventsLoaded else { return }
         let url = DataFolder.app.root.appendingPathComponent("Chats/\(id.uuidString).events.json")
-        if let data = try? Data(contentsOf: url),
-           let events = try? JSONDecoder().decode([TaskEvent].self, from: data) {
-            records[id]?.events = events
+        if FileManager.default.fileExists(atPath: url.path) {
+            if let data = try? Data(contentsOf: url),
+               let events = try? JSONDecoder().decode([TaskEvent].self, from: data) {
+                records[id]?.events = events
+                records[id]?.eventsLoaded = true
+            }
+            // If decode fails, eventsLoaded stays false
+        } else {
+            records[id]?.eventsLoaded = true
         }
-        records[id]?.eventsLoaded = true
     }
 
     func hasEventsOnDisk(_ id: UUID) -> Bool {
@@ -335,6 +353,8 @@ final class ChatRuntime {
     }
 
     private func removeRecord(_ id: UUID) async throws {
+        loadingEvents[id]?.cancel()
+        loadingEvents.removeValue(forKey: id)
         // Keep the in-memory row on disk failure, so Delete can be retried.
         try await store.remove(id)
         readers.removeValue(forKey: id)?.cancel()
@@ -522,6 +542,7 @@ final class ChatRuntime {
     /// Compacts the conversation, and returns how it went once the session
     /// says so. Cancelled, it stops the compaction.
     func compact(_ id: UUID) async throws -> AgentCompactionResult {
+        loadEventsSyncIfNeeded(id)
         let opened = try await open(id)
         // what the reader takes from here on, which may answer before the request does
         let seen = records[id]?.events.count ?? 0
@@ -605,6 +626,7 @@ final class ChatRuntime {
         if let pending = opening[id] {
             return try await pending.value
         }
+        loadEventsSyncIfNeeded(id)
         guard let record = records[id] else { throw CancellationError() }
         if let sessionID = record.sessionID, let task = record.task, readers[id] != nil {
             return AgentOpenResponse(sessionID: sessionID, task: task)
@@ -832,6 +854,7 @@ final class ChatRuntime {
     private func answerRetryableFailure(in id: UUID) async {
         // One answer at a time: the models are looked up over the wire, and
         // a second error read meanwhile would answer the same one twice.
+        loadEventsSyncIfNeeded(id)
         guard records[id] != nil, !answeringRetryableFailure.contains(id) else { return }
         answeringRetryableFailure.insert(id)
         defer { answeringRetryableFailure.remove(id) }
@@ -884,6 +907,7 @@ final class ChatRuntime {
     /// The reader's Retry in the model bar: the next model, whether or not
     /// the automatic tries are spent.
     func retryFailedMessage(_ id: UUID) async {
+        loadEventsSyncIfNeeded(id)
         await sendNextModel(in: id, readerAsked: true)
     }
 
@@ -894,6 +918,7 @@ final class ChatRuntime {
     }
 
     private func sendNextModel(in id: UUID, readerAsked: Bool) async {
+        loadEventsSyncIfNeeded(id)
         guard var state = records[id]?.retryState,
               let next = state.nextCandidate(readerAsked: readerAsked) else { return }
         // One retry at a time: the same message sent twice would run twice,

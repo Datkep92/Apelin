@@ -267,7 +267,7 @@ actor ChatStore {
         try folder.makeLevels(to: directory)
         guard let directoryPath = CanonicalPath.resolve(directory.path) else { throw CocoaError(.fileReadNoSuchFile) }
         let urls = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "json" }
+            .filter { $0.pathExtension == "json" && UUID(uuidString: $0.deletingPathExtension().lastPathComponent) != nil }
         var result: [ChatRecord] = []
         for url in urls {
             guard UUID(uuidString: url.deletingPathExtension().lastPathComponent) != nil,

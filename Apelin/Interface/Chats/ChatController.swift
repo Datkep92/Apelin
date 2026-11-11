@@ -603,6 +603,7 @@ final class ChatController: UIViewController {
 
     func refreshRuntime() {
         guard let chat else { return }
+        runtime.loadEventsSyncIfNeeded(chat.id)
         if let summary = runtime.records[chat.id]?.summary {
             self.chat = summary
             if title != summary.displayTitle {
