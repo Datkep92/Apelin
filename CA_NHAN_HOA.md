@@ -317,6 +317,15 @@ không hỏi lại. Vẫn giữ version 0.4.30/62 (bản sửa cho cùng tính n
 hành). Kế tiếp: theo dõi CI run mới cho tới xanh, rồi tag + phát hành + cài như
 trên.
 
+**2026-11-11 — bản sửa “danh sách chat trống” đi hết luồng CI, phát hành 0.4.48:**
+bản sửa `d2652d8` cùng commit phát hành `8bb6b38` (version 0.4.48 / build 80) đã
+push `origin/main`; CI `43017385306` xanh; tag `v0.4.48` → Release `43025715093`
+xanh, Pages `43025803073` xanh. Gói rootless
+`wiki.qaq.apelin_0.4.48_iphoneos-arm64.deb` (`8de9d865…`) tải từ release, khớp
+dòng trong `SHA256SUMS` và đã cài lên máy (`dpkg -l` báo 0.4.48, Info.plist của
+app 0.4.48). **Chưa kiểm chứng:** danh sách chat trong dự án đã hiện lại chưa —
+phải mở app xem; nếu vẫn trống thì đọc log `chat-store`.
+
 ---
 
 ## 9. Trạng thái hiện tại — đọc mục này là đủ để làm tiếp
@@ -328,9 +337,9 @@ trên.
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `d2652d8` (bản sửa “danh sách chat trống”: đọc khoan dung từng giá trị trong bản ghi chat). HEAD này **local**, chưa push — chờ Sếp duyệt push theo luật CI (push = tăng version + release note). Máy đang cài 0.4.47 (`67556d2`), **vẫn còn lỗi** cho tới khi có bản mới.
+**HEAD khi cập nhật mục này:** `8bb6b38` (release 0.4.48 — bản sửa “danh sách chat trống”: đọc khoan dung từng giá trị trong bản ghi chat), đã push `origin/main`, tag `v0.4.48` đã đẩy. Release xanh, gói rootless khớp `SHA256SUMS` và **máy đang cài 0.4.48** (20:23 ngày 2026-11-11).
 
-**Việc mới nhất — danh sách chat trống (đã sửa, chưa biên dịch):** một phiên chat cũ (`F68DC400`) lưu `retryState` từ bản 0.4.42, thiếu khoá `triedKeys`; kiểu giải mã chặt ném lỗi, cả bản ghi lỗi, `ChatStore.load()` bỏ **toàn bộ** danh sách. Nay `ChatRecord` đọc `draft`/`task`/`sending`/`replay`/`modelSelection`/`retryState` khoan dung (giá trị nào bản này không đọc được thì bỏ giá trị đó), giữ `summary` và `events` chặt, và `load()` ghi tên tệp lỗi rồi đọc tiếp các tệp còn lại — tệp lỗi **vẫn nằm nguyên trên đĩa**. `ModelRetryState`/`ComposerModelSelection` có `CodingKeys` tường minh + giá trị mặc định; `remaining` đọc từng phần tử qua `TolerantValue`. Kèm test `ChatStoreDecodeCheck` (retry state cũ, `kind`/effort lạ, tệp không có summary) đã đăng ký trong `main.swift` + `Scripts/test-chat-transcript.sh`. **Chưa từng qua compiler** (máy không có Swift): CI là lần biên dịch đầu; chưa thấy danh sách chat hiện lại trên máy.
+**Việc mới nhất — danh sách chat trống (đã phát hành):** một phiên chat cũ (`F68DC400`) lưu `retryState` từ bản 0.4.42, thiếu khoá `triedKeys`; kiểu giải mã chặt ném lỗi, cả bản ghi lỗi, `ChatStore.load()` bỏ **toàn bộ** danh sách. Nay `ChatRecord` đọc `draft`/`task`/`sending`/`replay`/`modelSelection`/`retryState` khoan dung (giá trị nào bản này không đọc được thì bỏ giá trị đó), giữ `summary` và `events` chặt, và `load()` ghi tên tệp lỗi rồi đọc tiếp các tệp còn lại — tệp lỗi **vẫn nằm nguyên trên đĩa**. `ModelRetryState`/`ComposerModelSelection` có `CodingKeys` tường minh + giá trị mặc định; `remaining` đọc từng phần tử qua `TolerantValue`. Kèm test `ChatStoreDecodeCheck` (retry state cũ, `kind`/effort lạ, tệp không có summary) đã đăng ký trong `main.swift` + `Scripts/test-chat-transcript.sh`. **Chưa từng qua compiler** (máy không có Swift): CI là lần biên dịch đầu; chưa thấy danh sách chat hiện lại trên máy.
 
 > Ghi chú đồng bộ 2026-11-06: bảng việc dở bên dưới còn dữ liệu từ giai đoạn 0.4.7/0.4.9. Các mốc Git thực tế mới hơn là `38a9542` (khôi phục background survival), `d67b84e` (`v0.4.11`, animated progress), `d335b96` (`v0.4.12`, UI polish) và `66eb3cf` (nâng task progress). Các đầu mục cũ trong bảng chưa xác nhận là việc còn mở.
 
@@ -349,9 +358,9 @@ trên.
 | 10 | **Panel “Quá trình” của một lượt** (`2a02414`, `fb2750b`, `f4667ff`) | 3 điểm Sếp chốt đã phát hành trong **0.4.29** (CI xanh, tag `v0.4.29`). Việc kế tiếp: cài bản mới rồi **mở panel xem thật** trên máy (mới nhất trước, phụ đề nêu việc đã làm trước lý do). | chưa từng thấy trên màn hình máy; `checkTraceStep` chỉ chạy ở CI |
 | 11 | **Bộ chọn model gộp theo Base URL** (`f79b70f`) | CI run 170 đỏ ở `ModelPickerGroupingCheck` (nhóm một cấu hình không tên hiện tên nhà cung cấp) — đã sửa `4e5d211` (nhóm có địa chỉ gọi bằng địa chỉ, trừ cấu hình tự đặt tên), đang push lại CI. Xanh → tag `v0.4.30` → cài. | `ModelPickerGrouping` + 6 kịch bản transcript chỉ mới chạy ở CI lần đầu (đang chạy lại sau sửa); chưa thấy trên màn hình |
 
-| 13 | **Danh sách chat trống** (`d2652d8`, local) | Bản sửa đã viết + commit local; bước kế tiếp: push (tăng version + release note theo luật CI) → CI xanh (lần biên dịch đầu) → tag + phát hành + cài, rồi mở app xem danh sách chat trong dự án đã hiện lại | chưa từng qua compiler; chưa thấy danh sách trên máy |
+| 13 | **Danh sách chat trống** (`d2652d8`, phát hành `8bb6b38`) | Đã đi hết luồng CI cho **0.4.48** (build 80): push → CI `43017385306` xanh → tag `v0.4.48` → Release `43025715093` xanh → gói rootless khớp `SHA256SUMS` → cài lên máy. Bước kế tiếp: mở app, vào đúng dự án xem danh sách chat đã hiện lại; nếu vẫn trống thì đọc log `chat-store` (nêu tên tệp lỗi). | chưa từng thấy danh sách chat hiện lại trên màn hình |
 
-**Ràng buộc chung của các việc trên:** HEAD local `d2652d8` (bản sửa danh sách chat trống), **chưa push**. Máy đang cài **0.4.47** (`67556d2`), tức vẫn còn lỗi danh sách trống cho tới khi cài bản mới. Bảng 6.1 đã có dòng 71 cho bản sửa này. Push là quyết định của Sếp: theo luật CI, push kèm tăng version và release note.
+**Ràng buộc chung của các việc trên:** HEAD `8bb6b38` đã push, tag `v0.4.48` đã đẩy, Release + Pages xanh. Máy đang cài **0.4.48**; điều duy nhất còn thiếu là kiểm bằng mắt danh sách chat trong dự án. Bảng 6.1 đã có dòng 71 cho bản sửa này.
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
