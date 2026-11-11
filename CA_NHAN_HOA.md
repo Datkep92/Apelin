@@ -229,6 +229,8 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 | 70 | 2026-11-09 | Bản vá | **Sửa tiêu đề nhóm của bộ chọn model khi nhóm chỉ một cấu hình có Base URL:** CI đỏ ở kịch bản “hai địa chỉ trên một host” (`ModelPickerGroupingCheck` dòng 48) — nhóm một cấu hình không tên hiện tên nhà cung cấp thay vì địa chỉ. Giờ nhóm hình thành từ một địa chỉ thì gọi bằng địa chỉ (dù một hay nhiều khoá), trừ khi cấu hình đó do người dùng tự đặt tên; cấu hình không có Base URL vẫn giữ tên riêng. | `4e5d211` | Giữ luật: `title = AgentEndpoint.title(key)` khi nhóm có địa chỉ và không phải “một cấu hình đã đặt tên” (`namedAlone = indices.count == 1 && first.name != nil`); không quay lại hiển thị tên nhà cung cấp cho nhóm có địa chỉ. |
 | 71 | 2026-11-11 | Bản vá | **Danh sách chat trong dự án trống vì một bản ghi cũ đọc lỗi:** bản ghi `F68DC400` lưu `retryState` từ 0.4.42 thiếu khoá `triedKeys`; kiểu giải mã chặt ném lỗi nên cả bản ghi lỗi, và `ChatStore.load()` bỏ toàn bộ danh sách (chỉ còn mục dự án). Nay `ChatRecord` đọc `draft`/`task`/`sending`/`replay`/`modelSelection`/`retryState` khoan dung qua một hàm đọc riêng, `summary` và `events` vẫn chặt; `load()` ghi tên tệp lỗi rồi đọc tiếp, tệp lỗi để nguyên trên đĩa. `ModelRetryState`/`ComposerModelSelection` có `CodingKeys` tường minh + mặc định (`[]`, `""`, `0`), `remaining` đọc từng phần tử qua `TolerantValue`. Test `ChatStoreDecodeCheck` (retry state cũ thiếu `triedKeys`, `kind`/effort lạ, tệp không có summary). | `d2652d8` | Giữ: `summary` và `events` **chặt** (mất transcript thì không được lặng lẽ ghi lại); tệp lỗi **không bị xoá/sửa** tại chỗ mà chỉ bị bỏ qua và ghi log; không quay lại giải mã chặt cho các trường tuỳ chọn của bản ghi; `TolerantValue` đọc từng phần tử để một ứng viên hỏng không mất cả danh sách. |
 
+| 72 | 2026-11-12 | Cá nhân hoá | **Ba chỗ tìm kiếm chỉ tìm được theo tên:** thanh bên chỉ so tên cuộc trò chuyện nên gõ một câu đã nói trong chat thì không ra gì; màn Tệp chỉ lọc theo tên tệp; `apelin_web_search` chỉ tra GitHub/Hacker News/Reddit nên câu hỏi thường không có kết quả. Nay thanh bên tìm cả nội dung sự kiện của chat (prompt, steer, queued, text, message, thinking, error, compaction) qua `ChatContentSearch` + `TextSearch` (bỏ dấu, `đ`→`d`, cắt dòng 140 ký tự), đọc tệp sự kiện của chat chưa mở mà không giữ lại; màn Tệp có `ProjectFileSearch` (tên trước, nội dung sau, bỏ qua `build`/`.build`/`DerivedData`/`node_modules`/`Pods`/`.apelinbak`/tệp ẩn/tệp >1 MiB, quét ngoài main thread); công cụ web thêm DuckDuckGo HTML, Stack Overflow (Stack Exchange API) và Wikipedia, mô tả trong `ToolCatalog` đổi theo. | `5ac4ddc` | Giữ: quét ở nền và chỉ từ 2 ký tự để không chặn giao diện; không giữ nội dung chat đã đọc trong bộ nhớ; tệp lớn và thư mục build luôn bị bỏ qua; tên khớp xếp trước nội dung khớp. |
+
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
 2. Bổ sung **1 dòng** vào bảng 6.1: `Số | Ngày (YYYY-MM-DD) | Cá nhân hoá/Bản vá | Tóm tắt | Hash commit | Yêu cầu giữ lại`.
@@ -326,6 +328,20 @@ dòng trong `SHA256SUMS` và đã cài lên máy (`dpkg -l` báo 0.4.48, Info.pl
 app 0.4.48). **Chưa kiểm chứng:** danh sách chat trong dự án đã hiện lại chưa —
 phải mở app xem; nếu vẫn trống thì đọc log `chat-store`.
 
+**2026-11-12 — ba việc tìm kiếm, kiểm bằng Swift ngay trên máy rồi mới đẩy:**
+tính năng `5ac4ddc` (tìm chat theo nội dung tin nhắn, tìm tệp theo tên + nội dung,
+`apelin_web_search` lên 6 nguồn) cùng commit tài liệu `b54546d` còn nằm local.
+Máy có sẵn gói Swift 5.9.2 nên trước khi đẩy đã kiểm: cú pháp **13/13 tệp sạch**
+(sau khi chuẩn hoá hai cú pháp mà bản 5.9.2 không hiểu — dấu phẩy cuối danh sách
+đối số, và dấu phẩy/nháy đơn trong tên hàm bọc backtick; code cũ CI-xanh lỗi y hệt
+nên đó là giới hạn của bộ biên dịch, không phải lỗi code), và **kiểm kiểu thật 3
+tệp lõi** (`TextSearch`, `ChatContentSearch`, `ProjectFileSearch`) với SDK
+iphoneos16.4 — không một lỗi. Phần apelin-agent (`WebSearch.swift` cần module
+`KWWKAI`) và các tệp UIKit chưa kiểm riêng được; CI là lần biên dịch thật của
+chúng. Sếp cho phép đẩy: bump **0.4.49 / build 81** + release note
+`Documents/Releases/0.4.49.md` → push `origin/main`. **Chưa kiểm chứng:** giao diện
+tìm kiếm chưa từng thấy trên màn hình, 6 nguồn web chưa gọi thật lần nào.
+
 ---
 
 ## 9. Trạng thái hiện tại — đọc mục này là đủ để làm tiếp
@@ -337,7 +353,9 @@ phải mở app xem; nếu vẫn trống thì đọc log `chat-store`.
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `8bb6b38` (release 0.4.48 — bản sửa “danh sách chat trống”: đọc khoan dung từng giá trị trong bản ghi chat), đã push `origin/main`, tag `v0.4.48` đã đẩy. Release xanh, gói rootless khớp `SHA256SUMS` và **máy đang cài 0.4.48** (20:23 ngày 2026-11-11).
+**HEAD khi cập nhật mục này:** commit bump **0.4.49 / build 81** (ba việc tìm kiếm), đẩy `origin/main` ngày 2026-11-12 — hash xem `git log -1`. Trước đó: `8bb6b38` (release 0.4.48), tag `v0.4.48` đã đẩy, **máy đang cài 0.4.48**.
+
+**Máy đã có bộ biên dịch Swift 5.9.2** (`swiftc` gọi qua symlink `/var/mobile/tmp/swiftwrap/swiftc`, SDK `iphoneos16.4-7e4638db`, module ApelinCore/ApelinProtocol ở `/var/mobile/tmp/swiftmod`) — nhờ vậy kiểm được cú pháp và kiểu của tệp Swift ngay trên máy thay vì chờ CI. Hai giới hạn của bản 5.9.2 (dấu phẩy cuối danh sách đối số; dấu phẩy/nháy đơn trong tên hàm bọc backtick) báo lỗi **giả** — code cũ CI-xanh cũng lỗi y hệt.
 
 **Việc mới nhất — danh sách chat trống (đã phát hành):** một phiên chat cũ (`F68DC400`) lưu `retryState` từ bản 0.4.42, thiếu khoá `triedKeys`; kiểu giải mã chặt ném lỗi, cả bản ghi lỗi, `ChatStore.load()` bỏ **toàn bộ** danh sách. Nay `ChatRecord` đọc `draft`/`task`/`sending`/`replay`/`modelSelection`/`retryState` khoan dung (giá trị nào bản này không đọc được thì bỏ giá trị đó), giữ `summary` và `events` chặt, và `load()` ghi tên tệp lỗi rồi đọc tiếp các tệp còn lại — tệp lỗi **vẫn nằm nguyên trên đĩa**. `ModelRetryState`/`ComposerModelSelection` có `CodingKeys` tường minh + giá trị mặc định; `remaining` đọc từng phần tử qua `TolerantValue`. Kèm test `ChatStoreDecodeCheck` (retry state cũ, `kind`/effort lạ, tệp không có summary) đã đăng ký trong `main.swift` + `Scripts/test-chat-transcript.sh`. **Chưa từng qua compiler** (máy không có Swift): CI là lần biên dịch đầu; chưa thấy danh sách chat hiện lại trên máy.
 
@@ -360,7 +378,9 @@ phải mở app xem; nếu vẫn trống thì đọc log `chat-store`.
 
 | 13 | **Danh sách chat trống** (`d2652d8`, phát hành `8bb6b38`) | Đã đi hết luồng CI cho **0.4.48** (build 80): push → CI `43017385306` xanh → tag `v0.4.48` → Release `43025715093` xanh → gói rootless khớp `SHA256SUMS` → cài lên máy. Bước kế tiếp: mở app, vào đúng dự án xem danh sách chat đã hiện lại; nếu vẫn trống thì đọc log `chat-store` (nêu tên tệp lỗi). | chưa từng thấy danh sách chat hiện lại trên màn hình |
 
-**Ràng buộc chung của các việc trên:** HEAD `8bb6b38` đã push, tag `v0.4.48` đã đẩy, Release + Pages xanh. Máy đang cài **0.4.48**; điều duy nhất còn thiếu là kiểm bằng mắt danh sách chat trong dự án. Bảng 6.1 đã có dòng 71 cho bản sửa này.
+| 14 | **Mở rộng tìm kiếm** (`5ac4ddc`, bump 0.4.49/81) | Tìm chat theo nội dung tin nhắn ở thanh bên; tìm tệp theo tên **và** nội dung; `apelin_web_search` thêm DuckDuckGo, Stack Overflow, Wikipedia (tổng 6 nguồn). Đã kiểm cú pháp 13 tệp và kiểu 3 tệp lõi bằng Swift 5.9.2 trên máy (sạch); đang đẩy CI. | giao diện tìm kiếm chưa từng thấy trên màn hình; 6 nguồn web chưa gọi thật lần nào; phần UIKit và apelin-agent chỉ CI kiểm được |
+
+**Ràng buộc chung của các việc trên:** máy đang cài **0.4.48**; bản 0.4.49 (ba việc tìm kiếm) đẩy `origin/main` ngày 2026-11-12, đang chờ CI. Dòng 13 (danh sách chat trống) chỉ còn thiếu kiểm bằng mắt. Bảng 6.1 đã có dòng 71 cho bản sửa 0.4.48.
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
