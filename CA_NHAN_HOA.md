@@ -231,6 +231,8 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 
 | 72 | 2026-11-12 | Cá nhân hoá | **Ba chỗ tìm kiếm chỉ tìm được theo tên:** thanh bên chỉ so tên cuộc trò chuyện nên gõ một câu đã nói trong chat thì không ra gì; màn Tệp chỉ lọc theo tên tệp; `apelin_web_search` chỉ tra GitHub/Hacker News/Reddit nên câu hỏi thường không có kết quả. Nay thanh bên tìm cả nội dung sự kiện của chat (prompt, steer, queued, text, message, thinking, error, compaction) qua `ChatContentSearch` + `TextSearch` (bỏ dấu, `đ`→`d`, cắt dòng 140 ký tự), đọc tệp sự kiện của chat chưa mở mà không giữ lại; màn Tệp có `ProjectFileSearch` (tên trước, nội dung sau, bỏ qua `build`/`.build`/`DerivedData`/`node_modules`/`Pods`/`.apelinbak`/tệp ẩn/tệp >1 MiB, quét ngoài main thread); công cụ web thêm DuckDuckGo HTML, Stack Overflow (Stack Exchange API) và Wikipedia, mô tả trong `ToolCatalog` đổi theo. | `5ac4ddc` | Giữ: quét ở nền và chỉ từ 2 ký tự để không chặn giao diện; không giữ nội dung chat đã đọc trong bộ nhớ; tệp lớn và thư mục build luôn bị bỏ qua; tên khớp xếp trước nội dung khớp. |
 
+| 73 | 2026-11-12 | Bản vá | **Test đọc log làm CI đỏ ngẫu nhiên:** test `testAListenIsOneStreamForItsWholeWindow` ghi 40 dòng, ngủ cố định 1 giây rồi đóng nghe và đòi dòng cuối (số 39) đã tới; máy CI bận nên logd giao dòng cuối chậm, đóng nghe cắt mất nó. Nay chờ dòng cuối tới (tối đa 10 giây) trước khi đóng; lời hứa của test giữ nguyên — dòng cuối không tới thì vẫn đỏ. | `5bdcf8c` | Giữ ý "một lần nghe không có mối nối": đừng nới khẳng định dòng cuối, chỉ chỉnh thời gian chờ. |
+
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
 2. Bổ sung **1 dòng** vào bảng 6.1: `Số | Ngày (YYYY-MM-DD) | Cá nhân hoá/Bản vá | Tóm tắt | Hash commit | Yêu cầu giữ lại`.
@@ -342,6 +344,18 @@ chúng. Sếp cho phép đẩy: bump **0.4.49 / build 81** + release note
 `Documents/Releases/0.4.49.md` → push `origin/main`. **Chưa kiểm chứng:** giao diện
 tìm kiếm chưa từng thấy trên màn hình, 6 nguồn web chưa gọi thật lần nào.
 
+**2026-11-12 — CI đỏ hai lần rồi xanh, phát hành 0.4.49:** lượt đầu (`43065313855`)
+đỏ ở job **Host tests** vì test `WebSearchToolTests` so sánh một chuỗi optional chưa
+mở (`hits.first?.detail.contains`), lỗi biên dịch — sửa `00094ae`. Lượt hai
+(`43069444577`) đỏ tiếp, lần này là test chạy thật `SystemLogReaderTests`: dòng cuối
+(số 39) chưa tới trong 1 giây ngủ cố định nên bị cắt khi đóng nghe — máy CI bận,
+không liên quan phần tìm kiếm. Sửa `5bdcf8c`: chờ dòng cuối tới, tối đa 10 giây,
+giữ nguyên khẳng định (dòng cuối không tới vẫn đỏ); kiểm cú pháp tệp test bằng
+Swift 5.9.2 trên máy trước khi đẩy. Lượt ba (`43071300268`) **xanh cả hai job** →
+tag `v0.4.49` → Release `43075028656` xanh → tải gói rootless
+`wiki.qaq.apelin_0.4.49_iphoneos-arm64.deb` (33,4 MB), `sha256sum -c` khớp. **Chưa
+cài**: máy vẫn 0.4.48, chờ Sếp cho phép.
+
 ---
 
 ## 9. Trạng thái hiện tại — đọc mục này là đủ để làm tiếp
@@ -353,7 +367,7 @@ tìm kiếm chưa từng thấy trên màn hình, 6 nguồn web chưa gọi th�
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** commit bump **0.4.49 / build 81** (ba việc tìm kiếm), đẩy `origin/main` ngày 2026-11-12 — hash xem `git log -1`. Trước đó: `8bb6b38` (release 0.4.48), tag `v0.4.48` đã đẩy, **máy đang cài 0.4.48**.
+**HEAD khi cập nhật mục này:** `5bdcf8c` (sửa test đọc log, sau commit bump `e0f5528` và bản sửa `00094ae`) — **0.4.49 / build 81 đã phát hành**: CI `43071300268` xanh (Host tests + Build), tag `v0.4.49`, Release `43075028656` xanh; gói rootless `wiki.qaq.apelin_0.4.49_iphoneos-arm64.deb` đã tải và khớp `SHA256SUMS`. **Máy vẫn đang cài 0.4.48** — chờ Sếp cho phép cài lên. Trước đó: `8bb6b38` (release 0.4.48).
 
 **Máy đã có bộ biên dịch Swift 5.9.2** (`swiftc` gọi qua symlink `/var/mobile/tmp/swiftwrap/swiftc`, SDK `iphoneos16.4-7e4638db`, module ApelinCore/ApelinProtocol ở `/var/mobile/tmp/swiftmod`) — nhờ vậy kiểm được cú pháp và kiểu của tệp Swift ngay trên máy thay vì chờ CI. Hai giới hạn của bản 5.9.2 (dấu phẩy cuối danh sách đối số; dấu phẩy/nháy đơn trong tên hàm bọc backtick) báo lỗi **giả** — code cũ CI-xanh cũng lỗi y hệt.
 
@@ -378,9 +392,9 @@ tìm kiếm chưa từng thấy trên màn hình, 6 nguồn web chưa gọi th�
 
 | 13 | **Danh sách chat trống** (`d2652d8`, phát hành `8bb6b38`) | Đã đi hết luồng CI cho **0.4.48** (build 80): push → CI `43017385306` xanh → tag `v0.4.48` → Release `43025715093` xanh → gói rootless khớp `SHA256SUMS` → cài lên máy. Bước kế tiếp: mở app, vào đúng dự án xem danh sách chat đã hiện lại; nếu vẫn trống thì đọc log `chat-store` (nêu tên tệp lỗi). | chưa từng thấy danh sách chat hiện lại trên màn hình |
 
-| 14 | **Mở rộng tìm kiếm** (`5ac4ddc`, bump 0.4.49/81) | Tìm chat theo nội dung tin nhắn ở thanh bên; tìm tệp theo tên **và** nội dung; `apelin_web_search` thêm DuckDuckGo, Stack Overflow, Wikipedia (tổng 6 nguồn). Đã kiểm cú pháp 13 tệp và kiểu 3 tệp lõi bằng Swift 5.9.2 trên máy (sạch); đang đẩy CI. | giao diện tìm kiếm chưa từng thấy trên màn hình; 6 nguồn web chưa gọi thật lần nào; phần UIKit và apelin-agent chỉ CI kiểm được |
+| 14 | **Mở rộng tìm kiếm** (`5ac4ddc`, bump 0.4.49/81, đã phát hành `v0.4.49`) | Tìm chat theo nội dung tin nhắn ở thanh bên; tìm tệp theo tên **và** nội dung; `apelin_web_search` thêm DuckDuckGo, Stack Overflow, Wikipedia (tổng 6 nguồn). CI xanh `43071300268`, Release `43075028656`, gói rootless đã tải + khớp SHA256 — **chờ Sếp cho phép cài**. | giao diện tìm kiếm chưa từng thấy trên màn hình; 6 nguồn web chưa gọi thật lần nào |
 
-**Ràng buộc chung của các việc trên:** máy đang cài **0.4.48**; bản 0.4.49 (ba việc tìm kiếm) đẩy `origin/main` ngày 2026-11-12, đang chờ CI. Dòng 13 (danh sách chat trống) chỉ còn thiếu kiểm bằng mắt. Bảng 6.1 đã có dòng 71 cho bản sửa 0.4.48.
+**Ràng buộc chung của các việc trên:** máy đang cài **0.4.48**; bản **0.4.49** (ba việc tìm kiếm) đã phát hành `v0.4.49` và chỉ còn bước cài lên máy. Dòng 13 (danh sách chat trống) chỉ còn thiếu kiểm bằng mắt. Bảng 6.1 đã có dòng 71 cho bản sửa 0.4.48 và dòng 73 cho bản sửa test đọc log.
 
 **Đã đóng, không cần đọc lại:** tầng tài liệu tiếp nhận (§8 và §8.1) và chính
 §9/§10 này — đã viết xong và commit ở `2f05041`; sáu commit sửa lỗi biên dịch sau
