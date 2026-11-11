@@ -365,6 +365,19 @@ bump **0.4.50 / build 82** + release note `Documents/Releases/0.4.50.md` (ghi th
 là bản này **không có thay đổi nào người dùng nhìn thấy**), push `origin/main`.
 **Chưa kiểm chứng:** CI của lượt này chưa chạy xong khi ghi dòng này.
 
+**2026-11-12 — 0.4.50 phát hành xong (CI xanh, Release xanh, gói khớp SHA256):**
+sau khi máy khởi động lại, kiểm lại CI của commit `6cf8cef` bằng `gh api`: run
+`43078106251` **completed success**. Gắn tag `v0.4.50` bằng `gh api`
+(`POST /git/refs`, vì `git_push` chỉ đẩy branch) → workflow **Release
+`43117380388` success**, Pages `43117436326` xếp hàng. Tải gói rootless
+`wiki.qaq.apelin_0.4.50_iphoneos-arm64.deb` (33,4 MB) cùng `SHA256SUMS` về
+`/tmp/rel0450`, đối chiếu riêng dòng gói này: `9b0db83a…` → **OK** (các dòng khác
+trong `SHA256SUMS` là gói khác chưa tải, không liên quan). Đọc
+`/var/lib/dpkg/status`: **máy nay đang cài 0.4.49** (trước đó là 0.4.48) — tức bản
+0.4.49 gồm tìm kiếm + Terminal/Chạy test/Files/Git **đã được cài**. 0.4.50 không có
+thay đổi code nào so với 0.4.49, cài chỉ đổi số phiên bản. **Chưa kiểm bằng mắt:**
+giao diện tìm kiếm, 6 nguồn web, Terminal/Chạy test/Files/Git, danh sách chat.
+
 ---
 
 
@@ -377,7 +390,7 @@ là bản này **không có thay đổi nào người dùng nhìn thấy**), pus
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
-**HEAD khi cập nhật mục này:** `5bdcf8c` (sửa test đọc log, sau commit bump `e0f5528` và bản sửa `00094ae`) — **0.4.49 / build 81 đã phát hành**: CI `43071300268` xanh (Host tests + Build), tag `v0.4.49`, Release `43075028656` xanh; gói rootless `wiki.qaq.apelin_0.4.49_iphoneos-arm64.deb` đã tải và khớp `SHA256SUMS`. **Máy vẫn đang cài 0.4.48** — chờ Sếp cho phép cài lên. Trước đó: `8bb6b38` (release 0.4.48).
+**HEAD khi cập nhật mục này:** `6cf8cef` — **0.4.50 / build 82 đã phát hành**: CI `43078106251` xanh (Host tests + Build), tag `v0.4.50`, Release `43117380388` xanh; gói rootless `wiki.qaq.apelin_0.4.50_iphoneos-arm64.deb` đã tải và khớp `SHA256SUMS` (`9b0db83a…`). Bản 0.4.50 **không có thay đổi code nào** so với 0.4.49 (chỉ đẩy commit tài liệu `a3bb863`). **Máy đang cài 0.4.49** — tức đã có tìm kiếm + Terminal / Chạy test / Files / Git. Trước đó: `8bb6b38` (release 0.4.48), `5bdcf8c` (0.4.49).
 
 **Máy đã có bộ biên dịch Swift 5.9.2** (`swiftc` gọi qua symlink `/var/mobile/tmp/swiftwrap/swiftc`, SDK `iphoneos16.4-7e4638db`, module ApelinCore/ApelinProtocol ở `/var/mobile/tmp/swiftmod`) — nhờ vậy kiểm được cú pháp và kiểu của tệp Swift ngay trên máy thay vì chờ CI. Hai giới hạn của bản 5.9.2 (dấu phẩy cuối danh sách đối số; dấu phẩy/nháy đơn trong tên hàm bọc backtick) báo lỗi **giả** — code cũ CI-xanh cũng lỗi y hệt.
 
