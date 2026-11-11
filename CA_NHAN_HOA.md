@@ -356,7 +356,17 @@ tag `v0.4.49` → Release `43075028656` xanh → tải gói rootless
 `wiki.qaq.apelin_0.4.49_iphoneos-arm64.deb` (33,4 MB), `sha256sum -c` khớp. **Chưa
 cài**: máy vẫn 0.4.48, chờ Sếp cho phép.
 
+**2026-11-12 (tiếp) — mốc phát hành 0.4.50 chỉ để đẩy tài liệu:** sau khi kiểm lại,
+`git log origin/main..HEAD` chỉ còn **một** commit `a3bb863` (sửa `CA_NHAN_HOA.md`);
+mọi thay đổi code của các việc đang dở (bộ chọn model, retry provenance, terminal /
+test runner / Files / Git) đã nằm trong `origin/main` và đã qua CI ở các bản
+0.4.46–0.4.49. Sếp yêu cầu chạy CI, nên theo luật “mỗi lần đẩy là tăng version”:
+bump **0.4.50 / build 82** + release note `Documents/Releases/0.4.50.md` (ghi thẳng
+là bản này **không có thay đổi nào người dùng nhìn thấy**), push `origin/main`.
+**Chưa kiểm chứng:** CI của lượt này chưa chạy xong khi ghi dòng này.
+
 ---
+
 
 ## 9. Trạng thái hiện tại — đọc mục này là đủ để làm tiếp
 
