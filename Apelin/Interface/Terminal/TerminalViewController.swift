@@ -14,6 +14,7 @@ final class TerminalViewController: UIViewController {
     private let outputView = UITextView()
     private let inputField = UITextField()
     private let sendButton = UIButton(type: .system)
+    private let toolbarStack = UIStackView()
     private var readBuffer = Data()
 
     init(projectID: String? = nil, initialCommand: String? = nil) {
@@ -39,6 +40,28 @@ final class TerminalViewController: UIViewController {
         outputView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(outputView)
 
+        toolbarStack.axis = .horizontal
+        toolbarStack.spacing = 8
+        toolbarStack.distribution = .fillEqually
+        toolbarStack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(toolbarStack)
+
+        let ctrlC = UIButton(type: .system)
+        ctrlC.setTitle(String(localized: "Ctrl+C"), for: .normal)
+        ctrlC.addTarget(self, action: #selector(sendCtrlC), for: .touchUpInside)
+        let clear = UIButton(type: .system)
+        clear.setTitle(String(localized: "Clear"), for: .normal)
+        clear.addTarget(self, action: #selector(clearOutput), for: .touchUpInside)
+        let node = UIButton(type: .system)
+        node.setTitle(String(localized: "node"), for: .normal)
+        node.addTarget(self, action: #selector(insertNode), for: .touchUpInside)
+        let python = UIButton(type: .system)
+        python.setTitle(String(localized: "python3"), for: .normal)
+        python.addTarget(self, action: #selector(insertPython), for: .touchUpInside)
+        for b in [ctrlC, clear, node, python] {
+            toolbarStack.addArrangedSubview(b)
+        }
+
         inputField.borderStyle = .roundedRect
         inputField.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
         inputField.placeholder = String(localized: "Command")
@@ -58,7 +81,12 @@ final class TerminalViewController: UIViewController {
             outputView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             outputView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             outputView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            outputView.bottomAnchor.constraint(equalTo: inputField.topAnchor, constant: -8),
+            outputView.bottomAnchor.constraint(equalTo: toolbarStack.topAnchor, constant: -8),
+
+            toolbarStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            toolbarStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            toolbarStack.bottomAnchor.constraint(equalTo: inputField.topAnchor, constant: -8),
+            toolbarStack.heightAnchor.constraint(equalToConstant: 32),
 
             inputField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             inputField.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
@@ -155,6 +183,24 @@ final class TerminalViewController: UIViewController {
                 _ = Darwin.write(fd, ptr.baseAddress, data.count)
             }
         }
+    }
+
+    @objc private func sendCtrlC() {
+        writeInput("\u{03}")
+    }
+
+    @objc private func clearOutput() {
+        outputView.text = ""
+    }
+
+    @objc private func insertNode() {
+        inputField.text = "node "
+        inputField.becomeFirstResponder()
+    }
+
+    @objc private func insertPython() {
+        inputField.text = "python3 "
+        inputField.becomeFirstResponder()
     }
 
     override func viewWillDisappear(_ animated: Bool) {

@@ -42,7 +42,29 @@ final class GitDiffViewController: UIViewController {
     private func load() async {
         do {
             let response = try await ApelinService.app.gitDiff(projectID: projectID, path: path, staged: staged)
-            textView.text = response.diff.isEmpty ? String(localized: "No diff.") : response.diff
+            let diff = response.diff.isEmpty ? String(localized: "No diff.") : response.diff
+            let attributed = NSMutableAttributedString()
+            let baseFont = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+            for line in diff.split(separator: "\n", omittingEmptySubsequences: false) {
+                let text = String(line) + "\n"
+                let color: UIColor
+                if line.hasPrefix("+++") || line.hasPrefix("---") {
+                    color = .secondaryLabel
+                } else if line.hasPrefix("+") {
+                    color = .systemGreen
+                } else if line.hasPrefix("-") {
+                    color = .systemRed
+                } else if line.hasPrefix("@@") {
+                    color = .systemCyan
+                } else {
+                    color = .label
+                }
+                attributed.append(NSAttributedString(string: text, attributes: [
+                    .font: baseFont,
+                    .foregroundColor: color,
+                ]))
+            }
+            textView.attributedText = attributed
         } catch {
             textView.text = "[Error: \(error.readableMessage)]"
         }

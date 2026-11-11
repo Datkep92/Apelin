@@ -44,6 +44,16 @@ enum ProjectActions {
                 animated: true,
             )
         }
+        let filesAction = UIAction(
+            title: String(localized: "Files"),
+            image: UIImage(systemName: "folder"),
+        ) { [weak presenter] _ in
+            guard let presenter else { return }
+            presenter.navigationController?.pushViewController(
+                FileExplorerViewController(projectName: projectName),
+                animated: true,
+            )
+        }
         let gitAction = UIAction(
             title: String(localized: "Git"),
             image: UIImage(systemName: "arrow.triangle.branch"),
@@ -87,7 +97,7 @@ enum ProjectActions {
         return UIMenu(children: [
             UIMenu(options: .displayInline, children: chatActions),
             UIMenu(options: .displayInline, children: folders),
-            UIMenu(title: String(localized: "Project"), options: .displayInline, children: [terminalAction, testRunnerAction, gitAction, renameAction, export, distribute]),
+            UIMenu(title: String(localized: "Project"), options: .displayInline, children: [terminalAction, testRunnerAction, filesAction, gitAction, renameAction, export, distribute]),
         ])
     }
 

@@ -22,6 +22,12 @@ final class TestRunnerViewController: UIViewController {
         navigationItem.backButtonDisplayMode = .minimal
         view.backgroundColor = .systemBackground
 
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .refresh,
+            target: self,
+            action: #selector(reload),
+        )
+
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.dataSource = self
         tableView.delegate = self
@@ -35,18 +41,33 @@ final class TestRunnerViewController: UIViewController {
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(emptyLabel)
 
+        let runAll = UIButton(type: .system)
+        runAll.setTitle(String(localized: "Run all tests"), for: .normal)
+        runAll.addTarget(self, action: #selector(runAllTests), for: .touchUpInside)
+        runAll.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(runAll)
+
         NSLayoutConstraint.activate([
             tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            tableView.bottomAnchor.constraint(equalTo: runAll.topAnchor, constant: -8),
 
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+
+            runAll.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            runAll.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            runAll.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+            runAll.heightAnchor.constraint(equalToConstant: 44),
         ])
 
+        loadScripts()
+    }
+
+    @objc private func reload() {
         loadScripts()
     }
 
@@ -65,15 +86,40 @@ final class TestRunnerViewController: UIViewController {
 
         scripts = scriptsObject
             .map { (name: $0.key, command: $0.value) }
-            .sorted { $0.name < $1.name }
+            .sorted { lhs, rhs in
+                let lTest = lhs.name.lowercased().contains("test")
+                let rTest = rhs.name.lowercased().contains("test")
+                if lTest != rTest { return lTest && !rTest }
+                return lhs.name < rhs.name
+            }
         tableView.reloadData()
         emptyLabel.isHidden = !scripts.isEmpty
+    }
+
+    @objc private func runAllTests() {
+        let testScript = scripts.first { $0.name.lowercased() == "test" }?.name
+            ?? scripts.first { $0.name.lowercased().contains("test") }?.name
+        let command = testScript.map { "npm run \($0)" } ?? "npm test"
+        navigationController?.pushViewController(
+            TerminalViewController(projectID: "project:\(projectName)", initialCommand: command),
+            animated: true,
+        )
     }
 }
 
 extension TestRunnerViewController: UITableViewDataSource, UITableViewDelegate {
+    func numberOfSections(in tableView: UITableView) -> Int {
+        scripts.isEmpty ? 0 : 1
+    }
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         scripts.count
+    }
+
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        scripts.contains(where: { $0.name.lowercased().contains("test") })
+            ? String(localized: "Scripts")
+            : nil
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -83,6 +129,9 @@ extension TestRunnerViewController: UITableViewDataSource, UITableViewDelegate {
         content.text = script.name
         content.secondaryText = script.command
         content.secondaryTextProperties.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        if script.name.lowercased().contains("test") {
+            content.image = UIImage(systemName: "checkmark.circle")
+        }
         cell.contentConfiguration = content
         cell.accessoryType = .disclosureIndicator
         return cell

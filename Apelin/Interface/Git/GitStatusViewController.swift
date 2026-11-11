@@ -8,6 +8,10 @@ final class GitStatusViewController: UIViewController {
     private var branch: String?
     private var head: String?
 
+    private var stagedEntries: [GitStatusEntry] = []
+    private var unstagedEntries: [GitStatusEntry] = []
+    private var untrackedEntries: [GitStatusEntry] = []
+
     private let tableView = UITableView(frame: .zero, style: .insetGrouped)
     private let headerLabel = UILabel()
     private let commitField = UITextField()
@@ -53,11 +57,27 @@ final class GitStatusViewController: UIViewController {
         commitAllButton.addTarget(self, action: #selector(commitAll), for: .touchUpInside)
         commitAllButton.translatesAutoresizingMaskIntoConstraints = false
 
+        let stageAllButton = UIButton(type: .system)
+        stageAllButton.setTitle(String(localized: "Stage all"), for: .normal)
+        stageAllButton.addTarget(self, action: #selector(stageAll), for: .touchUpInside)
+        stageAllButton.translatesAutoresizingMaskIntoConstraints = false
+
+        let unstageAllButton = UIButton(type: .system)
+        unstageAllButton.setTitle(String(localized: "Unstage all"), for: .normal)
+        unstageAllButton.addTarget(self, action: #selector(unstageAll), for: .touchUpInside)
+        unstageAllButton.translatesAutoresizingMaskIntoConstraints = false
+
+        let buttonRow = UIStackView(arrangedSubviews: [stageAllButton, unstageAllButton, commitAllButton])
+        buttonRow.axis = .horizontal
+        buttonRow.spacing = 8
+        buttonRow.distribution = .fillEqually
+        buttonRow.translatesAutoresizingMaskIntoConstraints = false
+
         view.addSubview(headerLabel)
         view.addSubview(tableView)
         view.addSubview(commitField)
         view.addSubview(commitButton)
-        view.addSubview(commitAllButton)
+        view.addSubview(buttonRow)
 
         NSLayoutConstraint.activate([
             headerLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
@@ -67,7 +87,6 @@ final class GitStatusViewController: UIViewController {
             tableView.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 8),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: commitField.topAnchor, constant: -8),
 
             commitField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             commitField.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
@@ -76,9 +95,14 @@ final class GitStatusViewController: UIViewController {
             commitButton.centerYAnchor.constraint(equalTo: commitField.centerYAnchor),
             commitButton.widthAnchor.constraint(equalToConstant: 110),
 
-            commitAllButton.topAnchor.constraint(equalTo: commitButton.bottomAnchor, constant: 4),
-            commitAllButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            buttonRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            buttonRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            buttonRow.bottomAnchor.constraint(equalTo: commitField.topAnchor, constant: -8),
+            buttonRow.heightAnchor.constraint(equalToConstant: 32),
         ])
+
+        // move buttonRow above tableView bottom? adjust: put buttonRow at bottom area already; ensure tableView bottom above buttonRow
+        tableView.bottomAnchor.constraint(equalTo: buttonRow.topAnchor, constant: -8).isActive = true
 
         Task { await loadStatus() }
     }
@@ -94,12 +118,32 @@ final class GitStatusViewController: UIViewController {
             branch = status.branch
             head = status.head
             headerLabel.text = "Branch: \(branch ?? "-")\nHEAD: \(head ?? "-")\nChanges: \(entries.count)"
+            groupEntries()
         } catch {
             headerLabel.text = "[Error: \(error.readableMessage)]"
             entries = []
+            stagedEntries = []
+            unstagedEntries = []
+            untrackedEntries = []
         }
         tableView.reloadData()
         refreshControl.endRefreshing()
+    }
+
+    private func groupEntries() {
+        stagedEntries = []
+        unstagedEntries = []
+        untrackedEntries = []
+        for e in entries {
+            if e.index == "?" && e.worktree == "?" {
+                untrackedEntries.append(e)
+            } else if e.index != " " && e.index != "?" {
+                stagedEntries.append(e)
+            }
+            if e.worktree != " " && e.worktree != "?" {
+                unstagedEntries.append(e)
+            }
+        }
     }
 
     @objc private func commitStaged() {
@@ -126,6 +170,32 @@ final class GitStatusViewController: UIViewController {
                 await loadStatus()
             } catch {
                 presentNotice(title: "Commit failed", message: error.readableMessage)
+            }
+        }
+    }
+
+    @objc private func stageAll() {
+        let paths = unstagedEntries.map { $0.path } + untrackedEntries.map { $0.path }
+        guard !paths.isEmpty else { return }
+        Task {
+            do {
+                try await ApelinService.app.gitStage(projectID: projectID, paths: paths)
+                await loadStatus()
+            } catch {
+                presentNotice(title: "Stage failed", message: error.readableMessage)
+            }
+        }
+    }
+
+    @objc private func unstageAll() {
+        let paths = stagedEntries.map { $0.path }
+        guard !paths.isEmpty else { return }
+        Task {
+            do {
+                try await ApelinService.app.gitUnstage(projectID: projectID, paths: paths)
+                await loadStatus()
+            } catch {
+                presentNotice(title: "Unstage failed", message: error.readableMessage)
             }
         }
     }
@@ -161,13 +231,37 @@ final class GitStatusViewController: UIViewController {
 }
 
 extension GitStatusViewController: UITableViewDataSource, UITableViewDelegate {
+    private func sectionEntries(_ section: Int) -> [GitStatusEntry] {
+        switch section {
+        case 0: return stagedEntries
+        case 1: return unstagedEntries
+        default: return untrackedEntries
+        }
+    }
+
+    private func sectionTitle(_ section: Int) -> String? {
+        switch section {
+        case 0: return stagedEntries.isEmpty ? nil : String(localized: "Staged")
+        case 1: return unstagedEntries.isEmpty ? nil : String(localized: "Changes")
+        default: return untrackedEntries.isEmpty ? nil : String(localized: "Untracked")
+        }
+    }
+
+    func numberOfSections(in tableView: UITableView) -> Int {
+        3
+    }
+
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        sectionTitle(section)
+    }
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        entries.count
+        sectionEntries(section).count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "entry", for: indexPath)
-        let entry = entries[indexPath.row]
+        let entry = sectionEntries(indexPath.section)[indexPath.row]
         var content = cell.defaultContentConfiguration()
         content.text = entry.path
         content.secondaryText = "index: \(entry.index)  worktree: \(entry.worktree)"
@@ -178,21 +272,27 @@ extension GitStatusViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        showDiff(for: entries[indexPath.row], staged: false)
+        let entry = sectionEntries(indexPath.section)[indexPath.row]
+        let staged = (indexPath.section == 0)
+        showDiff(for: entry, staged: staged)
     }
 
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-        let entry = entries[indexPath.row]
-        let stageAction = UIContextualAction(style: .normal, title: String(localized: "Stage")) { [weak self] _, _, completion in
-            self?.stage(entry.path)
-            completion(true)
+        let entry = sectionEntries(indexPath.section)[indexPath.row]
+        if indexPath.section == 0 {
+            let unstageAction = UIContextualAction(style: .normal, title: String(localized: "Unstage")) { [weak self] _, _, completion in
+                self?.unstage(entry.path)
+                completion(true)
+            }
+            unstageAction.backgroundColor = .systemOrange
+            return UISwipeActionsConfiguration(actions: [unstageAction])
+        } else {
+            let stageAction = UIContextualAction(style: .normal, title: String(localized: "Stage")) { [weak self] _, _, completion in
+                self?.stage(entry.path)
+                completion(true)
+            }
+            stageAction.backgroundColor = .systemGreen
+            return UISwipeActionsConfiguration(actions: [stageAction])
         }
-        stageAction.backgroundColor = .systemGreen
-        let unstageAction = UIContextualAction(style: .normal, title: String(localized: "Unstage")) { [weak self] _, _, completion in
-            self?.unstage(entry.path)
-            completion(true)
-        }
-        unstageAction.backgroundColor = .systemOrange
-        return UISwipeActionsConfiguration(actions: [stageAction, unstageAction])
     }
 }
