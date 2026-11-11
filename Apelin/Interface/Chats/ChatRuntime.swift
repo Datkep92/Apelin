@@ -90,7 +90,10 @@ final class ChatRuntime {
     /// launch is dropped, unless it is `selected`, the one to show again.
     func load(keeping selected: UUID?) async {
         do {
-            for var record in try await store.load() {
+            async let storedRecords = try store.load()
+            async let liveSessions = (try? ApelinService.app.agentList().sessions) ?? []
+            let loaded = try await storedRecords
+            for var record in loaded {
                 let unsent = record.sending != nil
                 record.reclaimUnsent()
                 records[record.summary.id] = record
@@ -101,18 +104,13 @@ final class ChatRuntime {
             for record in records.values where isUntouched(record) && record.summary.id != selected {
                 try? await removeRecord(record.summary.id)
                 if record.summary.projectName == nil {
-                    // the folder the menu's Open in iGhostVT or Fila made, if
-                    // it was left empty; rmdir takes nothing else
                     rmdir(DataFolder.app.root.appendingPathComponent("Temporary/" + record.summary.id.uuidString).path)
                 }
             }
-            // a project deleted while the app was away
             await forget(DeletedProjects.gone(from: summaries, listed: DeletedProjects.listing(in: .app)))
             isLoaded = true
             onChange?()
-            // A host that does not answer yet is not an error, and runs
-            // nothing this app could follow: every saved row stops working.
-            let live = await (try? ApelinService.app.agentList().sessions) ?? []
+            let live = await liveSessions
             for record in records.values {
                 if let session = live.first(where: { $0.sessionID == record.sessionID }) {
                     records[record.summary.id]?.reopen(as: session.task)
@@ -124,8 +122,6 @@ final class ChatRuntime {
             }
             isReconciled = true
             onChange?()
-            // What agents opened while the app was not following their
-            // openers; the list is oldest first, so an opener comes first.
             for session in live {
                 adopt(ChatAdoption.record(session: session, records: Array(records.values)))
             }
