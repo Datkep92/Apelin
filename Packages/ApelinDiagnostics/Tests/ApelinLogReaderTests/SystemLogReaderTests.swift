@@ -95,7 +95,15 @@ final class SystemLogReaderTests: XCTestCase {
             logger.error("\(marker, privacy: .public) \(index, privacy: .public)")
             Thread.sleep(forTimeInterval: 0.06)
         }
-        Thread.sleep(forTimeInterval: 1)
+        // The promise is that the window's last line arrives, not that it
+        // arrives within a fixed second: logd may hand the tail over late when
+        // the machine is busy, and closing the listener drops whatever is
+        // still in flight. So wait for it, with a bound — a listen that never
+        // delivers it fails the assertion below either way.
+        let tail = Date().addingTimeInterval(10)
+        while Date() < tail, !received.messages.contains(where: { Int($0.split(separator: " ").last ?? "") == 39 }) {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
         listener.finish()
         XCTAssertFalse(try listener.wait(), "the root reader drops nothing")
         let messages = received.messages
