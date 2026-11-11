@@ -27,12 +27,13 @@ enum ModelPickerGrouping {
     /// names one configuration when a group holds one.
     static func groups(of accounts: [AgentAccount], title: (AgentAccount) -> String) -> [Group] {
         var seen: [String] = []
+        var seenSet: Set<String> = []
         var map: [String: [Int]] = [:]
         for (index, account) in accounts.enumerated() {
             // A configuration without a Base URL gets a key of its own, so
             // two such configurations never group together.
             let key = account.endpoint ?? "no-base-url-\(index)"
-            if !seen.contains(key) { seen.append(key) }
+            if !seenSet.contains(key) { seen.append(key); seenSet.insert(key) }
             map[key, default: []].append(index)
         }
         return seen.map { key in

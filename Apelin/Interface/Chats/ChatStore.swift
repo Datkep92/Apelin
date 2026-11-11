@@ -32,6 +32,27 @@ struct ChatRecord: Codable, Sendable {
     var retryState: ModelRetryState?
 }
 
+extension ChatRecord {
+    private enum CodingKeys: String, CodingKey {
+        case summary, draft, sessionID, task, events, eventsLoaded, sending, replay, modelSelection, retryState
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        summary = try container.decode(ChatSummary.self, forKey: .summary)
+        draft = try container.decodeIfPresent(ComposerDraft.self, forKey: .draft) ?? ComposerDraft()
+        sessionID = try container.decodeIfPresent(String.self, forKey: .sessionID)
+        task = try container.decodeIfPresent(TaskHandle.self, forKey: .task)
+        events = try container.decodeIfPresent([TaskEvent].self, forKey: .events) ?? []
+        eventsLoaded = try container.decodeIfPresent(Bool.self, forKey: .eventsLoaded) ?? false
+        sending = try container.decodeIfPresent([ComposerDraft].self, forKey: .sending)
+        replay = try container.decodeIfPresent(SessionReplay.self, forKey: .replay)
+        modelSelection = try container.decodeIfPresent(ComposerModelSelection.self, forKey: .modelSelection)
+        retryState = try container.decodeIfPresent(ModelRetryState.self, forKey: .retryState)
+    }
+}
+
+
 /// An automatic retry after a failure another model or key can answer — a
 /// model with a spent allowance, or a key the provider refused: the reader's
 /// message sent again with the next candidate of `ModelCandidates.fallbackList`
