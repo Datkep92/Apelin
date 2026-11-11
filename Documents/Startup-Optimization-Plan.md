@@ -462,11 +462,15 @@ Mỗi bước: build CI, nếu đỏ sửa ngay (theo luật CI).
 
 ---
 
-## 9. Câu hỏi còn lại (trả lời trước khi làm)
+## 9. Quyết định đã chốt theo khuyến nghị (không còn câu hỏi)
 
-1. Có làm Phase 0 timing log không, hay tin tưởng phân tích? (Khuyến nghị: làm, để so sánh.)
-2. Ngưỡng "recent" cho load đầy đủ lúc startup: bao nhiêu chat? (Khuyến nghị: 0 — load on demand hoàn toàn; chỉ load events cho chat đang working khi relaunch.)
-3. Có cần giữ log timing trong bản release không, hay chỉ debug? (Khuyến nghị: giữ os_log .info, không ảnh hưởng perf.)
+| # | Quyết định | Giá trị chốt |
+|---|---|---|
+| Q1 | Giữ timing log trong bản release? | **Giữ** — os_log `.info`, không ảnh hưởng perf. |
+| Q2 | Ngưỡng "recent" load đầy đủ lúc startup? | **0** — load on demand hoàn toàn; chỉ load events cho chat đang working khi relaunch. |
+| Q3 | Làm Phase 0 đo lường? | **Làm** — gộp vào Phase 1, để có số liệu so sánh trước/sau. |
+
+→ Kế hoạch sẵn sàng triển khai. Không còn câu hỏi mở.
 
 ---
 

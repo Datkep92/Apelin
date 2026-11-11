@@ -2,6 +2,7 @@ import ApelinCore
 import ApelinProtocol
 import Darwin
 import Foundation
+import os
 import UniformTypeIdentifiers
 
 /// Owns chat history, drafts and live sessions independently of the selected page.
@@ -40,6 +41,8 @@ final class ChatRuntime {
     /// The saved conversations have been checked against the host's live
     /// sessions once: what says working is working.
     private(set) var isReconciled = false
+    private var reconciliationTask: Task<Void, Never>?
+    private var loadingEvents: [UUID: Task<Void, Never>] = [:]
     private(set) var records: [UUID: ChatRecord] = [:]
     private let store = ChatStore(folder: .app)
     private var revision = 0
@@ -89,10 +92,15 @@ final class ChatRuntime {
     /// Reads every saved conversation. An untouched one left by an earlier
     /// launch is dropped, unless it is `selected`, the one to show again.
     func load(keeping selected: UUID?) async {
+        guard !isLoaded else { return }
+        let clock = ContinuousClock()
+        let start = clock.now
         do {
+            os_log(.info, subsystem: "wiki.qaq.apelin", "startup: load start")
             async let storedRecords = try store.load()
             async let liveSessions = (try? ApelinService.app.agentList().sessions) ?? []
             let loaded = try await storedRecords
+            os_log(.info, subsystem: "wiki.qaq.apelin", "startup: store.load done n=%d in %{public}@", loaded.count, String(describing: clock.now - start))
             for var record in loaded {
                 let unsent = record.sending != nil
                 record.reclaimUnsent()
@@ -108,22 +116,33 @@ final class ChatRuntime {
                 }
             }
             await forget(DeletedProjects.gone(from: summaries, listed: DeletedProjects.listing(in: .app)))
+            os_log(.info, subsystem: "wiki.qaq.apelin", "startup: cleanup + forget done in %{public}@", String(describing: clock.now - start))
             isLoaded = true
             onChange?()
+            os_log(.info, subsystem: "wiki.qaq.apelin", "startup: isLoaded in %{public}@", String(describing: clock.now - start))
+
             let live = await liveSessions
-            for record in records.values {
-                if let session = live.first(where: { $0.sessionID == record.sessionID }) {
-                    records[record.summary.id]?.reopen(as: session.task)
-                    follow(record.summary.id, task: session.task)
-                } else if record.summary.isWorking {
-                    records[record.summary.id]?.summary.isWorking = false
-                    changed(record.summary.id)
+            reconciliationTask = Task { @MainActor in
+                let reconcileStart = clock.now
+                os_log(.info, subsystem: "wiki.qaq.apelin", "startup: reconcile start")
+                for record in self.records.values {
+                    let needsEvents = record.summary.isWorking || live.contains { $0.sessionID == record.sessionID }
+                    if needsEvents { await self.loadEventsIfNeeded(record.summary.id) }
+                    if let session = live.first(where: { $0.sessionID == record.sessionID }) {
+                        self.records[record.summary.id]?.reopen(as: session.task)
+                        self.follow(record.summary.id, task: session.task)
+                    } else if record.summary.isWorking {
+                        self.records[record.summary.id]?.summary.isWorking = false
+                        self.changed(record.summary.id)
+                    }
                 }
-            }
-            isReconciled = true
-            onChange?()
-            for session in live {
-                adopt(ChatAdoption.record(session: session, records: Array(records.values)))
+                self.isReconciled = true
+                self.onChange?()
+                os_log(.info, subsystem: "wiki.qaq.apelin", "startup: reconcile done in %{public}@", String(describing: clock.now - reconcileStart))
+                for session in live {
+                    self.adopt(ChatAdoption.record(session: session, records: Array(self.records.values)))
+                }
+                os_log(.info, subsystem: "wiki.qaq.apelin", "startup: adopt done in %{public}@", String(describing: clock.now - start))
             }
         } catch { onError?(error) }
     }
@@ -163,9 +182,51 @@ final class ChatRuntime {
     /// Nothing sent, typed or attached, no session opening, not pinned and
     /// not named: a row that holds nothing but its place.
     private func isUntouched(_ record: ChatRecord) -> Bool {
-        record.events.isEmpty && record.sessionID == nil && record.task == nil && opening[record.summary.id] == nil
+        let hasEvents = record.eventsLoaded ? !record.events.isEmpty : eventsFileExists(for: record.summary.id)
+        return !hasEvents && record.sessionID == nil && record.task == nil && opening[record.summary.id] == nil
             && record.sending == nil && record.draft.text.isEmpty && record.draft.attachments.isEmpty
             && !record.summary.isPinned && record.summary.isNamedByReader != true
+    }
+
+    private func eventsFileExists(for id: UUID) -> Bool {
+        FileManager.default.fileExists(atPath: DataFolder.app.root.appendingPathComponent("Chats/\(id.uuidString).events.json").path)
+    }
+
+    func loadEventsIfNeeded(_ id: UUID) async {
+        guard let record = records[id], !record.eventsLoaded else { return }
+        if let task = loadingEvents[id] {
+            await task.value
+            return
+        }
+        let task = Task { @MainActor in
+            do {
+                let events = try await store.loadEvents(for: id)
+                records[id]?.events = events
+                records[id]?.eventsLoaded = true
+                changed(id)
+            } catch {
+                onError?(error)
+            }
+            loadingEvents[id] = nil
+        }
+        loadingEvents[id] = task
+        await task.value
+    }
+
+    func loadEventsSyncIfNeeded(_ id: UUID) {
+        guard let record = records[id], !record.eventsLoaded else { return }
+        let url = DataFolder.app.root.appendingPathComponent("Chats/\(id.uuidString).events.json")
+        if let data = try? Data(contentsOf: url),
+           let events = try? JSONDecoder().decode([TaskEvent].self, from: data) {
+            records[id]?.events = events
+        }
+        records[id]?.eventsLoaded = true
+    }
+
+    func hasEventsOnDisk(_ id: UUID) -> Bool {
+        guard let record = records[id] else { return false }
+        if record.eventsLoaded { return !record.events.isEmpty }
+        return eventsFileExists(for: id)
     }
 
     func saveDraft(_ draft: ComposerDraft, for id: UUID) {
@@ -190,6 +251,7 @@ final class ChatRuntime {
     /// does the draft of a message still on its way. The record saves
     /// (`changed`), so the transcript rebuilds from the events left behind.
     func deleteMessage(_ messageID: UUID, in chatID: UUID) {
+        loadEventsSyncIfNeeded(chatID)
         guard var record = records[chatID] else { return }
         if var sending = record.sending {
             sending = sending.filter { $0.id != messageID }
@@ -586,6 +648,7 @@ final class ChatRuntime {
     }
 
     private func follow(_ id: UUID, task: TaskHandle) {
+        loadEventsSyncIfNeeded(id)
         guard readers[id] == nil else { return }
         readers[id] = Task { [weak self] in
             defer {
@@ -962,6 +1025,7 @@ final class ChatRuntime {
 
     /// `urgent`: written at once rather than after the interval; see `persist`.
     private func changed(_ id: UUID, urgent: Bool = true) {
+        loadEventsSyncIfNeeded(id)
         persist(id, urgent: urgent); onChange?()
     }
 
@@ -1014,6 +1078,7 @@ final class ChatRuntime {
     }
 
     private func write(_ id: UUID) {
+        loadEventsSyncIfNeeded(id)
         guard let record = records[id] else {
             unsaved.remove(id)
             return

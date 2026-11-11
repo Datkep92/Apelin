@@ -10,6 +10,10 @@ struct ChatRecord: Codable, Sendable {
     /// Only ever appended to (`take`): the runtime's transcript of them reads
     /// on from the ones it has read (`ChatTranscriptCache`).
     var events: [TaskEvent] = []
+    /// Whether this record's `events` have been read from disk. Runtime flag;
+    /// absent in older files (defaults to false, and `hasEventsOnDisk` checks
+    /// the events file).
+    var eventsLoaded: Bool = false
     /// Messages sent and not yet echoed by the host, oldest first: shown at
     /// once, and kept on disk until their `prompt` or `queued` event comes
     /// back, so a kill mid-send loses none. Absent from older files.
@@ -262,15 +266,35 @@ actor ChatStore {
         let directory = folder.root.appendingPathComponent("Chats")
         try folder.makeLevels(to: directory)
         guard let directoryPath = CanonicalPath.resolve(directory.path) else { throw CocoaError(.fileReadNoSuchFile) }
-        return try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        let urls = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "json" }
-            .compactMap { url in
-                guard UUID(uuidString: url.deletingPathExtension().lastPathComponent) != nil,
-                      let path = CanonicalPath.resolve(url.path),
-                      CanonicalPath.isCanonical(path, inside: directoryPath)
-                else { return nil }
-                return try JSONDecoder().decode(ChatRecord.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
+        var result: [ChatRecord] = []
+        for url in urls {
+            guard UUID(uuidString: url.deletingPathExtension().lastPathComponent) != nil,
+                  let path = CanonicalPath.resolve(url.path),
+                  CanonicalPath.isCanonical(path, inside: directoryPath)
+            else { continue }
+            var record = try JSONDecoder().decode(ChatRecord.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
+            let id = record.summary.id
+            let eventsURL = directory.appendingPathComponent(id.uuidString + ".events.json")
+            // Migration from the old single-file format: move events out.
+            if !record.events.isEmpty {
+                if !FileManager.default.fileExists(atPath: eventsURL.path) {
+                    let data = try JSONEncoder().encode(record.events)
+                    try data.write(to: eventsURL, options: .atomic)
+                }
+                record.events = []
+                record.eventsLoaded = false
+                let summaryData = try JSONEncoder().encode(record)
+                try summaryData.write(to: url, options: .atomic)
+            } else if FileManager.default.fileExists(atPath: eventsURL.path) {
+                record.eventsLoaded = false
+            } else {
+                record.eventsLoaded = true
             }
+            result.append(record)
+        }
+        return result
     }
 
     func save(_ record: ChatRecord, revision: Int) throws {
@@ -278,10 +302,19 @@ actor ChatStore {
         guard revision > (revisions[id] ?? -1) else { return }
         let directory = folder.root.appendingPathComponent("Chats")
         try folder.makeLevels(to: directory)
-        try JSONEncoder().encode(record).write(
-            to: directory.appendingPathComponent(id.uuidString + ".json"),
-            options: .atomic,
-        )
+        var summaryRecord = record
+        summaryRecord.events = []
+        let summaryData = try JSONEncoder().encode(summaryRecord)
+        try summaryData.write(to: directory.appendingPathComponent(id.uuidString + ".json"), options: .atomic)
+        let eventsURL = directory.appendingPathComponent(id.uuidString + ".events.json")
+        if record.eventsLoaded {
+            if record.events.isEmpty {
+                try? FileManager.default.removeItem(at: eventsURL)
+            } else {
+                let eventsData = try JSONEncoder().encode(record.events)
+                try eventsData.write(to: eventsURL, options: .atomic)
+            }
+        }
         revisions[id] = revision
     }
 
@@ -293,7 +326,26 @@ actor ChatStore {
         } catch let error as CocoaError where error.code == .fileNoSuchFile {
             // Deleting before the first queued save is also a successful delete.
         }
+        try? FileManager.default.removeItem(
+            at: folder.root.appendingPathComponent("Chats/" + id.uuidString + ".events.json"),
+        )
         revisions[id] = Int.max
+    }
+
+    func loadEvents(for id: UUID) throws -> [TaskEvent] {
+        let url = folder.root.appendingPathComponent("Chats/" + id.uuidString + ".events.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode([TaskEvent].self, from: data)
+    }
+
+    func hasEventsFile(for id: UUID) -> Bool {
+        let url = folder.root.appendingPathComponent("Chats/" + id.uuidString + ".events.json")
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    func removeEvents(for id: UUID) throws {
+        try? FileManager.default.removeItem(at: folder.root.appendingPathComponent("Chats/" + id.uuidString + ".events.json"))
     }
 }
 // Appended during CI fix to ensure ComposerModelSelection is in a registered source file.

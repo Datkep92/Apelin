@@ -578,6 +578,7 @@ final class ChatController: UIViewController {
         }
         let draft = runtime.records[chat.id]?.draft ?? ComposerDraft()
         composer.restore(draft: draft)
+        runtime.loadEventsSyncIfNeeded(chat.id)
         messages = runtime.transcript(chat.id).messages
         // A turn still running is followed again, its pace measured afresh.
         turnMessage = TurnFollowing.turnMessage(in: messages)
