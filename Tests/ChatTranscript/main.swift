@@ -1100,3 +1100,7 @@ checkProjectMenuOrder()
 checkChatDeletion()
 
 checkModelPickerGrouping()
+
+checkChatContentSearch()
+
+try checkProjectFileSearch()

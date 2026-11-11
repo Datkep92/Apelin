@@ -128,6 +128,9 @@ final class SidebarController: UIViewController {
         }
         project = candidate
         selectedID = SidebarOrder.newest(chats)?.id
+        // The words are the new project's: read them again, not the ones the
+        // project just left behind.
+        if !query.isEmpty { scanContents(for: query) }
         applySnapshot()
         onSelect?(selectedID.flatMap(chat), false)
     }
@@ -135,9 +138,18 @@ final class SidebarController: UIViewController {
     /// The open project's conversations, as the runtime lists them.
     private var chats: [ChatSummary] = []
 
-    /// What the search field holds; the list shows the conversations whose
-    /// title has it, ignoring case and diacritics.
+    /// What the search field holds. The list shows the conversations whose
+    /// title has it and, beside them, the ones that said it
+    /// (`scanContents(for:)`). Case and accents are set aside, as they always
+    /// were for titles.
     private var query = ""
+
+    /// Where each conversation of the open project holds the words, read once
+    /// per search: what a row that does not name the words is in the list for.
+    private var matches: [UUID: ChatContentSearch.Hit] = [:]
+
+    /// The reading of the conversations the last search started.
+    private var scan: Task<Void, Never>?
 
     private lazy var searchController = UISearchController(searchResultsController: nil).then {
         $0.searchResultsUpdater = self
@@ -303,6 +315,11 @@ final class SidebarController: UIViewController {
         if activeSection {
             content.secondaryText = summary?.projectName
             content.secondaryTextProperties.color = .secondaryLabel
+        } else if !self.query.isEmpty, let hit = self.matches[id] {
+            // Why this row is in the list: the words, as they were written.
+            content.secondaryText = hit.line
+            content.secondaryTextProperties.color = .secondaryLabel
+            content.secondaryTextProperties.numberOfLines = 2
         }
         cell.contentConfiguration = content
         let isWorking = summary?.isWorking == true
@@ -468,17 +485,43 @@ final class SidebarController: UIViewController {
         runtime.summaries.first { $0.id == id } ?? chats.first { $0.id == id }
     }
 
+    /// Reads the open project's conversations for the words and lets each one
+    /// that holds them join the list as it is found: waiting for all of them
+    /// would hold a search back by a whole project's history.
+    ///
+    /// Names are matched as the reader types; the words are read only after a
+    /// pause, and from two characters up, because a single letter is in every
+    /// conversation and a reading is not free.
+    private func scanContents(for text: String) {
+        scan?.cancel()
+        matches = [:]
+        guard text.count >= 2 else { return }
+        let ids = chats.map(\.id)
+        scan = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            for id in ids {
+                guard let self, !Task.isCancelled, self.query == text else { return }
+                guard let hit = await self.runtime.contentHit(text, in: id) else { continue }
+                guard !Task.isCancelled, self.query == text else { return }
+                self.matches[id] = hit
+                self.applySnapshot(changedRows: [id])
+            }
+        }
+    }
+
     private func applySnapshot(changedRows: [UUID] = [], restoreSelection: Bool = true, animateMove: Bool = false) {
         var snapshot = NSDiffableDataSourceSnapshot<Section, UUID>()
         let shown = query.isEmpty ? chats : chats.filter {
-            $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            TextSearch.holds($0.displayTitle, query) || matches[$0.id] != nil
         }
         let order = SidebarOrder.sections(of: shown)
+        // Another project's working conversations are matched by name alone:
+        // their words belong to that project's list, which reads them there.
         let activeOthers = runtime.summaries.filter {
             ($0.isWorking || $0.showsCompleted) &&
             $0.projectName != nil &&
             $0.projectName != project?.name &&
-            (query.isEmpty || $0.displayTitle.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil)
+            (query.isEmpty || TextSearch.holds($0.displayTitle, query))
         }
         if !activeOthers.isEmpty {
             activeConversationIDs = Set(activeOthers.map(\.id))
@@ -818,6 +861,7 @@ extension SidebarController: UISearchResultsUpdating {
         guard text != query else { return }
         query = text
         pacing.begin()
+        scanContents(for: text)
         applySnapshot()
     }
 }

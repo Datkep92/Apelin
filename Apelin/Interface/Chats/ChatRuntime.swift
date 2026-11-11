@@ -248,6 +248,23 @@ final class ChatRuntime {
         return eventsFileExists(for: id)
     }
 
+    /// Where `id`'s conversation holds `query` in what was said in it, nil
+    /// when it does not: what the sidebar's search shows under a conversation
+    /// whose name does not hold the words (`ChatContentSearch`).
+    ///
+    /// A conversation already open is answered from memory; any other is read
+    /// from its file, and the reading is not kept — the sidebar searches as
+    /// the reader types, and holding every conversation's words in memory is
+    /// the start-up cost the events files were split off to avoid.
+    func contentHit(_ query: String, in id: UUID) async -> ChatContentSearch.Hit? {
+        guard !query.isEmpty else { return nil }
+        if let record = records[id], record.eventsLoaded {
+            return ChatContentSearch.hit(query, in: record.events)
+        }
+        guard let events = try? await store.loadEvents(for: id) else { return nil }
+        return ChatContentSearch.hit(query, in: events)
+    }
+
     func saveDraft(_ draft: ComposerDraft, for id: UUID) {
         records[id]?.draft = draft
         persist(id)

@@ -2,13 +2,16 @@ import Foundation
 import KWWKAI
 
 /// apelin_web_search: a broad search over the public internet without an API
-/// key. Phase 1 gathers results from GitHub, Hacker News and Reddit.
+/// key. It gathers results from DuckDuckGo, GitHub, Hacker News, Reddit, Stack
+/// Overflow and Wikipedia; `WebSearch+Sources.swift` holds DuckDuckGo, Stack
+/// Overflow and Wikipedia.
 struct WebSearch: Sendable {
     static let shared = WebSearch()
     static let perSourceLimit = 5
     static let timeoutSeconds = 30
 
-    private let session: URLSession
+    /// Read by the sources in `WebSearch+Sources.swift` too.
+    let session: URLSession
 
     init(configuration: URLSessionConfiguration = .ephemeral) {
         configuration.httpCookieAcceptPolicy = .never
@@ -33,16 +36,22 @@ struct WebSearch: Sendable {
         }
         let limit = max(1, min(Self.perSourceLimit, arguments.argInt("limit") ?? Self.perSourceLimit))
 
+        async let web = duckDuckGoResults(query: query, limit: limit)
         async let github = githubResults(query: query, limit: limit)
         async let hackerNews = hackerNewsResults(query: query, limit: limit)
         async let reddit = redditResults(query: query, limit: limit)
+        async let stackOverflow = stackExchangeResults(query: query, limit: limit)
+        async let wikipedia = wikipediaResults(query: query, limit: limit)
 
         var parts: [String] = []
         parts.append("Search results for \"\(query)\"")
         for (heading, result) in [
+            ("Web results (DuckDuckGo)", await web),
             ("GitHub repositories and issues", await github),
             ("Hacker News stories and comments", await hackerNews),
             ("Reddit posts and comments", await reddit),
+            ("Stack Overflow questions", await stackOverflow),
+            ("Wikipedia articles", await wikipedia),
         ] {
             parts.append("")
             parts.append("## \(heading)")

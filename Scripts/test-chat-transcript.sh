@@ -39,6 +39,9 @@ sources=(
     "$root/Apelin/Interface/Chats/ChatDeletion.swift"
     "$root/Apelin/Interface/Chats/TurnFollowing.swift"
     "$root/Apelin/Interface/Root/SidebarOrder.swift"
+    "$root/Apelin/Interface/Search/TextSearch.swift"
+    "$root/Apelin/Interface/Search/ChatContentSearch.swift"
+    "$root/Apelin/Interface/Search/ProjectFileSearch.swift"
     "$root/Apelin/Interface/Root/ProjectMenuOrder.swift"
     "$root/Apelin/Interface/Root/ChatRowAction.swift"
     "$root/Apelin/Interface/Feedback/CompletedBuilds.swift"
@@ -60,6 +63,8 @@ sources=(
     "$root/Tests/ChatTranscript/ForcePushCardCheck.swift"
     "$root/Tests/ChatTranscript/SquashCardCheck.swift"
     "$root/Tests/ChatTranscript/ModelPickerGroupingCheck.swift"
+    "$root/Tests/ChatTranscript/ChatContentSearchCheck.swift"
+    "$root/Tests/ChatTranscript/ProjectFileSearchCheck.swift"
     "$root/Tests/ChatTranscript/main.swift"
 )
 

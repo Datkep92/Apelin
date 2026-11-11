@@ -7,6 +7,26 @@ final class FileExplorerViewController: UIViewController {
     private var entries: [(name: String, isDirectory: Bool, size: Int64)] = []
     private let tableView = UITableView(frame: .zero, style: .insetGrouped)
 
+    /// The files the search field's words answer with; the rows while
+    /// `searchQuery` is not empty.
+    private var hits: [ProjectFileSearch.Hit] = []
+    /// What the search field holds, trimmed: empty when it is not searching.
+    ///
+    /// A search covers the whole project and not the folder on screen — a
+    /// reader looking for a file does not know which folder it is in — so a
+    /// hit is a path from the project root, which is what opens it.
+    private var searchQuery = ""
+    /// The walk the last search started.
+    private var scan: Task<Void, Never>?
+
+    private lazy var searchController: UISearchController = {
+        let controller = UISearchController(searchResultsController: nil)
+        controller.searchResultsUpdater = self
+        controller.obscuresBackgroundDuringPresentation = false
+        controller.searchBar.placeholder = String(localized: "Search files")
+        return controller
+    }()
+
     init(projectName: String, relativePath: String = "") {
         self.projectName = projectName
         self.relativePath = relativePath
@@ -20,6 +40,11 @@ final class FileExplorerViewController: UIViewController {
         super.viewDidLoad()
         title = relativePath.isEmpty ? String(localized: "Files") : (relativePath as NSString).lastPathComponent
         navigationItem.backButtonDisplayMode = .minimal
+        // The search bar is not tucked away by a scroll: it is the only way to
+        // the words, and the list under it is short.
+        navigationItem.searchController = searchController
+        navigationItem.hidesSearchBarWhenScrolling = false
+        definesPresentationContext = true
         view.backgroundColor = .systemBackground
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
@@ -80,17 +105,57 @@ final class FileExplorerViewController: UIViewController {
         entries = result
         tableView.reloadData()
     }
+
+    /// Searches the project for `text`, by name and by what its files hold
+    /// (`ProjectFileSearch`). The walk is off the main thread and waits for the
+    /// reader to stop typing, so a project is not walked per keystroke.
+    private func search(for text: String) {
+        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchQuery = query
+        scan?.cancel()
+        hits = []
+        tableView.reloadData()
+        guard !query.isEmpty, let root = projectRoot() else { return }
+        scan = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            let found = await Task.detached(priority: .userInitiated) { () -> [ProjectFileSearch.Hit] in
+                ProjectFileSearch.search(query, in: URL(fileURLWithPath: root))
+            }.value
+            guard let self, !Task.isCancelled, self.searchQuery == query else { return }
+            self.hits = found
+            self.tableView.reloadData()
+        }
+    }
+}
+
+extension FileExplorerViewController: UISearchResultsUpdating {
+    func updateSearchResults(for searchController: UISearchController) {
+        search(for: searchController.searchBar.text ?? "")
+    }
 }
 
 extension FileExplorerViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        entries.count
+        searchQuery.isEmpty ? entries.count : hits.count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "entry", for: indexPath)
-        let entry = entries[indexPath.row]
         var content = cell.defaultContentConfiguration()
+        if !searchQuery.isEmpty {
+            let hit = hits[indexPath.row]
+            content.text = hit.name
+            // Why it is here: the line the words sit in, or the folder it sits
+            // in when it answers with its name.
+            content.secondaryText = hit.line ?? hit.directory
+            content.secondaryTextProperties.numberOfLines = hit.line == nil ? 1 : 2
+            content.image = UIImage(systemName: hit.inContent ? "doc.text.magnifyingglass" : "doc.text")
+            cell.contentConfiguration = content
+            cell.accessoryType = .none
+            return cell
+        }
+        let entry = entries[indexPath.row]
         content.text = entry.name
         if entry.isDirectory {
             content.secondaryText = String(localized: "Folder")
@@ -106,6 +171,15 @@ extension FileExplorerViewController: UITableViewDataSource, UITableViewDelegate
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        if !searchQuery.isEmpty {
+            // Every answer is a file, in whatever folder of the project it
+            // sits: its path is from the project root, which opens it.
+            navigationController?.pushViewController(
+                FileViewerViewController(projectName: projectName, relativePath: hits[indexPath.row].path),
+                animated: true,
+            )
+            return
+        }
         let entry = entries[indexPath.row]
         let childPath = relativePath.isEmpty ? entry.name : relativePath + "/" + entry.name
         if entry.isDirectory {
