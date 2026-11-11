@@ -24,6 +24,36 @@ enum ProjectActions {
         let folders = folderActions(from: presenter, failureTitle: "Unable to Open Project") {
             try directory(named: projectName)
         }
+        let terminalAction = UIAction(
+            title: String(localized: "Terminal"),
+            image: UIImage(systemName: "terminal"),
+        ) { [weak presenter] _ in
+            guard let presenter else { return }
+            presenter.navigationController?.pushViewController(
+                TerminalViewController(projectID: "project:\(projectName)"),
+                animated: true,
+            )
+        }
+        let testRunnerAction = UIAction(
+            title: String(localized: "Test Runner"),
+            image: UIImage(systemName: "checkmark.circle"),
+        ) { [weak presenter] _ in
+            guard let presenter else { return }
+            presenter.navigationController?.pushViewController(
+                TestRunnerViewController(projectName: projectName),
+                animated: true,
+            )
+        }
+        let gitAction = UIAction(
+            title: String(localized: "Git"),
+            image: UIImage(systemName: "arrow.triangle.branch"),
+        ) { [weak presenter] _ in
+            guard let presenter else { return }
+            presenter.navigationController?.pushViewController(
+                GitStatusViewController(projectName: projectName),
+                animated: true,
+            )
+        }
         let renameAction = UIAction(
             title: String(localized: "Rename…"),
             image: UIImage(systemName: "pencil"),
@@ -57,7 +87,7 @@ enum ProjectActions {
         return UIMenu(children: [
             UIMenu(options: .displayInline, children: chatActions),
             UIMenu(options: .displayInline, children: folders),
-            UIMenu(title: String(localized: "Project"), options: .displayInline, children: [renameAction, export, distribute]),
+            UIMenu(title: String(localized: "Project"), options: .displayInline, children: [terminalAction, testRunnerAction, gitAction, renameAction, export, distribute]),
         ])
     }
 

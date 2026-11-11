@@ -353,7 +353,7 @@ struct ScriptedSessionTests {
             }
         }
         let takenAt = events.firstIndex {
-            if case .userMessage(later, "and keep the logs", _) = $0 {
+            if case .userMessage(later, "and keep the logs", _, _) = $0 {
                 true
             } else {
                 false
@@ -411,7 +411,7 @@ struct ScriptedSessionTests {
         let recorded = try await session.log.records(afterSeq: 0).map(\.event)
         #expect(recorded.filter { $0 == .finished(reason: .aborted) }.count == 1, "\(recorded)")
         #expect(!recorded.contains {
-            if case .userMessage(later, _, _) = $0 {
+            if case .userMessage(later, _, _, _) = $0 {
                 true
             } else {
                 false
@@ -489,7 +489,7 @@ struct ScriptedSessionTests {
         }, "\(events)")
         let failedAt = events.firstIndex { $0 == .finished(reason: .failed) }
         let takenAt = events.firstIndex {
-            if case .userMessage(later, "and keep the logs", _) = $0 {
+            if case .userMessage(later, "and keep the logs", _, _) = $0 {
                 true
             } else {
                 false

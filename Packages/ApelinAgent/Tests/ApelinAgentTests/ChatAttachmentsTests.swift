@@ -25,7 +25,7 @@ struct ChatAttachmentsTests {
         try await session.prompt("Read this", messageID: id, files: [("../notes.md", "text/markdown", data)])
         let records = try await session.log.records(afterSeq: 0)
         let messages = records.compactMap { record -> [ApelinProtocol.AgentAttachment]? in
-            if case let .userMessage(messageID, _, files) = record.event, messageID == id {
+            if case let .userMessage(messageID, _, files, _) = record.event, messageID == id {
                 return files
             }
             return nil
@@ -126,7 +126,7 @@ struct ChatAttachmentsTests {
         // The attachment's file is the picture as it was attached.
         let records = try await session.log.records(afterSeq: 0)
         let files = records.compactMap { record -> [ApelinProtocol.AgentAttachment]? in
-            if case let .userMessage(messageID, _, files) = record.event, messageID == id {
+            if case let .userMessage(messageID, _, files, _) = record.event, messageID == id {
                 return files
             }
             return nil

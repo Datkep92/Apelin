@@ -29,7 +29,7 @@ extension SessionEventLog {
         mutating func add(_ record: SessionEventRecord) {
             lastSeq = record.seq
             switch record.event {
-            case let .userMessage(id, _, _): userMessageIDs.insert(id)
+            case let .userMessage(id, _, _, _): userMessageIDs.insert(id)
             case .titleUpdated: hasTitle = true
             case let .approvalRequested(request): openApprovals.append(request.id)
             case let .approvalResolved(id, _): openApprovals.removeAll { $0 == id }
