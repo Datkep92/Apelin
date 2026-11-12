@@ -18,6 +18,13 @@ final class HTMLPlaygroundController: UIViewController {
     static let sharedFilePath = (NSHomeDirectory() as NSString)
         .appendingPathComponent("Documents/wiki.qaq.apelin/playground.html")
 
+    /// Where the preview is rendered from: a real file in the same folder as
+    /// the shared one, so a page's own relative assets — a picture, a style
+    /// sheet, a script — resolve the way they would in a browser instead of
+    /// not at all, and so the web process is granted the folder to read them.
+    static let previewFilePath = (NSHomeDirectory() as NSString)
+        .appendingPathComponent("Documents/wiki.qaq.apelin/.playground-preview.html")
+
     init(chatID: UUID) {
         self.chatID = chatID
         self.storageKey = "htmlPlayground.\(chatID.uuidString)"
@@ -50,13 +57,13 @@ final class HTMLPlaygroundController: UIViewController {
         webView.layer.cornerRadius = 8
         webView.layer.cornerCurve = .continuous
 
-        configureButton(runButton, title: "Run", color: .systemBlue)
+        configureButton(runButton, title: String(localized: "Run"), color: .systemBlue)
         runButton.addTarget(self, action: #selector(runTapped), for: .touchUpInside)
 
-        configureButton(pasteButton, title: "Paste", color: .systemGreen)
+        configureButton(pasteButton, title: String(localized: "Paste"), color: .systemGreen)
         pasteButton.addTarget(self, action: #selector(pasteTapped), for: .touchUpInside)
 
-        configureButton(loadFileButton, title: "Load AI", color: .systemOrange)
+        configureButton(loadFileButton, title: String(localized: "Load AI"), color: .systemOrange)
         loadFileButton.addTarget(self, action: #selector(loadFileTapped), for: .touchUpInside)
 
         let editorLabel = UILabel()
@@ -91,7 +98,7 @@ final class HTMLPlaygroundController: UIViewController {
         ])
 
         loadContent()
-        webView.loadHTMLString(editor.text ?? "", baseURL: nil)
+        render(editor.text ?? "")
         startFileWatch()
     }
 
@@ -102,6 +109,18 @@ final class HTMLPlaygroundController: UIViewController {
         button.setTitleColor(.white, for: .normal)
         button.layer.cornerRadius = 8
         button.layer.cornerCurve = .continuous
+    }
+
+    /// Draws `html` from a file beside the AI's, so relative assets resolve
+    /// and the web process may read them.
+    private func render(_ html: String) {
+        let file = URL(fileURLWithPath: HTMLPlaygroundController.previewFilePath)
+        let folder = file.deletingLastPathComponent()
+        guard (try? html.write(to: file, atomically: true, encoding: .utf8)) != nil else {
+            webView.loadHTMLString(html, baseURL: folder)
+            return
+        }
+        webView.loadFileURL(file, allowingReadAccessTo: folder)
     }
 
     private func loadContent() {
@@ -115,15 +134,14 @@ final class HTMLPlaygroundController: UIViewController {
 
     @objc private func runTapped() {
         saveContent()
-        let html = editor.text ?? ""
-        webView.loadHTMLString(html, baseURL: nil)
+        render(editor.text ?? "")
     }
 
     @objc private func pasteTapped() {
         if let text = UIPasteboard.general.string {
             editor.text = text
             saveContent()
-            webView.loadHTMLString(text, baseURL: nil)
+            render(text)
         }
     }
 
@@ -132,14 +150,14 @@ final class HTMLPlaygroundController: UIViewController {
         if let content = try? String(contentsOfFile: path, encoding: .utf8) {
             editor.text = content
             saveContent()
-            webView.loadHTMLString(content, baseURL: nil)
+            render(content)
         } else {
             let alert = UIAlertController(
                 title: String(localized: "No AI content"),
                 message: String(localized: "The AI hasn't written to the shared file yet. Ask the AI to generate HTML and save it to: \(path)"),
                 preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default))
             present(alert, animated: true)
         }
     }
@@ -182,7 +200,7 @@ final class HTMLPlaygroundController: UIViewController {
             if let content = try? String(contentsOfFile: path, encoding: .utf8) {
                 editor.text = content
                 saveContent()
-                webView.loadHTMLString(content, baseURL: nil)
+                render(content)
             }
         }
     }

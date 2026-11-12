@@ -9,6 +9,21 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Confirm it is you before the agent runs a command as root.</string>
 	<!--
+	A link tapped in a conversation opens in Apelin's own browser, and the
+	"Test HTML" pane previews a page. A page served over plain http — and the
+	local address an agent's own tool serves on — is refused without the
+	exceptions below, and the refusal arrives as an empty page with nothing
+	said about it. Only content the web view loads is exempted; the app's own
+	requests stay under the default policy.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!--
 	Merged with the keys Xcode generates (GENERATE_INFOPLIST_FILE). Only what
 	the INFOPLIST_KEY_ settings cannot say lives here: the three transfer file
 	types Apelin owns, and that it opens them in place (security-scoped)

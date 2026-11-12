@@ -5,6 +5,11 @@ final class FileViewerViewController: UIViewController {
     private let projectName: String
     private let relativePath: String
     private let textView = UITextView()
+    private var previewURL: URL?
+
+    /// Extensions this screen can show as the page they are: the source in
+    /// the text view, the drawing in the app's own browser.
+    private static let previewableExtensions: Set<String> = ["html", "htm", "svg"]
 
     init(projectName: String, relativePath: String) {
         self.projectName = projectName
@@ -34,6 +39,33 @@ final class FileViewerViewController: UIViewController {
         ])
 
         loadContent()
+
+        previewURL = resolvedPreviewURL()
+        if previewURL != nil {
+            navigationItem.rightBarButtonItem = UIBarButtonItem(
+                title: String(localized: "Preview"),
+                style: .plain,
+                target: self,
+                action: #selector(previewTapped)
+            )
+        }
+    }
+
+    /// The file as a page, for a file this screen would otherwise only show
+    /// the source of.
+    private func resolvedPreviewURL() -> URL? {
+        let fileExtension = (relativePath as NSString).pathExtension.lowercased()
+        guard FileViewerViewController.previewableExtensions.contains(fileExtension),
+              let folder = DataFolder.app.project(named: projectName),
+              let root = CanonicalPath.resolve(folder.path),
+              let full = CanonicalPath.resolve(root + "/" + relativePath)
+        else { return nil }
+        return URL(fileURLWithPath: full)
+    }
+
+    @objc private func previewTapped() {
+        guard let previewURL else { return }
+        presentPageAsFormSheet(WebBrowserController(url: previewURL))
     }
 
     private func loadContent() {
