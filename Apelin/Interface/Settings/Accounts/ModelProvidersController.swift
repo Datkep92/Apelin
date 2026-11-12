@@ -166,7 +166,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         }
         dataSource.footerTitle = { [weak self] section in
             guard let self, !isStatus(section), !isPreference(section),
-                  section == sections.last(where: { !isPreference($0.0) })?.0
+                  section == sections.last(where: { !self.isPreference($0.0) })?.0
             else { return nil }
             return String(localized: "Credentials stay in this device’s keychain.")
         }
