@@ -39,11 +39,12 @@ final class ChatRuntime {
             if changedView { changed(viewedChat) }
         }
     }
-    /// Chats whose cut turn is taken up again by itself when the app comes
-    /// back, at most this many: each one replays its conversation's history
-    /// into a new session, which the background service then holds. Every
-    /// other chat is taken up when the user opens it — nothing is lost by
-    /// waiting.
+    /// Chats whose cut turn is taken up again by itself — when the app comes
+    /// back, and when the background service answers again after it was
+    /// killed — at most this many: each one replays its conversation's
+    /// history into a new session, which the background service then holds.
+    /// Every other chat is taken up when the user opens it — nothing is lost
+    /// by waiting.
     static let maximumCutTurnResumes = 3
 
     /// The saved conversations have been checked against the host's live
@@ -55,6 +56,14 @@ final class ChatRuntime {
     private let store = ChatStore(folder: .app)
     private var revision = 0
     private var readers: [UUID: Task<Void, Never>] = [:]
+    /// Conversations whose cut turn is being taken up again while the
+    /// background service answers again, and the ones the reader stopped
+    /// itself, which are left as they are.
+    private var resumingCutTurn: Set<UUID> = []
+    private var stoppedChats: Set<UUID> = []
+    /// Cut turns taken up again by themselves this launch, capped by
+    /// `maximumCutTurnResumes`.
+    private var cutTurnResumes = 0
     /// The plan each conversation is on, read from its events and from the
     /// host (`ChatPlan`). Kept here rather than in the saved conversation:
     /// the session has it, and reads it back itself, so the app asks again
@@ -146,7 +155,6 @@ final class ChatRuntime {
             reconciliationTask = Task { @MainActor in
                 let reconcileStart = clock.now
                 log.info("startup: reconcile start")
-                var resumedCutTurns = 0
                 for record in self.records.values {
                     let needsEvents = record.summary.isWorking || live.contains { $0.sessionID == record.sessionID }
                     if needsEvents { await self.loadEventsIfNeeded(record.summary.id) }
@@ -163,10 +171,15 @@ final class ChatRuntime {
                         // transcript. It is not working until then.
                         self.records[record.summary.id]?.summary.isWorking = false
                         self.changed(record.summary.id)
-                        if resumedCutTurns < Self.maximumCutTurnResumes {
-                            resumedCutTurns += 1
-                            _ = try? await self.open(record.summary.id)
-                            log.info("reconcile: resumed a cut turn")
+                        if self.cutTurnResumes < Self.maximumCutTurnResumes {
+                            if (try? await self.open(record.summary.id)) != nil {
+                                self.cutTurnResumes += 1
+                                log.info("reconcile: resumed a cut turn")
+                            } else {
+                                // the service is not answering yet: ask again
+                                // as soon as it does
+                                self.resumeCutTurnWhenServiceReturns(record.summary.id)
+                            }
                         }
                     }
                 }
@@ -496,6 +509,8 @@ final class ChatRuntime {
 
     private func send(_ draft: ComposerDraft, to id: UUID) async throws {
         guard records[id] != nil else { return }
+        // A message the reader sends now is a turn they want taken up again
+        stoppedChats.remove(id)
         let opened = try await open(id)
         guard records[id] != nil else { return }
         var descriptors: [OwnedDescriptor] = []
@@ -566,6 +581,9 @@ final class ChatRuntime {
 
     func stop(_ id: UUID) async throws {
         guard let sessionID = records[id]?.sessionID else { return }
+        // The reader asked for this turn to end: a background service that
+        // comes back afterwards does not take it up again.
+        stoppedChats.insert(id)
         try await ApelinService.app.agentAbort(sessionID: sessionID)
     }
 
@@ -823,8 +841,17 @@ final class ChatRuntime {
                         return
                     }
                 } catch let error as ApelinError where error.code == .notFound {
+                    // The service that owned this task is not there: killed,
+                    // or back with the task gone. A turn that was in flight
+                    // is not lost — the conversation is opened again as soon
+                    // as the service answers, and the agent side sends the
+                    // same message again instead of losing it. A turn the
+                    // reader stopped itself stays stopped.
+                    let owed = records[id]?.summary.isWorking == true
+                        || !(records[id]?.sending ?? []).isEmpty
                     records[id]?.summary.isWorking = false
                     changed(id)
+                    if owed { resumeCutTurnWhenServiceReturns(id) }
                     return
                 } catch is CancellationError { return }
                 catch {
@@ -832,6 +859,37 @@ final class ChatRuntime {
                     try? await Task.sleep(for: .seconds(2))
                 }
             }
+        }
+    }
+
+    /// Takes a cut turn up again once the background service answers. The
+    /// daemon is started on demand, so after a kill it is away for a moment
+    /// and launchd starts it again when something asks; until it answers
+    /// nothing is asked of it, and then the conversation is opened — which is
+    /// what makes the agent side send the same message again in place of the
+    /// one that was cut short. A chat the reader stopped itself is left
+    /// stopped, and each chat is taken up again at most once.
+    private func resumeCutTurnWhenServiceReturns(_ id: UUID) {
+        guard cutTurnResumes < Self.maximumCutTurnResumes,
+              !stoppedChats.contains(id),
+              !resumingCutTurn.contains(id)
+        else { return }
+        resumingCutTurn.insert(id)
+        Task { [weak self] in
+            defer { self?.resumingCutTurn.remove(id) }
+            // about two minutes of asking: a relaunch follows a kill, but not
+            // at once, and nothing is opened while the service is away
+            for _ in 0..<60 {
+                guard let self, self.records[id] != nil else { return }
+                if (try? await ApelinService.app.agentList()) != nil,
+                   (try? await self.open(id)) != nil {
+                    self.cutTurnResumes += 1
+                    log.info("service answered: took a cut turn up again")
+                    return
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+            log.info("service did not answer: a cut turn waits for the next open")
         }
     }
 
