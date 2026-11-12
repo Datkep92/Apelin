@@ -5,11 +5,12 @@ import Foundation
 ///
 /// Three places read the same keys and have to agree on them: the model
 /// picker's key page, the composer's key control, and the order a failed run
-/// falls back through (`ModelCandidates.fallbackList`). One order serves all
-/// three — the reader's own, as the Settings listing keeps it — so switching
-/// a key never moves it, and the same key is named the same way wherever it
-/// is offered. Two configurations on one address are two keys of one Base
-/// URL; the same configuration on another address is another Base URL's.
+/// falls back through (`ModelCandidates.fallbackList`, which reads this order
+/// from the key in hand and round). One order serves all three — the reader's
+/// own, as the Settings listing keeps it — so switching a key never moves it,
+/// and the same key is named the same way wherever it is offered. Two
+/// configurations on one address are two keys of one Base URL; the same
+/// configuration on another address is another Base URL's.
 ///
 /// A key is named by what the reader called its configuration, never by a
 /// secret: a key is named, never quoted.

@@ -92,6 +92,32 @@ func checkModelCandidates() {
     let fromGhost = ModelCandidates.fallbackList(current: selection(ghost, "m"), accounts: accounts + [ghost])
     precondition(keys(fromGhost) == ["cand-a|m", "cand-b|m", "cand-c|m", "cand-qcn|m", "cand-q|m", "cand-d|m"], "\(keys(fromGhost))")
 
+    // Switching keys goes round the list as a ring whose place is the key in
+    // hand: from it the walk takes the key after it, on to the last, and wraps
+    // back to the top. The key in hand is remembered, so a second switch on the
+    // same Base URL reaches the third key — it does not start over at the
+    // first one as a walk that only ever dropped the current key would.
+    let ringA = account(.openAICompatible, "ring-a", "https://ring.example/v1", ["m"])
+    let ringB = account(.openAICompatible, "ring-b", "https://ring.example/v1", ["m"])
+    let ringC = account(.openAICompatible, "ring-c", "https://ring.example/v1", ["m"])
+    let ring = [ringA, ringB, ringC]
+    func ringOrder(_ from: AgentAccount) -> [String] {
+        keys(ModelCandidates.fallbackList(current: selection(from, "m"), accounts: ring))
+    }
+    precondition(ringOrder(ringA) == ["ring-b|m", "ring-c|m"], "\(ringOrder(ringA))")
+    precondition(ringOrder(ringB) == ["ring-c|m", "ring-a|m"], "\(ringOrder(ringB))")
+    precondition(ringOrder(ringC) == ["ring-a|m", "ring-b|m"], "\(ringOrder(ringC))")
+
+    // Reading the ring from a key only chooses where reading starts: the list's
+    // own order is kept, and a key outside it changes nothing.
+    let ringList = ModelKeys.serving("m", at: ringA.endpoint, from: ring)
+    precondition(
+        ModelCandidates.circular(ringList, from: ringB).map(\.id) == ["ring-b", "ring-c", "ring-a"],
+        "\(ModelCandidates.circular(ringList, from: ringB).map(\.id))",
+    )
+    precondition(ModelCandidates.circular(ringList, from: nil).map(\.id) == ["ring-a", "ring-b", "ring-c"], "no key in hand")
+    precondition(ModelCandidates.circular(ringList, from: first).map(\.id) == ["ring-a", "ring-b", "ring-c"], "another list's key")
+
     // The reader's own switch, kept where Settings writes it.
     let wasOn = ModelFallback.triesOtherModels
     ModelFallback.triesOtherModels = true

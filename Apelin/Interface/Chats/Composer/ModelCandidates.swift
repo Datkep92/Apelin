@@ -49,6 +49,19 @@ extension ModelRetryState {
 }
 
 enum ModelCandidates {
+    /// `keys` read as a ring whose first place is the key in hand: that key,
+    /// then the ones after it, then the ones before it and round again. The
+    /// order itself is the list's own (`ModelKeys.serving`) — this only moves
+    /// where reading it starts, so a walk down the list wraps back to its top
+    /// instead of jumping there. Unchanged when the key in hand is not one of
+    /// them.
+    static func circular(_ keys: [AgentAccount], from current: AgentAccount?) -> [AgentAccount] {
+        guard let current, let place = keys.firstIndex(where: { $0.id == current.id }) else {
+            return keys
+        }
+        return Array(keys[place...]) + Array(keys[..<place])
+    }
+
     /// Builds the fallback order starting after `current`. `current` itself is
     /// excluded; if nothing else is available the list is empty (caller keeps
     /// the current selection). Accounts must already be filtered to signed-in,
@@ -56,9 +69,12 @@ enum ModelCandidates {
     ///
     /// Another key on the *same Base URL*, with the same model, comes first —
     /// the very keys the key control offers, in its order
-    /// (`ModelKeys.serving`), so a switch and a fallback walk them the same
-    /// way: that is what a spent allowance or a refused key needs, and it is
-    /// the one swap that costs the conversation nothing. Then the same model
+    /// (`ModelKeys.serving`), read from the key in hand and round
+    /// (`circular(_:from:)`), so a switch and a fallback walk them the same
+    /// way and a walk remembers where it stood instead of starting at the
+    /// list's first key every time: that is what a spent allowance or a
+    /// refused key needs, and it is the one swap that costs the conversation
+    /// nothing. Then the same model
     /// on the provider's family, then that model name on any other provider —
     /// every key for the model in hand before any other model. Only after
     /// those the reader's other enabled models, and those only where the
@@ -94,12 +110,14 @@ enum ModelCandidates {
         }
 
         // 1. The same model on another key of the same Base URL, in the order
-        // the key control lists them.
+        // the key control lists them, read from the key in hand and round: the
+        // keys after it, then the ones before it. The walk goes down the list
+        // and wraps back to its top, so the key in hand's place is what decides
+        // where the next one is — never the first key of the list.
         let currentAccount = enabled.first(where: isCurrent)
             ?? enabled.first(where: { $0.provider == current.provider && offers($0, current.model) })
-        for account in ModelKeys.serving(current.model, at: currentAccount?.endpoint, from: enabled)
-            where !isCurrent(account)
-        {
+        let sameAddress = ModelKeys.serving(current.model, at: currentAccount?.endpoint, from: enabled)
+        for account in circular(sameAddress, from: currentAccount) where !isCurrent(account) {
             add(ModelCandidate(account: account, model: current.model))
         }
         // 2. The same model, another configuration of the provider's family.
