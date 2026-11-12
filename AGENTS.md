@@ -3876,10 +3876,14 @@ Quy tắc ngắn của fork:
   máy này không có `/bin/bash`), kèm `Documents/Releases/<x.y.z>.md` viết trước
   khi gắn tag. CI **xanh** → gắn tag `v<x.y.z>` để `release.yml` phát hành đúng
   file CI đã kiểm → tải `wiki.qaq.apelin_<ver>_iphoneos-arm64.deb`, đối chiếu
-  `SHA256SUMS`, cài lên máy. CI **đỏ** → đọc log job lỗi
-  (`gh api /repos/Datkep92/Apelin/actions/jobs/<jobid>/logs`), sửa, đẩy lại
-  ngay; không dừng lại hỏi, không gộp nhiều lần sửa vào một lượt chờ.
-  Việc chỉ sửa tài liệu thì đi kèm lần đẩy mã sau đó, để không đốt thêm số phiên bản.
+  `SHA256SUMS`, **cài lên máy ngay, không xin phép** (không hỏi trước khi cài
+  gói rootless từ release). CI **đỏ** — **hot test hoặc build bị lỗi giữa chừng
+  cũng coi như đỏ, không cần chờ CI hoàn tất**: đọc log job lỗi đầy đủ
+  (`gh api /repos/Datkep92/Apelin/actions/jobs/<jobid>/logs`), xác định gốc rễ,
+  sửa đồng bộ, đẩy lại CI ngay; sau đó theo dõi CI mới (và CI cũ nếu còn chạy)
+  cho đến xanh hoặc đỏ tiếp. Không dừng lại hỏi, không gộp nhiều lần sửa vào
+  một lượt chờ. Việc chỉ sửa tài liệu thì đi kèm lần đẩy mã sau đó, để không đốt
+  thêm số phiên bản.
 - **Cài đặt:** `icli pkg install <deb>` chạy bằng root (maintainer script
   **không** chạy — để nguyên, `postinst` sẽ bootout `apelind`); sau đó
   `icli app kill wiki.qaq.apelin --force` + `icli app launch wiki.qaq.apelin`.
