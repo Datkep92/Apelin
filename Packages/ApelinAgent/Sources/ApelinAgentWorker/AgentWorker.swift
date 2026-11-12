@@ -405,6 +405,13 @@ actor WorkerState {
             } else if !closeWhenFinished {
                 await session.generateTitle(for: prompt)
             }
+        } else if let turn = await session.pendingCutTurn() {
+            // The conversation is opened to be read, but the last turn of it
+            // did not end: the app is waiting for the answer to a message
+            // that is already in the transcript, from before the background
+            // service stopped. Sending it again — the same id — takes that
+            // turn up where it stopped instead of losing it.
+            _ = await session.resumeCutTurn(turn)
         }
     }
 

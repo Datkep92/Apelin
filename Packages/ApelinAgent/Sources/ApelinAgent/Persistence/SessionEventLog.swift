@@ -1,5 +1,6 @@
 import Foundation
 import KWWKAI
+import struct ApelinProtocol.AgentAttachment
 import struct ApelinProtocol.AgentPlan
 
 public enum SessionStoreError: Error, Equatable, LocalizedError {
@@ -41,11 +42,44 @@ public struct SessionMetadata: Sendable, Hashable, Codable {
     }
 }
 
+/// The message a run that has not ended was started for, kept at `turn.json`
+/// in the session directory while the run is in the middle of it, and removed
+/// when the run ends. What it holds is a turn a stopped process left behind:
+/// a conversation opening again sends it a second time — the same
+/// `messageID`, so the app's row for it is the one it already shows — with
+/// the attachments, which name their path in the workspace and are still
+/// there.
+public struct InterruptedTurn: Codable, Sendable, Hashable {
+    public var messageID: UUID
+    public var text: String
+    /// The conversation of the project that sent it, if one did.
+    public var from: String?
+    /// The message this one retries, if it does.
+    public var retryOf: UUID?
+    public var attachments: [AgentAttachment]
+
+    public init(
+        messageID: UUID,
+        text: String,
+        from: String? = nil,
+        retryOf: UUID? = nil,
+        attachments: [AgentAttachment] = [],
+    ) {
+        self.messageID = messageID
+        self.text = text
+        self.from = from
+        self.retryOf = retryOf
+        self.attachments = attachments
+    }
+}
+
 /// `~/Documents/wiki.qaq.apelin/sessions/<id>/`: `session.json`,
 /// `events.jsonl` (one `SessionEventRecord` per line, sequence numbers from
-/// 1, appended before delivery) and `transcript.json` (the model
+/// 1, appended before delivery), `transcript.json` (the model
 /// conversation, rewritten at the end of every run so a restarted
-/// `apelin-agent` resumes it).
+/// `apelin-agent` resumes it) and `turn.json` (the message a run is in the
+/// middle of, written before the model is asked anything and removed when
+/// the run ends, so what a stopped process left there is taken up again).
 ///
 /// Streamed text is coalesced before it is written: a `textDelta` or
 /// `thinkingDelta` joins the pending record of its kind, which is written
@@ -357,6 +391,35 @@ public actor SessionEventLog {
         let url = directory.appendingPathComponent("plan.json")
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return try Self.decoder.decode(AgentPlan.self, from: Data(contentsOf: url))
+    }
+
+    /// Writes down the message the run about to start was asked for. It is
+    /// written before the model is asked anything, and removed when the run
+    /// ends, so a marker left when a process stops is a turn nothing finished.
+    public func writeTurn(_ turn: InterruptedTurn) throws {
+        try writeAtomically(encoder.encode(turn), name: "turn.json")
+    }
+
+    /// The turn a stopped process was in the middle of, if one was. A marker
+    /// that does not read is not a turn — nothing can be taken up from it —
+    /// so it is removed rather than left to fail at every open.
+    public func readTurn() throws -> InterruptedTurn? {
+        let url = directory.appendingPathComponent("turn.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        do {
+            return try Self.decoder.decode(InterruptedTurn.self, from: Data(contentsOf: url))
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            return nil
+        }
+    }
+
+    /// Removes the marker: the run ended, the app closed the conversation, or
+    /// the history holds the message now and taking it up again would send it
+    /// twice. Nothing here fails a caller — a marker that is not there is
+    /// what was wanted.
+    public func clearTurn() {
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent("turn.json"))
     }
 
     private func writeAtomically(_ data: Data, name: String) throws {

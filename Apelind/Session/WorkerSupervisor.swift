@@ -46,6 +46,15 @@ actor WorkerSupervisor {
     static let idleTimeout: TimeInterval = 60
     static let readyTimeout: UInt64 = 10
 
+    /// How long a worker is kept with nothing to do. An agent worker is kept
+    /// far longer: reopening a conversation replays its whole history, so the
+    /// pauses inside a turn (a long model call, an approval the user has not
+    /// answered, a subagent) must not cost it. Every other role goes as soon
+    /// as it has no task left.
+    static func idleLimit(for role: WorkerRole) -> TimeInterval {
+        role == .agent ? 600 : idleTimeout
+    }
+
     struct Key: Hashable {
         var role: WorkerRole
         var instance: String?
@@ -62,6 +71,9 @@ actor WorkerSupervisor {
     private var eventHandler: (@Sendable (WorkerProcess, ChannelFrame) -> Void)?
     private var exitHandler: (@Sendable (WorkerProcess) -> Void)?
     private var busy: (@Sendable (WorkerRole, String?) async -> Bool)?
+    /// Set by the host: a worker is being retired after a long idle, so its
+    /// tasks end as ones that finished, not as ones whose process went away.
+    private var retire: (@Sendable (WorkerRole, String?) async -> Void)?
 
     init(installRoot: String, home: String) {
         self.installRoot = installRoot
@@ -73,11 +85,13 @@ actor WorkerSupervisor {
         onEvent: @escaping @Sendable (WorkerProcess, ChannelFrame) -> Void,
         onExit: @escaping @Sendable (WorkerProcess) -> Void,
         isBusy: @escaping @Sendable (WorkerRole, String?) async -> Bool,
+        onRetire: @escaping @Sendable (WorkerRole, String?) async -> Void,
     ) {
         requestHandler = onRequest
         eventHandler = onEvent
         exitHandler = onExit
         busy = isBusy
+        retire = onRetire
     }
 
     var count: Int {
@@ -105,18 +119,30 @@ actor WorkerSupervisor {
         return worker
     }
 
-    /// Closes workers idle past the timeout with no task left.
+    /// Closes workers idle past their limit with no task left. A conversation
+    /// sitting between turns is not a task left (`TaskRegistry`), so its
+    /// worker goes too, after the long agent limit.
     func sweep() async {
-        for (key, worker) in workers where worker.idleFor() > Self.idleTimeout {
+        for (key, worker) in workers where worker.idleFor() > Self.idleLimit(for: key.role) {
             if await busy?(key.role, key.instance) == true {
                 continue
             }
             // While the check was awaited the worker may have taken a request,
             // or exited and been replaced by a new one under the same key.
-            guard workers[key] === worker, worker.idleFor() > Self.idleTimeout else { continue }
+            guard workers[key] === worker, worker.idleFor() > Self.idleLimit(for: key.role) else { continue }
+            await retire?(key.role, key.instance)
             worker.channel.close()
             workers[key] = nil
         }
+    }
+
+    /// Workers with work in flight, by the host's own view of their tasks.
+    func busyWorkerCount() async -> Int {
+        var count = 0
+        for (key, _) in workers where await busy?(key.role, key.instance) == true {
+            count += 1
+        }
+        return count
     }
 
     func stopAll() {

@@ -64,6 +64,7 @@ sources=(
     "$root/Tests/SessionHost/RootRunChecks.swift"
     "$root/Tests/SessionHost/CodeRunChecks.swift"
     "$root/Tests/SessionHost/ScreenConsentChecks.swift"
+    "$root/Tests/SessionHost/IdleWorkChecks.swift"
     "$root/Tests/SessionHost/ToolchainEndToEnd.swift"
     "$root/Tests/SessionHost/ToolchainPruneChecks.swift"
     "$root/Tests/SessionHost/main.swift"

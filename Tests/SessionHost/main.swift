@@ -1395,6 +1395,10 @@ await codeRunChecks(scratch: scratch, scratchPath: scratchPath)
 
 await screenConsentChecks(scratch: scratch, scratchPath: scratchPath)
 
+// MARK: - The idle clock and the work report (IdleWorkChecks.swift)
+
+await idleWorkChecks(scratch: scratch)
+
 // MARK: - Install bridge against a fake irisind
 
 final class FakeIrisin: InstallService, @unchecked Sendable {

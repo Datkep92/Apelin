@@ -604,6 +604,22 @@ public actor AgentSession {
         )
         let paths = attachments.map { "\($0.name): \($0.path)" }.joined(separator: "\n")
         let typed = paths.isEmpty ? text : text + "\n\nAttached files in the workspace:\n" + paths
+        if !queues, let messageID {
+            // The answer to this message is owed to the app's row for it, and
+            // the run is about to start. Written down before the model is
+            // asked for anything: a process that stops inside the turn leaves
+            // it here, and opening the conversation again sends the same
+            // message — the same id, so the app's row is the one it already
+            // shows — with the attachments the workspace still holds. A queued
+            // message is not written down: it is not in the conversation yet.
+            try? await log.writeTurn(InterruptedTurn(
+                messageID: messageID,
+                text: text,
+                from: sender?.sessionID,
+                retryOf: retryOf,
+                attachments: attachments,
+            ))
+        }
         if !queues {
             // A compaction going rewrites the system prompt for the run
             // this message starts; the message says what changed after it.
@@ -880,7 +896,62 @@ public actor AgentSession {
         unsubscribe = nil
         await mcpManager?.shutdown()
         await runner.closeToolExtensions()
+        // A conversation the app closed is not carried on when it is opened
+        // again: its turn is over as far as anyone is concerned.
+        await log.clearTurn()
         await log.close()
+    }
+
+    // MARK: - A turn that was cut short
+
+    /// The message a run of a process that has stopped was in the middle of,
+    /// if there is one: the app is waiting for the answer to it.
+    ///
+    /// Written down before the model is asked for anything and removed when
+    /// the run ends, so what is left here is a turn nothing finished.
+    /// `AgentWorker` sends it again when a conversation is opened.
+    public func pendingCutTurn() async -> InterruptedTurn? {
+        (try? await log.readTurn()) ?? nil
+    }
+
+    /// Sends again the message of the turn a stopped process left behind: the
+    /// same `messageID`, so the app keeps the row for it that it already
+    /// shows and takes the answer as the answer to it, and the attachments,
+    /// which the workspace still holds and which start a new run under the
+    /// same turn — the marker is written again by `prompt`, and the run's end
+    /// removes it.
+    ///
+    /// Answers `false` when there was nothing to take up, when another run has
+    /// started meanwhile — its own turn is written down, not this one —, or
+    /// when the run could not be started, in which case the turn stays and is
+    /// taken up by the next open.
+    @discardableResult
+    public func resumeCutTurn(_ turn: InterruptedTurn) async -> Bool {
+        guard runTask == nil || runEnding else { return false }
+        guard await pendingCutTurn()?.messageID == turn.messageID else { return false }
+        let files: [(name: String, mimeType: String, data: Data)] = turn.attachments.compactMap { attachment in
+            guard let path = try? workspace.resolveExisting(attachment.path),
+                  let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+            else { return nil }
+            return (name: attachment.name, mimeType: attachment.mimeType, data: data)
+        }
+        await record(.notice(
+            title: nil,
+            body: "Continuing a turn that stopped when the background service did.",
+        ))
+        do {
+            try await prompt(
+                turn.text,
+                messageID: turn.messageID,
+                files: files,
+                from: turn.from.map { ConversationSender(sessionID: $0) },
+                retryOf: turn.retryOf,
+            )
+        } catch {
+            await record(.error(message: error.localizedDescription))
+            return false
+        }
+        return true
     }
 
     // MARK: - Events
@@ -1013,6 +1084,9 @@ public actor AgentSession {
             // the whole conversation, which a reopened session reads back.
             do {
                 try await log.writeTranscript(agent.state.messages)
+                // The history on disk holds this run's message now, so a
+                // later resume of it would send it twice.
+                await log.clearTurn()
             } catch {
                 await record(.error(message: "Unable to save the conversation history: \(error.localizedDescription)"))
             }
@@ -1121,6 +1195,11 @@ public actor AgentSession {
         }
         await runner.turnEnded()
         await record(.finished(reason: reason))
+        // The turn is over, so nothing is left to take up after a restart. A
+        // run carried over from here writes its own turn down when it starts;
+        // one the loop takes from the steering queue was written down when it
+        // was queued and is not resumed.
+        await log.clearTurn()
         // a stop meanwhile dropped them
         runTask = next.isEmpty || aborted ? nil : carryOver(next)
         runEnding = false

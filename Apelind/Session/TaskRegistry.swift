@@ -112,6 +112,20 @@ actor TaskRegistry {
         return unfinished.sorted { $0.createdAt < $1.createdAt }
     }
 
+    /// Agent tasks a turn is going on in. Kept beside the records, not in
+    /// them: a session's record is written only when its task moves state, so
+    /// the log is the only place that says whether a turn is running, and
+    /// nothing here is read back at load.
+    private var turns: Set<TaskID> = []
+
+    /// The two session events that say a turn is going on: the model has been
+    /// asked for something, and it is done with it. `messageStarted` is
+    /// written when the run's first assistant message begins — durable, and
+    /// relayed before any answer — and `finished` when the run ends; the
+    /// names are the agent session's own (`AgentSessionEvent`).
+    static let turnStartedKind = "messageStarted"
+    static let turnFinishedKind = "finished"
+
     /// Ends a task the host could not resume, saying why when it knows.
     func interrupt(_ id: TaskID, message: String = "The background service stopped while this task was running. Start the task again.") {
         finish(id, .interrupted, message: message)
@@ -176,6 +190,14 @@ actor TaskRegistry {
             moved = true
         }
         records[id] = record
+        switch kind {
+        case Self.turnStartedKind: turns.insert(id)
+        case Self.turnFinishedKind: turns.remove(id)
+        default: break
+        }
+        if record.state.isTerminal {
+            turns.remove(id)
+        }
         events[id, default: []].append(event)
         appendEventToDisk(id, event)
         if moved {
@@ -261,8 +283,32 @@ actor TaskRegistry {
         }
     }
 
-    func hasActiveTask(owner role: WorkerRole, key: String?) -> Bool {
-        records.values.contains { $0.owner == role && $0.ownerKey == key && !$0.state.isTerminal }
+    /// Whether this worker has work in flight. An agent conversation between
+    /// turns is not work: its task is unfinished and its worker started, but
+    /// nothing is being done for anyone, so it must not hold the background
+    /// service up (the service exits a quarter of an hour after its last real
+    /// work). A turn counts from its `messageStarted` to its `finished`.
+    func hasWorkInFlight(owner role: WorkerRole, key: String?) -> Bool {
+        records.values.contains { $0.owner == role && $0.ownerKey == key && holdsWork($0) }
+    }
+
+    /// Tasks with work in flight, for the work report.
+    var busyCount: Int {
+        records.values.filter { holdsWork($0) }.count
+    }
+
+    private func holdsWork(_ record: Record) -> Bool {
+        guard !record.state.isTerminal else { return false }
+        return record.kind != .agent || turns.contains(record.id)
+    }
+
+    /// Ends the tasks of a worker the supervisor retired after a long idle:
+    /// nothing serves them any more, and nothing went wrong, so they finish
+    /// `succeeded` — not as a task whose process went away.
+    func retireIdle(owner role: WorkerRole, key: String?) {
+        for record in records.values where record.owner == role && record.ownerKey == key && !record.state.isTerminal {
+            finish(record.id, record.cancelRequested ? .cancelled : .succeeded)
+        }
     }
 
     var activeCount: Int {
@@ -296,6 +342,7 @@ actor TaskRegistry {
             for record in tasks where record.id != newest?.id && record.state.isTerminal {
                 records.removeValue(forKey: record.id)
                 events.removeValue(forKey: record.id)
+                turns.remove(record.id)
                 unlink(eventsURL(record.id).path)
                 unlink(recordURL(record.id).path)
             }

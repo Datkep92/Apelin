@@ -85,8 +85,14 @@ public enum WorkerControl {
 /// live worker or agent tool extension is a process. The connected app is
 /// counted by the proxy itself.
 public struct WorkReport: Codable, Sendable, Equatable {
+    /// Every task the host holds, finished or not.
     public var activeTasks: Int
+    /// Tasks with work in flight. A conversation between turns is active but
+    /// idle, and is not counted here.
+    public var busyTasks: Int
     public var workers: Int
+    /// Workers with work in flight, by the same view.
+    public var busyWorkers: Int
     /// Open agent tool extension sessions.
     public var toolHosts: Int
     /// Active tasks by `TaskKind` raw value.
@@ -94,15 +100,28 @@ public struct WorkReport: Codable, Sendable, Equatable {
     /// Whether the gateway process is running (for UI feedback).
     public var gatewayRunning: Bool
 
-    public init(activeTasks: Int, workers: Int, toolHosts: Int = 0, tasksByKind: [String: Int] = [:], gatewayRunning: Bool = false) {
+    public init(
+        activeTasks: Int,
+        busyTasks: Int = 0,
+        workers: Int,
+        busyWorkers: Int = 0,
+        toolHosts: Int = 0,
+        tasksByKind: [String: Int] = [:],
+        gatewayRunning: Bool = false,
+    ) {
         self.activeTasks = activeTasks
+        self.busyTasks = busyTasks
         self.workers = workers
+        self.busyWorkers = busyWorkers
         self.toolHosts = toolHosts
         self.tasksByKind = tasksByKind
         self.gatewayRunning = gatewayRunning
     }
 
+    /// Nothing left to do: the proxy may exit, and launchd starts the session
+    /// host again when there is something. A conversation open with nothing
+    /// running, and no app connected, is not work.
     public var isIdle: Bool {
-        activeTasks == 0 && workers == 0 && toolHosts == 0
+        busyTasks == 0 && busyWorkers == 0 && toolHosts == 0
     }
 }

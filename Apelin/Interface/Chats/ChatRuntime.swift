@@ -39,6 +39,13 @@ final class ChatRuntime {
             if changedView { changed(viewedChat) }
         }
     }
+    /// Chats whose cut turn is taken up again by itself when the app comes
+    /// back, at most this many: each one replays its conversation's history
+    /// into a new session, which the background service then holds. Every
+    /// other chat is taken up when the user opens it — nothing is lost by
+    /// waiting.
+    static let maximumCutTurnResumes = 3
+
     /// The saved conversations have been checked against the host's live
     /// sessions once: what says working is working.
     private(set) var isReconciled = false
@@ -139,6 +146,7 @@ final class ChatRuntime {
             reconciliationTask = Task { @MainActor in
                 let reconcileStart = clock.now
                 log.info("startup: reconcile start")
+                var resumedCutTurns = 0
                 for record in self.records.values {
                     let needsEvents = record.summary.isWorking || live.contains { $0.sessionID == record.sessionID }
                     if needsEvents { await self.loadEventsIfNeeded(record.summary.id) }
@@ -146,8 +154,20 @@ final class ChatRuntime {
                         self.records[record.summary.id]?.reopen(as: session.task)
                         self.follow(record.summary.id, task: session.task)
                     } else if record.summary.isWorking {
+                        // Nothing behind the app is running for this chat: the
+                        // turn it was in the middle of was cut short when the
+                        // background service stopped. Opening the conversation
+                        // takes that turn up again where it stopped — the agent
+                        // side sends the same message instead of losing it —
+                        // and the row it is owed stays the one already in the
+                        // transcript. It is not working until then.
                         self.records[record.summary.id]?.summary.isWorking = false
                         self.changed(record.summary.id)
+                        if resumedCutTurns < Self.maximumCutTurnResumes {
+                            resumedCutTurns += 1
+                            _ = try? await self.open(record.summary.id)
+                            log.info("reconcile: resumed a cut turn")
+                        }
                     }
                 }
                 self.isReconciled = true

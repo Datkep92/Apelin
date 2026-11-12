@@ -179,7 +179,10 @@ final class SessionHost: @unchecked Sendable {
                     feed.send(.exit(worker))
                 },
                 isBusy: { [self] role, key in
-                    await registry.hasActiveTask(owner: role, key: key)
+                    await registry.hasWorkInFlight(owner: role, key: key)
+                },
+                onRetire: { [self] role, key in
+                    await registry.retireIdle(owner: role, key: key)
                 },
             )
             // Resume what the previous host left running, before anything
@@ -231,9 +234,12 @@ final class SessionHost: @unchecked Sendable {
         let isGatewayRunning: Bool = {
             GatewayHandler.gatewayHasProcess()
         }()
+        let busyWorkers = await workers.busyWorkerCount()
         let report = await WorkReport(
             activeTasks: registry.activeCount,
+            busyTasks: registry.busyCount,
             workers: workers.count,
+            busyWorkers: busyWorkers,
             toolHosts: toolHosts.count,
             tasksByKind: registry.activeByKind,
             gatewayRunning: isGatewayRunning,
