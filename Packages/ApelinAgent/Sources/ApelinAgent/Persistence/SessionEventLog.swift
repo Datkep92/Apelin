@@ -98,7 +98,10 @@ public struct InterruptedTurn: Codable, Sendable, Hashable {
 /// that subscriber and follows once the replay has read the rest, so an
 /// append never waits for a replay.
 public actor SessionEventLog {
-    public let directory: URL
+    /// Where the session's files live: a `let` of `URL`, which is immutable
+    /// and `Sendable`, so a caller can name the directory without hopping
+    /// into the actor — a test writing a damaged `turn.json`, for one.
+    public nonisolated let directory: URL
     /// What the log held when it was opened, read in the pass that found
     /// its end: what a session needs to carry on, so nothing reads the log
     /// again for it.
