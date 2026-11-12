@@ -78,12 +78,20 @@ extension ChatRecord {
 /// and how many tries were spent.
 struct ModelRetryState: Codable, Sendable, Equatable {
     /// Models left to try, in fallback order, the next one first: each is
-    /// removed as it is sent. Empty means the reader is the only one who
-    /// can ask again.
+    /// removed as it is sent. Empty means this walk has reached the end of the
+    /// list — the reader's own Retry then goes round again from the key in
+    /// hand (`ordered`), so the walk is a ring rather than a list that ends.
     var remaining: [ComposerModelSelection]
+    /// The walk's own list as it was first built, the same candidates in the
+    /// same order: what going round again is read from (`ring(from:)`), seated
+    /// at the key in hand each time. Absent from a state written before it was
+    /// kept, and from a chain whose first list was empty.
+    var ordered: [ComposerModelSelection]?
     /// The keys (by `ComposerModelSelection.retryKey`) that have already
-    /// failed in this retry chain. They are never tried again, even after
-    /// their cooldown — the reader's own Retry does not revive them.
+    /// failed in this lap. They are never tried again, even after their
+    /// cooldown — the reader's own Retry does not revive them, it starts the
+    /// next lap (`lap(from:)`), which reads the list on from the key in hand
+    /// and so comes back to that key last.
     var triedKeys: Set<String> = []
     /// The text sent again, taken from the message the error answered. Kept
     /// for a state written before the message was read from the
@@ -94,6 +102,11 @@ struct ModelRetryState: Codable, Sendable, Equatable {
     /// Set while the run the error came from is still going: the next model
     /// is sent when it ends. Absent from older files.
     var awaitingTurn: Bool?
+    /// Set together with `awaitingTurn` when the retry that waits is the
+    /// reader's own: the send that follows the wait counts as theirs again, so
+    /// one message's automatic budget does not drop the tap they made. Absent
+    /// from older files.
+    var askedByReader: Bool?
     /// What the failure was, as far as its wording says
     /// (`ModelRetrySignal.kind(of:)`): it decides whether an automatic retry
     /// runs at all and how long the candidate that failed is left alone.
@@ -108,7 +121,8 @@ struct ModelRetryState: Codable, Sendable, Equatable {
 
 extension ModelRetryState {
     private enum CodingKeys: String, CodingKey {
-        case remaining, triedKeys, text, attempts, awaitingTurn, kind, cooldowns
+        case remaining, ordered, triedKeys, text, attempts, awaitingTurn, askedByReader,
+             kind, cooldowns
     }
 
     /// Reads what the file holds and no more: a value added by a later build
@@ -120,9 +134,16 @@ extension ModelRetryState {
         remaining = ((try? container.decode([TolerantValue<ComposerModelSelection>].self, forKey: .remaining)) ?? [])
             .compactMap { $0.value }
         triedKeys = (try? container.decode(Set<String>.self, forKey: .triedKeys)) ?? []
+        // A list absent from the file stays absent, rather than reading as an
+        // empty one: the walk's own list is what the reader's Retry goes round
+        // once every candidate is spent, and "no list kept" is not a list that
+        // holds nothing.
+        ordered = (try? container.decode([TolerantValue<ComposerModelSelection>].self, forKey: .ordered))
+            .map { $0.compactMap { $0.value } }
         text = (try? container.decode(String.self, forKey: .text)) ?? ""
         attempts = (try? container.decode(Int.self, forKey: .attempts)) ?? 0
         awaitingTurn = try? container.decodeIfPresent(Bool.self, forKey: .awaitingTurn)
+        askedByReader = try? container.decodeIfPresent(Bool.self, forKey: .askedByReader)
         kind = try? container.decodeIfPresent(ModelFailureKind.self, forKey: .kind)
         cooldowns = try? container.decodeIfPresent([String: Date].self, forKey: .cooldowns)
     }

@@ -634,9 +634,36 @@ final class ChatRuntime {
         records[id]?.modelSelection
     }
 
+    /// What moving the conversation to another model means for a retry walk
+    /// still standing: another key of the same model seats the walk at that
+    /// key, so its next candidate is the one after it in the list's order
+    /// rather than where the key before it had got to — while another model is
+    /// the reader taking the conversation over, and the walk's list, which
+    /// belongs to the model that failed, goes: the failure keeps its Retry,
+    /// and that sends on the model now in hand (`needsFreshWalk`).
     func setModelSelection(_ selection: ComposerModelSelection?, for id: UUID) {
         guard records[id] != nil else { return }
+        let previous = records[id]?.modelSelection
         records[id]?.modelSelection = selection
+        if var state = records[id]?.retryState, previous?.retryKey != selection?.retryKey {
+            if previous?.model == selection?.model, previous?.provider == selection?.provider {
+                state.reseat(from: selection)
+                records[id]?.retryState = state
+            } else {
+                // Nothing is sent on its own here: a model the reader chose is
+                // not one the failure's walk may spend, so what is left waits
+                // for their Retry, which builds the list for that model. A
+                // walk with no failure kind to hold a Retry cannot be built
+                // again, so that one goes, as it did before the list was kept.
+                state.remaining = []
+                state.ordered = nil
+                state.triedKeys = []
+                state.attempts = 0
+                state.awaitingTurn = nil
+                state.askedByReader = nil
+                records[id]?.retryState = state.needsFreshWalk ? state : nil
+            }
+        }
         changed(id)
     }
 
@@ -955,14 +982,16 @@ final class ChatRuntime {
         answeringRetryableFailure.insert(id)
         defer { answeringRetryableFailure.remove(id) }
         var state: ModelRetryState
+        let current = records[id]?.modelSelection ?? ComposerModelSelection.current
         if let known = records[id]?.retryState {
             // later errors of the same run keep the tries and the list
             state = known
         } else {
-            let failedKey = (records[id]?.modelSelection ?? ComposerModelSelection.current)?.retryKey
+            let candidates = await fallbackCandidates(after: id)
             state = ModelRetryState(
-                remaining: await fallbackCandidates(after: id),
-                triedKeys: failedKey.map { Set([$0]) } ?? Set(),
+                remaining: candidates,
+                ordered: candidates,
+                triedKeys: current.map { Set([$0.retryKey]) } ?? Set(),
                 text: "",
             )
         }
@@ -971,13 +1000,11 @@ final class ChatRuntime {
         let kind = failureKind(in: id)
         if let kind {
             state.kind = kind
-            if let wait = ModelRetryPolicy.cooldown(for: kind),
-               let failed = (records[id]?.modelSelection ?? ComposerModelSelection.current)?.retryKey
-            {
+            if let wait = ModelRetryPolicy.cooldown(for: kind), let failed = current?.retryKey {
                 var cooldowns = state.cooldowns ?? [:]
                 cooldowns[failed] = Date().addingTimeInterval(wait)
                 state.cooldowns = cooldowns
-                // Never try this key again in this retry chain.
+                // Never try this key again in this walk.
                 state.triedKeys.insert(failed)
             }
         }
@@ -987,9 +1014,10 @@ final class ChatRuntime {
         // meanwhile takes over: the retry sends what failed.
         let draft = retryDraft(in: id, fallbackText: state.text)
         state.text = draft.text
-        // With nothing to send again, or no model left, the conversation
-        // keeps the error alone: the reader is the one who acts.
-        guard !state.remaining.isEmpty, Self.hasContent(draft) else {
+        // With nothing to send again, or nothing the reader's own Retry could
+        // go round to, the conversation keeps the error alone: the reader is
+        // the one who acts.
+        guard state.canAskAgain(from: current), Self.hasContent(draft) else {
             if records[id]?.retryState != nil {
                 records[id]?.retryState = nil
                 changed(id)
@@ -1013,33 +1041,92 @@ final class ChatRuntime {
         await sendNextModel(in: id, readerAsked: true)
     }
 
-    /// Whether `id` has a candidate left to answer a failure with: what the
-    /// model bar's Retry is shown for.
+    /// Whether `id` has something to answer a failure with: a candidate left
+    /// in this walk, or — once the walk is spent — the walk's own list to go
+    /// round again from the key in hand. What the model bar's Retry is shown
+    /// for.
     func canRetryFailedMessage(_ id: UUID) -> Bool {
-        records[id]?.retryState.map { !$0.remaining.isEmpty } ?? false
+        guard let state = records[id]?.retryState else { return false }
+        return state.canAskAgain(from: records[id]?.modelSelection ?? ComposerModelSelection.current)
     }
 
     private func sendNextModel(in id: UUID, readerAsked: Bool) async {
         loadEventsSyncIfNeeded(id)
-        guard var state = records[id]?.retryState,
-              let next = state.nextCandidate(readerAsked: readerAsked) else { return }
+        let current = records[id]?.modelSelection ?? ComposerModelSelection.current
+        guard var state = records[id]?.retryState else { return }
+        // A retry the reader asked for that had to wait for a run to end is
+        // still theirs when it is sent: what waited was their tap, and one
+        // message's automatic budget does not drop it.
+        let asks = readerAsked || state.askedByReader == true
+        state.askedByReader = nil
+        // A walk emptied by a move to another model is built again here, from
+        // the model now in hand, and only when the reader asks for it: a model
+        // they chose is not one a failure spends on its own, and the key they
+        // chose stays the one already failed, so another key of it is sent.
+        if asks, state.needsFreshWalk {
+            let candidates = await fallbackCandidates(after: id)
+            // The reader may have moved the conversation again while the list
+            // was read; what stands then is the walk they made, and its list is
+            // built for it the next time they ask.
+            guard let standing = records[id]?.retryState, standing.needsFreshWalk else { return }
+            state = standing
+            state.remaining = candidates
+            state.ordered = candidates
+            state.triedKeys = (records[id]?.modelSelection).map { Set([$0.retryKey]) } ?? []
+        }
+        var next = state.nextCandidate(readerAsked: asks)
+        // The reader's own Retry goes round the list again: with every
+        // candidate of this walk tried, the walk is read on from the key in
+        // hand — the key that failed coming back last, every other key tried
+        // once more — which is the only way back to a key the walk left
+        // behind. Without it the walk ended on the key that failed and the
+        // conversation was stranded there, with Retry gone.
+        if next == nil, asks, state.canAskAgain(from: current) {
+            state.lap(from: current)
+            next = state.nextCandidate(readerAsked: asks)
+        }
+        guard let next else {
+            // Nothing to send: the flag the reader's tap set is spent either way.
+            if records[id]?.retryState?.askedByReader != nil {
+                records[id]?.retryState = state
+                changed(id)
+            }
+            return
+        }
         // One retry at a time: the same message sent twice would run twice,
-        // and a send under way is a prompt the host already has.
-        guard (records[id]?.sending ?? []).isEmpty else { return }
+        // and a send under way is a prompt the host already has. The retry
+        // waits for that run instead of being dropped — an error read while
+        // another message of the reader's is still on its way would otherwise
+        // leave the fallback unsent, and only the reader's Retry would answer
+        // it.
+        guard (records[id]?.sending ?? []).isEmpty else {
+            if state.awaitingTurn != true || state.askedByReader != (asks ? true : nil) {
+                state.awaitingTurn = true
+                state.askedByReader = asks ? true : nil
+                records[id]?.retryState = state
+                changed(id)
+            }
+            return
+        }
         let draft = retryDraft(in: id, fallbackText: state.text)
         let step = ModelRetryPolicy.step(
             attempts: state.attempts,
             candidatesLeft: state.remaining.count,
             hasMessage: Self.hasContent(draft),
             isWorking: records[id]?.summary.isWorking ?? false,
-            readerAsked: readerAsked,
+            readerAsked: asks,
             automatic: state.kind.map(ModelRetryPolicy.automatic) ?? true,
         )
         // The model that answered with nothing left spent carries the wait
         // the run it belongs to imposes: `follow` sends the next one when
-        // that run ends.
-        if state.awaitingTurn != (step == .wait) {
-            state.awaitingTurn = step == .wait
+        // that run ends — as the reader's own retry when the tap was theirs.
+        let waits = step == .wait
+        let askedWhileWaiting = waits && asks
+        if state.awaitingTurn != (waits ? true : nil)
+            || state.askedByReader != (askedWhileWaiting ? true : nil)
+        {
+            state.awaitingTurn = waits ? true : nil
+            state.askedByReader = askedWhileWaiting ? true : nil
             records[id]?.retryState = state
             changed(id)
         }
@@ -1049,6 +1136,7 @@ final class ChatRuntime {
         }
         state.attempts += 1
         state.awaitingTurn = nil
+        state.askedByReader = nil
         let previous = records[id]?.modelSelection
         records[id]?.retryState = state
         // this conversation runs on the model that answers from here on

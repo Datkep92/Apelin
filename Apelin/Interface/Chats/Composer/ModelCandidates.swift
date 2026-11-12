@@ -46,20 +46,98 @@ extension ModelRetryState {
             return until <= now
         }
     }
+
+    /// The walk's own list (`ordered`) read as a ring whose place is the key
+    /// in hand: the candidates after it, then the ones before it and round
+    /// again. Reading it only moves where reading starts, so a walk halfway
+    /// down the list reaches its top instead of stopping there, and a second
+    /// lap is the same list again. The chain's own key is not in `ordered`, so
+    /// from it the list reads as it is. A state written before the list was
+    /// kept, or a key in hand that is not one of them, answers the list
+    /// unchanged.
+    func ring(from current: ComposerModelSelection?) -> [ComposerModelSelection] {
+        guard let ordered, !ordered.isEmpty else { return remaining }
+        return ModelCandidates.circular(ordered, from: current)
+    }
+
+    /// Whether this walk has no list of its own to read: the reader moved the
+    /// conversation to another model after the failure, and the list built for
+    /// the model that failed no longer says what to send. `canAskAgain` counts
+    /// it, so that failure keeps a Retry on the bar, and the send builds the
+    /// list again from the model now in hand (`ChatRuntime.sendNextModel`)
+    /// rather than from the one the walk belonged to.
+    var needsFreshWalk: Bool {
+        ordered == nil && remaining.isEmpty && kind != nil && !text.isEmpty
+    }
+
+    /// Whether the reader's own Retry has anything to send: a candidate left
+    /// in this walk, the walk's list to go round again (`lap(from:)`), or —
+    /// after a move to another model — a list still to be built for it. What
+    /// keeps that retry on the model bar once the walk is spent, rather than
+    /// leaving the conversation on the key that failed.
+    func canAskAgain(from current: ComposerModelSelection?) -> Bool {
+        nextCandidate(readerAsked: true) != nil || !ring(from: current).isEmpty || needsFreshWalk
+    }
+
+    /// Seats the walk at the key now in hand, so its next candidate is the one
+    /// after that key in the list's order — never where the key before it had
+    /// got to. What the reader's own switch to another key calls: that key is
+    /// the first this walk offers, since it is the one they chose to send on,
+    /// while a key that already failed in this walk stays failed.
+    mutating func reseat(from current: ComposerModelSelection?) {
+        guard let ordered, !ordered.isEmpty else { return }
+        remaining = ring(from: current)
+    }
+
+    /// Goes round the list again, from the key in hand: the next lap is the
+    /// walk's own list read on from where it stopped, the key in hand coming
+    /// back last, and every key tried again — a lap is the reader asking for
+    /// the same keys once more, so what failed a lap ago is not what keeps
+    /// them from being sent. What the reader's own Retry calls once the walk
+    /// has nothing left: without it the conversation would be stranded on the
+    /// key that failed, with no way back to a key the walk left behind.
+    mutating func lap(from current: ComposerModelSelection?) {
+        guard let ordered, !ordered.isEmpty else { return }
+        var list = ring(from: current)
+        // The key in hand is the one whose failure is being answered: the lap
+        // starts after it and comes back to it, so a key that just failed is
+        // never the first thing sent again.
+        if let first = list.first, first.retryKey == current?.retryKey {
+            list.append(list.removeFirst())
+        }
+        remaining = list
+        triedKeys = []
+    }
 }
 
 enum ModelCandidates {
-    /// `keys` read as a ring whose first place is the key in hand: that key,
-    /// then the ones after it, then the ones before it and round again. The
-    /// order itself is the list's own (`ModelKeys.serving`) — this only moves
-    /// where reading it starts, so a walk down the list wraps back to its top
-    /// instead of jumping there. Unchanged when the key in hand is not one of
-    /// them.
-    static func circular(_ keys: [AgentAccount], from current: AgentAccount?) -> [AgentAccount] {
-        guard let current, let place = keys.firstIndex(where: { $0.id == current.id }) else {
-            return keys
+    /// `list` read as a ring whose first place is `current`: that one, then
+    /// the ones after it, then the ones before it and round again. The order
+    /// itself is the list's own — this only moves where reading it starts, so
+    /// a walk down the list wraps back to its top instead of jumping there.
+    /// Unchanged when `current` is not one of them. `key` says what makes two
+    /// elements the same place.
+    static func circular<T>(_ list: [T], from current: T?, key: (T) -> String) -> [T] {
+        guard let current, let place = list.firstIndex(where: { key($0) == key(current) }) else {
+            return list
         }
-        return Array(keys[place...]) + Array(keys[..<place])
+        return Array(list[place...]) + Array(list[..<place])
+    }
+
+    /// The keys of one Base URL as that ring (`ModelKeys.serving`), where a
+    /// place is the configuration itself.
+    static func circular(_ keys: [AgentAccount], from current: AgentAccount?) -> [AgentAccount] {
+        circular(keys, from: current, key: { $0.id })
+    }
+
+    /// The same ring over a walk's own list, where a place is the key and the
+    /// model (`retryKey`): two selections that differ only in effort or speed
+    /// are the same place.
+    static func circular(
+        _ list: [ComposerModelSelection],
+        from current: ComposerModelSelection?,
+    ) -> [ComposerModelSelection] {
+        circular(list, from: current, key: { $0.retryKey })
     }
 
     /// Builds the fallback order starting after `current`. `current` itself is

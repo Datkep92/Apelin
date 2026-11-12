@@ -43,13 +43,25 @@ func checkChatStoreDecode() async throws {
     try Data(#"{"summary":{"title":"no id","updated":816069038,"isPinned":false,"isWorking":false}}"#.utf8)
         .write(to: file(headless))
 
+    /// A retry state this build wrote: the walk's own list kept beside what is
+    /// left of it, and a wait for a run to end that the reader's own tap is
+    /// waiting through.
+    let modern = UUID()
+    try Data("""
+        {\(summary(modern, "Modern retry")),\
+        "retryState":{"remaining":[],"ordered":[\
+        {"provider":"openAICompatible","model":"kilo-auto/paid","profileID":"cfg-1"}],\
+        "triedKeys":["openAICompatible|cfg-1|kilo-auto/paid"],"text":"carry on","attempts":3,\
+        "awaitingTurn":true,"askedByReader":true,"kind":"refusedKey"}}
+        """.utf8).write(to: file(modern))
+
     /// One this build reads whole.
     let plain = UUID()
     try Data("{\(summary(plain, "Plain"))}".utf8).write(to: file(plain))
 
     let records = try await ChatStore(folder: DataFolder(root: root)).load()
     precondition(
-        records.count == 2,
+        records.count == 3,
         "one file that is no conversation costs only itself: \(records.map(\.summary.title))",
     )
     precondition(records.contains { $0.summary.id == plain }, "the conversation beside them still loads")
@@ -68,5 +80,18 @@ func checkChatStoreDecode() async throws {
     )
     precondition(retry.remaining[1].profileID == "cfg-2", "a saved configuration keeps its id")
     precondition(retry.cooldowns?.count == 1, "and the cooldowns read")
+    precondition(retry.ordered == nil && retry.askedByReader == nil, "a field a later build added costs nothing")
+
+    guard let kept = records.first(where: { $0.summary.id == modern })?.retryState else {
+        preconditionFailure("a retry state this build wrote reads whole")
+    }
+    precondition(kept.ordered?.count == 1, "the walk's own list is kept")
+    precondition(kept.awaitingTurn == true, "so is a wait for the run to end")
+    precondition(kept.askedByReader == true, "and that the reader's own tap is what waits")
+    precondition(kept.triedKeys.count == 1 && kept.attempts == 3, "with the keys that failed and the tries spent")
+    precondition(
+        kept.canAskAgain(from: kept.ordered?.first),
+        "so a walk with nothing left still has its list to go round",
+    )
     print("ok: a conversation this build cannot read whole is left on disk, and the others still load")
 }
