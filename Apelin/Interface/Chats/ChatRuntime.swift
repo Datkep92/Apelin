@@ -1102,10 +1102,16 @@ final class ChatRuntime {
 
     /// The models to fall back to after the one `id` runs on, in
     /// `ModelCandidates`' order, as the selections a prompt sends with.
+    /// Another key for the same model always; another model only where the
+    /// reader turned that on (`ModelFallback.triesOtherModels`).
     private func fallbackCandidates(after id: UUID) async -> [ComposerModelSelection] {
         guard let listed = try? await ApelinService.app.agentAccountList().accounts else { return [] }
         let current = records[id]?.modelSelection ?? ComposerModelSelection.current
-        return ModelCandidates.fallbackList(current: current, accounts: listed).map(\.selection)
+        return ModelCandidates.fallbackList(
+            current: current,
+            accounts: listed,
+            otherModels: ModelFallback.triesOtherModels,
+        ).map(\.selection)
     }
 
     /// The conversation answered again after a failure the retry answers — a

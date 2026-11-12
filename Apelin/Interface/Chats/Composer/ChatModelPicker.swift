@@ -97,18 +97,11 @@ private func pickerKeyDetail(for account: AgentAccount) -> String? {
 }
 
 /// The configurations of one group, each named so two are told apart without
-/// a secret: what the reader called it, and a number when two of them would
-/// read alike — two keys on one Base URL share a name and a host, and no
-/// secret may be shown to tell them apart.
+/// a secret. `ModelKeys` is the one place that decides it, so a key of a
+/// model's list here reads exactly as it does in the composer's key menu:
+/// `Relay - API Key A`, the letter standing for its place in the list.
 private func pickerKeyLabels(_ indices: [Int], _ accounts: [AgentAccount]) -> [String] {
-    var used: Set<String> = []
-    return indices.map { index in
-        let title = accounts[index].title
-        guard !used.insert(title).inserted else { return title }
-        var number = 2
-        while !used.insert("\(title) \(number)").inserted { number += 1 }
-        return "\(title) \(number)"
-    }
+    ModelKeys.labels(indices.map { accounts[$0] }, title: \.title)
 }
 
 /// Whether `account`'s `model` is the one the composer sends with now: the

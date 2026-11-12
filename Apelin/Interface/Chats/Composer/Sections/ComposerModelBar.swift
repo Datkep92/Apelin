@@ -29,6 +29,7 @@ final class ComposerModelBar: ComposerSectionView {
     /// The key the reader picked, which sends the model shown from now on.
     var onKeyChanged: ((AgentAccount) -> Void)?
     private var keyIDs: [String] = []
+    private var keyNames: [String] = []
     private var currentKeyID: String?
     private var cancelOutput: (() -> Void)?
 
@@ -68,13 +69,17 @@ final class ComposerModelBar: ComposerSectionView {
     /// The keys that can send the model shown, when more than one can: the
     /// row then offers the switch, and hides it again when a single key
     /// answers, which says nothing the model button does not. Each key is
-    /// named the way Settings names it — a title, never a secret.
+    /// named the way Settings names it — the configuration's name, and the
+    /// letter of its place where two keys would read alike — a name, never a
+    /// secret.
     func setKeys(_ keys: [AgentAccount], selected: AgentAccount?) {
         let ids = keys.map(\.id)
-        guard ids != keyIDs || selected?.id != currentKeyID else { return }
+        let names = ModelKeys.labels(keys, title: \.title)
+        guard ids != keyIDs || names != keyNames || selected?.id != currentKeyID else { return }
         keyIDs = ids
+        keyNames = names
         currentKeyID = selected?.id
-        let name = selected?.title
+        let name = selected.map { ModelKeys.controlName(for: $0, among: keys, title: \.title) }
         updateControls { [self] in
             setControl(keyButton, visible: keys.count > 1)
             keyButton.setText(name ?? "")
@@ -82,9 +87,9 @@ final class ComposerModelBar: ComposerSectionView {
             keyButton.accessibilityValue = name
         }
         keyButton.menu = keys.count > 1
-            ? UIMenu(children: keys.map { account in
+            ? UIMenu(children: zip(keys, names).map { account, label in
                 UIAction(
-                    title: account.title,
+                    title: label,
                     state: account.id == selected?.id ? .on : .off,
                 ) { [weak self] _ in
                     self?.onKeyChanged?(account)

@@ -24,12 +24,15 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         case signedIn
         case accounts
         case keys
+        /// The one preference of this screen, below every key it applies to.
+        case fallback
 
         var title: String {
             switch self {
             case .signedIn: String(localized: "Signed In")
             case .accounts: String(localized: "Sign In with an Account")
             case .keys: String(localized: "API Keys")
+            case .fallback: String(localized: "When a Model Fails")
             }
         }
     }
@@ -62,10 +65,13 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
 
     private enum Row: Equatable {
         case account(AgentAccount)
+        /// Whether a run out of keys for its model may try another model.
+        case fallback
         case status(Status)
         var id: String {
             switch self {
             case let .account(account): account.id
+            case .fallback: "fallback"
             case .status: "status"
             }
         }
@@ -78,6 +84,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         guard let self else { return nil }
         switch row {
         case let .account(account): return accountCell(account)
+        case .fallback: return fallbackCell()
         case let .status(status): return statusCell(status)
         }
     }
@@ -158,7 +165,9 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             }
         }
         dataSource.footerTitle = { [weak self] section in
-            guard let self, section == sections.last?.0, !isStatus(section) else { return nil }
+            guard let self, !isStatus(section), !isPreference(section),
+                  section == sections.last(where: { !isPreference($0.0) })?.0
+            else { return nil }
             return String(localized: "Credentials stay in this device’s keychain.")
         }
         dataSource.update(sections)
@@ -229,7 +238,13 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 }
             let providerSections: [(Section, [Row])] = groups.filter { !$0.1.isEmpty }
                 .map { (.group($0.0), $0.1.map(Row.account)) }
-            sections = endpointSections + providerSections
+            // The fallback switch sits under every key it applies to, and
+            // stays out of the way while the reader searches for one.
+            var listed = endpointSections + providerSections
+            if !listed.isEmpty, query.isEmpty {
+                listed.append((.group(.fallback), [.fallback]))
+            }
+            sections = listed
             if sections.isEmpty {
                 sections = [(.status, [.status(.noResults)])]
             }
@@ -300,6 +315,11 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         return false
     }
 
+    private func isPreference(_ section: Section) -> Bool {
+        if case .group(.fallback) = section { return true }
+        return false
+    }
+
     // MARK: - Table
 
     private func account(at indexPath: IndexPath) -> AgentAccount? {
@@ -362,6 +382,31 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         content.imageProperties.reservedLayoutSize = CGSize(width: 29, height: 29)
         cell.contentConfiguration = content
         return cell
+    }
+
+    /// The one preference of this screen: a run that has no key left for its
+    /// model, and whose failure was not the reader's own message's fault, may
+    /// put that message to another enabled model. Off, it never does.
+    private func fallbackCell() -> UITableViewCell {
+        let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+        var content = UIListContentConfiguration.subtitleCell()
+        content.text = String(localized: "Try Another Model")
+        content.secondaryText = String(localized: "Send the message again with another enabled model once no key left for this one can answer.")
+        content.textProperties.numberOfLines = 0
+        content.secondaryTextProperties.color = .secondaryLabel
+        content.secondaryTextProperties.numberOfLines = 0
+        cell.contentConfiguration = content
+        cell.selectionStyle = .none
+        let toggle = UISwitch()
+        toggle.isOn = ModelFallback.triesOtherModels
+        toggle.accessibilityLabel = String(localized: "Try Another Model")
+        toggle.addTarget(self, action: #selector(fallbackToggled(_:)), for: .valueChanged)
+        cell.accessoryView = toggle
+        return cell
+    }
+
+    @objc private func fallbackToggled(_ sender: UISwitch) {
+        ModelFallback.triesOtherModels = sender.isOn
     }
 
     /// Who it is signed in as, under the name; a named configuration says

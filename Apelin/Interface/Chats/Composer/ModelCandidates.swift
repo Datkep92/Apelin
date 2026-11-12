@@ -54,15 +54,21 @@ enum ModelCandidates {
     /// the current selection). Accounts must already be filtered to signed-in,
     /// enabled ones (see `EnabledModels.accounts(from:)`).
     ///
-    /// Another key on the *same Base URL*, with the same model, comes first:
-    /// that is what a spent allowance or a refused key needs, and it is the
-    /// one swap that costs the conversation nothing. Then the same model on
-    /// the provider's family, then that model name on any other provider, and
-    /// only after all of those the reader's other enabled models — always the
-    /// same model before a different one.
+    /// Another key on the *same Base URL*, with the same model, comes first —
+    /// the very keys the key control offers, in its order
+    /// (`ModelKeys.serving`), so a switch and a fallback walk them the same
+    /// way: that is what a spent allowance or a refused key needs, and it is
+    /// the one swap that costs the conversation nothing. Then the same model
+    /// on the provider's family, then that model name on any other provider —
+    /// every key for the model in hand before any other model. Only after
+    /// those the reader's other enabled models, and those only where the
+    /// reader turned the switch on (`ModelFallback.triesOtherModels`): a
+    /// different model is a different answer, and a conversation that changes
+    /// model on its own is not what the reader asked for.
     static func fallbackList(
         current: ComposerModelSelection?,
         accounts: [AgentAccount],
+        otherModels: Bool = false,
     ) -> [ModelCandidate] {
         let enabled = EnabledModels.accounts(from: accounts)
         guard let current else {
@@ -87,15 +93,14 @@ enum ModelCandidates {
             (account.models ?? []).contains(model)
         }
 
-        // 1. The same model on another key of the same Base URL.
+        // 1. The same model on another key of the same Base URL, in the order
+        // the key control lists them.
         let currentAccount = enabled.first(where: isCurrent)
             ?? enabled.first(where: { $0.provider == current.provider && offers($0, current.model) })
-        if let endpoint = currentAccount?.endpoint {
-            for account in enabled
-                where account.endpoint == endpoint && !isCurrent(account) && offers(account, current.model)
-            {
-                add(ModelCandidate(account: account, model: current.model))
-            }
+        for account in ModelKeys.serving(current.model, at: currentAccount?.endpoint, from: enabled)
+            where !isCurrent(account)
+        {
+            add(ModelCandidate(account: account, model: current.model))
         }
         // 2. The same model, another configuration of the provider's family.
         for account in enabled
@@ -111,7 +116,8 @@ enum ModelCandidates {
             add(ModelCandidate(account: account, model: current.model))
         }
         // 4. Another model the reader enabled, on the provider's own family
-        // first.
+        // first, and 5. the rest: both only on the reader's own say-so.
+        guard otherModels else { return result }
         for account in enabled
             where !isCurrent(account) && account.provider.modelFamily == current.provider.modelFamily
         {
@@ -119,12 +125,27 @@ enum ModelCandidates {
                 add(ModelCandidate(account: account, model: model))
             }
         }
-        // 5. The rest.
         for account in enabled where account.provider.modelFamily != current.provider.modelFamily {
             for model in (account.models ?? []) where model != current.model {
                 add(ModelCandidate(account: account, model: model))
             }
         }
         return result
+    }
+}
+
+extension AgentProvider {
+    /// Providers that are the same brand under different regional sites are
+    /// one family: another configuration of the same plan counts as the same
+    /// brand when an allowance runs out, not another. The enum cases stay
+    /// wire-stable; only the steps above read it, which is why it lives here
+    /// and not with the names Settings shows.
+    var modelFamily: AgentProvider {
+        switch self {
+        case .qoderCN: return .qoder
+        case .workBuddyAI: return .workBuddy
+        case .zaiCodingCN: return .zai
+        default: return self
+        }
     }
 }

@@ -789,21 +789,19 @@ final class ChatController: UIViewController {
 
     /// The keys that can send `selection`'s model, and the one that sends it
     /// now: the enabled configurations on the same Base URL that offer that
-    /// model — the first step of `ModelCandidates.fallbackList`, which is the
-    /// one swap a spent allowance or a refused key needs. The key in use
-    /// leads, so the row can name it.
+    /// model, in `ModelKeys`' own order — the same keys, in the same order,
+    /// that `ModelCandidates.fallbackList` steps through and the picker's key
+    /// page lists, so a switch and a fallback never disagree. The order is
+    /// the listing's, so a switch never moves a key. A key that does not serve
+    /// the model is not offered at all.
     private func keyChoices(for selection: ComposerModelSelection?) -> (keys: [AgentAccount], current: AgentAccount?) {
         guard let selection,
               let current = keyOptions.first(where: {
                   $0.provider == selection.provider && $0.profileID == selection.profileID
-              }),
-              let endpoint = current.endpoint
+              })
         else { return ([], nil) }
-        let others = keyOptions.filter { account in
-            account.id != current.id && account.endpoint == endpoint
-                && (account.models ?? []).contains(selection.model)
-        }
-        return ([current] + others, current)
+        let keys = ModelKeys.serving(selection.model, at: current.endpoint, from: keyOptions)
+        return (keys, current)
     }
 
     /// The same model, sent with another key that serves it: the

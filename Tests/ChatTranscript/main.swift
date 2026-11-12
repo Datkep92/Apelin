@@ -1101,6 +1101,10 @@ checkChatDeletion()
 
 checkModelPickerGrouping()
 
+checkModelKeys()
+
+checkModelCandidates()
+
 checkChatContentSearch()
 
 try checkProjectFileSearch()
