@@ -101,7 +101,7 @@ func idleWorkChecks(scratch: URL) async {
     busy = await restarted.busyCount
     check(busy == 0, "a host that starts over has nothing in flight")
     check(unfinished.contains { $0.id == cutShort.taskID }, "and the task is handed back to be resumed or ended")
-    await restarted.interrupt(cutShort.taskID, "The background service restarted.")
+    await restarted.interrupt(cutShort.taskID, message: "The background service restarted.")
     busy = await restarted.busyCount
     let ended = await restarted.record(cutShort.taskID)
     check(busy == 0, "an interrupted task is not work either")
