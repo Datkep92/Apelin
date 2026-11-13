@@ -157,7 +157,7 @@ final class HTMLPlaygroundController: UIViewController {
                 message: String(localized: "The AI hasn't written to the shared file yet. Ask the AI to generate HTML and save it to: \(path)"),
                 preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default))
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
             present(alert, animated: true)
         }
     }
