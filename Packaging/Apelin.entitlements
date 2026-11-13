@@ -12,18 +12,29 @@
 	Mach-lookup of `wiki.qaq.apelin.service` is not optional: without it the app
 	cannot find the daemon.
 
-	The three `com.apple.WebKit.*` names beside it are what let the app show a
-	page at all. `WKWebView` reaches its helpers by name inside the process's
-	own launchd domain — `com.apple.WebKit.WebContent` to render,
-	`.Networking` to load, `.GPU` to draw — and a bootstrap that confines an
-	ad-hoc signed, platform-flagged app withholds them until they are named,
-	`no-sandbox` notwithstanding. With only the daemon's name in the list a web
-	view came up and failed at once: the device log showed `System Policy:
-	Apelin(…) deny(1) mach-lookup com.apple.WebKit.WebContent (xpc)` beside
-	WebKit's own `WebProcessProxy::didFinishLaunching: Invalid connection
-	identifier (web process failed to launch)`, and the sheet said only that
-	the page could not be loaded. `wiki.qaq.apelin.service` stays element 0:
-	Scripts/package-deb.sh reads it back from there.
+	The three `com.apple.WebKit.*` names are what a web view looks for, but they
+	are not what makes it work. Measured on this device on 2026-11-13 with probe
+	apps, one variable at a time: a build carrying only `application-identifier`
+	(with a team identifier) failed at once — WebKit's own
+	`WebProcessProxy::didFinishLaunching: Invalid connection identifier`, the
+	WebContent helper dead before any page — and the same build with
+	`com.apple.private.security.container-required` added rendered a local file
+	and https://example.com alike. `sandbox_check` still answered 1 (denied) for
+	these three names in the build that worked: WebKit launches its helpers by
+	bundle path, not by bootstrap name. That working build carried every key
+	this file has, `no-sandbox` and `platform-application` included, so neither
+	stands in the way; the key this file is missing is `container-required`.
+	Keep the names below as declared intent, and never read a blank page as a
+	missing `mach-lookup`. `com.apple.private.security.container-required` is
+	now adopted: it puts the app in a container and moves NSHomeDirectory() to
+	`Containers/Data/Application/...`, but `DataFolder.app.mobileHome` crosses
+	that back to mobile's own home, and `LegacyHome.bringDataAcross()` brings
+	the container's earlier data (chats, journal, stories, projects) across on
+	the first launch, copied only where the target has nothing yet. The
+	postinst still makes `~/Documents/wiki.qaq.apelin` on mobile's home, which
+	is where apelind, the session host and the workers read and write.
+	`wiki.qaq.apelin.service` stays element 0: Scripts/package-deb.sh reads it
+	back from there.
 
 	`com.apple.security.application-groups` names the one App Group the
 	widget extension shares (`group.wiki.qaq.apelin`): the app writes the
@@ -78,8 +89,8 @@
 	The list: AGX and the older IOAccel names, IOSurface, the
 	framebuffer, JPEG decode, HID, `IOGPUDeviceUserClient` and
 	`IOAccelerator` from the Bold Text report, the neural engine Vision asks
-	for, and vphone's paravirtual names (`AppleParavirt…`,
-	`…ParavirtClient`, `AppleVirtIO…`). Both spellings of the key carry the
+	for, and vphone's paravirtual names (`AppleParavirt...`,
+	`...ParavirtClient`, `AppleVirtIO...`). Both spellings of the key carry the
 	same list: the kernel's denial names the plain one, and the Bold Text
 	fix was the `exception.` one.
 -->
@@ -160,6 +171,8 @@
 		<string>com.apple.WebKit.GPU</string>
 	</array>
 	<key>com.apple.private.security.no-sandbox</key>
+	<true/>
+	<key>com.apple.private.security.container-required</key>
 	<true/>
 	<key>com.apple.private.security.storage.AppBundles</key>
 	<true/>

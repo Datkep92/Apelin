@@ -353,6 +353,7 @@ ldid -e "$installed_app/$app_executable" >"$app_signed_entitlements"
 for key in wiki.qaq.apelin.client \
     platform-application \
     com.apple.private.security.no-sandbox \
+    com.apple.private.security.container-required \
     com.apple.private.security.storage.AppBundles \
     com.apple.private.security.storage.AppDataContainers; do
     require_true "$app_signed_entitlements" "$key"
@@ -388,7 +389,6 @@ for value in spi data-allowed-write; do
 done
 for key in com.apple.private.security.no-container \
     wiki.qaq.irisin.client \
-    com.apple.private.security.container-required \
     com.apple.private.skip-library-validation; do
     require_absent "$app_signed_entitlements" "$key" "the app"
 done
