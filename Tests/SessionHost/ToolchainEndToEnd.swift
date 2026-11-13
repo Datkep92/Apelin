@@ -341,7 +341,7 @@ func toolchainEndToEnd(harness: String) async throws {
     check(!manager.fileExists(atPath: installed), "e2e: the installed tree is gone, the folders roothide leaves with it")
     check(manager.fileExists(atPath: installRoot + "/usr/lib/apelin/toolchains"), "e2e: the toolchains folder stays")
     let pruned = removal.events.contains {
-        $0.kind == "install.log" && $0.payload?["line"]?.stringValue?.hasPrefix("Removed the empty folders") == true
+        $0.kind == "log" && $0.payload?["line"]?.stringValue?.hasPrefix("Removed the empty folders") == true
     }
     check(pruned, "e2e: the removal's log says the folders went")
     let afterRemoval = try await worker.ask(ToolchainStatusRequest())
