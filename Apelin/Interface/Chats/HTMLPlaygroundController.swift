@@ -1,3 +1,4 @@
+import ApelinCore
 import UIKit
 import WebKit
 
@@ -14,16 +15,15 @@ final class HTMLPlaygroundController: UIViewController {
     private let loadFileButton = UIButton(type: .system)
     private let storageKey: String
 
-    /// Shared file path the AI agent can write HTML to for display.
-    static let sharedFilePath = (NSHomeDirectory() as NSString)
-        .appendingPathComponent("Documents/wiki.qaq.apelin/playground.html")
+    static let sharedFilePath = DataFolder.app.root
+        .appendingPathComponent("playground.html").path
 
     /// Where the preview is rendered from: a real file in the same folder as
     /// the shared one, so a page's own relative assets — a picture, a style
     /// sheet, a script — resolve the way they would in a browser instead of
     /// not at all, and so the web process is granted the folder to read them.
-    static let previewFilePath = (NSHomeDirectory() as NSString)
-        .appendingPathComponent("Documents/wiki.qaq.apelin/.playground-preview.html")
+    static let previewFilePath = DataFolder.app.root
+        .appendingPathComponent(".playground-preview.html").path
 
     init(chatID: UUID) {
         self.chatID = chatID
