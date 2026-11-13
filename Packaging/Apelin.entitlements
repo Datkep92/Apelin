@@ -12,6 +12,19 @@
 	Mach-lookup of `wiki.qaq.apelin.service` is not optional: without it the app
 	cannot find the daemon.
 
+	The three `com.apple.WebKit.*` names beside it are what let the app show a
+	page at all. `WKWebView` reaches its helpers by name inside the process's
+	own launchd domain — `com.apple.WebKit.WebContent` to render,
+	`.Networking` to load, `.GPU` to draw — and a bootstrap that confines an
+	ad-hoc signed, platform-flagged app withholds them until they are named,
+	`no-sandbox` notwithstanding. With only the daemon's name in the list a web
+	view came up and failed at once: the device log showed `System Policy:
+	Apelin(…) deny(1) mach-lookup com.apple.WebKit.WebContent (xpc)` beside
+	WebKit's own `WebProcessProxy::didFinishLaunching: Invalid connection
+	identifier (web process failed to launch)`, and the sheet said only that
+	the page could not be loaded. `wiki.qaq.apelin.service` stays element 0:
+	Scripts/package-deb.sh reads it back from there.
+
 	`com.apple.security.application-groups` names the one App Group the
 	widget extension shares (`group.wiki.qaq.apelin`): the app writes the
 	widgets' snapshot there, because the sandboxed extension cannot read
@@ -142,6 +155,9 @@
 	<key>com.apple.security.exception.mach-lookup.global-name</key>
 	<array>
 		<string>wiki.qaq.apelin.service</string>
+		<string>com.apple.WebKit.WebContent</string>
+		<string>com.apple.WebKit.Networking</string>
+		<string>com.apple.WebKit.GPU</string>
 	</array>
 	<key>com.apple.private.security.no-sandbox</key>
 	<true/>
