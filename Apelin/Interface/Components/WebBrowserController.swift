@@ -28,6 +28,10 @@ final class WebBrowserController: UIViewController {
     /// this browser cannot render, not a hiccup.
     private var processEndedOnce = false
 
+    /// The client name this browser sends has been handed to the store: it does
+    /// not change from page to page.
+    private var notedClientName = false
+
     init(url: URL) {
         self.url = url
         let configuration = WKWebViewConfiguration()
@@ -294,6 +298,19 @@ extension WebBrowserController: WKNavigationDelegate {
         progress.isHidden = true
         failureView.isHidden = true
         updateToolbar()
+        noteClientName(webView)
+    }
+
+    /// Hands what this browser says it is to the store, so a call made here in
+    /// the app goes out as the page's own did. A page's own script cannot read
+    /// it, so a recorded call does not carry it.
+    private func noteClientName(_ webView: WKWebView) {
+        guard !notedClientName else { return }
+        notedClientName = true
+        webView.evaluateJavaScript("navigator.userAgent") { value, _ in
+            guard let agent = value as? String else { return }
+            WebAPICaptureStore.shared.noteUserAgent(agent)
+        }
     }
 
     func webView(_ webView: WKWebView, didFail _: WKNavigation!, withError error: Error) {

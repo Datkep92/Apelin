@@ -45,6 +45,11 @@ struct WebAPICall: Codable, Equatable, Identifiable, Sendable {
     /// script cannot read when the site keeps a cookie HttpOnly. Filled in by
     /// the browser, never by the page.
     var cookies: String?
+    /// The client name this browser sends a site, which a page's own script
+    /// cannot read either. Filled in by the browser, so a call made here in the
+    /// app goes out as the page's own did. Absent in a call recorded before it
+    /// was written down.
+    var userAgent: String?
     let response: String?
 
     /// From what the page's script posted; nil when it holds no call.
@@ -77,6 +82,14 @@ struct WebAPICall: Codable, Equatable, Identifiable, Sendable {
         return copy
     }
 
+    /// The same call with the client name this browser sends a site.
+    func withUserAgent(_ agent: String?) -> WebAPICall {
+        guard let agent, !agent.isEmpty else { return self }
+        var copy = self
+        copy.userAgent = agent
+        return copy
+    }
+
     /// The host the call went to, which is what a row leads with.
     var host: String {
         URL(string: url)?.host ?? url
@@ -98,8 +111,13 @@ struct WebAPICall: Codable, Equatable, Identifiable, Sendable {
     /// How long it took, in the unit that reads best.
     var durationText: String? {
         guard let durationMilliseconds, durationMilliseconds >= 0 else { return nil }
-        if durationMilliseconds < 1000 { return "\(durationMilliseconds) ms" }
-        let seconds = (Double(durationMilliseconds) / 100).rounded() / 10
+        return Self.durationText(durationMilliseconds)
+    }
+
+    /// How long `milliseconds` took, in the unit that reads best.
+    static func durationText(_ milliseconds: Int) -> String {
+        if milliseconds < 1000 { return "\(milliseconds) ms" }
+        let seconds = (Double(milliseconds) / 100).rounded() / 10
         return "\(seconds) s"
     }
 

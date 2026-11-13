@@ -13,6 +13,8 @@ final class WebAPICallDetailController: TableController {
         let copies: Bool
         /// The one row that does something rather than showing a value.
         var handoff = false
+        /// The one row that makes the call here in the app.
+        var runs = false
     }
 
     private struct Section {
@@ -49,9 +51,10 @@ final class WebAPICallDetailController: TableController {
 
     private func makeSections() -> [Section] {
         var summary = [
+            Row(title: nil, value: String(localized: "Call Now in App"), copies: false, runs: true),
             Row(title: nil, value: String(localized: "Call It Directly"), copies: false, handoff: true),
             Row(title: String(localized: "Method"), value: call.method, copies: true),
-            Row(title: String(localized: "URL"), value: call.url, copies: true),
+            Row(title: String(localized: "Web Address"), value: call.url, copies: true),
             Row(title: String(localized: "Status"), value: call.statusText ?? String(localized: "Failed"), copies: false),
         ]
         if let duration = call.durationText {
@@ -132,7 +135,13 @@ final class WebAPICallDetailController: TableController {
     override func tableView(_: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let row = sections[indexPath.section].rows[indexPath.row]
         let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-        if row.handoff {
+        if row.runs {
+            var content = UIListContentConfiguration.subtitleCell()
+            content.text = row.value
+            content.textProperties.color = .tintColor
+            content.secondaryText = String(localized: "Calls the API here in the app, with the cookies it carried, and shows the answer.")
+            cell.contentConfiguration = content
+        } else if row.handoff {
             var content = UIListContentConfiguration.subtitleCell()
             content.text = row.value
             content.textProperties.color = .tintColor
@@ -154,18 +163,30 @@ final class WebAPICallDetailController: TableController {
             )
             cell.contentConfiguration = content
         }
-        cell.selectionStyle = row.copies || row.handoff ? .default : .none
+        cell.selectionStyle = row.copies || row.handoff || row.runs ? .default : .none
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let row = sections[indexPath.section].rows[indexPath.row]
-        guard !row.handoff else {
+        if row.runs {
+            callInApp()
+        } else if row.handoff {
             handOffToChat()
-            return
+        } else if row.copies {
+            copyToPasteboard(row.value)
         }
-        guard row.copies else { return }
-        copyToPasteboard(row.value)
+    }
+
+    /// Opens the call made here in the app: the same request sent by Apelin
+    /// itself, with what the server answers on the screen that follows.
+    private func callInApp() {
+        let result = WebAPICallResultController(call: call)
+        if let navigation = navigationController {
+            navigation.pushViewController(result, animated: true)
+        } else {
+            presentPageAsFormSheet(result)
+        }
     }
 }

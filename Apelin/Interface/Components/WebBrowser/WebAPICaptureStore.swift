@@ -42,6 +42,11 @@ final class WebAPICaptureStore: NSObject, WKScriptMessageHandler {
     private(set) var calls: [WebAPICall] = []
     private(set) var isRecording: Bool
 
+    /// The client name this app's browser sends a site, handed over by each
+    /// browser once a page has loaded. A call made here in the app goes out as
+    /// the page's own did, so a site that reads it answers the same way.
+    private(set) var userAgent: String?
+
     init(defaults: UserDefaults = .standard, folder: URL? = nil) {
         self.defaults = defaults
         directory = folder ?? DataFolder.app.captures
@@ -76,6 +81,14 @@ final class WebAPICaptureStore: NSObject, WKScriptMessageHandler {
     func setRecording(_ recording: Bool) {
         isRecording = recording
         defaults.set(recording, forKey: Key.recording)
+    }
+
+    /// What a browser of this app says it is, which a page's own script cannot
+    /// read: kept so a call made here in the app matches the page's own.
+    func noteUserAgent(_ agent: String) {
+        let trimmed = agent.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        userAgent = trimmed
     }
 
     /// Reads what was kept before, keeping any call already recorded.
@@ -113,12 +126,15 @@ final class WebAPICaptureStore: NSObject, WKScriptMessageHandler {
         }
     }
 
-    /// The call with the cookies this browser would send to it. A page's own
-    /// script sees neither the cookies nor whether the site keeps them.
+    /// The call with the cookies this browser would send to it and the client
+    /// name it sends them as. A page's own script sees neither.
     private func completed(_ call: WebAPICall) -> WebAPICall {
-        guard let url = URL(string: call.url) else { return call }
+        let identifier = userAgent
+        guard let url = URL(string: call.url) else { return call.withUserAgent(identifier) }
         let cookies = HTTPCookieStorage.shared.cookies(for: url) ?? []
-        return call.withCookies(WebAPICookies.header(for: url, cookies: cookies))
+        return call
+            .withCookies(WebAPICookies.header(for: url, cookies: cookies))
+            .withUserAgent(identifier)
     }
 
     // MARK: - The file
