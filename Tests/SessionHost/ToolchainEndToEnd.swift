@@ -58,7 +58,7 @@ final class EnvironmentHarness: @unchecked Sendable {
             }
         }
         channel.onRequest { [self] request in await serve(request) }
-        channel.onEvent { frame in feed.send(frame) }
+        channel.onEvent { [self] frame in self.feed.send(frame) }
         channel.start()
         try channel.sendControl(WorkerControl.assign, body: assignment)
         guard ready.wait(timeout: .now() + 10) == .success else {
