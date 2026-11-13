@@ -5,7 +5,9 @@ import WebKit
 /// An in-app browser for http(s) and file links tapped in a conversation, in
 /// a tool step's text, and for a page the reader asks to see whole. Keeps the
 /// reader inside Apelin instead of handing the address to Safari, and says on
-/// the page itself what went wrong rather than showing an empty one.
+/// the page itself what went wrong rather than showing an empty one. While it
+/// is open, the calls its pages make are recorded beside it, with the cookies
+/// each one sent, so the same API can be called again outside the page.
 final class WebBrowserController: UIViewController {
     private let url: URL
     private let webView: WKWebView
@@ -30,6 +32,7 @@ final class WebBrowserController: UIViewController {
         self.url = url
         let configuration = WKWebViewConfiguration()
         configuration.allowsInlineMediaPlayback = true
+        WebAPICaptureStore.shared.attach(to: configuration.userContentController)
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init(nibName: nil, bundle: nil)
     }
@@ -43,6 +46,12 @@ final class WebBrowserController: UIViewController {
         super.viewDidLoad()
         title = url.host ?? url.lastPathComponent
         view.backgroundColor = .systemBackground
+        let callsButton = UIBarButtonItem(
+            image: UIImage(systemName: "arrow.up.arrow.down"),
+            primaryAction: UIAction { [weak self] _ in self?.showAPICalls() },
+        )
+        callsButton.accessibilityLabel = String(localized: "API Calls")
+        navigationItem.rightBarButtonItem = callsButton
 
         webView.navigationDelegate = self
         webView.allowsBackForwardNavigationGestures = true
@@ -227,6 +236,18 @@ final class WebBrowserController: UIViewController {
         let page = webView.url ?? url
         guard !page.isFileURL else { return }
         UIApplication.shared.open(page)
+    }
+
+    /// The API calls the pages here made: what a site's own interface asked its
+    /// server, with the cookies each call sent, so the same API can be called
+    /// again outside the page.
+    @objc private func showAPICalls() {
+        let calls = WebAPICallsController()
+        if let navigation = navigationController {
+            navigation.pushViewController(calls, animated: true)
+        } else {
+            presentPageAsFormSheet(calls)
+        }
     }
 }
 

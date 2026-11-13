@@ -94,6 +94,14 @@ public struct DataFolder: Sendable, Equatable {
         console.appendingPathComponent("out", isDirectory: true)
     }
 
+    /// What the in-app browser's pages called while they ran:
+    /// `captures/calls.ndjson`, one API call a line, with the cookies the
+    /// browser would send to it. An agent reads it to call those APIs directly
+    /// instead of driving the site's interface.
+    public var captures: URL {
+        folder("captures")
+    }
+
     /// The directory of the project named `name`, or nil when the name breaks
     /// `ProjectName`'s rules.
     public func project(named name: String) -> URL? {
