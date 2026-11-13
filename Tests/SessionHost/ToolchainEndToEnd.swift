@@ -22,6 +22,7 @@ final class EnvironmentHarness: @unchecked Sendable {
     let registry: TaskRegistry
     let bridge: InstallBridge
     let caller = Caller.worker(.environment, instance: nil)
+    private let feed: TaskEventFeed<ChannelFrame>
 
     init(executable: String, assignment: WorkerAssignment, registry: TaskRegistry, bridge: InstallBridge) throws {
         self.registry = registry
@@ -42,6 +43,13 @@ final class EnvironmentHarness: @unchecked Sendable {
         }
         pid = spawned
         channel = WorkerChannel(adopting: local)
+        feed = TaskEventFeed<ChannelFrame> { [registry, caller] frame in
+            guard let taskID = frame.header.taskID, let kind = frame.header.name else { return }
+            let payload = frame.body.isEmpty ? nil : try? JSONCoding.decode(JSONValue.self, from: frame.body)
+            // A worker writes only to tasks it was given.
+            guard let record = await registry.record(taskID), case let .worker(role, key) = caller, record.owner == role, record.ownerKey == key else { return }
+            await registry.append(taskID, kind: kind, payload: payload)
+        }
 
         let ready = DispatchSemaphore(value: 0)
         channel.onControl { frame in
@@ -50,15 +58,7 @@ final class EnvironmentHarness: @unchecked Sendable {
             }
         }
         channel.onRequest { [self] request in await serve(request) }
-        channel.onEvent { [registry, caller] frame in
-            guard let taskID = frame.header.taskID, let kind = frame.header.name else { return }
-            let payload = frame.body.isEmpty ? nil : try? JSONCoding.decode(JSONValue.self, from: frame.body)
-            Task {
-                // A worker writes only to tasks it was given.
-                guard let record = await registry.record(taskID), case let .worker(role, key) = caller, record.owner == role, record.ownerKey == key else { return }
-                await registry.append(taskID, kind: kind, payload: payload)
-            }
-        }
+        channel.onEvent { frame in feed.send(frame) }
         channel.start()
         try channel.sendControl(WorkerControl.assign, body: assignment)
         guard ready.wait(timeout: .now() + 10) == .success else {
@@ -341,7 +341,7 @@ func toolchainEndToEnd(harness: String) async throws {
     check(!manager.fileExists(atPath: installed), "e2e: the installed tree is gone, the folders roothide leaves with it")
     check(manager.fileExists(atPath: installRoot + "/usr/lib/apelin/toolchains"), "e2e: the toolchains folder stays")
     let pruned = removal.events.contains {
-        $0.kind == "log" && $0.payload?["line"]?.stringValue?.hasPrefix("Removed the empty folders") == true
+        $0.kind == "install.log" && $0.payload?["line"]?.stringValue?.hasPrefix("Removed the empty folders") == true
     }
     check(pruned, "e2e: the removal's log says the folders went")
     let afterRemoval = try await worker.ask(ToolchainStatusRequest())
