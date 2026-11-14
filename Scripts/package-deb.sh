@@ -334,16 +334,6 @@ require_absent() {
     }
 }
 
-require_present() {
-    local plist="$1"
-    local key="$2"
-    local label="$3"
-    [[ "$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>/dev/null || true)" == true ]] || {
-        echo "error: $label must carry $key = true" >&2
-        exit 65
-    }
-}
-
 # Exactly the one App Group the app and the widget extension share.
 require_app_group() {
     local plist="$1"
@@ -398,13 +388,10 @@ for value in spi data-allowed-write; do
 done
 for key in com.apple.private.security.no-container \
     wiki.qaq.irisin.client \
+    com.apple.private.security.container-required \
     com.apple.private.skip-library-validation; do
     require_absent "$app_signed_entitlements" "$key" "the app"
 done
-# WebKit's content process dies without it (the page stays blank), so the app
-# must carry it; the data folder then sits in the container and is crossed
-# back to mobile's home by the app itself.
-require_present "$app_signed_entitlements" com.apple.private.security.container-required "the app"
 require_app_group "$app_signed_entitlements" "the app"
 
 # The widget extension stays a standard sandboxed extension: the App Group and
