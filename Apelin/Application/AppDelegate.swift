@@ -113,6 +113,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     /// second sheet could not be presented over the first.
     private func openURLs(_ contexts: Set<UIOpenURLContext>, in scene: UIWindowScene) {
         guard let context = contexts.first, !ApelinLinkRouter.open(context.url, in: scene) else { return }
+        if CaptureOpener.open(context.url) { return }
         TransferOpener.open(context.url, in: scene)
     }
 }

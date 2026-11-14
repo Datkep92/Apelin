@@ -25,6 +25,7 @@ enum BuiltInSkills {
         deviceScreen,
         gitWorkflow,
         packageRepository,
+        captureTool,
     ]
 
     /// Every built-in's name begins `apelin-` (owner, 2026-10-25), so none

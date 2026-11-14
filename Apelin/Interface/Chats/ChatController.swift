@@ -354,8 +354,8 @@ final class ChatController: UIViewController {
                             self?.presentNotice(title: "Unable to Preview Attachment", message: error.readableMessage)
                         }
                     }
-                    row.onOpenURL = { [weak self] url in
-                        self?.presentPageAsFormSheet(WebBrowserController(url: url))
+                    row.onOpenURL = { url in
+                        CaptureOpener.open(url)
                     }
                 }
         }
@@ -1154,7 +1154,7 @@ extension ChatController: ComposerView.Delegate {
                 }
                 guard let url else { continue }
                 lastAutoPreviewedPath = candidate
-                presentPageAsFormSheet(WebBrowserController(url: url))
+                CaptureOpener.open(url)
                 return
             }
         }

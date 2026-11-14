@@ -65,7 +65,7 @@ final class FileViewerViewController: UIViewController {
 
     @objc private func previewTapped() {
         guard let previewURL else { return }
-        presentPageAsFormSheet(WebBrowserController(url: previewURL))
+        CaptureOpener.open(previewURL)
     }
 
     private func loadContent() {
