@@ -72,7 +72,7 @@ Apelin là IDE on-device trên iOS/iPadOS 16+ jailbroken (roothide/rootless). Ag
 - Normalize DeepSeek/OpenAI-compatible reasoning context at stream boundary (`AgentSession`).
 
 ### 4.3 Data home
-- App data `~/Documents/wiki.qaq.apelin` on mobile's home. With `com.apple.private.security.container-required` adopted, the system gives the app a data container and `NSHomeDirectory()` answers inside `Containers/Data/Application/<uuid>`; `DataFolder.app.mobileHome` crosses that back to mobile's own home, and `LegacyHome.bringDataAcross()` brings the container's earlier data (chats, journal, stories, projects) across on the first launch, copied only where the target has nothing yet. The postinst still makes the mobile-home folder, which apelind, the session host and the workers read and write.
+- App data `~/Documents/wiki.qaq.apelin` (not container path after dfe14b9 fix).
 - Import from old container one-time.
 
 ### 4.4 Git/publish

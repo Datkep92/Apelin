@@ -123,15 +123,9 @@ the same executable in session mode; the workers are its children.
   `QuietExit.run`: leave for the home screen, wait for the animation, run the
   cleanup `exit` would skip, then exit.
 - **The app's data folder is `~/Documents/wiki.qaq.apelin`, and the package
-  makes it.** The app carries `com.apple.private.security.container-required`, so the
-  system hands it a data container and `NSHomeDirectory()` answers inside it;
-  `DataFolder.app.mobileHome` crosses that back to mobile's own home —
+  makes it.** The app has no container, so its home is mobile's —
   `<jbroot>/var/mobile` on roothide, `/var/mobile` on rootless — shared with
-  every other app without one, which is where the postinst made the folder and
-  where apelind, the session host and the workers read and write.
-  `LegacyHome.bringDataAcross()` carries the container's earlier data across on
-  the first launch, copied only where the target has nothing yet. Anything it
-  keeps there goes in a folder named
+  every other app without one. Anything it keeps there goes in a folder named
   for its bundle id, the isolation a container would give, inside a
   `Documents` mobile owns, which a container would have had too. The postinst
   (dpkg, as root) makes each missing level — home, `Documents`, the folder —

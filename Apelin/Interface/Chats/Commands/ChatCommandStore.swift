@@ -1,4 +1,3 @@
-import ApelinCore
 import Foundation
 import UIKit
 
@@ -24,7 +23,10 @@ final class ChatCommandStore {
         if let directory {
             self.directory = directory
         } else {
-            self.directory = DataFolder.app.root.appendingPathComponent("commands", isDirectory: true)
+            self.directory = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+                .appendingPathComponent("Documents", isDirectory: true)
+                .appendingPathComponent("wiki.qaq.apelin", isDirectory: true)
+                .appendingPathComponent("commands", isDirectory: true)
         }
     }
 
