@@ -9,7 +9,7 @@ extension BuiltInSkills {
 
         ## Where the results are
 
-        The app's data folder is `/private/var/mobile/Containers/Data/Application/<UUID>/Documents/apelin-bridge/`. Find the UUID by matching the app's id in `.com.apple.mobile_container_manager.metadata.plist`; it was `6764EAC8-CCFC-4228-B76D-020627790C71` when last seen, but check again before use.
+        The app's data folder is `/private/var/mobile/Containers/Data/Application/<UUID>/Documents/apelin-bridge/`. Find the UUID by matching the app's id in `.com.apple.mobile_container_manager.metadata.plist`; the UUID changes on reinstall, so always look it up; never reuse one from an earlier session.
 
         - `status.txt`: the log (launch, open, loaded, fail, failprov, desktop, zoom). Read it with `tail -n 30`.
         - `captures.ndjson`: one API call per line (kind, url, method, reqBody, status, resBody, ...). Read it with `grep`, `cat` or `head -c`, because the file can be large.

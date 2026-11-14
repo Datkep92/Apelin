@@ -65,7 +65,12 @@ final class FileViewerViewController: UIViewController {
 
     @objc private func previewTapped() {
         guard let previewURL else { return }
-        CaptureOpener.open(previewURL)
+        CaptureOpener.open(previewURL) { [weak self] in
+            self?.presentNotice(
+                title: "Apelin Capture is not installed",
+                message: "Install Apelin Capture to open this page and capture its API calls.",
+            )
+        }
     }
 
     private func loadContent() {

@@ -87532,6 +87532,26 @@
           }
         }
       }
+    },
+    "Apelin Capture is not installed": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa cài Apelin Capture"
+          }
+        }
+      }
+    },
+    "Install Apelin Capture to open this page and capture its API calls.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy cài Apelin Capture để mở trang này và bắt các lời gọi API của trang."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

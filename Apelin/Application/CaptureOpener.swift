@@ -18,12 +18,15 @@ enum CaptureOpener {
         return URL(string: "\(Self.scheme)://open?url=\(encoded)")
     }
 
-    /// Opens `url` in Capture. Answers false when Capture is not installed
-    /// or the address cannot be handed over; the caller then says so.
+    /// Opens `url` in Capture. Answers false when the address cannot be
+    /// handed over at all; a missing Capture is reported through `onMissing`.
     @discardableResult
-    static func open(_ url: URL) -> Bool {
+    static func open(_ url: URL, onMissing: @escaping @MainActor () -> Void = {}) -> Bool {
         guard let link = link(for: url) else { return false }
-        UIApplication.shared.open(link, options: [:]) { _ in }
+        UIApplication.shared.open(link, options: [:]) { ok in
+            guard !ok else { return }
+            Task { @MainActor in onMissing() }
+        }
         return true
     }
 }
