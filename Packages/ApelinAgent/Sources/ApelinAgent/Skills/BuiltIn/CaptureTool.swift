@@ -12,11 +12,11 @@ extension BuiltInSkills {
         The app's data folder is `/private/var/mobile/Containers/Data/Application/<UUID>/Documents/apelin-bridge/`. Find the UUID by matching the app's id in `.com.apple.mobile_container_manager.metadata.plist`; the UUID changes on reinstall, so always look it up; never reuse one from an earlier session.
 
         - `status.txt`: the log (launch, open, loaded, fail, failprov, desktop, zoom). Read it with `tail -n 30`.
-        - `captures.ndjson`: one API call per line (kind, url, method, reqBody, status, resBody, ...). Read it with `grep`, `cat` or `head -c`, because the file can be large.
+        - `captures.ndjson`: one API call per line (kind, url, method, reqBody, status, resBody, ...). Read it with a text search, `cat` or `head -c`, because the file can be large.
         - `url.txt`: the address opened at launch (if empty, example.com opens).
         - `done.txt`: marks the page as finished (if present).
 
-        Tip: Python is denied when reading this folder; use `cat`, `grep`, `head` and `tail`.
+        Tip: Python is denied when reading this folder; use `cat`, a text search, `head` and `tail`.
 
         ## Opening a page
 

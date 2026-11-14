@@ -87540,6 +87540,72 @@
             "state": "translated",
             "value": "Chưa cài Apelin Capture"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture غير مثبّت"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture ist nicht installiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture no está instalado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture n'est pas installé"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture non è installato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture はインストールされていません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture가 설치되어 있지 않습니다"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture não está instalado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apelin Capture не установлен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装 Apelin Capture"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安裝 Apelin Capture"
+          }
         }
       }
     },
@@ -87549,6 +87615,72 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hãy cài Apelin Capture để mở trang này và bắt các lời gọi API của trang."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ثبّت Apelin Capture لفتح هذه الصفحة والتقاط استدعاءات واجهة برمجة التطبيقات الخاصة بها."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installiere Apelin Capture, um diese Seite zu öffnen und ihre API-Aufrufe zu erfassen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instala Apelin Capture para abrir esta página y capturar sus llamadas a la API."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installez Apelin Capture pour ouvrir cette page et capturer ses appels d'API."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installa Apelin Capture per aprire questa pagina e catturare le sue chiamate API."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このページを開き、API 呼び出しを取得するには Apelin Capture をインストールしてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 페이지를 열고 API 호출을 캡처하려면 Apelin Capture를 설치하세요."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instale o Apelin Capture para abrir esta página e capturar as chamadas de API dela."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установите Apelin Capture, чтобы открыть эту страницу и перехватывать её вызовы API."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装 Apelin Capture 以打开此页面并捕获其 API 调用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安裝 Apelin Capture 以開啟此頁面並擷取其 API 呼叫。"
           }
         }
       }
