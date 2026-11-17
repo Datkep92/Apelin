@@ -14,7 +14,7 @@ import Foundation
 /// Every method runs on `queue`.
 final class WorkLedger: @unchecked Sendable {
     private let queue: DispatchQueue
-    private static let normalIdleGraceSeconds = 15 * 60
+    private static let normalIdleGraceSeconds = 0 // 0 = never exit (sleep mode)
     private let onIdle: () -> Void
     private var connections = 0
     private var requests = 0
@@ -66,6 +66,7 @@ final class WorkLedger: @unchecked Sendable {
         idleTimer = nil
         guard isIdle else { return }
         let timeout = Self.normalIdleGraceSeconds
+        guard timeout > 0 else { return } // sleep mode: never exit
         NSLog("apelind: idle, exiting in %d s unless work arrives", timeout)
         let timer = DispatchWorkItem { [weak self] in
             guard let self else { return }
