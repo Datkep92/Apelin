@@ -1,4 +1,3 @@
-import ApelinProtocol
 import SnapKit
 import SPIndicator
 import Then
@@ -381,7 +380,7 @@ final class SidebarController: UIViewController {
 
         Task {
             do {
-                let list = try await ApelinService.app.agentAccountList()
+                let list = try await ApelinProtocol.ApelinService.app.agentAccountList()
                 let accounts = list.accounts
                 let candidates = buildHealthCandidates(from: accounts)
                 let total = candidates.count
@@ -415,7 +414,7 @@ final class SidebarController: UIViewController {
             } catch {
                 await MainActor.run {
                     presentNotice(
-                        title: String(localized: "Health Check Failed"),
+                        title: "Health Check Failed",
                         message: error.readableMessage,
                     )
                 }
@@ -424,26 +423,26 @@ final class SidebarController: UIViewController {
             await MainActor.run {
                 isHealthChecking = false
                 presentNotice(
-                    title: String(localized: "Health Check Complete"),
-                    message: String(localized: "All models have been probed."),
+                    title: "Health Check Complete",
+                    message: "All models have been probed.",
                 )
             }
         }
     }
 
     private struct HealthCandidate {
-        let account: AgentAccount
+        let account: ApelinProtocol.AgentAccount
         let model: String
     }
 
-    private func buildHealthCandidates(from accounts: [AgentAccount]) -> [HealthCandidate] {
+    private func buildHealthCandidates(from accounts: [ApelinProtocol.AgentAccount]) -> [HealthCandidate] {
         let enabled = EnabledModels.accounts(from: accounts)
         return enabled.flatMap { account in
             (account.models ?? []).map { model in HealthCandidate(account: account, model: model) }
         }
     }
 
-    private func probeModel(account: AgentAccount, model: String) async -> (Bool, String?) {
+    private func probeModel(account: ApelinProtocol.AgentAccount, model: String) async -> (Bool, String?) {
         guard let baseURL = account.baseURL,
               let url = URL(string: "\(baseURL)/chat/completions")
         else { return (false, "Invalid base URL") }
