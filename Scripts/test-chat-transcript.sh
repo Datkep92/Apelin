@@ -26,6 +26,7 @@ sources=(
     "$root/Apelin/Interface/Settings/Accounts/EnabledModels.swift"
     "$root/Apelin/Interface/Chats/Composer/ModelKeys.swift"
     "$root/Apelin/Interface/Chats/Composer/ModelCandidates.swift"
+    "$root/Apelin/Interface/Chats/ModelHealth.swift"
     "$root/Apelin/Interface/Chats/Composer/ModelFallback.swift"
     "$root/Apelin/Interface/Chats/Messages/ChatMessage.swift"
     "$root/Apelin/Interface/Chats/Messages/ApprovalCardText.swift"
