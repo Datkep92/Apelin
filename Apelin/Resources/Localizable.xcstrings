@@ -87848,6 +87848,46 @@
           }
         }
       }
+    },
+    "Model Health Check": {
+      "vi": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Kiểm tra tình trạng model"
+        }
+      }
+    },
+    "Probe all models to mark inactive ones": {
+      "vi": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Thử kết nối mọi model để đánh dấu model không hoạt động"
+        }
+      }
+    },
+    "Health Check Complete": {
+      "vi": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Kiểm tra hoàn tất"
+        }
+      }
+    },
+    "All models have been probed.": {
+      "vi": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Tất cả model đã được thử kết nối."
+        }
+      }
+    },
+    "Health Check Failed": {
+      "vi": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Kiểm tra thất bại"
+        }
+      }
     }
   },
   "version": "1.0"

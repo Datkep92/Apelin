@@ -174,26 +174,6 @@ final class SidebarController: UIViewController {
     /// The other days' headings, capitalised the same way ("Lundi").
     private static let dayHeading = Date.FormatStyle(capitalizationContext: .beginningOfSentence)
 
-    private lazy var newChatButton: UIButton = {
-        var configuration = UIButton.Configuration.plain()
-        configuration.title = nil
-        configuration.image = UIImage(systemName: "square.and.pencil")
-        let font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 17, weight: .semibold))
-        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
-        configuration.imagePadding = 0
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 4)
-        configuration.baseForegroundColor = .label
-        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
-            var attributes = attributes
-            attributes.font = font
-            return attributes
-        }
-        return UIButton(
-            configuration: configuration,
-            primaryAction: UIAction { [weak self] _ in self?.startNewChat() },
-        )
-    }()
-
     private lazy var projectMenuButton: UIBarButtonItem = {
         let item = UIBarButtonItem(
             image: UIImage(systemName: "folder"),
@@ -206,23 +186,6 @@ final class SidebarController: UIViewController {
         return item
     }()
 
-    /// The plus: a new conversation, as the toolbar's New Chat starts one,
-    /// or a new project.
-    private lazy var newMenuButton: UIBarButtonItem = {
-        let newChat = UIAction(
-            title: String(localized: "New Chat"),
-            image: UIImage(systemName: "square.and.pencil"),
-        ) { [weak self] _ in self?.startNewChat() }
-        let newProject = UIAction(
-            title: String(localized: "New Project"),
-            image: UIImage(systemName: "folder.badge.plus"),
-        ) { [weak self] _ in self?.openNewProject() }
-        let item = UIBarButtonItem(image: UIImage(systemName: "plus"), menu: UIMenu(children: [newChat, newProject]))
-        item.preferredMenuElementOrder = .fixed
-        item.accessibilityLabel = String(localized: "New")
-        return item
-    }()
-
     private lazy var settingsBarButton: UIBarButtonItem = {
         UIBarButtonItem(
             image: UIImage(systemName: "gearshape"),
@@ -231,51 +194,6 @@ final class SidebarController: UIViewController {
             $0.accessibilityLabel = String(localized: "Settings")
         }
     }()
-
-    private lazy var newProjectButton: UIButton = {
-        var configuration = UIButton.Configuration.plain()
-        configuration.image = UIImage(systemName: "folder.badge.plus")
-        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
-        configuration.imagePadding = 0
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 4)
-        configuration.baseForegroundColor = .label
-        return UIButton(
-            configuration: configuration,
-            primaryAction: UIAction { [weak self] _ in self?.openNewProject() },
-        ).then { button in
-            button.accessibilityLabel = String(localized: "New Project")
-        }
-    }()
-
-    private lazy var projectTitleButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.showsMenuAsPrimaryAction = true
-        button.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] completion in
-            completion(self?.projectMenu().children ?? [])
-        }])
-        var config = UIButton.Configuration.plain()
-        config.image = UIImage(systemName: "chevron.down")
-        config.imagePlacement = .trailing
-        config.title = String(localized: "General Chat")
-        config.imagePlacement = .leading
-        config.imagePadding = 4
-        config.baseForegroundColor = .label
-        button.configuration = config
-        button.accessibilityLabel = String(localized: "Projects")
-        return button
-    }()
-
-    /// The system's inset grouped list, cells, headers and selection as
-    /// they come.
-    private let projectNameLabel = UILabel().then {
-        $0.font = UIFont.preferredFont(forTextStyle: .footnote)
-        $0.textColor = .secondaryLabel
-        $0.textAlignment = .center
-        $0.text = String(localized: "General Chat")
-        $0.adjustsFontForContentSizeCategory = true
-        $0.numberOfLines = 1
-        $0.lineBreakMode = .byTruncatingMiddle
-    }
 
     private let tableView = FirstFillTableView(frame: .zero, style: .insetGrouped).then {
         $0.backgroundColor = .panelBackground
@@ -362,19 +280,155 @@ final class SidebarController: UIViewController {
         projectMonitor.start()
         view.backgroundColor = .panelBackground
 
-        // Top row: four actions (no project name here). The project name lives
-        // at the bottom of the sidebar.
-        navigationItem.style = .editor
-        navigationItem.leftBarButtonItems = [settingsBarButton]
-        navigationItem.hidesBackButton = true
-        navigationItem.preferredSearchBarPlacement = .stacked
-        navigationItem.hidesSearchBarWhenScrolling = true
-        let newChatItem = UIBarButtonItem(customView: newChatButton)
-        navigationItem.rightBarButtonItems = [
-            UIBarButtonItem(customView: newProjectButton),
-            newChatItem,
-        ]
-        showProject()
+        // MARK: - Model Health Check
+
+    /// Sidebar header button that runs the model health check.
+    private lazy var modelHealthButton: UIBarButtonItem = {
+        let item = UIBarButtonItem(
+            image: UIImage(systemName: "heart.circle"),
+            primaryAction: UIAction { [weak self] _ in
+                self?.runHealthCheck()
+            },
+        )
+        item.accessibilityLabel = String(localized: "Model Health Check")
+        item.accessibilityHint = String(localized: "Probe all models to mark inactive ones")
+        return item
+    }()
+
+    /// Whether a health check is currently running.
+    private var isHealthChecking = false {
+        didSet {
+            updateHealthButtonState()
+        }
+    }
+
+    private var healthCheckTask: Task<Void, Never>?
+
+    private func updateHealthButtonState() {
+        if isHealthChecking {
+            let spinner = UIActivityIndicatorView(style: .medium)
+            spinner.startAnimating()
+            modelHealthButton.customView = spinner
+        } else {
+            modelHealthButton.customView = nil
+            modelHealthButton.image = UIImage(systemName: "heart.circle")
+        }
+    }
+
+    private func runHealthCheck() {
+        guard !isHealthChecking else { return }
+        isHealthChecking = true
+
+        Task {
+            do {
+                let list = try await ApelinService.app.agentAccountList()
+                let accounts = list.accounts
+                let candidates = buildHealthCandidates(from: accounts)
+                let total = candidates.count
+
+                for (index, candidate) in candidates.enumerated() {
+                    guard isHealthChecking else { break }
+                    let retryKey = ModelHealth.makeRetryKey(
+                        provider: candidate.account.provider,
+                        profileID: candidate.account.profileID,
+                        model: candidate.model,
+                    )
+
+                    await MainActor.run {
+                        modelHealthButton.image = UIImage(systemName: "heart.circle.fill")
+                    }
+
+                    let (healthy, error) = await probeModel(
+                        account: candidate.account,
+                        model: candidate.model,
+                    )
+
+                    await MainActor.run {
+                        ModelHealth.shared.mark(healthy: healthy, retryKey: retryKey, error: error)
+                        NotificationCenter.default.post(
+                            name: .modelHealthDidUpdate,
+                            object: nil,
+                            userInfo: ["retryKey": retryKey, "healthy": healthy],
+                        )
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    presentNotice(
+                        title: String(localized: "Health Check Failed"),
+                        message: error.readableMessage,
+                    )
+                }
+            }
+
+            await MainActor.run {
+                isHealthChecking = false
+                presentNotice(
+                    title: String(localized: "Health Check Complete"),
+                    message: String(localized: "All models have been probed."),
+                )
+            }
+        }
+    }
+
+    private struct HealthCandidate {
+        let account: AgentAccount
+        let model: String
+    }
+
+    private func buildHealthCandidates(from accounts: [AgentAccount]) -> [HealthCandidate] {
+        let enabled = EnabledModels.accounts(from: accounts)
+        return enabled.flatMap { account in
+            (account.models ?? []).map { model in HealthCandidate(account: account, model: model) }
+        }
+    }
+
+    private func probeModel(account: AgentAccount, model: String) async -> (Bool, String?) {
+        guard let baseURL = account.baseURL,
+              let url = URL(string: "\(baseURL)/chat/completions")
+        else { return (false, "Invalid base URL") }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try? JSONSerialization.data(
+            withJSONObject: ["model": model, "max_tokens": 1, "messages": []],
+        )
+        request.timeoutInterval = 5
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return (false, "Invalid response") }
+            let healthy = (200..<300).contains(http.statusCode)
+            return (healthy, healthy ? nil : "HTTP \(http.statusCode)")
+        } catch let error as NSError {
+            let msg: String
+            if error.domain == NSURLErrorDomain {
+                switch error.code {
+                case NSURLErrorTimedOut: msg = "Timeout"
+                case NSURLErrorNotConnectedToInternet: msg = "No internet"
+                case NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost: msg = "Cannot connect"
+                default: msg = "Network error"
+                }
+            } else {
+                msg = error.localizedDescription
+            }
+            return (false, msg)
+        }
+    }
+
+    // MARK: - Navigation bar
+
+    // Header: Settings, the current project title, and Model Health Check.
+    // Projects are accessible from the navigation bar's title tap.
+    navigationItem.style = .editor
+    navigationItem.leftBarButtonItems = [settingsBarButton]
+    navigationItem.hidesBackButton = true
+    navigationItem.preferredSearchBarPlacement = .stacked
+    navigationItem.hidesSearchBarWhenScrolling = true
+    navigationItem.rightBarButtonItems = [modelHealthButton]
+    showProject()
         refresh()
         NotificationCenter.default.addObserver(
             self,
@@ -388,42 +442,9 @@ final class SidebarController: UIViewController {
         tableView.delegate = self
         // a row that arrives fades in where it belongs, rather than sliding
         dataSource.defaultRowAnimation = UITableView.RowAnimation.fade
-        let projectFooter = UIView()
-        projectFooter.backgroundColor = .panelBackground
-        projectFooter.addSubview(projectNameLabel)
-        let projectToolbar = UIToolbar()
-        projectToolbar.setBackgroundImage(UIImage(), forToolbarPosition: .any, barMetrics: .default)
-        projectToolbar.setShadowImage(UIImage(), forToolbarPosition: .any)
-        projectToolbar.isTranslucent = true
-        projectToolbar.items = [UIBarButtonItem.flexibleSpace(), projectMenuButton]
-        projectFooter.addSubview(projectToolbar)
-        let separator = UIView()
-        separator.backgroundColor = UIColor.separator
-        projectFooter.addSubview(separator)
-        separator.snp.makeConstraints { x in
-            x.top.equalToSuperview()
-            x.left.right.equalToSuperview()
-            x.height.equalTo(1)
-        }
-        projectNameLabel.snp.makeConstraints { x in
-            x.left.right.equalToSuperview().inset(8)
-            x.top.equalTo(separator.snp.bottom).offset(8)
-            x.bottom.equalTo(projectFooter.safeAreaLayoutGuide)
-        }
-        projectToolbar.snp.makeConstraints { x in
-            x.trailing.equalToSuperview().inset(8)
-            x.centerY.equalTo(projectNameLabel)
-            x.height.equalTo(44)
-        }
         view.addSubview(tableView)
-        view.addSubview(projectFooter)
-        projectFooter.snp.makeConstraints { x in
-            x.left.right.bottom.equalToSuperview()
-            x.height.greaterThanOrEqualTo(44)
-        }
         tableView.snp.makeConstraints { x in
-            x.left.right.top.equalToSuperview()
-            x.bottom.equalTo(projectFooter.snp.top)
+            x.edges.equalToSuperview()
         }
         // the list the bar watches, for the pull that brings out the search;
         // an empty or short one still gives way to the pull
@@ -441,14 +462,6 @@ final class SidebarController: UIViewController {
         openProjectsSwipe.direction = .left
         sidebarBackground.addGestureRecognizer(openProjectsSwipe)
         tableView.backgroundView = sidebarBackground
-
-        projectNameLabel.isUserInteractionEnabled = true
-        let openProjectsFooterSwipe = UISwipeGestureRecognizer(
-            target: self,
-            action: #selector(openProjectPickerBySwipe),
-        )
-        openProjectsFooterSwipe.direction = .left
-        projectNameLabel.addGestureRecognizer(openProjectsFooterSwipe)
 
         // As a drawer, a pan from the leading edge opens Settings, as the
         // gear in the bar does. A swipe closed over the page or the empty
@@ -714,8 +727,6 @@ final class SidebarController: UIViewController {
         title = project?.displayTitle ?? String(localized: "Apelin")
         projectMenuButton.image = project.flatMap { ProjectIcon.menuImage(for: $0) } ?? UIImage(systemName: "folder")
         projectMenuButton.accessibilityValue = project?.displayTitle ?? String(localized: "General Chat")
-
-        projectNameLabel.text = project?.displayTitle ?? String(localized: "General Chat")
     }
 
     private func projectActiveChatTitle(for projectName: String?) -> String? {

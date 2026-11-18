@@ -176,6 +176,14 @@ enum ModelCandidates {
         func add(_ candidate: ModelCandidate) {
             let key = "\(candidate.account.id)|\(candidate.model)"
             guard seen.insert(key).inserted else { return }
+            // Exclude models that failed the health check (they remain available
+            // via the Retry button, but not in the automatic fallback list).
+            let healthKey = ModelHealth.makeRetryKey(
+                provider: candidate.account.provider,
+                profileID: candidate.account.profileID,
+                model: candidate.model,
+            )
+            if ModelHealth.shared.isExcluded(healthKey) { return }
             result.append(candidate)
         }
 
