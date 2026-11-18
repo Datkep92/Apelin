@@ -1,3 +1,4 @@
+import ApelinProtocol
 import SnapKit
 import SPIndicator
 import Then
@@ -189,7 +190,7 @@ final class SidebarController: UIViewController {
     private lazy var settingsBarButton: UIBarButtonItem = {
         UIBarButtonItem(
             image: UIImage(systemName: "gearshape"),
-            primaryAction: UIAction { [weak self] _ in self?.presentSettings() },
+            primaryAction: UIKit.UIAction { [weak self] _ in self?.presentSettings() },
         ).then {
             $0.accessibilityLabel = String(localized: "Settings")
         }
@@ -345,7 +346,7 @@ final class SidebarController: UIViewController {
     private lazy var modelHealthButton: UIBarButtonItem = {
         let item = UIBarButtonItem(
             image: UIImage(systemName: "heart.circle"),
-            primaryAction: UIAction { [weak self] _ in
+            primaryAction: UIKit.UIAction { [weak self] _ in
                 self?.runHealthCheck()
             },
         )
@@ -380,7 +381,7 @@ final class SidebarController: UIViewController {
 
         Task {
             do {
-                let list = try await ApelinProtocol.ApelinService.app.agentAccountList()
+                let list = try await ApelinService.app.agentAccountList()
                 let accounts = list.accounts
                 let candidates = buildHealthCandidates(from: accounts)
                 let total = candidates.count
@@ -431,18 +432,18 @@ final class SidebarController: UIViewController {
     }
 
     private struct HealthCandidate {
-        let account: ApelinProtocol.AgentAccount
+        let account: AgentAccount
         let model: String
     }
 
-    private func buildHealthCandidates(from accounts: [ApelinProtocol.AgentAccount]) -> [HealthCandidate] {
+    private func buildHealthCandidates(from accounts: [AgentAccount]) -> [HealthCandidate] {
         let enabled = EnabledModels.accounts(from: accounts)
         return enabled.flatMap { account in
             (account.models ?? []).map { model in HealthCandidate(account: account, model: model) }
         }
     }
 
-    private func probeModel(account: ApelinProtocol.AgentAccount, model: String) async -> (Bool, String?) {
+    private func probeModel(account: AgentAccount, model: String) async -> (Bool, String?) {
         guard let baseURL = account.baseURL,
               let url = URL(string: "\(baseURL)/chat/completions")
         else { return (false, "Invalid base URL") }
@@ -746,9 +747,9 @@ final class SidebarController: UIViewController {
             chats: runtime.summaries,
             open: open,
         )
-        let switchAction = { (name: String) -> UIAction? in
+        let switchAction = { (name: String) -> UIKit.UIAction? in
             guard let candidate = byName[name] else { return nil }
-            return UIAction(
+            return UIKit.UIAction(
                 title: candidate.displayTitle,
                 subtitle: self.projectActiveChatTitle(for: name),
                 state: name == open ? .on : .off,
@@ -763,12 +764,12 @@ final class SidebarController: UIViewController {
                 children: order.more.compactMap(switchAction),
             ))
         }
-        let general = UIAction(
+        let general = UIKit.UIAction(
             title: String(localized: "General Chat"),
             subtitle: self.projectActiveChatTitle(for: nil),
             state: project == nil ? .on : .off,
         ) { [weak self] _ in self?.switchProject(to: nil) }
-        let allProjects = UIAction(title: String(localized: "All Projects…")) { [weak self] _ in
+        let allProjects = UIKit.UIAction(title: String(localized: "All Projects…")) { [weak self] _ in
             self?.openProjectPicker()
         }
         return UIMenu(children: [
@@ -1004,25 +1005,25 @@ extension SidebarController: UITableViewDelegate {
         }
     }
 
-    private func menuAction(_ action: ChatRowAction, for id: UUID) -> UIAction {
+    private func menuAction(_ action: ChatRowAction, for id: UUID) -> UIKit.UIAction {
         switch action {
         case .pin, .unpin:
-            UIAction(
+            UIKit.UIAction(
                 title: action == .unpin ? String(localized: "Unpin") : String(localized: "Pin"),
                 image: UIImage(systemName: action == .unpin ? "pin.slash" : "pin"),
             ) { [weak self] _ in self?.togglePin(id) }
         case .stop:
-            UIAction(
+            UIKit.UIAction(
                 title: String(localized: "Stop"),
                 image: UIImage(systemName: "stop.fill"),
             ) { [weak self] _ in self?.stop(id) }
         case .fork:
-            UIAction(
+            UIKit.UIAction(
                 title: String(localized: "Fork"),
                 image: UIImage(systemName: "arrow.turn.right.up"),
             ) { [weak self] _ in self?.forkChat(id) }
         case .delete:
-            UIAction(
+            UIKit.UIAction(
                 title: String(localized: "Delete"),
                 image: UIImage(systemName: "trash"),
                 attributes: .destructive,
