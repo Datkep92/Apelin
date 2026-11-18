@@ -39,7 +39,7 @@ final class ModelHealth: @unchecked Sendable {
     }
 
     /// Current status of a model. nil = never probed.
-    func status(for retryKey: String) -> ModelHealthStatus? {
+    private func status(for retryKey: String) -> ModelHealthStatus? {
         lock.lock()
         defer { lock.unlock() }
         return cache[retryKey]?.status
@@ -246,9 +246,7 @@ final class ModelHealth: @unchecked Sendable {
         }
     }
 
-    private static func makeRetryKey(provider: AgentProvider, profileID: String?, model: String) -> String {
-        "\(provider.rawValue)|\(profileID ?? "")|\(model)"
-    }
+    // makeRetryKey is defined above (public static)
 
     private func set(_ status: ModelHealthStatus, for retryKey: String) {
         lock.lock()
