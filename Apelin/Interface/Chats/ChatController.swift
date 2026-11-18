@@ -959,7 +959,7 @@ final class ChatController: UIViewController {
                 presentPageAsFormSheet(page)
             } catch {
                 guard !Task.isCancelled, presentedViewController == nil else { return }
-                presentNotice(title: String(localized: "Accounts Unavailable"), message: error.readableMessage)
+                presentNotice(title: "Accounts Unavailable", message: error.readableMessage)
             }
         }
     }
