@@ -180,6 +180,7 @@ final class ChatController: UIViewController {
             guard let id = self?.chat?.id else { return }
             Task { await self?.runtime.retryFailedMessage(id) }
         }
+        composer.modelBar.onModelsTapped = { [weak self] in self?.showModelActivation() }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateModelSelection),
@@ -930,6 +931,35 @@ final class ChatController: UIViewController {
             } catch {
                 guard !Task.isCancelled, presentedViewController == nil else { return }
                 presentNotice(title: "Models Unavailable", message: error.readableMessage)
+            }
+        }
+    }
+
+    /// Opens `ModelActivationController` for the account that serves the
+    /// current model: the reader activates models from within the chat,
+    /// without going into Settings.
+    private func showModelActivation() {
+        guard presentedViewController == nil else { return }
+        modelLoader?.cancel()
+        modelLoader = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let accounts = try await EnabledModels.accounts(from: ApelinService.app.agentAccountList().accounts)
+                guard !Task.isCancelled, presentedViewController == nil else { return }
+                guard !accounts.isEmpty else {
+                    presentPageAsFormSheet(ModelProvidersController())
+                    return
+                }
+                // The account that serves the current model selection, or the first.
+                let selection = barSelection
+                let account = accounts.first(where: {
+                    $0.provider == selection?.provider && $0.profileID == selection?.profileID
+                }) ?? accounts[0]
+                let page = ModelActivationController(account: account)
+                presentPageAsFormSheet(page)
+            } catch {
+                guard !Task.isCancelled, presentedViewController == nil else { return }
+                presentNotice(title: String(localized: "Accounts Unavailable"), message: error.readableMessage)
             }
         }
     }

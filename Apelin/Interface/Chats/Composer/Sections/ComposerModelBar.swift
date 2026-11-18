@@ -23,9 +23,17 @@ final class ComposerModelBar: ComposerSectionView {
         text: String(localized: "Retry"),
         image: UIImage(systemName: "arrow.clockwise"),
     )
+    /// Opens the model activation sheet for the account that serves the
+    /// model in use: the reader manages their model list without leaving
+    /// the conversation.
+    private let modelsButton = ComposerBlockButton(
+        text: String(localized: "Models"),
+        image: UIImage(systemName: "checklist"),
+    )
     var onEffortChanged: ((AgentReasoningEffort) -> Void)?
     var onTierChanged: ((AgentServiceTier?) -> Void)?
     var onRetry: (() -> Void)?
+    var onModelsTapped: (() -> Void)?
     /// The key the reader picked, which sends the model shown from now on.
     var onKeyChanged: ((AgentAccount) -> Void)?
     private var keyIDs: [String] = []
@@ -35,7 +43,7 @@ final class ComposerModelBar: ComposerSectionView {
 
     override func initializeViews() {
         super.initializeViews()
-        for control in [button, keyButton, effortButton, tierButton, retryButton, stopButton] {
+        for control in [button, keyButton, effortButton, tierButton, modelsButton, retryButton, stopButton] {
             addSubview(control)
         }
         keyButton.showsMenuAsPrimaryAction = true
@@ -45,6 +53,10 @@ final class ComposerModelBar: ComposerSectionView {
         setControl(effortButton, visible: false)
         tierButton.showsMenuAsPrimaryAction = true
         setControl(tierButton, visible: false)
+        modelsButton.tintColor = .secondaryLabel
+        setControl(modelsButton, visible: true)
+        modelsButton.accessibilityLabel = String(localized: "Manage Models")
+        modelsButton.addAction(UIAction { [weak self] _ in self?.onModelsTapped?() }, for: .touchUpInside)
         retryButton.tintColor = .systemOrange
         retryButton.borderColor = .systemOrange.withAlphaComponent(0.5)
         setControl(retryButton, visible: false)
@@ -193,14 +205,14 @@ final class ComposerModelBar: ComposerSectionView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let controls = [button, keyButton, effortButton, tierButton, retryButton, stopButton]
+        let controls = [button, keyButton, effortButton, tierButton, modelsButton, retryButton, stopButton]
             .filter(\.isUserInteractionEnabled)
         let spacing: CGFloat = 10
         let otherWidth = controls.dropFirst().reduce(CGFloat.zero) { $0 + $1.intrinsicContentSize.width + spacing }
         let modelWidth = min(button.intrinsicContentSize.width, max(44, bounds.width - otherWidth))
         var x = max(0, (bounds.width - modelWidth - otherWidth) / 2)
-        // model, key, effort, speed, Retry, Stop in reading order: right to left, from the right
-        for control in [button, keyButton, effortButton, tierButton, retryButton, stopButton] {
+        // model, key, effort, speed, Models, Retry, Stop in reading order: right to left, from the right
+        for control in [button, keyButton, effortButton, tierButton, modelsButton, retryButton, stopButton] {
             let width = control === button ? modelWidth : control.intrinsicContentSize.width
             control.frame = directionalFrame(
                 CGRect(x: x, y: 0, width: width, height: control.intrinsicContentSize.height),
