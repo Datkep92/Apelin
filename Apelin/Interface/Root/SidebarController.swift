@@ -280,6 +280,65 @@ final class SidebarController: UIViewController {
         projectMonitor.start()
         view.backgroundColor = .panelBackground
 
+    // MARK: - Navigation bar
+
+    // Header: Settings, the current project title, and Model Health Check.
+    // Projects are accessible from the navigation bar's title tap.
+    navigationItem.style = .editor
+    navigationItem.leftBarButtonItems = [settingsBarButton]
+    navigationItem.hidesBackButton = true
+    navigationItem.preferredSearchBarPlacement = .stacked
+    navigationItem.hidesSearchBarWhenScrolling = true
+    navigationItem.rightBarButtonItems = [modelHealthButton]
+    showProject()
+        refresh()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(projectsChanged),
+            name: .apelinProjectsChanged,
+            object: nil,
+        )
+        Task { await refreshProjects() }
+        toolbarItems = nil
+
+        tableView.delegate = self
+        // a row that arrives fades in where it belongs, rather than sliding
+        dataSource.defaultRowAnimation = UITableView.RowAnimation.fade
+        view.addSubview(tableView)
+        tableView.snp.makeConstraints { x in
+            x.edges.equalToSuperview()
+        }
+        // the list the bar watches, for the pull that brings out the search;
+        // an empty or short one still gives way to the pull
+        setContentScrollView(tableView)
+        tableView.alwaysBounceVertical = true
+        // A left swipe on empty sidebar space (or the project name at the
+        // bottom) opens the project list, without disturbing the row swipes
+        // (pin/delete) on conversation rows.
+        let sidebarBackground = UIView()
+        sidebarBackground.backgroundColor = .clear
+        let openProjectsSwipe = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(openProjectPickerBySwipe),
+        )
+        openProjectsSwipe.direction = .left
+        sidebarBackground.addGestureRecognizer(openProjectsSwipe)
+        tableView.backgroundView = sidebarBackground
+
+        // As a drawer, a pan from the leading edge opens Settings, as the
+        // gear in the bar does. A swipe closed over the page or the empty
+        // space puts the sidebar away; the rows keep their own swipes.
+        let openSettingsEdge = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(openSettingsByEdgePan),
+        )
+        openSettingsEdge.edges = .left
+        openSettingsEdge.delegate = self
+        view.addGestureRecognizer(openSettingsEdge)
+
+        applySnapshot()
+    }
+
         // MARK: - Model Health Check
 
     /// Sidebar header button that runs the model health check.
@@ -418,64 +477,6 @@ final class SidebarController: UIViewController {
         }
     }
 
-    // MARK: - Navigation bar
-
-    // Header: Settings, the current project title, and Model Health Check.
-    // Projects are accessible from the navigation bar's title tap.
-    navigationItem.style = .editor
-    navigationItem.leftBarButtonItems = [settingsBarButton]
-    navigationItem.hidesBackButton = true
-    navigationItem.preferredSearchBarPlacement = .stacked
-    navigationItem.hidesSearchBarWhenScrolling = true
-    navigationItem.rightBarButtonItems = [modelHealthButton]
-    showProject()
-        refresh()
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(projectsChanged),
-            name: .apelinProjectsChanged,
-            object: nil,
-        )
-        Task { await refreshProjects() }
-        toolbarItems = nil
-
-        tableView.delegate = self
-        // a row that arrives fades in where it belongs, rather than sliding
-        dataSource.defaultRowAnimation = UITableView.RowAnimation.fade
-        view.addSubview(tableView)
-        tableView.snp.makeConstraints { x in
-            x.edges.equalToSuperview()
-        }
-        // the list the bar watches, for the pull that brings out the search;
-        // an empty or short one still gives way to the pull
-        setContentScrollView(tableView)
-        tableView.alwaysBounceVertical = true
-        // A left swipe on empty sidebar space (or the project name at the
-        // bottom) opens the project list, without disturbing the row swipes
-        // (pin/delete) on conversation rows.
-        let sidebarBackground = UIView()
-        sidebarBackground.backgroundColor = .clear
-        let openProjectsSwipe = UISwipeGestureRecognizer(
-            target: self,
-            action: #selector(openProjectPickerBySwipe),
-        )
-        openProjectsSwipe.direction = .left
-        sidebarBackground.addGestureRecognizer(openProjectsSwipe)
-        tableView.backgroundView = sidebarBackground
-
-        // As a drawer, a pan from the leading edge opens Settings, as the
-        // gear in the bar does. A swipe closed over the page or the empty
-        // space puts the sidebar away; the rows keep their own swipes.
-        let openSettingsEdge = UIScreenEdgePanGestureRecognizer(
-            target: self,
-            action: #selector(openSettingsByEdgePan),
-        )
-        openSettingsEdge.edges = .left
-        openSettingsEdge.delegate = self
-        view.addGestureRecognizer(openSettingsEdge)
-
-        applySnapshot()
-    }
 
     /// A search controller given before the bar is first shown is shown
     /// with it, whatever `hidesSearchBarWhenScrolling` says; given after,
