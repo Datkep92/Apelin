@@ -54,9 +54,9 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
                 primaryAction: UIAction { [weak self] _ in self?.addCustomModel() },
             )
             add.accessibilityLabel = String(localized: "Add Custom Model")
-            navigationItem.rightBarButtonItems = [save, add]
+            navigationItem.rightBarButtonItems = [save, useSelectedButton, add]
         } else {
-            navigationItem.rightBarButtonItem = save
+            navigationItem.rightBarButtonItems = [save, useSelectedButton]
         }
         navigationItem.leftBarButtonItem = selectAllButton
         search.searchResultsUpdater = self
@@ -97,6 +97,15 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         }
     }()
 
+    private lazy var useSelectedButton: UIBarButtonItem = {
+        UIBarButtonItem(
+            title: String(localized: "Use Selected"),
+            primaryAction: UIAction { [weak self] _ in self?.useSelectedModels() },
+        ).then {
+            $0.accessibilityLabel = String(localized: "Use Selected Model")
+        }
+    }()
+
     private func updateRows() {
         dataSource.headerTitle = { [weak self] _ in
             self.map { $0.account.name ?? $0.account.account ?? $0.account.provider.displayName }
@@ -104,6 +113,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         dataSource.footerTitle = { _ in String(localized: "Choose the models to show in the chat model picker. You can change this later in Model Providers.") }
         dataSource.allowsEditing = usesAPIKey
         dataSource.update([(0, shown.map { ModelRow(id: $0, selected: selected.contains($0)) })], reconfigure: true)
+        useSelectedButton.isEnabled = !selected.isEmpty
     }
 
     /// Selects every shown model.
@@ -208,6 +218,20 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         ComposerModelSelection.current = selection
         let message = String(localized: "Model set to: \(model)")
         presentNotice(title: String(localized: "Model Selected"), message: message)
+    }
+
+    /// Uses the first selected model as the current one, then saves without
+    /// verification. Shows a notice when no model is selected.
+    private func useSelectedModels() {
+        guard let model = selected.first else {
+            presentNotice(
+                title: String(localized: "No Model Selected"),
+                message: String(localized: "Select at least one model before using it."),
+            )
+            return
+        }
+        useModel(model)
+        EnabledModels.save(selected, custom: custom, hidden: hidden, for: account)
     }
 
     override func tableView(
