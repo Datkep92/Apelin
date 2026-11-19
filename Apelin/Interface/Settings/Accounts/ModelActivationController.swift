@@ -183,6 +183,35 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
 
     override func tableView(
         _: UITableView,
+        contextMenuConfigurationForRowAt indexPath: IndexPath,
+        point _: CGPoint,
+    ) -> UIContextMenuConfiguration? {
+        guard !saving,
+              let model = dataSource.itemIdentifier(for: indexPath),
+              selected.contains(model)
+        else { return nil }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            guard let self else { return nil }
+            let use = UIAction(
+                title: String(localized: "Use This Model"),
+                image: UIImage(systemName: "checkmark.circle.fill"),
+            ) { [weak self] _ in
+                self?.useModel(model)
+            }
+            return UIMenu(children: [use])
+        }
+    }
+
+    /// Sets `model` as the current model selection and notifies the user.
+    private func useModel(_ model: String) {
+        let selection = ChatController.selection(of: model, in: account)
+        ComposerModelSelection.current = selection
+        let message = String(localized: "Model set to: \(model)")
+        presentNotice(title: String(localized: "Model Selected"), message: message)
+    }
+
+    override func tableView(
+        _: UITableView,
         trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
     ) -> UISwipeActionsConfiguration? {
         guard usesAPIKey, !saving, let model = dataSource.itemIdentifier(for: indexPath) else { return nil }
