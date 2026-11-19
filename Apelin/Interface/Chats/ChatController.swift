@@ -23,8 +23,9 @@ final class ChatController: UIViewController {
     /// as its own Delete does.
     var onDelete: ((UUID) -> Void)?
     private let titleView = ChatTitleView()
-    private let gatewaySwitch = UISwitch()
-    private lazy var gatewayButton = UIBarButtonItem(customView: gatewaySwitch)
+    /// A compact gateway indicator: a tinted dot, or a spinner while updating.
+    private var gatewayDot: UIImageView?
+    private var gatewaySpinner: UIActivityIndicatorView?
     private var gatewayRunning = false
     private var gatewayUpdating = false
     private var messageList = ListView<ChatMessage>()
@@ -124,9 +125,9 @@ final class ChatController: UIViewController {
         super.init(nibName: nil, bundle: nil)
         navigationItem.titleView = titleView
         navigationItem.largeTitleDisplayMode = .never
-        gatewaySwitch.addTarget(self, action: #selector(gatewaySwitchChanged(_:)), for: .valueChanged)
-        gatewaySwitch.accessibilityLabel = String(localized: "Gateway")
-        navigationItem.leftBarButtonItem = gatewayButton
+        let gateway = makeGatewayButton()
+        navigationItem.leftBarButtonItem = gateway
+        refreshGatewayStatus()
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: nil)
         more.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self, weak more] completion in
             guard let self, let more, let chat else { completion([]); return }
@@ -395,14 +396,13 @@ final class ChatController: UIViewController {
         refreshGatewayStatus()
     }
 
-    @objc private func gatewaySwitchChanged(_ sender: UISwitch) {
-        guard !gatewayUpdating else {
-            sender.setOn(gatewayRunning, animated: true)
-            return
-        }
-        let target = sender.isOn
+    @objc private func gatewayButtonTapped() {
+        guard !gatewayUpdating else { return }
         gatewayUpdating = true
-        gatewaySwitch.isEnabled = false
+        let target = !gatewayRunning
+        gatewayDot?.isHidden = true
+        gatewaySpinner?.isHidden = false
+        gatewaySpinner?.startAnimating()
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -444,12 +444,34 @@ final class ChatController: UIViewController {
     }
 
     private func updateGatewayUI() {
-        gatewaySwitch.isEnabled = !gatewayUpdating
-        gatewaySwitch.isOn = gatewayRunning
-        gatewaySwitch.accessibilityValue = gatewayRunning
-            ? String(localized: "On")
-            : String(localized: "Off")
+        gatewayDot?.tintColor = gatewayRunning ? .systemGreen : .secondaryLabel
+        gatewaySpinner?.isHidden = true
+        gatewayDot?.isHidden = gatewayUpdating
     }
+
+    private func makeGatewayButton() -> UIBarButtonItem {
+        let imageView = UIImageView(image: UIImage(systemName: "circle.fill"))
+            .withConfiguration(UIImage.SymbolConfiguration(pointSize: 10, weight: .regular))
+        imageView.tintColor = .secondaryLabel
+        imageView.isAccessibilityElement = false
+        gatewayDot = imageView
+
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.isAccessibilityElement = false
+        spinner.isHidden = true
+        gatewaySpinner = spinner
+
+        let container = UIStackView(arrangedSubviews: [imageView, spinner])
+        container.axis = .horizontal
+        container.alignment = .center
+        container.isUserInteractionEnabled = true
+        let tap = UITapGestureRecognizer(target: self, action: #selector(gatewayButtonTapped))
+        container.addGestureRecognizer(tap)
+        container.accessibilityLabel = String(localized: "Gateway")
+        container.accessibilityHint = String(localized: "Tap to toggle gateway")
+        return UIBarButtonItem(customView: container)
+    }
+
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         htmlFileWatchTimer?.invalidate()
@@ -782,6 +804,7 @@ final class ChatController: UIViewController {
         let selection = barSelection
         shownModel = selection
         composer.modelBar.setModelName(selection?.model)
+        composer.modelBar.setModelsLabel(selection?.model)
         let keys = keyChoices(for: selection)
         composer.modelBar.setKeys(keys.keys, selected: keys.current)
         composer.modelBar.setEfforts(selection?.supportedEfforts ?? [], selected: selection?.effort)

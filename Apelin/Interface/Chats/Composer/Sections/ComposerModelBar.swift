@@ -78,6 +78,14 @@ final class ComposerModelBar: ComposerSectionView {
         }
     }
 
+    func setModelsLabel(_ name: String?) {
+        updateControls { [self] in
+            modelsButton.setText(name ?? String(localized: "Models"))
+            modelsButton.accessibilityLabel = String(localized: "Models")
+            modelsButton.accessibilityValue = name
+        }
+    }
+
     /// The keys that can send the model shown, when more than one can: the
     /// row then offers the switch, and hides it again when a single key
     /// answers, which says nothing the model button does not. Each key is

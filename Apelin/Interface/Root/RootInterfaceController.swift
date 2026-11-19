@@ -23,6 +23,7 @@ final class RootInterfaceController: UIViewController {
     private let chatRuntime = ChatRuntime()
     private var restoredChat = false
     private var opensChatAfterWelcome = false
+    private var startupOverlay: StartupProgressOverlay?
     /// An `apelin://` link that came before the conversations were read.
     private var pendingLink: ApelinLink?
     /// A link is being looked up: the launch's own restore waits for it.
@@ -175,7 +176,22 @@ final class RootInterfaceController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .panelBackground
+
+        let overlay = StartupProgressOverlay(frame: view.bounds)
+        overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(overlay)
+        startupOverlay = overlay
+
+        let previousChange = chatRuntime.onChange
+        chatRuntime.onChange = { [weak self] in
+            self?.startupOverlay?.advance()
+            previousChange?()
+        }
+
         Task { await chatRuntime.load(keeping: Self.savedChatID) }
+        // Dismiss the overlay after the adopt step (step 3) — onChange fires
+        // after isLoaded (step 2) and after reconcile (step 3), advancing it
+        // to step 4 where it removes itself.
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(enteredForeground),

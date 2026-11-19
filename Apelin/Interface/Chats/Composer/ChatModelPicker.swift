@@ -144,6 +144,8 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     private var sections: [(Section, [PickerRow])] = []
     private let search = UISearchController(searchResultsController: nil)
     private let onPickModel: ((ComposerModelSelection) -> Void)?
+    private var currentTab = 0 // 0 = NCC Groups, 1 = All Models
+    private var tabSegment: UISegmentedControl!
 
     private lazy var dataSource = TableDataSource<Section, String, PickerRow>(
         tableView: tableView,
@@ -176,10 +178,74 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         navigationItem.searchController = search
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
+        tabSegment = UISegmentedControl(items: [
+            String(localized: "NCC"),
+            String(localized: "All Models"),
+        ])
+        tabSegment.selectedSegmentIndex = currentTab
+        tabSegment.addTarget(self, action: #selector(tabChanged), for: .valueChanged)
+        navigationItem.titleView = tabSegment
         dataSource.headerTitle = { [weak self] section in
             self?.header(section)
         }
         regroup()
+    }
+
+    @objc private func tabChanged() {
+        currentTab = tabSegment.selectedSegmentIndex
+        regroup()
+    }
+
+    /// Every model across every configuration, listed once, with the account
+    /// that names it first. When a query is typed the list shows only matches.
+    private func buildFlatList() -> [(Section, [PickerRow])] {
+        var rows: [PickerRow] = []
+        for index in accounts.indices {
+            for model in pickerModels(accounts[index]) {
+                let servingAccounts = accounts.indices.filter { pickerModels(accounts[$0]).contains(model) }
+                let first = servingAccounts.first ?? index
+                let picked = servingAccounts.contains { pickerHolds(model, accounts[$0], selected) }
+                let detail: String? = if servingAccounts.count > 1 {
+                    let names = servingAccounts.map { accounts[$0].title ?? accounts[$0].provider.displayName }
+                    let uniq = Array(Set(names)).sorted()
+                    uniq.joined(separator: " · ")
+                } else {
+                    accounts[first].title ?? accounts[first].provider.displayName
+                }
+                rows.append(.model(first, model, detail, picked))
+            }
+        }
+        rows = deduplicateModelRows(rows)
+        if !query.isEmpty {
+            rows = rows.filter {
+                if case let .model(_, name, _, _) = $0 {
+                    return name.localizedStandardContains(query)
+                }
+                return true
+            }
+        }
+        guard !rows.isEmpty else { return [(.noResults, [.empty])] }
+        return [(.configurations, rows)]
+    }
+
+    /// Remove duplicate model rows that have the same model name but different accounts.
+    private func deduplicateModelRows(_ rows: [PickerRow]) -> [PickerRow] {
+        var seen: [String: Int] = [:] // model name → first row index
+        var result: [PickerRow] = []
+        for row in rows {
+            if case let .model(index, model, _, _) = row {
+                if let existing = seen[model] {
+                    // Keep the one that is picked, preferring the existing
+                    if case let .model(_, _, _, picked) = result[existing], !picked {
+                        result[existing] = row
+                    }
+                    continue
+                }
+                seen[model] = result.count
+            }
+            result.append(row)
+        }
+        return result
     }
 
     func updateSearchResults(for searchController: UISearchController) {
@@ -197,10 +263,13 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         }
     }
 
-    /// The rows shown now: one per configuration while nothing is typed,
-    /// and after something is typed, the matching models each under a header
-    /// naming the configuration they belong to.
+    /// The rows shown now: NCC groups (Tab 1) or a flat list (Tab 2).
     private func regroup() {
+        if currentTab == 1 {
+            sections = buildFlatList()
+            dataSource.update(sections)
+            return
+        }
         guard !query.isEmpty else {
             let rows = groups.enumerated().map { groupIndex, group -> PickerRow in
                 let first = accounts[group.indices[0]]

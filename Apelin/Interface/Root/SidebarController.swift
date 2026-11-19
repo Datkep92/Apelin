@@ -290,7 +290,7 @@ final class SidebarController: UIViewController {
     navigationItem.hidesBackButton = true
     navigationItem.preferredSearchBarPlacement = .stacked
     navigationItem.hidesSearchBarWhenScrolling = true
-    navigationItem.rightBarButtonItems = [modelHealthButton]
+    navigationItem.rightBarButtonItems = []
     showProject()
         refresh()
         NotificationCenter.default.addObserver(
