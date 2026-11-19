@@ -217,7 +217,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         let selection = ChatController.selection(of: model, in: account)
         ComposerModelSelection.current = selection
         let message = String(localized: "Model set to: \(model)")
-        presentNotice(title: String(localized: "Model Selected"), message: message)
+        presentNotice(title: "Model Selected", message: message)
     }
 
     /// Uses the first selected model as the current one, then saves without
@@ -225,7 +225,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
     private func useSelectedModels() {
         guard let model = selected.first else {
             presentNotice(
-                title: String(localized: "No Model Selected"),
+                title: "No Model Selected",
                 message: String(localized: "Select at least one model before using it."),
             )
             return
