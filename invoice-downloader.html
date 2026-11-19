@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tải hóa đơn điện tử - nhiều MST</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 16px; background: #f5f6fa; color: #222; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  .card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 8px 0 4px; }
+  input, select, button { width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 8px; }
+  button { background: #2d6cdf; color: #fff; border: none; cursor: pointer; margin-top: 8px; }
+  button:disabled { background: #999; }
+  button.secondary { background: #6c757d; }
+  button.danger { background: #dc3545; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .status { font-size: 13px; white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; border-radius: 8px; min-height: 80px; max-height: 240px; overflow: auto; }
+  .captcha-img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; margin: 6px 0; min-height: 40px; }
+  .accounts { max-height: 160px; overflow: auto; }
+  .acct-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .acct-item.active { background: #e8f0fe; }
+  .small { font-size: 12px; color: #666; }
+  .warn { color: #b00; font-size: 12px; }
+  .note { background:#fff8e1; border:1px solid #ffe082; padding:10px; border-radius:8px; font-size:12px; }
+</style>
+</head>
+<body>
+<h1>Tải hóa đơn điện tử - nhiều MST</h1>
+
+<div class="note">
+  <b>Lưu ý CORS:</b> API chỉ cho phép origin <code>https://hoadondientu.gdt.gov.vn</code>.<br>
+  Mở file này bằng <code>file://</code> sẽ bị chặn. Để chạy được, dùng bookmarklet trên trang thuế (xem <code>invoice-bookmarklet.js</code>) hoặc host trang này cùng origin.
+</div>
+
+<div class="card">
+  <label>Base URL API</label>
+  <input id="baseUrl" placeholder="https://..." value="https://hoadondientu.gdt.gov.vn">
+</div>
+
+<div class="card">
+  <label>Danh sách tài khoản (MST)</label>
+  <div class="accounts" id="acctList"></div>
+  <div class="row">
+    <input id="mst" placeholder="MST">
+    <input id="pass" type="password" placeholder="Mật khẩu">
+  </div>
+  <div class="row">
+    <button id="saveAcct" class="secondary">Lưu tài khoản</button>
+    <button id="delAcct" class="danger">Xóa đang chọn</button>
+  </div>
+</div>
+
+<div class="card">
+  <label>Captcha</label>
+  <button id="loadCaptcha" class="secondary">Tải captcha mới</button>
+  <img id="captchaImg" class="captcha-img" alt="captcha" style="display:none">
+  <input id="captchaInput" placeholder="Nhập mã captcha">
+  <button id="loginBtn">Đăng nhập</button>
+  <div class="small" id="loginStatus"></div>
+</div>
+
+<div class="card">
+  <label>Tháng/Năm & loại</label>
+  <div class="row">
+    <input id="fromDate" placeholder="01/10/2025">
+    <input id="toDate" placeholder="31/10/2025">
+  </div>
+  <div class="row">
+    <select id="type">
+      <option value="buy">Mua vào (hóa đơn bán ra của NCC)</option>
+      <option value="sold">Bán ra</option>
+    </select>
+  </div>
+  <div class="row">
+    <button id="loadList">Xem danh sách</button>
+    <button id="downloadBtn">Tải Excel</button>
+  </div>
+  <button id="testDownload" class="secondary">Tải test hóa đơn (10/2025)</button>
+  <div class="small" id="downloadStatus"></div>
+</div>
+
+<div class="card">
+  <label>Trạng thái / Log</label>
+  <div class="status" id="log"></div>
+  <button id="clearLog" class="secondary">Xóa log</button>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let accounts = JSON.parse(localStorage.getItem('accounts') || '[]');
+let activeIndex = -1;
+let token = localStorage.getItem('token') || '';
+let captchaKey = '';
+
+function log(msg) {
+  const el = $('log');
+  const t = new Date().toLocaleTimeString();
+  el.textContent += `[${t}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function saveAccounts() { localStorage.setItem('accounts', JSON.stringify(accounts)); renderAccounts(); }
+
+function renderAccounts() {
+  const el = $('acctList');
+  el.innerHTML = '';
+  accounts.forEach((a, i) => {
+    const div = document.createElement('div');
+    div.className = 'acct-item' + (i === activeIndex ? ' active' : '');
+    div.innerHTML = `<span>${a.mst}</span><span class="small">${a.pass ? '••••' : ''}</span>`;
+    div.onclick = () => selectAccount(i);
+    el.appendChild(div);
+  });
+  if (accounts.length === 0) el.innerHTML = '<div class="small" style="padding:8px">Chưa có tài khoản</div>';
+}
+
+function selectAccount(i) {
+  activeIndex = i;
+  $('mst').value = accounts[i].mst;
+  $('pass').value = accounts[i].pass;
+  token = accounts[i].token || '';
+  if (token) localStorage.setItem('token', token);
+  else localStorage.removeItem('token');
+  renderAccounts();
+  log('Đã chọn MST: ' + accounts[i].mst + (token ? ' (đã có token)' : ' (chưa đăng nhập)'));
+}
+
+$('saveAcct').onclick = () => {
+  const mst = $('mst').value.trim();
+  const pass = $('pass').value;
+  if (!mst) { log('Thiếu MST'); return; }
+  const idx = accounts.findIndex(a => a.mst === mst);
+  if (idx >= 0) { accounts[idx].pass = pass; accounts[idx].token = token; }
+  else accounts.push({ mst, pass, token });
+  saveAccounts();
+  log('Đã lưu tài khoản ' + mst);
+};
+
+$('delAcct').onclick = () => {
+  if (activeIndex < 0) { log('Chưa chọn tài khoản'); return; }
+  const m = accounts[activeIndex].mst;
+  accounts.splice(activeIndex, 1);
+  activeIndex = -1;
+  $('mst').value = ''; $('pass').value = '';
+  saveAccounts();
+  log('Đã xóa ' + m);
+};
+
+function base() { return $('baseUrl').value.trim().replace(/\/$/, ''); }
+
+function uuid() { return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); }); }
+
+async function api(path, opts = {}) {
+  const url = base() + path;
+  const headers = {
+    'accept': 'application/json, text/plain, */*',
+    'accept-language': 'vi',
+    'action': opts.action || '',
+    'end-point': opts.endPoint || '/',
+    'request-id': uuid(),
+    ...(opts.headers || {})
+  };
+  if (token) headers['authorization'] = 'Bearer ' + token;
+  const res = await fetch(url, { credentials: 'include', headers, ...opts });
+  const ct = res.headers.get('content-type') || '';
+  let body;
+  if (ct.includes('json')) body = await res.json();
+  else if (ct.includes('image')) body = await res.blob();
+  else if (ct.includes('spreadsheet') || ct.includes('octet')) body = await res.blob();
+  else body = await res.text();
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${typeof body === 'string' ? body : JSON.stringify(body).slice(0,300)}`);
+  return { res, body };
+}
+
+$('loadCaptcha').onclick = async () => {
+  try {
+    log('Tải captcha...');
+    const { body } = await api('/api/captcha');
+    captchaKey = body.key;
+    const img = $('captchaImg');
+    img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(body.content);
+    img.style.display = 'block';
+    log('Captcha đã tải (key=' + captchaKey + ')');
+  } catch (e) { log('Lỗi captcha: ' + e.message); }
+};
+
+$('loginBtn').onclick = async () => {
+  const mst = $('mst').value.trim();
+  const pass = $('pass').value;
+  const captcha = $('captchaInput').value.trim();
+  if (!base() || !mst || !pass || !captcha || !captchaKey) { log('Thiếu base URL / MST / pass / captcha'); return; }
+  try {
+    log('Đang đăng nhập ' + mst + '...');
+    const { body } = await api('/api/security-taxpayer/authenticate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: mst, password: pass, cvalue: captcha, ckey: captchaKey })
+    });
+    token = body.token;
+    localStorage.setItem('token', token);
+    if (activeIndex >= 0) { accounts[activeIndex].token = token; saveAccounts(); }
+    log('Đăng nhập OK');
+    $('loginStatus').textContent = 'Đã đăng nhập: ' + mst;
+    try {
+      const { body: p } = await api('/api/security-taxpayer/profile', { endPoint: '/' });
+      log('Profile: ' + (p.username || JSON.stringify(p).slice(0,200)));
+    } catch (e) { log('Profile lỗi: ' + e.message); }
+  } catch (e) { log('Đăng nhập thất bại: ' + e.message); }
+};
+
+$('loadList').onclick = async () => {
+  try {
+    const from = $('fromDate').value.trim();
+    const to = $('toDate').value.trim();
+    const search = `tdlap=ge=${from}T00:00:00;tdlap=le=${to}T23:59:59`;
+    const { body } = await api('/api/query/invoices/sold?sort=tdlap:desc&size=15&search=' + encodeURIComponent(search), {
+      action: 'Tìm kiếm (hóa đơn)',
+      endPoint: '/tra-cuu/tra-cuu-hoa-don'
+    });
+    const n = Array.isArray(body.datas) ? body.datas.length : '?';
+    log('Danh sách: ' + n + ' hóa đơn');
+  } catch (e) { log('Lỗi: ' + e.message); }
+};
+
+$('downloadBtn').onclick = async () => {
+  try {
+    const from = $('fromDate').value.trim();
+    const to = $('toDate').value.trim();
+    const search = `tdlap=ge=${from}T00:00:00;tdlap=le=${to}T23:59:59`;
+    log('Đang tải Excel...');
+    const res = await fetch(base() + '/api/query/invoices/export-excel?sort=tdlap:desc&search=' + encodeURIComponent(search), {
+      credentials: 'include',
+      headers: {
+        'accept': 'application/json, text/plain, */*',
+        'accept-language': 'vi',
+        'action': 'Xuất hóa đơn (hóa đơn bán ra)',
+        'authorization': 'Bearer ' + token,
+        'end-point': '/tra-cuu/tra-cuu-hoa-don',
+        'request-id': uuid()
+      }
+    });
+    if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'hoa-don.xlsx';
+    document.body.appendChild(a); a.click(); a.remove();
+    log('Đã tải file Excel');
+    $('downloadStatus').textContent = 'Hoàn tất';
+  } catch (e) { log('Tải thất bại: ' + e.message); $('downloadStatus').textContent = 'Lỗi: ' + e.message; }
+};
+
+$('testDownload').onclick = () => {
+  $('fromDate').value = '01/10/2025';
+  $('toDate').value = '31/10/2025';
+  $('type').value = 'buy';
+  $('downloadBtn').click();
+};
+
+$('clearLog').onclick = () => { $('log').textContent = ''; };
+
+renderAccounts();
+log('Sẵn sàng. Nhập base URL, thêm tài khoản, tải captcha rồi đăng nhập.');
+</script>
+</body>
+</html>

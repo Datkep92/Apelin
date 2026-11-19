@@ -173,15 +173,12 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         navigationItem.backButtonDisplayMode = .minimal
         search.searchResultsUpdater = self
         search.obscuresBackgroundDuringPresentation = false
-        search.searchBar.placeholder = String(localized: "Search Models")
+        search.searchBar.placeholder = "Search Models"
         search.searchBar.autocapitalizationType = .none
         navigationItem.searchController = search
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
-        tabSegment = UISegmentedControl(items: [
-            String(localized: "NCC"),
-            String(localized: "All Models"),
-        ])
+        tabSegment = UISegmentedControl(items: ["NCC", "All Models"])
         tabSegment.selectedSegmentIndex = currentTab
         tabSegment.addTarget(self, action: #selector(tabChanged), for: .valueChanged)
         navigationItem.titleView = tabSegment
