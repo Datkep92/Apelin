@@ -58,6 +58,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         } else {
             navigationItem.rightBarButtonItem = save
         }
+        navigationItem.leftBarButtonItem = selectAllButton
         search.searchResultsUpdater = self
         search.obscuresBackgroundDuringPresentation = false
         search.searchBar.placeholder = String(localized: "Search Models")
@@ -80,6 +81,22 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         self?.cell(in: table, at: indexPath, row: row)
     }
 
+    private lazy var selectAllButton: UIBarButtonItem = {
+        UIBarButtonItem(
+            image: UIImage(systemName: "checkmark.circle"),
+            menu: UIMenu(children: [
+                UIAction(title: String(localized: "Select All"), image: UIImage(systemName: "checkmark.circle")) { [weak self] _ in
+                    self?.selectAll()
+                },
+                UIAction(title: String(localized: "Deselect All"), image: UIImage(systemName: "circle")) { [weak self] _ in
+                    self?.deselectAll()
+                },
+            ]),
+        ).then {
+            $0.accessibilityLabel = String(localized: "Select or Deselect All")
+        }
+    }()
+
     private func updateRows() {
         dataSource.headerTitle = { [weak self] _ in
             self.map { $0.account.name ?? $0.account.account ?? $0.account.provider.displayName }
@@ -87,6 +104,18 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         dataSource.footerTitle = { _ in String(localized: "Choose the models to show in the chat model picker. You can change this later in Model Providers.") }
         dataSource.allowsEditing = usesAPIKey
         dataSource.update([(0, shown.map { ModelRow(id: $0, selected: selected.contains($0)) })], reconfigure: true)
+    }
+
+    /// Selects every shown model.
+    private func selectAll() {
+        for model in shown { selected.insert(model) }
+        updateRows()
+    }
+
+    /// Deselects every shown model.
+    private func deselectAll() {
+        for model in shown { selected.remove(model) }
+        updateRows()
     }
 
     private var usesAPIKey: Bool {

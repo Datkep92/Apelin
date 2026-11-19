@@ -283,10 +283,10 @@ final class SidebarController: UIViewController {
 
     // MARK: - Navigation bar
 
-    // Header: Settings, the current project title, and Model Health Check.
+    // Header: Settings, the current project title, New Chat, and Model Health Check.
     // Projects are accessible from the navigation bar's title tap.
     navigationItem.style = .editor
-    navigationItem.leftBarButtonItems = [settingsBarButton]
+    navigationItem.leftBarButtonItems = [settingsBarButton, newChatButton]
     navigationItem.hidesBackButton = true
     navigationItem.preferredSearchBarPlacement = .stacked
     navigationItem.hidesSearchBarWhenScrolling = true
@@ -352,6 +352,18 @@ final class SidebarController: UIViewController {
         )
         item.accessibilityLabel = String(localized: "Model Health Check")
         item.accessibilityHint = String(localized: "Probe all models to mark inactive ones")
+        return item
+    }()
+
+    /// Sidebar header button that starts a new conversation.
+    private lazy var newChatButton: UIBarButtonItem = {
+        let item = UIBarButtonItem(
+            image: UIImage(systemName: "square.and.pencil"),
+            primaryAction: UIKit.UIAction { [weak self] _ in
+                self?.startNewChat()
+            },
+        )
+        item.accessibilityLabel = String(localized: "New Chat")
         return item
     }()
 
