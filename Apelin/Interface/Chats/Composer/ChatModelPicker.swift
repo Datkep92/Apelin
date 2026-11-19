@@ -202,13 +202,12 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
                 let servingAccounts = accounts.indices.filter { pickerModels(accounts[$0]).contains(model) }
                 let first = servingAccounts.first ?? index
                 let picked = servingAccounts.contains { pickerHolds(model, accounts[$0], selected) }
-                let detail: String? = if servingAccounts.count > 1 {
-                    let names = servingAccounts.map { accounts[$0].title ?? accounts[$0].provider.displayName }
-                    let uniq = Array(Set(names)).sorted()
-                    uniq.joined(separator: " · ")
-                } else {
-                    accounts[first].title ?? accounts[first].provider.displayName
-                }
+                let uniqNames: [String] = servingAccounts.count > 1
+                    ? Array(Set(servingAccounts.map { accounts[$0].title ?? accounts[$0].provider.displayName })).sorted()
+                    : []
+                let detail: String? = uniqNames.isEmpty
+                    ? (accounts[first].title ?? accounts[first].provider.displayName)
+                    : uniqNames.joined(separator: " · ")
                 rows.append(.model(first, model, detail, picked))
             }
         }

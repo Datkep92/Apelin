@@ -450,8 +450,8 @@ final class ChatController: UIViewController {
     }
 
     private func makeGatewayButton() -> UIBarButtonItem {
-        let imageView = UIImageView(image: UIImage(systemName: "circle.fill"))
-            .withConfiguration(UIImage.SymbolConfiguration(pointSize: 10, weight: .regular))
+        let imageView = UIImageView(image: UIImage(systemName: "circle.fill")?
+            .withConfiguration(UIImage.SymbolConfiguration(pointSize: 10, weight: .regular)) ?? UIImage(systemName: "circle.fill"))
         imageView.tintColor = .secondaryLabel
         imageView.isAccessibilityElement = false
         gatewayDot = imageView
@@ -467,8 +467,8 @@ final class ChatController: UIViewController {
         container.isUserInteractionEnabled = true
         let tap = UITapGestureRecognizer(target: self, action: #selector(gatewayButtonTapped))
         container.addGestureRecognizer(tap)
-        container.accessibilityLabel = String(localized: "Gateway")
-        container.accessibilityHint = String(localized: "Tap to toggle gateway")
+        container.accessibilityLabel = "Gateway"
+        container.accessibilityHint = "Tap to toggle gateway"
         return UIBarButtonItem(customView: container)
     }
 
