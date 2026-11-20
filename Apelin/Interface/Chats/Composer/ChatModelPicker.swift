@@ -1,7 +1,7 @@
 import ApelinProtocol
 import UIKit
 
-/// One row of the picker's two pages: a configuration, one of its models, or
+/// One row of the picker's pages: a configuration, one of its models, or
 /// a query nothing matched. The item identifier tells rows apart within a
 /// snapshot, which two configurations enabling the same model id need.
 private enum PickerRow: Equatable {
@@ -121,14 +121,42 @@ private func pickerModels(_ account: AgentAccount) -> [String] {
     return (account.models ?? []).filter { seen.insert($0).inserted }
 }
 
+/// The models of `indices` configurations, each named once. A model one
+/// configuration serves is picked here; one several of them serve opens the
+/// list of keys that can send it, so no model is listed twice and no key is
+/// out of reach. Both the pushed list and the current-NCC tab use this.
+private func pickerModelRows(indices: [Int], accounts: [AgentAccount], selected: ComposerModelSelection?) -> [PickerRow] {
+    var order: [String] = []
+    var servers: [String: [Int]] = [:]
+    for accountIndex in indices {
+        for model in pickerModels(accounts[accountIndex]) where servers[model]?.contains(accountIndex) != true {
+            if servers[model] == nil { order.append(model) }
+            servers[model, default: []].append(accountIndex)
+        }
+    }
+    let many = indices.count > 1
+    return order.compactMap { model in
+        guard let list = servers[model], let first = list.first else { return nil }
+        let picked = list.contains { pickerHolds(model, accounts[$0], selected) }
+        guard list.count > 1 else {
+            return .model(first, model, many ? accounts[first].title : nil, picked)
+        }
+        let names = pickerKeyLabels(list, accounts).joined(separator: " · ")
+        return .modelKeys(model, list, names, picked)
+    }
+}
+
 /// The sheet the composer's model button opens: the enabled configurations
-/// first, each one opening its own models, and a search field answering
-/// over every model of every configuration at once. The context menu this
-/// replaced had nowhere to type, so a search could not be part of it.
+/// first, each one opening its own models, a flat list of every model, the
+/// NCC in use, and a search field answering over every model of every
+/// configuration at once. The context menu this replaced had nowhere to
+/// type, so a search could not be part of it.
 final class ChatModelPickerController: TableController, UISearchResultsUpdating {
     private enum Section: Hashable {
         /// The configurations themselves, while nothing is typed.
         case configurations
+        /// The models of the NCC serving the current model (third tab).
+        case current
         /// The models of one configuration the typed query matched.
         case matches(Int)
         /// A query nothing matched.
@@ -144,8 +172,22 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     private var sections: [(Section, [PickerRow])] = []
     private let search = UISearchController(searchResultsController: nil)
     private let onPickModel: ((ComposerModelSelection) -> Void)?
-    private var currentTab = 0 // 0 = NCC Groups, 1 = All Models
+    private var currentTab = 0 // 0 = NCC Groups, 1 = All Models, 2 = Current NCC
     private var tabSegment: UISegmentedControl!
+
+    /// The group of configurations serving the model the composer uses now:
+    /// the one holding the account whose provider and profile match the
+    /// selection, or the first group when nothing is picked yet. Its models
+    /// are what the third tab lists.
+    private var currentGroup: ModelPickerGrouping.Group? {
+        if let selected,
+           let index = accounts.firstIndex(where: {
+               $0.provider == selected.provider && $0.profileID == selected.profileID
+           }) {
+            return groups.first { $0.indices.contains(index) }
+        }
+        return groups.first
+    }
 
     private lazy var dataSource = TableDataSource<Section, String, PickerRow>(
         tableView: tableView,
@@ -178,7 +220,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         navigationItem.searchController = search
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
-        tabSegment = UISegmentedControl(items: ["NCC", "All Models"])
+        tabSegment = UISegmentedControl(items: ["NCC", "All Models", "Current NCC"])
         tabSegment.selectedSegmentIndex = currentTab
         tabSegment.addTarget(self, action: #selector(tabChanged), for: .valueChanged)
         navigationItem.titleView = tabSegment
@@ -254,13 +296,39 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     private func header(_ section: Section) -> String? {
         switch section {
         case .configurations: nil
+        case .current: currentGroup?.title
         case let .matches(index): accounts[index].title
         case .noResults: nil
         }
     }
 
-    /// The rows shown now: NCC groups (Tab 1) or a flat list (Tab 2).
+    /// The models of the NCC the composer sends with now, as its own page:
+    /// one row per model, the keys behind a shared one opening their list,
+    /// narrowed by the typed query like the other pages.
+    private func buildCurrentList() -> [(Section, [PickerRow])] {
+        guard let group = currentGroup else { return [(.noResults, [.empty])] }
+        var rows = pickerModelRows(indices: group.indices, accounts: accounts, selected: selected)
+        if !query.isEmpty {
+            rows = rows.filter { row in
+                let name: String
+                switch row {
+                case let .model(_, model, _, _), let .modelKeys(model, _, _, _): name = model
+                default: return true
+                }
+                return name.localizedStandardContains(query)
+            }
+        }
+        return [rows.isEmpty ? (.noResults, [.empty]) : (.current, rows)]
+    }
+
+    /// The rows shown now: NCC groups (Tab 1), all models (Tab 2), or the
+    /// current NCC's models (Tab 3).
     private func regroup() {
+        if currentTab == 2 {
+            sections = buildCurrentList()
+            dataSource.update(sections)
+            return
+        }
         if currentTab == 1 {
             sections = buildFlatList()
             dataSource.update(sections)
@@ -312,6 +380,17 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
             navigationController?.pushViewController(page, animated: true)
         case let .model(index, model, _, _):
             pick(model, in: accounts[index])
+        case let .modelKeys(model, list, _, _):
+            let page = ChatModelKeyController(
+                accounts: accounts,
+                indices: list,
+                model: model,
+                selected: selected,
+                onPick: { [weak self] account, model in
+                    self?.pick(model, in: account)
+                },
+            )
+            navigationController?.pushViewController(page, animated: true)
         default:
             break
         }
@@ -380,25 +459,7 @@ private final class ChatModelListController: TableController {
     /// them serve opens the list of the keys that can send it, so no model
     /// is listed twice and no key is out of reach.
     private func rewrite() {
-        var order: [String] = []
-        var servers: [String: [Int]] = [:]
-        for accountIndex in indices {
-            for model in pickerModels(accounts[accountIndex]) where servers[model]?.contains(accountIndex) != true {
-                if servers[model] == nil { order.append(model) }
-                servers[model, default: []].append(accountIndex)
-            }
-        }
-        let many = indices.count > 1
-        let rows: [PickerRow] = order.compactMap { model in
-            guard let list = servers[model], let first = list.first else { return nil }
-            let picked = list.contains { pickerHolds(model, accounts[$0], selected) }
-            guard list.count > 1 else {
-                return .model(first, model, many ? accounts[first].title : nil, picked)
-            }
-            let names = pickerKeyLabels(list, accounts).joined(separator: " · ")
-            return .modelKeys(model, list, names, picked)
-        }
-        dataSource.update([(0, rows)])
+        dataSource.update([(0, pickerModelRows(indices: indices, accounts: accounts, selected: selected))])
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
