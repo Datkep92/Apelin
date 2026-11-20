@@ -80,16 +80,23 @@ final class StartupProgressOverlay: UIView {
         )
     }
 
+    /// Remove the card as soon as the saved chats can be shown. Work that
+    /// still talks to the backend keeps going behind this view.
+    func finish() {
+        guard superview != nil else { return }
+        UIView.animate(withDuration: 0.25) {
+            self.alpha = 0
+        } completion: { _ in
+            self.removeFromSuperview()
+        }
+    }
+
     /// Advance to the next startup step. When `step` reaches 4 the overlay
     /// removes itself from its superview with a fade.
     func advance() {
         step += 1
         if step >= 4 {
-            UIView.animate(withDuration: 0.25) {
-                self.alpha = 0
-            } completion: { _ in
-                self.removeFromSuperview()
-            }
+            finish()
             return
         }
         stepLabel.text = stepNames[step]

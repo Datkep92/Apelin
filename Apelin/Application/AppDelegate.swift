@@ -1,5 +1,38 @@
 import AlertController
+import ApelinProtocol
 import UIKit
+
+/// Apelin is also the gateway's switch: check it as soon as the app opens and
+/// whenever a scene comes back. A gateway that died while the app was closed
+/// starts again; a switch the reader turned off stays off — a stopped gateway
+/// with no saved `since` was never turned off.
+@MainActor
+private enum GatewayAccessCheck {
+    private static let minimumGap: TimeInterval = 15
+    private static var lastAttempt: Date?
+    private static var inFlight: Task<Void, Never>?
+
+    static func run() {
+        let now = Date()
+        guard inFlight == nil else { return }
+        if let lastAttempt, now.timeIntervalSince(lastAttempt) < Self.minimumGap { return }
+        lastAttempt = now
+        inFlight = Task { @MainActor in
+            defer { inFlight = nil }
+            do {
+                // This is also the early hello: it starts the handshake that
+                // would otherwise wait for the first chat request.
+                let response = try await ApelinService.app.gatewayStatus()
+                let record = response.record
+                guard record.state != .dang_chay else { return }
+                guard record.enabled || record.since == nil else { return }
+                try? await ApelinService.app.gatewaySetEnabled(true)
+            } catch {
+                // The daemon may still be starting. The next access retries.
+            }
+        }
+    }
+}
 
 /// Not `@main`: `main.swift` clears saved scenes before `UIApplicationMain`.
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -24,6 +57,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         LegacyHome.bringDataAcross()
         AppJournal.start()
         NetworkAccess.start()
+        // Warm the backend and the gateway as the app opens, not on first chat.
+        GatewayAccessCheck.run()
         ConversationNotices.start()
         // the progress card and the alerts carry the app's icon, as Fila's do
         AlertControllerConfiguration.alertImage = UIImage(named: "AppIconMark")
@@ -99,6 +134,12 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // comes with the scene. Opened on the next turn, once the root is on
         // screen to present from.
         DispatchQueue.main.async { [weak self] in self?.openURLs(connectionOptions.urlContexts, in: scene) }
+    }
+
+    /// Coming back to Apelin is another chance to check the gateway: a scene
+    /// left for hours can find a process that died in the meantime.
+    func sceneDidBecomeActive(_: UIScene) {
+        GatewayAccessCheck.run()
     }
 
     /// Open in Apelin, or an `apelin://` link, while the app runs.

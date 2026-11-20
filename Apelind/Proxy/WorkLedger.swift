@@ -1,15 +1,13 @@
 import Dispatch
 import Foundation
 
-/// Whether apelind has work, and when it may exit.
+/// Whether apelind has work, and whether the idle guard could let it exit.
 ///
-/// apelind is on demand: launchd starts it for a message to its Mach service
-/// and never keeps it alive. It stays up while anything is open — a
-/// connected app, a request in flight, or work the session host reports
-/// (a task, a live worker) — and exits only once all of them have been gone
-/// for `idleGrace`. The grace is longer than launchd's ten-second respawn
-/// throttle, so an idle exit is never followed by a throttled relaunch, and
-/// the session host's task records are on disk before it reports idle.
+/// This fork keeps the daemon up: `normalIdleGraceSeconds` is 0, so the timer
+/// never fires and launchd's `KeepAlive` is the only restart path. The ledger
+/// still tracks connections, requests and session work, so the host's report
+/// says what the backend is doing and a future on-demand build can restore
+/// the old exit rule by setting a grace again.
 ///
 /// Every method runs on `queue`.
 final class WorkLedger: @unchecked Sendable {

@@ -115,7 +115,10 @@ final class ChatRuntime {
         do {
             log.info("startup: load start")
             async let storedRecords = try store.load()
-            async let liveSessions = (try? ApelinService.app.agentList().sessions) ?? []
+            // Ask in parallel but never hold the saved list for the answer:
+            // a backend that has not started must not keep chats off screen.
+            // Reconciliation below awaits this task instead.
+            let liveSessions = Task { (try? await ApelinService.app.agentList().sessions) ?? [] }
             let loaded = try await storedRecords
             log.info("startup: store.load done n=\(loaded.count) in \(String(describing: clock.now - start))")
             for var record in loaded {
@@ -151,8 +154,8 @@ final class ChatRuntime {
             onChange?()
             log.info("startup: isLoaded in \(String(describing: clock.now - start))")
 
-            let live = await liveSessions
             reconciliationTask = Task { @MainActor in
+                let live = await liveSessions.value
                 let reconcileStart = clock.now
                 log.info("startup: reconcile start")
                 for record in self.records.values {

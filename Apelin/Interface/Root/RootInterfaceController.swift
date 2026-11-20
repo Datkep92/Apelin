@@ -184,7 +184,18 @@ final class RootInterfaceController: UIViewController {
 
         let previousChange = chatRuntime.onChange
         chatRuntime.onChange = { [weak self] in
-            self?.startupOverlay?.advance()
+            guard let self, let overlay = self.startupOverlay else {
+                previousChange?()
+                return
+            }
+            // Saved chats are on screen: let the reader in now. Anything
+            // still talking to the backend carries on behind this view.
+            if self.chatRuntime.isLoaded {
+                self.startupOverlay = nil
+                overlay.finish()
+            } else {
+                overlay.advance()
+            }
             previousChange?()
         }
 

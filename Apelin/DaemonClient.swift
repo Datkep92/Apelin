@@ -15,8 +15,8 @@ private func appCreateMachServiceConnection(
 /// `ApelinService.app`.
 ///
 /// Hello first. A miss means launchd has not started the daemon yet, so it is
-/// retried; only after `gracePeriod`, measured from the first miss, does the
-/// app fall back to running without it. Each hello has its own bound,
+/// retried briefly; after `gracePeriod`, measured from the first miss, the app
+/// falls back to running without it. Each hello has its own bound,
 /// because a daemon launchd cannot start leaves the message queued with no
 /// error, and each attempt's reply and timeout share a one-shot claim.
 ///
@@ -28,11 +28,11 @@ private func appCreateMachServiceConnection(
 final class DaemonClient: ApelinTransport, @unchecked Sendable {
     static let shared = DaemonClient()
 
-    private static let gracePeriod: TimeInterval = 60
-    private static let helloTimeout: DispatchTimeInterval = .seconds(10)
-    private static let retryDelay: DispatchTimeInterval = .seconds(1)
+    private static let gracePeriod: TimeInterval = 8
+    private static let helloTimeout: DispatchTimeInterval = .seconds(3)
+    private static let retryDelay: DispatchTimeInterval = .milliseconds(250)
     /// A call's bound beyond the attach's own wait.
-    private static let callMargin: TimeInterval = 30
+    private static let callMargin: TimeInterval = 15
 
     private enum State {
         case unknown
