@@ -14,9 +14,14 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
     private var saving = false
     private var verification: TaskHandle?
     private let search = UISearchController(searchResultsController: nil)
+    /// Where a model picked here goes. The chat supplies one so the choice
+    /// lands in that conversation; Settings, sign-in and onboarding leave it
+    /// nil and keep setting the reader's default.
+    private let onUseModel: ((ComposerModelSelection) -> Void)?
 
-    init(account: AgentAccount) {
+    init(account: AgentAccount, onUseModel: ((ComposerModelSelection) -> Void)? = nil) {
         self.account = account
+        self.onUseModel = onUseModel
         let available = account.models ?? []
         let enabled = EnabledModels.ids(for: account)
         custom = Set(EnabledModels.customIDs(for: account))
@@ -98,12 +103,9 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
     }()
 
     private lazy var useSelectedButton: UIBarButtonItem = {
-        UIBarButtonItem(
-            title: String(localized: "Use Selected"),
-            primaryAction: UIAction { [weak self] _ in self?.useSelectedModels() },
-        ).then {
-            $0.accessibilityLabel = String(localized: "Use Selected Model")
-        }
+        let button = UIBarButtonItem(title: String(localized: "Use Selected"), menu: nil)
+        button.accessibilityLabel = String(localized: "Use Selected Model")
+        return button
     }()
 
     private func updateRows() {
@@ -113,7 +115,14 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         dataSource.footerTitle = { _ in String(localized: "Choose the models to show in the chat model picker. You can change this later in Model Providers.") }
         dataSource.allowsEditing = usesAPIKey
         dataSource.update([(0, shown.map { ModelRow(id: $0, selected: selected.contains($0)) })], reconfigure: true)
-        useSelectedButton.isEnabled = !selected.isEmpty
+        let choices = selected.sorted()
+        useSelectedButton.isEnabled = !choices.isEmpty
+        useSelectedButton.menu = choices.isEmpty ? nil : UIMenu(
+            title: String(localized: "Use This Model"),
+            children: choices.map { model in
+                UIAction(title: model) { [weak self] _ in self?.useSelectedModel(model) }
+            },
+        )
     }
 
     /// Selects every shown model.
@@ -212,24 +221,23 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         }
     }
 
-    /// Sets `model` as the current model selection and notifies the user.
+    /// Sends `model` to the chat that opened this page, or sets the reader's
+    /// default when it came from Settings, sign-in or onboarding.
     private func useModel(_ model: String) {
         let selection = ChatController.selection(of: model, in: account)
-        ComposerModelSelection.current = selection
+        if let onUseModel {
+            onUseModel(selection)
+        } else {
+            ComposerModelSelection.current = selection
+        }
         let message = String(localized: "Model set to: \(model)")
         presentNotice(title: "Model Selected", message: message)
     }
 
-    /// Uses the first selected model as the current one, then saves without
-    /// verification. Shows a notice when no model is selected.
-    private func useSelectedModels() {
-        guard let model = selected.first else {
-            presentNotice(
-                title: "No Model Selected",
-                message: String(localized: "Select at least one model before using it."),
-            )
-            return
-        }
+    /// The reader picks the model from the menu; the checked list is saved
+    /// with it so the choice stays enabled.
+    private func useSelectedModel(_ model: String) {
+        guard selected.contains(model) else { return }
         useModel(model)
         EnabledModels.save(selected, custom: custom, hidden: hidden, for: account)
     }

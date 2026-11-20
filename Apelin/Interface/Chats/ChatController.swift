@@ -978,7 +978,11 @@ final class ChatController: UIViewController {
                 let account = accounts.first(where: {
                     $0.provider == selection?.provider && $0.profileID == selection?.profileID
                 }) ?? accounts[0]
-                let page = ModelActivationController(account: account)
+                let page = ModelActivationController(account: account, onUseModel: { [weak self] selection in
+                    guard let self, let id = self.chat?.id else { return }
+                    self.runtime.setModelSelection(selection, for: id)
+                    self.updateModelSelection()
+                })
                 presentPageAsFormSheet(page)
             } catch {
                 guard !Task.isCancelled, presentedViewController == nil else { return }
