@@ -88975,6 +88975,26 @@
           }
         }
       }
+    },
+    "Loading chats…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading chats…"
+          }
+        }
+      }
+    },
+    "Loading chats… Syncing…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading chats… Syncing…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
