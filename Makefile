@@ -324,14 +324,24 @@ check:
 	done
 	@"$(ROOT_DIR)/Scripts/check-gpu-entitlements.py" "$(ENTITLEMENTS)" $(TEMPLATE_ENTITLEMENTS)
 	@"$(ROOT_DIR)/Scripts/check-launchd-paths.py" "$(LAUNCH_DAEMON)" --substituted-by "$(DEB_PACKAGER)"
-	@# On demand (owner, 2026-10-16): launchd starts apelind for a message to
-	@# its Mach service, and apelind exits itself once idle. RunAtLoad or
-	@# KeepAlive would fight the idle exit — the scaffold's daemon was
-	@# restarted, throttled, every few seconds that way.
-	@for key in RunAtLoad KeepAlive AbandonProcessGroup; do \
-		! /usr/libexec/PlistBuddy -c "Print :$$key" "$(LAUNCH_DAEMON)" >/dev/null 2>&1 \
-			|| { echo "error: apelind is on demand; its launchd plist must not set $$key" >&2; exit 65; }; \
-	done
+	@# Upstream's on-demand rule (owner, 2026-10-16) has one fork exception:
+	@# this fork's owner chose a warm, persistent backend (2026-11-21), stated
+	@# in the plist by the FORK-PERSONALISATION marker. Another plist still gets
+	@# the upstream check; AbandonProcessGroup stays forbidden in every case:
+	@# the session host and workers must go when the proxy goes.
+	@if grep -qF 'FORK-PERSONALISATION: persist-backend' "$(LAUNCH_DAEMON)"; then \
+		[[ "$$(/usr/libexec/PlistBuddy -c 'Print :RunAtLoad' "$(LAUNCH_DAEMON)")" == true ]] \
+			|| { echo "error: the persistent-backend fork needs RunAtLoad = true" >&2; exit 65; }; \
+		[[ "$$(/usr/libexec/PlistBuddy -c 'Print :KeepAlive' "$(LAUNCH_DAEMON)")" == true ]] \
+			|| { echo "error: the persistent-backend fork needs KeepAlive = true" >&2; exit 65; }; \
+	else \
+		for key in RunAtLoad KeepAlive; do \
+			! /usr/libexec/PlistBuddy -c "Print :$$key" "$(LAUNCH_DAEMON)" >/dev/null 2>&1 \
+				|| { echo "error: apelind is on demand; its launchd plist must not set $$key" >&2; exit 65; }; \
+		done; \
+	fi
+	@! /usr/libexec/PlistBuddy -c 'Print :AbandonProcessGroup' "$(LAUNCH_DAEMON)" >/dev/null 2>&1 \
+		|| { echo "error: apelind must not set AbandonProcessGroup; its session host and workers go with it" >&2; exit 65; }
 	@[[ "$$(/usr/libexec/PlistBuddy -c 'Print :MachServices:wiki.qaq.apelin.service' "$(LAUNCH_DAEMON)")" == true ]] \
 		|| { echo "error: the launchd plist must advertise wiki.qaq.apelin.service, which is what starts apelind" >&2; exit 65; }
 	@[[ "$$(/usr/libexec/PlistBuddy -c 'Print :SoftResourceLimits:NumberOfFiles' "$(LAUNCH_DAEMON)")" == "10240" ]] \
