@@ -127,7 +127,11 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     private func addActions() -> [UIMenuElement] {
         addableProviders.map { provider in
             UIAction(title: provider.displayName, image: provider.icon) { [weak self] _ in
-                self?.addConfiguration(provider)
+                guard let self else { return }
+                self.addConfiguration(
+                    provider: provider,
+                    template: self.accounts.first { $0.provider == provider && $0.signedIn && $0.isAPIKeyAccount },
+                )
             }
         }
     }
@@ -481,7 +485,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 title: String(localized: "Edit"),
                 image: UIImage(systemName: account.isAPIKeyAccount ? "pencil" : "arrow.clockwise"),
             ) { [weak self] _ in
-                self?.signIn(account)
+                self?.editConfiguration(account)
             },
             UIAction(
                 title: String(localized: "Models"),
@@ -507,7 +511,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 title: String(localized: "Add Configuration"),
                 image: UIImage(systemName: "plus"),
             ) { [weak self] _ in
-                self?.addConfiguration(account.provider)
+                self?.addConfiguration(provider: account.provider, template: account)
             })
         }
         // The two red ones, the lesser first: Sign Out gives up the key and
@@ -593,8 +597,16 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
 
     // MARK: - Acting
 
-    private func signIn(_ account: AgentAccount, preferredProfileName: String? = nil) {
-        let page = ProviderLoginController(account: account, preferredProfileName: preferredProfileName)
+    private func signIn(
+        _ account: AgentAccount,
+        preferredProfileName: String? = nil,
+        seedValues: [String: String]? = nil,
+    ) {
+        let page = ProviderLoginController(
+            account: account,
+            preferredProfileName: preferredProfileName,
+            seedValues: seedValues,
+        )
         page.onFinish = { [weak self] in self?.load() }
         // a sheet of its own over Settings, kept up until it is closed: a
         // stray swipe would end a sign-in waiting on Safari
@@ -703,42 +715,110 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         }
     }
 
-    /// A name for one more configuration of `provider`, then its sign-in: the
-    /// name is kept here until the key is saved, so the page can be left and
-    /// the row returned to rather than named again.
-    private func addConfiguration(_ provider: AgentProvider) {
+    /// Keys pointing at one Base URL share the endpoint's models, so `Edit`
+    /// names which key when several are there. One key, or a sign-in that is
+    /// not a typed key, goes straight to its own page as before.
+    private func editConfiguration(_ account: AgentAccount) {
+        guard account.isAPIKeyAccount, let endpoint = endpoint(of: account) else {
+            signIn(account)
+            return
+        }
+        let keys = accounts.filter { $0.signedIn && $0.isAPIKeyAccount && endpoint(of: $0) == endpoint }
+        guard keys.count > 1 else {
+            signIn(account)
+            return
+        }
+        let sheet = UIAlertController(title: String(localized: "Edit"), message: nil, preferredStyle: .actionSheet)
+        for key in keys {
+            let detail = [key.name, key.account].compactMap { $0 }.joined(separator: " · ")
+            sheet.addAction(UIAlertAction(title: detail.isEmpty ? key.id : detail, style: .default) { [weak self] _ in
+                self?.signIn(key)
+            })
+        }
+        sheet.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        sheet.popoverPresentationController?.sourceView = view
+        sheet.popoverPresentationController?.sourceRect = CGRect(
+            x: view.bounds.midX,
+            y: view.bounds.midY,
+            width: 1,
+            height: 1,
+        )
+        present(sheet, animated: true)
+    }
+
+    /// A name and a key for one more configuration of `provider`. When it is
+    /// added beside an existing key, the Base URL and model it serves are
+    /// copied from that configuration: the new key points at the same
+    /// endpoint and offers the same models. The name is kept here until the
+    /// key is saved, so the page can be left and the row returned to rather
+    /// than named again.
+    private func addConfiguration(provider: AgentProvider, template: AgentAccount?) {
         // How the provider signs in is apelin-agent's answer, taken from the
         // entry it lists for the provider itself.
         guard let id = AgentProfileID.make(for: provider),
               let listed = accounts.first(where: { $0.provider == provider })
         else { return }
-        present(AlertInputViewController(
-            title: "Add Configuration",
-            message: "Name this configuration. It appears beside the provider in the model menu.",
-            placeholder: "Name",
-            text: "",
-            doneButtonText: "Continue",
-        ) { [weak self] value in
-            guard let self else { return }
-            let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let alert = UIAlertController(
+            title: String(localized: "Add Configuration"),
+            message: String(localized: "Name this configuration. It appears beside the provider in the model menu."),
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = String(localized: "Name")
+            field.autocapitalizationType = .words
+        }
+        alert.addTextField { field in
+            field.placeholder = String(localized: "API Key")
+            field.isSecureTextEntry = true
+            field.textContentType = .password
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.spellCheckingType = .no
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Continue"), style: .default) { [weak self, weak alert] _ in
+            guard let self, let alert else { return }
+            let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !name.isEmpty, name.count <= 120, !name.contains(where: \.isNewline) else {
-                presentNotice(title: "Invalid Name", message: "Up to 120 characters.")
+                self.presentNotice(title: "Invalid Name", message: "Up to 120 characters.")
                 return
             }
-            // Saved before the page opens: the row is there to come back to
-            // whether or not the key is ever typed in — and the list is read
-            // again now, rather than trusted to the page's dismissal, which
-            // the page under a form sheet is not told of.
-            PendingConfigurations.save(name, for: id)
-            load()
-            signIn(AgentAccount(
-                provider: provider,
-                id: id,
-                method: listed.method,
-                alternativeMethods: listed.alternativeMethods,
-                signedIn: false,
-                name: name,
-            ))
-        }, animated: true)
+            let key = alert.textFields?.last?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !key.isEmpty else {
+                self.presentNotice(title: "API Key", message: "Enter an API key.")
+                return
+            }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                var seed: [String: String] = [AgentSignInField.apiKey.rawValue: key]
+                if let template {
+                    do {
+                        let configuration = try await ApelinService.app.agentAPIConfiguration(
+                            provider: provider,
+                            profileID: template.profileID,
+                        ).values
+                        // The old key is never copied: only where it points and
+                        // the model it serves, neither of which is a secret.
+                        seed.merge(configuration.filter { AgentSignInField(rawValue: $0.key) != .apiKey }) { _, saved in saved }
+                    } catch {
+                        self.presentNotice(title: "Unable to Load Configuration", message: error.readableMessage)
+                        return
+                    }
+                }
+                PendingConfigurations.save(name, for: id)
+                self.load()
+                self.signIn(AgentAccount(
+                    provider: provider,
+                    id: id,
+                    method: listed.method,
+                    alternativeMethods: listed.alternativeMethods,
+                    signedIn: false,
+                    name: name,
+                    account: template?.account,
+                    baseURL: template?.baseURL,
+                ), seedValues: seed)
+            }
+        })
+        present(alert, animated: true)
     }
 }

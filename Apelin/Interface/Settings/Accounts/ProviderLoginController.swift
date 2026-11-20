@@ -42,6 +42,9 @@ final class ProviderLoginController: UIViewController {
     private let profileName: String?
     private let isEditingConfiguration: Bool
     private var savedValues: [String: String] = [:]
+    /// Saved fields of the configuration a new key is being added to: its
+    /// Base URL and model are already known, so only the key is asked for.
+    private let seedValues: [String: String]?
     /// Every way this provider signs in, its own first, as apelin-agent
     /// listed them; the page runs `method`.
     private let methods: [AgentSignInMethod]
@@ -128,13 +131,19 @@ final class ProviderLoginController: UIViewController {
         return UIBarButtonItem(customView: spinner)
     }()
 
-    init(account: AgentAccount, preferredProfileName: String? = nil) {
+    init(
+        account: AgentAccount,
+        preferredProfileName: String? = nil,
+        seedValues: [String: String]? = nil,
+    ) {
         provider = account.provider
         accountID = account.id
         profileID = account.profileID
         profileName = preferredProfileName ?? account.name
         methods = [account.method] + (account.alternativeMethods ?? []).filter { $0 != account.method }
         isEditingConfiguration = account.signedIn && account.isAPIKeyAccount
+        self.seedValues = seedValues
+        savedValues = seedValues ?? [:]
         method = account.isAPIKeyAccount ? .apiKey : account.method
         super.init(nibName: nil, bundle: nil)
         title = account.title
@@ -419,6 +428,9 @@ final class ProviderLoginController: UIViewController {
                 keys: keys,
                 alternatives: methods.filter { $0 != method },
                 initialValues: savedValues,
+                // A Base URL copied from the configuration this key was added
+                // to is already known; a first key of its own still types it.
+                hidesSeededFields: seedValues?[AgentSignInField.baseURL.rawValue] != nil,
             )
             form.onSubmit = { [weak self] values in self?.send(values) }
             form.onSwitchMethod = { [weak self] method in self?.switchMethod(to: method) }

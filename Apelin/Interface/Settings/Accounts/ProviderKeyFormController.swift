@@ -42,8 +42,17 @@ final class ProviderKeyFormController: TableController {
         primaryAction: UIAction { [weak self] _ in self?.submit() },
     )
 
-    init(keys: [SignInProgress.KeyField], alternatives: [AgentSignInMethod], initialValues: [String: String] = [:]) {
-        self.keys = keys.filter { $0.field != .defaultModel }
+    init(
+        keys: [SignInProgress.KeyField],
+        alternatives: [AgentSignInMethod],
+        initialValues: [String: String] = [:],
+        hidesSeededFields: Bool = false,
+    ) {
+        self.keys = keys.filter { field in
+            guard field.field != .defaultModel else { return false }
+            guard hidesSeededFields else { return true }
+            return field.field != .baseURL
+        }
         self.alternatives = alternatives
         self.initialValues = initialValues
         super.init(style: .insetGrouped)
@@ -123,11 +132,13 @@ final class ProviderKeyFormController: TableController {
     }
 
     private var values: [AgentSignInField: String] {
-        // The model selector owns defaultModel; editing a key or endpoint
-        // must preserve that saved field even though this form hides it.
+        // The model selector owns defaultModel; an added key keeps the Base
+        // URL and model of the configuration it was copied from, and editing
+        // an existing key must preserve every saved field this form hides.
         var result: [AgentSignInField: String] = [:]
-        if let defaultModel = initialValues[AgentSignInField.defaultModel.rawValue] {
-            result[.defaultModel] = defaultModel
+        for (name, value) in initialValues {
+            guard let field = AgentSignInField(rawValue: name) else { continue }
+            result[field] = value
         }
         return result.merging(fields.mapValues { $0.text ?? "" }) { _, edited in edited }
     }
