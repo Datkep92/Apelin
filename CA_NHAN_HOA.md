@@ -254,6 +254,8 @@ git -c "http.extraHeader=Authorization: Basic $B64" push origin main
 
 | 84 | 2026-11-14 | Sửa lỗi (biên dịch CI) | **CI 0.4.70/build 93 đỏ vì `WebAPICaptureStore.swift` không tìm thấy `DataFolder`.** `DataFolder` thuộc module `ApelinCore`; bản vá thêm đúng một dòng `import ApelinCore`, bump **0.4.71/build 94** và ghi chú phát hành. Kiểm tra độc lập đạt: accessibility (19 kiểu), checklist (51 mục), diff-check, chuỗi stale/format, shell-delete, session-host source, device-harness lint và GPU entitlements. `make check` không chạy được do thiếu `/bin/bash`; schema/template cần `/private/tmp`, kiểm tra dịch bị `plutil` không tương thích. Đã commit và push `3556a6dc04a2d44a5e7c58d1b34369578a20688e`; CI run `43619811239` thành công, cả Host tests và Build and verify Debian packages đều xanh; artifact CI `apelin-3556a6dc04a2d44a5e7c58d1b34369578a20688e` (132 MB), SHA-256 `f698034982c188361b23c16598685197de08f372d71b92bf3facb29a561a4481`. Phát hành theo tag `v0.4.71`: Release run `43622935044` thành công. Gói rootless `iphoneos-arm64` đã đối chiếu `SHA256SUMS` (khớp); nâng cấp trên máy từ 0.4.59 lên 0.4.71 được xác nhận `install ok installed`. `icli app running` sau khi mở lại xác nhận Apelin 0.4.71 đang chạy (PID 10825, app build 236). | Đã hoàn tất trên `main` | Đã phát hành và cài thành công; PID/build của ứng dụng là bằng chứng tại thời điểm kiểm tra, không phải phiên bản build gói (94). |
 
+| 85 | 2026-11-20 | Giao diện gọn hơn + sửa CI Host tests | Sáu chỉnh sửa giao diện: ẩn mục Health Check, thu gọn nút gateway, hiện tên dự án trên thanh bên, tách bộ chọn model thành hai tab, thêm nhãn **Models**, và hiện hộp tiến độ lúc khởi động. Kèm 12 ngôn ngữ cho chuỗi mới. **CI 0.4.77/build 99 đỏ ở Host tests (6 dòng FAIL e2e)**: commit `b9948fc` đã bỏ cơ chế xếp hàng sự kiện trong bộ kiểm toolchain, để các sự kiện ghi vào registry theo thứ tự không đoán trước được nên bản ghi cài đặt không kịp có mặt. Đã khôi phục cơ chế xếp hàng — `git diff b9948fc^` trên tệp kiểm **rỗng**, tức đúng mã từng xanh; các kiểm còn lại: `git diff --check` exit 0. `swiftc 5.9.2 -parse` báo 16 lỗi dấu phẩy cuối **đúng loại lỗi giả đã biết** của bản 5.9.2, không phải lỗi mới. Chưa push, chưa qua CI; ghi chú phát hành `Documents/Releases/0.4.77.md` đã viết. | Chờ CI | Chưa có bằng chứng chạy thật trên CI. |
+
 ### 6.2 Cách thêm dòng mới (bắt buộc làm khi thêm cá nhân hoá/fix)
 
 1. Sửa code + commit riêng biệt (tiêu đề nêu rõ hành động, tiếng Anh).
@@ -326,6 +328,8 @@ thử được thì ghi rõ là chưa thử.
 
 Cách mở lại việc: `apelin_memory_list` xem các handoff `active` → đọc bản ghi của
 đơn cần làm → làm theo `nextSteps` trong đó.
+
+**2026-11-20 — đưa bản 0.4.77/build 99 qua CI:** đã viết ghi chú phát hành, cập nhật bảng 6.1 dòng 85 và mục §9; đã khôi phục đúng mã kiểm Host tests từng xanh (`b9948fc^`), đối chiếu bằng `git diff` rỗng. Việc kế tiếp: commit + push ngay, theo dõi CI tới xanh rồi tag/phát hành/cài.
 
 **2026-11-09 — Luồng CI bản 0.4.30 (bộ chọn model gộp theo Base URL):** commit
 tính năng `f79b70f` đã xong; mục 6.1 (dòng 69) và release note 0.4.30 đã viết.
@@ -431,6 +435,18 @@ giao diện tìm kiếm, 6 nguồn web, Terminal/Chạy test/Files/Git, danh sá
 > **Cập nhật mục này ở mỗi mốc**, cùng lượt với dòng ở bảng 6.1 và ghi nhớ
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
+
+**2026-11-20 — việc mới nhất: bản 0.4.77/build 99, 6 cải tiến giao diện, đang đưa qua CI.**
+Sáu thay đổi: ẩn Health Check, thu gọn nút gateway, hiện tên dự án trên thanh bên,
+bộ chọn model thành hai tab, nút Models có nhãn, và hộp tiến độ lúc khởi động.
+Ghi chú phát hành `Documents/Releases/0.4.77.md` đã viết. CI các commit giao diện
+đều đỏ ở cùng 6 dòng `FAIL e2e` của Host tests; gốc rễ là `b9948fc` bỏ cơ chế
+xếp hàng sự kiện trong bộ kiểm toolchain (các sự kiện ghi registry không theo
+thứ tự, kết quả cài đặt bị trễ). Đã khôi phục đúng bản xanh trước đó:
+`git diff b9948fc^ -- Tests/SessionHost/ToolchainEndToEnd.swift` **rỗng**;
+`git diff --check` exit 0. Chưa commit/push, chưa qua CI, chưa phát hành/cài.
+Kế tiếp: commit + push → theo dõi CI; xanh thì tag `v0.4.77`, tải gói rootless,
+đối chiếu `SHA256SUMS`, cài ngay; đỏ thì đọc log job lỗi và sửa rồi push lại.
 
 **Trạng thái cập nhật 2026-11-14:** nhánh `main`, HEAD và `origin/main` là `3556a6dc04a2d44a5e7c58d1b34369578a20688e`. Bản sửa CI vẫn đúng một dòng `import ApelinCore` trong `Apelin/Interface/Components/WebBrowser/WebAPICaptureStore.swift`; phiên bản **0.4.71/build 94**. Commit đã push; CI run `43619811239` **thành công**, cả Host tests và Build and verify Debian packages đều đạt. Artifact `apelin-3556a6dc04a2d44a5e7c58d1b34369578a20688e`, 132 MB, SHA-256 `f698034982c188361b23c16598685197de08f372d71b92bf3facb29a561a4481`. Release run `43622935044` thành công cho tag `v0.4.71`; gói rootless `iphoneos-arm64` đối chiếu `SHA256SUMS` khớp và đã cài nâng từ 0.4.59 lên 0.4.71 (`install ok installed`). Mở lại app và `icli app running` xác nhận Apelin **0.4.71** đang chạy, PID **10825**, app build **236** (build gói là 94). Các kiểm tra độc lập trước push đều đạt: accessibility (19 kiểu), checklist (51 mục), `git diff --check`, chuỗi stale/format, shell-delete, session-host source, device-harness lint và GPU entitlements. Giới hạn môi trường: `make check` không chạy được do thiếu `/bin/bash`; schema/template cần `/private/tmp`; kiểm tra dịch vướng `plutil` không tương thích. Hai việc riêng vẫn còn: retry provenance và app thử WKWebView; không gộp vào lần phát hành này.
 
