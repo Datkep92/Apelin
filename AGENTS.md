@@ -3864,6 +3864,11 @@ Quy tắc ngắn của fork:
   `main`; **không** fetch/push tag upstream (tag `v...` làm `release.yml` của
   fork phát hành nhầm). Khi conflict: giữ cá nhân hoá của fork, đặc biệt
   `ModelProvidersController.swift` và `Localizable.xcstrings` (xem `0428636`).
+- **Khác upstream có chủ đích (2026-11-21, bảng 6.1 dòng 90):** dịch vụ nền
+  `apelind` được khởi động cùng máy và được launchd giữ chạy (`RunAtLoad` +
+  `KeepAlive` trong `Packaging/wiki.qaq.apelind.plist`), **không** theo chế độ
+  "on demand" của upstream. Mục đích: mở Apelin/chat ngay, không chờ lần chào
+  đầu. Đây là cá nhân hoá, phải giữ khi merge upstream.
 - **Mọi chức năng mới hay bản vá (fix) phải kèm 1 dòng mới vào mục 6.1 của
   `CA_NHAN_HOA.md`** (Ngày | Loại | Tóm tắt | Hash commit | Yêu cầu giữ lại),
   ghi commit cùng lúc. Không ghi dòng nào thì chưa được coi là cá nhân hoá
