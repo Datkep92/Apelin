@@ -719,11 +719,11 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     /// names which key when several are there. One key, or a sign-in that is
     /// not a typed key, goes straight to its own page as before.
     private func editConfiguration(_ account: AgentAccount) {
-        guard account.isAPIKeyAccount, let endpoint = endpoint(of: account) else {
+        guard account.isAPIKeyAccount, let editedEndpoint = endpoint(of: account) else {
             signIn(account)
             return
         }
-        let keys = accounts.filter { $0.signedIn && $0.isAPIKeyAccount && endpoint(of: $0) == endpoint }
+        let keys = accounts.filter { $0.signedIn && $0.isAPIKeyAccount && endpoint(of: $0) == editedEndpoint }
         guard keys.count > 1 else {
             signIn(account)
             return
