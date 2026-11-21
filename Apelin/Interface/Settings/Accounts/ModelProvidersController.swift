@@ -4,21 +4,16 @@ import Then
 import UIKit
 
 /// Settings ▸ Model Providers: every provider apelin-agent can sign in to,
-/// in the order it lists them (kwwk's). The keys added to an
-/// OpenAI-compatible endpoint or to an Anthropic API key come first, one
-/// section per endpoint host — every key pointing at one Base URL under a
-/// single name, sharing that endpoint's models. Then the providers that keep
-/// a single sign-in: signed-in ones first, each with who
-/// it is signed in as under its name and a `...` menu (Edit Configuration or Sign In Again, Sign
-/// Out); then the rest, those signed in to with an account apart from those
-/// that take a typed key. A search field narrows the list by name, and `+`
-/// adds another configuration of a provider that keeps several; one named but
-/// not yet given a key has a row too, under the provider it is a configuration
-/// of, and swiping it takes the name away. Signing out gives up a key and
-/// leaves a row behind; a configuration is also deleted for good — its key out
-/// of the keychain and its name off the list — from its menu, or by a swipe.
-/// The provider's own row is only ever signed out of: apelin-agent lists it
-/// whether the keychain holds a key for it or not.
+/// in the order it lists them (kwwk's). Named configurations — a name and a
+/// Base URL — come first, one row each; opening one lists its keys and adds
+/// more at the same address. Then the providers that keep a single sign-in:
+/// signed-in ones first, each with who it is signed in as under its name and a
+/// `...` menu (Edit Configuration or Sign In Again, Sign Out); then the rest,
+/// those signed in to with an account apart from those that take a typed key.
+/// A configuration keeps its name and its empty row after its last key is
+/// signed out; only deleting it from its detail page takes it off the list.
+/// A search field narrows the list by name, address or provider, and `+` adds a
+/// configuration with a name and an address — the keys come afterwards.
 final class ModelProvidersController: TableController, UISearchResultsUpdating {
     private enum Group: Hashable {
         case signedIn
@@ -43,33 +38,22 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         case noResults
     }
 
-    /// One Base URL of a provider that keeps several keys — the canonical
-    /// address, and the provider itself, since one relay can answer for an
-    /// OpenAI-compatible key and an Anthropic one at the same address, and the
-    /// models behind them are not the same list.
-    private struct Endpoint: Hashable {
-        var provider: AgentProvider
-        /// `AgentEndpoint.canonical`: the whole address, path included. Two
-        /// keys at `/v1` and `/v2` on one host are two groups, because the
-        /// models behind them are two lists.
-        var baseURL: String
-    }
-
     private enum Section: Hashable {
+        /// One row per named Base URL, opening a page of its keys.
+        case configurations
         case group(Group)
-        /// Every key pointing at one Base URL, under a single name, instead
-        /// of a row each.
-        case endpoint(Endpoint)
         case status
     }
 
     private enum Row: Equatable {
+        case configuration(ModelConfiguration)
         case account(AgentAccount)
         /// Whether a run out of keys for its model may try another model.
         case fallback
         case status(Status)
         var id: String {
             switch self {
+            case let .configuration(configuration): configuration.storageID
             case let .account(account): account.id
             case .fallback: "fallback"
             case .status: "status"
@@ -83,6 +67,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     ) { [weak self] _, _, row in
         guard let self else { return nil }
         switch row {
+        case let .configuration(configuration): return configurationCell(configuration)
         case let .account(account): return accountCell(account)
         case .fallback: return fallbackCell()
         case let .status(status): return statusCell(status)
@@ -122,16 +107,11 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         }
     }
 
-    /// One action per such provider, titled by the provider itself: a name
-    /// is asked for next, then the provider's own sign-in page.
+    /// One action per such provider, titled by the provider itself.
     private func addActions() -> [UIMenuElement] {
         addableProviders.map { provider in
             UIAction(title: provider.displayName, image: provider.icon) { [weak self] _ in
-                guard let self else { return }
-                self.addConfiguration(
-                    provider: provider,
-                    template: self.accounts.first { $0.provider == provider && $0.signedIn && $0.isAPIKeyAccount },
-                )
+                self?.addConfiguration(provider: provider)
             }
         }
     }
@@ -161,11 +141,11 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         navigationItem.hidesSearchBarWhenScrolling = false
         navigationItem.rightBarButtonItem = addButton
         definesPresentationContext = true
-        dataSource.headerTitle = { [weak self] section in
+        dataSource.headerTitle = { section in
             switch section {
-            case let .group(group): return group.title
-            case let .endpoint(endpoint): return self?.endpointTitle(endpoint) ?? AgentEndpoint.title(endpoint.baseURL)
-            case .status: return nil
+            case .configurations: String(localized: "Configurations")
+            case let .group(group): group.title
+            case .status: nil
             }
         }
         dataSource.footerTitle = { [weak self] section in
@@ -189,8 +169,8 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             do {
                 let list = try await ApelinService.app.agentAccountList()
                 guard !Task.isCancelled, let self else { return }
-                // A configuration the listing now carries names itself, out of
-                // the credential this page had not saved yet.
+                // The name and address of a group are kept by this screen:
+                // a credential merely names its own key now.
                 PendingConfigurations.prune(listed: Set(list.accounts.map(\.id)))
                 accounts = list.accounts
                 failure = nil
@@ -217,54 +197,71 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         } else if let failure, accounts.isEmpty {
             sections = [(.status, [.status(.unavailable(ProviderLoginController.unavailableText(failure)))])]
         } else {
-            let shown = (accounts + waiting(in: accounts)).filter(matches)
-            // One section per Base URL the reader added keys to — its keys, signed
-            // in or still waiting, under the name they share — and then the
-            // providers that keep a single sign-in.
-            let byEndpoint = Dictionary(grouping: shown) { endpoint(of: $0) }
-            let rest = byEndpoint[nil] ?? []
+            // One row per named Base URL, then the providers that keep a
+            // single sign-in. A configuration is listed even with no keys.
+            let configurationRows = allConfigurations()
+                .filter(matches)
+                .sorted {
+                    if $0.provider.rawValue != $1.provider.rawValue { return $0.provider.rawValue < $1.provider.rawValue }
+                    return $0.baseURL < $1.baseURL
+                }
+                .map(Row.configuration)
+            let rest = accounts.filter { ModelConfiguration.from($0) == nil } + legacyWaiting(in: accounts)
+            let shown = rest.filter(matches)
             let groups: [(Group, [AgentAccount])] = [
-                (.signedIn, rest.filter(\.signedIn)),
-                (.accounts, rest.filter { !$0.signedIn && $0.method != .apiKey }),
-                (.keys, rest.filter { !$0.signedIn && $0.method == .apiKey }),
+                (.signedIn, shown.filter(\.signedIn)),
+                (.accounts, shown.filter { !$0.signedIn && $0.method != .apiKey }),
+                (.keys, shown.filter { !$0.signedIn && $0.method == .apiKey }),
             ]
-            let endpointSections: [(Section, [Row])] = byEndpoint.keys.compactMap { $0 }
-                .sorted { left, right in
-                    if left.baseURL != right.baseURL { return left.baseURL < right.baseURL }
-                    return left.provider.rawValue < right.provider.rawValue
-                }
-                .map { endpoint in
-                    let keys = (byEndpoint[endpoint] ?? []).sorted { left, right in
-                        if left.signedIn != right.signedIn { return left.signedIn }
-                        return (left.name ?? left.id) < (right.name ?? right.id)
-                    }
-                    return (.endpoint(endpoint), keys.map(Row.account))
-                }
-            let providerSections: [(Section, [Row])] = groups.filter { !$0.1.isEmpty }
-                .map { (.group($0.0), $0.1.map(Row.account)) }
+            var listed: [(Section, [Row])] = []
+            if !configurationRows.isEmpty {
+                listed.append((.configurations, configurationRows))
+            }
+            listed += groups.filter { !$0.1.isEmpty }.map { (.group($0.0), $0.1.map(Row.account)) }
             // The fallback switch sits under every key it applies to, and
             // stays out of the way while the reader searches for one.
-            var listed = endpointSections + providerSections
             if !listed.isEmpty, query.isEmpty {
                 listed.append((.group(.fallback), [.fallback]))
             }
-            sections = listed
-            if sections.isEmpty {
-                sections = [(.status, [.status(.noResults)])]
-            }
+            sections = listed.isEmpty ? [(.status, [.status(.noResults)])] : listed
         }
         dataSource.update(sections)
         addButton.isEnabled = !addableProviders.isEmpty
     }
 
-    /// A configuration named through `+` that the listing has not caught up
-    /// with: it has no row of its own until its key is saved, so one is made
-    /// from the name the reader gave it and the provider's own entry for how
-    /// it signs in.
-    private func waiting(in listed: [AgentAccount]) -> [AgentAccount] {
+    /// The keys saved at one address, in the order the model picker sees them.
+    /// The detail page uses the same definition, so the A/B letters agree.
+    func keys(for configuration: ModelConfiguration) -> [AgentAccount] {
+        accounts.filter { $0.signedIn && ModelConfiguration.from($0) == configuration }
+    }
+
+    /// Every group the listing knows: those with keys, and those given a name
+    /// and an address before any key was saved. A group with no keys is still
+    /// here, so signing the last one out leaves the row in place.
+    private func allConfigurations() -> [ModelConfiguration] {
+        var seen = Set<ModelConfiguration>()
+        var result: [ModelConfiguration] = []
+        for account in accounts {
+            guard let configuration = ModelConfiguration.from(account),
+                  seen.insert(configuration).inserted
+            else { continue }
+            result.append(configuration)
+        }
+        for pending in PendingConfigurations.configurations() {
+            guard let configuration = PendingConfigurations.configuration(fromStorageID: pending.id),
+                  seen.insert(configuration).inserted
+            else { continue }
+            result.append(configuration)
+        }
+        return result
+    }
+
+    /// A name saved by an earlier build, before a configuration carried its
+    /// address, has no group to join. It keeps its old row waiting for a key.
+    private func legacyWaiting(in listed: [AgentAccount]) -> [AgentAccount] {
         let ids = Set(listed.map(\.id))
-        return PendingConfigurations.waiting().compactMap { pending in
-            guard !ids.contains(pending.id),
+        return PendingConfigurations.configurations().compactMap { pending in
+            guard pending.baseURL == nil, !ids.contains(pending.id),
                   let provider = AgentProfileID.kind(of: pending.id),
                   let signIn = listed.first(where: { $0.provider == provider })
             else { return nil }
@@ -285,33 +282,11 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             || account.provider.displayName.localizedStandardContains(query)
     }
 
-    /// The Base URL a row belongs under: the two providers the reader adds
-    /// keys to itself — an OpenAI-compatible one and an Anthropic API key —
-    /// keep one row per key under the Base URL they point at. Every other
-    /// provider has a single sign-in and keeps the sections below, and so does
-    /// a key that has not saved its Base URL yet.
-    private func endpoint(of account: AgentAccount) -> Endpoint? {
-        guard AgentProfileID.canonicalID(for: account.provider) != nil else { return nil }
-        if let baseURL = account.endpoint {
-            return Endpoint(provider: account.provider, baseURL: baseURL)
-        }
-        // A key whose Base URL did not travel with it is grouped by the host
-        // it reported, as it was before the whole address was known.
-        guard let host = account.account, !host.isEmpty else { return nil }
-        return Endpoint(provider: account.provider, baseURL: host)
-    }
-
-    /// What a Base URL's section is called: the address without its scheme,
-    /// with the provider after it when both of them point at one address — a
-    /// relay can answer for an OpenAI-compatible key and an Anthropic one —
-    /// since their keys are not interchangeable and neither are their models.
-    private func endpointTitle(_ endpoint: Endpoint) -> String {
-        let shared = sections.contains { entry in
-            guard case let .endpoint(other) = entry.0 else { return false }
-            return other.baseURL == endpoint.baseURL && other.provider != endpoint.provider
-        }
-        let title = AgentEndpoint.title(endpoint.baseURL)
-        return shared ? "\(title) — \(endpoint.provider.displayName)" : title
+    private func matches(_ configuration: ModelConfiguration) -> Bool {
+        query.isEmpty
+            || configuration.title(keys: keys(for: configuration)).localizedStandardContains(query)
+            || configuration.baseURL.localizedStandardContains(query)
+            || configuration.provider.displayName.localizedStandardContains(query)
     }
 
     private func isStatus(_ section: Section) -> Bool {
@@ -329,6 +304,11 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     private func account(at indexPath: IndexPath) -> AgentAccount? {
         guard case let .account(account)? = dataSource.value(at: indexPath) else { return nil }
         return account
+    }
+
+    private func configuration(at indexPath: IndexPath) -> ModelConfiguration? {
+        guard case let .configuration(configuration)? = dataSource.value(at: indexPath) else { return nil }
+        return configuration
     }
 
     private func statusCell(_ status: Status) -> UITableViewCell {
@@ -355,6 +335,33 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             cell.selectionStyle = .none
             return cell
         }
+    }
+
+    /// One named Base URL: the name, the address and how many keys are saved
+    /// there. Opening it lists the keys and adds more at the same address.
+    private func configurationCell(_ configuration: ModelConfiguration) -> UITableViewCell {
+        let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+        var content = UIListContentConfiguration.subtitleCell()
+        let members = keys(for: configuration)
+        content.text = configuration.title(keys: members)
+        let count = members.isEmpty
+            ? String(localized: "Add Credential")
+            : String(localized: "\(members.count) Keys")
+        content.secondaryText = [
+            configuration.provider.displayName,
+            AgentEndpoint.title(configuration.baseURL),
+            count,
+        ].joined(separator: " · ")
+        content.secondaryTextProperties.color = .secondaryLabel
+        content.secondaryTextProperties.numberOfLines = 1
+        content.textProperties.numberOfLines = 1
+        content.image = configuration.provider.icon
+        content.imageProperties.maximumSize = CGSize(width: 29, height: 29)
+        content.imageProperties.reservedLayoutSize = CGSize(width: 29, height: 29)
+        content.textToSecondaryTextVerticalPadding = 2
+        cell.contentConfiguration = content
+        cell.accessoryType = .disclosureIndicator
+        return cell
     }
 
     /// The provider's mark and name on one line; signed in, who as under the
@@ -455,8 +462,8 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
     }
 
     private func accountActions(_ account: AgentAccount) -> [UIMenuElement] {
-        // A configuration waiting for its key has no credential to edit: offer
-        // a rename of the name it was given, and removing that name.
+        // A name saved before configurations carried an address has no
+        // credential to edit: rename it, or take the name away.
         guard account.signedIn else {
             var actions: [UIMenuElement] = []
             if PendingConfigurations.contains(account.id) {
@@ -485,7 +492,7 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 title: String(localized: "Edit"),
                 image: UIImage(systemName: account.isAPIKeyAccount ? "pencil" : "arrow.clockwise"),
             ) { [weak self] _ in
-                self?.editConfiguration(account)
+                self?.signIn(account)
             },
             UIAction(
                 title: String(localized: "Models"),
@@ -494,29 +501,17 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
                 self?.presentPageAsFormSheet(ModelActivationController(account: account))
             },
         ]
-        // A named configuration can take a new name; it is a re-sign-in
-        // that still reuses its saved key fields.
-        if account.profileID != nil {
-            actions.insert(UIAction(
-                title: String(localized: "Rename"),
-                image: UIImage(systemName: "pencil.line"),
-            ) { [weak self] _ in
-                self?.renameSigned(account)
-            }, at: 0)
-        }
-        // A provider that takes several API keys or endpoints offers one
-        // more here, beside the ones it has.
+        // A provider that takes several configurations offers one more here,
+        // beside the ones it has.
         if AgentProfileID.canonicalID(for: account.provider) != nil {
             actions.append(UIAction(
                 title: String(localized: "Add Configuration"),
                 image: UIImage(systemName: "plus"),
             ) { [weak self] _ in
-                self?.addConfiguration(provider: account.provider, template: account)
+                self?.addConfiguration(provider: account.provider)
             })
         }
-        // The two red ones, the lesser first: Sign Out gives up the key and
-        // leaves the row, Delete takes a configuration away altogether.
-        var endings: [UIMenuElement] = [
+        actions.append(UIMenu(options: .displayInline, children: [
             UIAction(
                 title: String(localized: "Sign Out"),
                 image: UIImage(systemName: "rectangle.portrait.and.arrow.right"),
@@ -524,55 +519,35 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             ) { [weak self] _ in
                 self?.confirmSignOut(account)
             },
-        ]
-        if account.profileID != nil {
-            endings.append(UIAction(
-                title: String(localized: "Delete"),
-                image: UIImage(systemName: "trash"),
-                attributes: .destructive,
-            ) { [weak self] _ in
-                self?.confirmDelete(account)
-            })
-        }
-        actions.append(UIMenu(options: .displayInline, children: endings))
+        ]))
         return actions
     }
 
     override func tableView(_: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
-        account(at: indexPath).map { !$0.signedIn } ?? false
+        if configuration(at: indexPath) != nil { return true }
+        return account(at: indexPath).map { !$0.signedIn } ?? false
     }
 
-    /// A configuration still waiting for its key has nothing to sign out of, so
-    /// a swipe takes the name away instead: the walk back to `+` is the long
-    /// way round to the same thing. A saved one is deleted the same way, and
-    /// asks first, since its key goes with it.
+    /// A configuration goes only from its detail page, where every key it
+    /// holds can be named; here a swipe still removes a name left waiting by
+    /// an earlier build.
     override func tableView(
         _: UITableView,
         trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath,
     ) -> UISwipeActionsConfiguration? {
-        guard let account = account(at: indexPath) else { return nil }
-        if PendingConfigurations.contains(account.id) {
-            let remove = UIContextualAction(
-                style: .destructive,
-                title: String(localized: "Remove"),
-            ) { [weak self] _, _, completion in
-                PendingConfigurations.remove(account.id)
-                self?.load()
-                completion(true)
-            }
-            remove.image = UIImage(systemName: "trash")
-            return UISwipeActionsConfiguration(actions: [remove])
-        }
-        guard account.signedIn, account.profileID != nil else { return nil }
-        let delete = UIContextualAction(
+        guard let account = account(at: indexPath), !account.signedIn,
+              PendingConfigurations.contains(account.id)
+        else { return nil }
+        let remove = UIContextualAction(
             style: .destructive,
-            title: String(localized: "Delete"),
+            title: String(localized: "Remove"),
         ) { [weak self] _, _, completion in
-            self?.confirmDelete(account)
-            completion(false)
+            PendingConfigurations.remove(account.id)
+            self?.load()
+            completion(true)
         }
-        delete.image = UIImage(systemName: "trash")
-        return UISwipeActionsConfiguration(actions: [delete])
+        remove.image = UIImage(systemName: "trash")
+        return UISwipeActionsConfiguration(actions: [remove])
     }
 
     override func tableView(
@@ -580,10 +555,9 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         contextMenuConfigurationForRowAt indexPath: IndexPath,
         point _: CGPoint,
     ) -> UIContextMenuConfiguration? {
-        guard let account = account(at: indexPath) else { return nil }
-        if !account.signedIn && !PendingConfigurations.contains(account.id) {
-            return nil
-        }
+        guard let account = account(at: indexPath),
+              !account.signedIn, PendingConfigurations.contains(account.id)
+        else { return nil }
         return UIContextMenuConfiguration(actionProvider: { [weak self] _ in
             UIMenu(children: self?.accountActions(account) ?? [])
         })
@@ -591,6 +565,10 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        if let configuration = configuration(at: indexPath) {
+            open(configuration)
+            return
+        }
         guard let account = account(at: indexPath), !account.signedIn else { return }
         signIn(account)
     }
@@ -614,19 +592,13 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         presentPageAsFormSheet(page)
     }
 
-    /// Rename a configuration that has only been named: keep the new name.
+    /// A name saved before configurations carried an address keeps its old
+    /// row: rename it where it is, without asking the keychain for anything.
     private func renameWaiting(_ account: AgentAccount) {
         promptForName(initial: account.name) { [weak self] newName in
             PendingConfigurations.remove(account.id)
             PendingConfigurations.save(newName, for: account.id)
             self?.load()
-        }
-    }
-
-    /// Rename a signed configuration: re-sign in, reusing its saved key.
-    private func renameSigned(_ account: AgentAccount) {
-        promptForName(initial: account.name) { [weak self] newName in
-            self?.signIn(account, preferredProfileName: newName)
         }
     }
 
@@ -666,14 +638,6 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             do {
                 try await ApelinService.app.agentSignOut(provider: account.provider, profileID: account.profileID)
                 EnabledModels.remove(for: account)
-                // What the alert promised is a later sign-in, so an added
-                // configuration keeps its name and stays as a row waiting for
-                // the next key; the provider's own row has no name to keep.
-                if account.profileID != nil, let name = account.name {
-                    PendingConfigurations.save(name, for: account.id)
-                } else {
-                    PendingConfigurations.remove(account.id)
-                }
                 self?.load()
             } catch {
                 self?.presentNotice(title: "Unable to Sign Out", message: error.readableMessage)
@@ -681,86 +645,26 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
         }
     }
 
-    /// A key is not given up on a stray tap: the alert is where deleting is
-    /// asked for the last time.
-    private func confirmDelete(_ account: AgentAccount) {
-        presentConfirmation(
-            title: "Delete \(account.title)?",
-            message: "The saved key is removed from this device’s keychain. This cannot be undone.",
-            confirmTitle: "Delete",
-            destructive: true,
+    /// Opening a configuration shows its keys, and is where more are added.
+    /// The detail page reads the same listing back when it is changed.
+    private func open(_ configuration: ModelConfiguration) {
+        let page = ConfigurationKeysController(
+            configuration: configuration,
+            accounts: accounts,
         ) { [weak self] in
-            self?.delete(account)
+            self?.load()
         }
+        navigationController?.pushViewController(page, animated: true)
     }
 
-    /// Delete: the key out of the keychain, where Sign Out leaves a row
-    /// waiting for the next one. A name that never reached a key goes from
-    /// here alone, without asking apelin-agent for anything.
-    private func delete(_ account: AgentAccount) {
-        guard account.signedIn else {
-            PendingConfigurations.remove(account.id)
-            load()
-            return
-        }
-        Task { [weak self] in
-            do {
-                try await ApelinService.app.agentSignOut(provider: account.provider, profileID: account.profileID)
-                EnabledModels.remove(for: account)
-                PendingConfigurations.remove(account.id)
-                self?.load()
-            } catch {
-                self?.presentNotice(title: "Unable to Delete", message: error.readableMessage)
-            }
-        }
-    }
-
-    /// Keys pointing at one Base URL share the endpoint's models, so `Edit`
-    /// names which key when several are there. One key, or a sign-in that is
-    /// not a typed key, goes straight to its own page as before.
-    private func editConfiguration(_ account: AgentAccount) {
-        guard account.isAPIKeyAccount, let editedEndpoint = endpoint(of: account) else {
-            signIn(account)
-            return
-        }
-        let keys = accounts.filter { $0.signedIn && $0.isAPIKeyAccount && endpoint(of: $0) == editedEndpoint }
-        guard keys.count > 1 else {
-            signIn(account)
-            return
-        }
-        let sheet = UIAlertController(title: String(localized: "Edit"), message: nil, preferredStyle: .actionSheet)
-        for key in keys {
-            let detail = [key.name, key.account].compactMap { $0 }.joined(separator: " · ")
-            sheet.addAction(UIAlertAction(title: detail.isEmpty ? key.id : detail, style: .default) { [weak self] _ in
-                self?.signIn(key)
-            })
-        }
-        sheet.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
-        sheet.popoverPresentationController?.sourceView = view
-        sheet.popoverPresentationController?.sourceRect = CGRect(
-            x: view.bounds.midX,
-            y: view.bounds.midY,
-            width: 1,
-            height: 1,
-        )
-        present(sheet, animated: true)
-    }
-
-    /// A name and a key for one more configuration of `provider`. When it is
-    /// added beside an existing key, the Base URL and model it serves are
-    /// copied from that configuration: the new key points at the same
-    /// endpoint and offers the same models. The name is kept here until the
-    /// key is saved, so the page can be left and the row returned to rather
-    /// than named again.
-    private func addConfiguration(provider: AgentProvider, template: AgentAccount?) {
-        // How the provider signs in is apelin-agent's answer, taken from the
-        // entry it lists for the provider itself.
-        guard let id = AgentProfileID.make(for: provider),
-              let listed = accounts.first(where: { $0.provider == provider })
-        else { return }
+    /// A new configuration is a name and a canonical Base URL first. Its keys
+    /// are added on the detail page: none of them exists yet, and the address
+    /// is already known, so the sign-in page asks only for a secret. The name
+    /// is kept before opening the page, so leaving it half-read loses nothing.
+    private func addConfiguration(provider: AgentProvider) {
         let alert = UIAlertController(
             title: String(localized: "Add Configuration"),
-            message: String(localized: "Name this configuration. It appears beside the provider in the model menu."),
+            message: String(localized: "Name this configuration and the address its keys point to."),
             preferredStyle: .alert,
         )
         alert.addTextField { field in
@@ -768,9 +672,9 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             field.autocapitalizationType = .words
         }
         alert.addTextField { field in
-            field.placeholder = String(localized: "API Key")
-            field.isSecureTextEntry = true
-            field.textContentType = .password
+            field.placeholder = String(localized: "Base URL")
+            field.keyboardType = .URL
+            field.textContentType = .URL
             field.autocapitalizationType = .none
             field.autocorrectionType = .no
             field.spellCheckingType = .no
@@ -780,44 +684,18 @@ final class ModelProvidersController: TableController, UISearchResultsUpdating {
             guard let self, let alert else { return }
             let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !name.isEmpty, name.count <= 120, !name.contains(where: \.isNewline) else {
-                self.presentNotice(title: "Invalid Name", message: "Up to 120 characters.")
+                presentNotice(title: "Invalid Name", message: "Up to 120 characters.")
                 return
             }
-            let key = alert.textFields?.last?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !key.isEmpty else {
-                self.presentNotice(title: "API Key", message: "Enter an API key.")
+            let address = alert.textFields?.last?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard let baseURL = AgentEndpoint.canonical(address) else {
+                presentNotice(title: "Invalid Base URL", message: "Enter a valid address, such as https://api.example.com/v1.")
                 return
             }
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                var seed: [String: String] = [AgentSignInField.apiKey.rawValue: key]
-                if let template {
-                    do {
-                        let configuration = try await ApelinService.app.agentAPIConfiguration(
-                            provider: provider,
-                            profileID: template.profileID,
-                        ).values
-                        // The old key is never copied: only where it points and
-                        // the model it serves, neither of which is a secret.
-                        seed.merge(configuration.filter { AgentSignInField(rawValue: $0.key) != .apiKey }) { _, saved in saved }
-                    } catch {
-                        self.presentNotice(title: "Unable to Load Configuration", message: error.readableMessage)
-                        return
-                    }
-                }
-                PendingConfigurations.save(name, for: id)
-                self.load()
-                self.signIn(AgentAccount(
-                    provider: provider,
-                    id: id,
-                    method: listed.method,
-                    alternativeMethods: listed.alternativeMethods,
-                    signedIn: false,
-                    name: name,
-                    account: template?.account,
-                    baseURL: template?.baseURL,
-                ), seedValues: seed)
-            }
+            let configuration = ModelConfiguration(provider: provider, baseURL: baseURL)
+            PendingConfigurations.save(name, baseURL: baseURL, for: configuration.storageID)
+            load()
+            open(configuration)
         })
         present(alert, animated: true)
     }
