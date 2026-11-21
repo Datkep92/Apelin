@@ -35,13 +35,13 @@ enum PendingConfigurations {
     }
 
     /// The group a record belongs to, read back from its id.
-    static func configuration(fromStorageID id: String) -> (provider: AgentProvider, baseURL: String)? {
+    static func configuration(fromStorageID id: String) -> ModelConfiguration? {
         guard id.hasPrefix(prefix) else { return nil }
         let parts = id.dropFirst(prefix.count).split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
         guard parts.count == 2, let provider = AgentProvider(rawValue: String(parts[0])),
               !parts[1].isEmpty
         else { return nil }
-        return (provider, String(parts[1]))
+        return ModelConfiguration(provider: provider, baseURL: String(parts[1]))
     }
 
     /// Every configuration kept by name, oldest first.

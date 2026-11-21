@@ -284,8 +284,9 @@ final class ConfigurationKeysController: TableController {
             message: nil,
             preferredStyle: .alert,
         )
+        let currentTitle = configuration.title(keys: keys)
         alert.addTextField { field in
-            field.text = configuration.title(keys: keys)
+            field.text = currentTitle
             field.placeholder = String(localized: "Name")
             field.autocapitalizationType = .words
         }
