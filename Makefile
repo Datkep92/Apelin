@@ -60,6 +60,7 @@ DEVICE_INSTALLER    := $(ROOT_DIR)/Scripts/install-device.sh
 VERSION_APPLIER     := $(ROOT_DIR)/Scripts/apply-version.sh
 LICENSE_COLLECTOR   := $(ROOT_DIR)/Scripts/collect-licenses.py
 ACCESSIBILITY_CHECK := $(ROOT_DIR)/Scripts/check-accessibility.py
+SWIFT_SYNTAX_CHECK  := $(ROOT_DIR)/Scripts/check-swift-syntax.py
 STALE_STRINGS_CHECK := $(ROOT_DIR)/Scripts/check-stale-strings.py
 FORMAT_STRINGS_CHECK := $(ROOT_DIR)/Scripts/check-format-strings.py
 TRANSLATIONS_CHECK := $(ROOT_DIR)/Scripts/check-translations.py
@@ -248,7 +249,7 @@ check:
 	@command -v dpkg-deb >/dev/null || { echo "error: dpkg-deb is required (install it with your preferred package manager)" >&2; exit 69; }
 	@test -d "$(PROJECT)" || { echo "error: Apelin.xcodeproj is missing" >&2; exit 66; }
 	@for script in "$(DEB_PACKAGER)" "$(DEVICE_INSTALLER)" "$(VERSION_APPLIER)" "$(XCODEBUILD_WRAPPER)" \
-		"$(LICENSE_COLLECTOR)" "$(ACCESSIBILITY_CHECK)" "$(STALE_STRINGS_CHECK)" "$(FORMAT_STRINGS_CHECK)" "$(TRANSLATIONS_CHECK)" \
+		"$(LICENSE_COLLECTOR)" "$(ACCESSIBILITY_CHECK)" "$(SWIFT_SYNTAX_CHECK)" "$(STALE_STRINGS_CHECK)" "$(FORMAT_STRINGS_CHECK)" "$(TRANSLATIONS_CHECK)" \
 		"$(CATALOG_KEYS_CHECK)" "$(SHELL_DELETES_CHECK)" "$(SESSION_HOST_SOURCES_CHECK)" \
 		"$(SYMBOL_CHECK)" "$(RPATH_CHECK)" "$(SCHEMA_FIXTURES_CHECK)" "$(TEMPLATES_CHECK)" \
 		"$(EXTENSIONS_PACKAGER)" "$(AGENT_TOOLS_BUILDER)" "$(DEVICE_TOOL)"; do \
@@ -393,6 +394,9 @@ check:
 	fi
 	@test ! -e "$(ROOT_DIR)/CLAUDE.md" || { echo "error: AGENTS.md is the only notes file; remove CLAUDE.md" >&2; exit 65; }
 	@"$(ACCESSIBILITY_CHECK)" "$(ROOT_DIR)/Apelin"
+	@# Device-side edits can truncate a Swift file or leave a raw string open;
+	@# catch that here, with a token scan when the grammar library is absent.
+	@"$(SWIFT_SYNTAX_CHECK)" "$(ROOT_DIR)"
 	@# Discipline: keys Xcode cannot see stay `extractionState: manual`, pruned
 	@# by hand with prune-xcstrings.py (Xcode closed, every source root
 	@# passed). `stale` is what Xcode writes during a build and never survives.
