@@ -90067,6 +90067,88 @@
           }
         }
       }
+    },
+    "Enter a valid address, such as https://api.example.com/v1.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أدخل عنوانًا صالحًا، مثل https://api.example.com/v1."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib eine gültige Adresse ein, zum Beispiel https://api.example.com/v1."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a valid address, such as https://api.example.com/v1."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduce una dirección válida, como https://api.example.com/v1."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez une adresse valide, par exemple https://api.example.com/v1."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inserisci un indirizzo valido, ad esempio https://api.example.com/v1."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://api.example.com/v1 のような有効なアドレスを入力してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://api.example.com/v1과 같은 유효한 주소를 입력하세요."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digite um endereço válido, como https://api.example.com/v1."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите правильный адрес, например https://api.example.com/v1."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập một địa chỉ hợp lệ, ví dụ https://api.example.com/v1."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入有效地址，例如 https://api.example.com/v1。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請輸入有效網址，例如 https://api.example.com/v1。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
