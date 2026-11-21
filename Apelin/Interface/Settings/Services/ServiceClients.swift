@@ -191,6 +191,25 @@ struct GoogleScriptProject: Equatable, Sendable, Identifiable {
     let title: String?
 }
 
+/// Minimal Google Sheets API client. Used to check that a pasted Google token
+/// can read the spreadsheet before the configuration is saved.
+struct GoogleSheetServiceClient: Sendable {
+    let accessToken: String
+
+    func validate(spreadsheetID: String) async throws {
+        let escaped = spreadsheetID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? spreadsheetID
+        guard let url = URL(string: "https://sheets.googleapis.com/v4/spreadsheets/\(escaped)?fields=spreadsheetId") else {
+            throw ServiceError.httpError(0)
+        }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw ServiceError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+}
+
 /// Telegram Bot API client. Uses a bot token to validate and send messages.
 struct TelegramServiceClient: Sendable {
     let botToken: String

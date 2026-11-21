@@ -14,6 +14,7 @@ final class ServicesSettingsController: TableController {
         case firebase
         case cloudflare
         case googleScript
+        case googleSheet
         case telegram
     }
 
@@ -63,7 +64,7 @@ final class ServicesSettingsController: TableController {
         if let gh = config.github, gh.repositoryFullName != nil {
             githubRows.append(.serviceStatus("GitHub", gh.repositoryFullName ?? "Linked"))
         } else {
-            githubRows.append(.serviceStatus("GitHub", "Not configured"))
+            githubRows.append(.serviceStatus("GitHub", String(localized: "Not configured")))
         }
         githubRows.append(.configure("GitHub"))
         sections.append((.github, githubRows))
@@ -74,9 +75,9 @@ final class ServicesSettingsController: TableController {
             let name = fb.projectID ?? "Linked"
             firebaseRows.append(.serviceStatus("Firebase", name))
         } else if config.firebase?.accessToken != nil {
-            firebaseRows.append(.serviceStatus("Firebase", "Signed in"))
+            firebaseRows.append(.serviceStatus("Firebase", String(localized: "Signed in")))
         } else {
-            firebaseRows.append(.serviceStatus("Firebase", "Not configured"))
+            firebaseRows.append(.serviceStatus("Firebase", String(localized: "Not configured")))
         }
         firebaseRows.append(.configure("Firebase"))
         sections.append((.firebase, firebaseRows))
@@ -88,7 +89,7 @@ final class ServicesSettingsController: TableController {
         } else if config.cloudflare?.apiToken != nil {
             cfRows.append(.serviceStatus("Cloudflare", "Token saved"))
         } else {
-            cfRows.append(.serviceStatus("Cloudflare", "Not configured"))
+            cfRows.append(.serviceStatus("Cloudflare", String(localized: "Not configured")))
         }
         cfRows.append(.configure("Cloudflare"))
         sections.append((.cloudflare, cfRows))
@@ -98,12 +99,26 @@ final class ServicesSettingsController: TableController {
         if let gs = config.googleScript, gs.scriptID != nil {
             gsRows.append(.serviceStatus("Google Script", gs.scriptID ?? "Linked"))
         } else if config.googleScript?.accessToken != nil {
-            gsRows.append(.serviceStatus("Google Script", "Signed in"))
+            gsRows.append(.serviceStatus("Google Script", String(localized: "Signed in")))
         } else {
-            gsRows.append(.serviceStatus("Google Script", "Not configured"))
+            gsRows.append(.serviceStatus("Google Script", String(localized: "Not configured")))
         }
         gsRows.append(.configure("Google Script"))
         sections.append((.googleScript, gsRows))
+
+        // Google Sheet
+        var sheetRows: [Row] = []
+        if let sheet = config.googleSheet, let link = sheet.webAppURL, !link.isEmpty {
+            sheetRows.append(.serviceStatus(String(localized: "Google Sheet"), String(localized: "Deployment link saved")))
+        } else if let sheet = config.googleSheet, let id = sheet.spreadsheetID, !id.isEmpty {
+            sheetRows.append(.serviceStatus(String(localized: "Google Sheet"), id))
+        } else if config.googleSheet?.accessToken != nil {
+            sheetRows.append(.serviceStatus("Google Sheet", String(localized: "Signed in")))
+        } else {
+            sheetRows.append(.serviceStatus("Google Sheet", String(localized: "Not configured")))
+        }
+        sheetRows.append(.configure("Google Sheet"))
+        sections.append((.googleSheet, sheetRows))
 
         // Telegram
         var tgRows: [Row] = []
@@ -111,7 +126,7 @@ final class ServicesSettingsController: TableController {
             let name = tg.botUsername ?? tg.chatID ?? "Linked"
             tgRows.append(.serviceStatus("Telegram", name))
         } else {
-            tgRows.append(.serviceStatus("Telegram", "Not configured"))
+            tgRows.append(.serviceStatus("Telegram", String(localized: "Not configured")))
         }
         tgRows.append(.configure("Telegram"))
         sections.append((.telegram, tgRows))
@@ -171,6 +186,8 @@ final class ServicesSettingsController: TableController {
             presentCloudflareConfig()
         case "Google Script":
             presentGoogleScriptConfig()
+        case "Google Sheet":
+            presentGoogleSheetConfig()
         case "Telegram":
             presentTelegramConfig()
         default:
@@ -190,13 +207,13 @@ final class ServicesSettingsController: TableController {
             field.placeholder = "owner/repo"
             field.text = self.config.github?.repositoryFullName
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Save"), style: .default) { [weak self] _ in
             guard let self, let text = alert.textFields?.first?.text, !text.isEmpty else { return }
             self.config.github = GitHubServiceConfig(repositoryFullName: text)
             try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
             self.updateRows()
-            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+            SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
         })
         present(alert, animated: true)
     }
@@ -205,13 +222,13 @@ final class ServicesSettingsController: TableController {
 
     private func presentFirebaseConfig() {
         let alert = UIAlertController(title: "Firebase Configuration", message: nil, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Sign in with Google", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Sign In with Google"), style: .default) { [weak self] _ in
             self?.presentFirebaseGoogleSignIn()
         })
-        alert.addAction(UIAlertAction(title: "Paste access token", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Paste access token"), style: .default) { [weak self] _ in
             self?.presentFirebaseTokenInput()
         })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
         present(alert, animated: true)
     }
 
@@ -222,14 +239,15 @@ final class ServicesSettingsController: TableController {
             preferredStyle: .alert,
         )
         alert.addTextField { field in
-            field.placeholder = "Google Client ID"
-            field.text = self.config.firebase?.googleClientID
+            field.placeholder = String(localized: "Google Client ID")
+            field.text = self.config.googleClientID ?? self.config.firebase?.googleClientID
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Sign In with Google", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Sign In with Google"), style: .default) { [weak self] _ in
             guard let self, let clientID = alert.textFields?.first?.text, !clientID.isEmpty else { return }
-            self.runGoogleSignIn(clientID: clientID, service: "Firebase") { [weak self] token in
+            self.runGoogleSignIn(clientID: clientID, scopes: GoogleDeviceFlow.defaultScopes) { [weak self] token in
                 guard let self else { return }
+                self.rememberGoogleClientID(clientID)
                 self.config.firebase = FirebaseServiceConfig(
                     projectID: self.config.firebase?.projectID,
                     accessToken: token,
@@ -250,11 +268,14 @@ final class ServicesSettingsController: TableController {
             preferredStyle: .alert,
         )
         alert.addTextField { field in
-            field.placeholder = "Access token"
+            field.placeholder = String(localized: "Access token")
             field.text = self.config.firebase?.accessToken
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Validate", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Open token page"), style: .default) { [weak self] _ in
+            self?.openGoogleTokenPage(scopes: GoogleDeviceFlow.defaultScopes)
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Validate"), style: .default) { [weak self] _ in
             guard let self, let token = alert.textFields?.first?.text, !token.isEmpty else { return }
             self.validateFirebaseToken(token)
         })
@@ -276,14 +297,14 @@ final class ServicesSettingsController: TableController {
                     try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                     self.updateRows()
                     if projects.isEmpty {
-                        SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                        SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
                     } else {
                         self.presentFirebaseProjectPicker(accessToken: token)
                     }
                 }
             } catch {
                 await MainActor.run {
-                    SPIndicator.present(title: "Invalid token", message: error.localizedDescription, preset: .error, haptic: .error)
+                    SPIndicator.present(title: String(localized: "Invalid token"), message: error.localizedDescription, preset: .error, haptic: .error)
                 }
             }
         }
@@ -307,10 +328,10 @@ final class ServicesSettingsController: TableController {
                             self.config.firebase?.projectID = project.id
                             try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                             self.updateRows()
-                            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                            SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
                         })
                     }
-                    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                    alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
                     self.present(alert, animated: true)
                 }
             } catch {
@@ -333,8 +354,12 @@ final class ServicesSettingsController: TableController {
             field.placeholder = "API Token"
             field.text = self.config.cloudflare?.apiToken
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Open token page"), style: .default) { _ in
+            guard let url = URL(string: "https://dash.cloudflare.com/profile/api-tokens") else { return }
+            UIApplication.shared.open(url)
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Save"), style: .default) { [weak self] _ in
             guard let self, let token = alert.textFields?.first?.text, !token.isEmpty else { return }
             self.validateCloudflareToken(token)
         })
@@ -355,7 +380,7 @@ final class ServicesSettingsController: TableController {
                         self.config.cloudflare?.accountID = accounts[0].id
                         try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                         self.updateRows()
-                        SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                        SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
                     } else if accounts.count > 1 {
                         let alert = UIAlertController(title: "Select Account", message: nil, preferredStyle: .actionSheet)
                         for account in accounts {
@@ -364,18 +389,18 @@ final class ServicesSettingsController: TableController {
                                 self.config.cloudflare?.accountID = account.id
                                 try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                                 self.updateRows()
-                                SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                                SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
                             })
                         }
-                        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
                         self.present(alert, animated: true)
                     } else {
-                        SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                        SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
                     }
                 }
             } catch {
                 await MainActor.run {
-                    SPIndicator.present(title: "Invalid token", message: error.localizedDescription, preset: .error, haptic: .error)
+                    SPIndicator.present(title: String(localized: "Invalid token"), message: error.localizedDescription, preset: .error, haptic: .error)
                 }
             }
         }
@@ -384,34 +409,40 @@ final class ServicesSettingsController: TableController {
     // MARK: - Google Script
 
     private func presentGoogleScriptConfig() {
-        let alert = UIAlertController(title: "Google Script Configuration", message: nil, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Sign in with Google", style: .default) { [weak self] _ in
+        let alert = UIAlertController(title: String(localized: "Google Script Configuration"), message: nil, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: String(localized: "Sign In with Google"), style: .default) { [weak self] _ in
             self?.presentGoogleScriptGoogleSignIn()
         })
-        alert.addAction(UIAlertAction(title: "Paste access token", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Use deployment link"), style: .default) { [weak self] _ in
+            self?.presentGoogleScriptLinkInput()
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Paste access token"), style: .default) { [weak self] _ in
             self?.presentGoogleScriptTokenInput()
         })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
         present(alert, animated: true)
     }
 
     private func presentGoogleScriptGoogleSignIn() {
         let alert = UIAlertController(
-            title: "Google Script Configuration",
+            title: String(localized: "Google Script Configuration"),
             message: "Enter your Google OAuth Client ID for Apps Script (from Google Cloud Console).",
             preferredStyle: .alert,
         )
         alert.addTextField { field in
-            field.placeholder = "Google Client ID"
-            field.text = self.config.googleScript?.googleClientID
+            field.placeholder = String(localized: "Google Client ID")
+            field.text = self.config.googleClientID ?? self.config.googleScript?.googleClientID
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Sign In with Google", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Sign In with Google"), style: .default) { [weak self] _ in
             guard let self, let clientID = alert.textFields?.first?.text, !clientID.isEmpty else { return }
-            self.runGoogleSignIn(clientID: clientID, service: "Google Script") { [weak self] token in
+            self.runGoogleSignIn(clientID: clientID, scopes: GoogleDeviceFlow.defaultScopes) { [weak self] token in
                 guard let self else { return }
+                self.rememberGoogleClientID(clientID)
                 self.config.googleScript = GoogleScriptServiceConfig(
                     scriptID: self.config.googleScript?.scriptID,
+                    deploymentID: self.config.googleScript?.deploymentID,
+                    webAppURL: self.config.googleScript?.webAppURL,
                     accessToken: token,
                     googleClientID: clientID,
                 )
@@ -423,18 +454,46 @@ final class ServicesSettingsController: TableController {
         present(alert, animated: true)
     }
 
+    /// Apps Script can be used without any Google sign-in: deploy the script
+    /// as a web app and paste its link here instead.
+    private func presentGoogleScriptLinkInput() {
+        let alert = UIAlertController(
+            title: String(localized: "Google Script Configuration"),
+            message: String(localized: "Paste the web app link from Deploy ▸ New deployment."),
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = "https://script.google.com/…/exec"
+            field.text = self.config.googleScript?.webAppURL
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Save"), style: .default) { [weak self] _ in
+            guard let self, let link = alert.textFields?.first?.text, !link.isEmpty else { return }
+            var script = self.config.googleScript ?? GoogleScriptServiceConfig()
+            script.webAppURL = link
+            self.config.googleScript = script
+            try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+            self.updateRows()
+            SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
+        })
+        present(alert, animated: true)
+    }
+
     private func presentGoogleScriptTokenInput() {
         let alert = UIAlertController(
-            title: "Google Script Configuration",
+            title: String(localized: "Google Script Configuration"),
             message: "Paste a Google OAuth access token with Apps Script scope.",
             preferredStyle: .alert,
         )
         alert.addTextField { field in
-            field.placeholder = "Access token"
+            field.placeholder = String(localized: "Access token")
             field.text = self.config.googleScript?.accessToken
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Validate", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Open token page"), style: .default) { [weak self] _ in
+            self?.openGoogleTokenPage(scopes: GoogleDeviceFlow.defaultScopes)
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Validate"), style: .default) { [weak self] _ in
             guard let self, let token = alert.textFields?.first?.text, !token.isEmpty else { return }
             self.validateGoogleScriptToken(token)
         })
@@ -456,14 +515,14 @@ final class ServicesSettingsController: TableController {
                     try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                     self.updateRows()
                     if projects.isEmpty {
-                        SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                        SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
                     } else {
                         self.presentGoogleScriptProjectPicker(accessToken: token)
                     }
                 }
             } catch {
                 await MainActor.run {
-                    SPIndicator.present(title: "Invalid token", message: error.localizedDescription, preset: .error, haptic: .error)
+                    SPIndicator.present(title: String(localized: "Invalid token"), message: error.localizedDescription, preset: .error, haptic: .error)
                 }
             }
         }
@@ -487,15 +546,160 @@ final class ServicesSettingsController: TableController {
                             self.config.googleScript?.scriptID = project.id
                             try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                             self.updateRows()
-                            SPIndicator.present(title: "Saved", preset: .done, haptic: .success)
+                            SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
                         })
                     }
-                    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                    alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
                     self.present(alert, animated: true)
                 }
             } catch {
                 await MainActor.run {
                     SPIndicator.present(title: "Failed to load projects", message: error.localizedDescription, preset: .error, haptic: .error)
+                }
+            }
+        }
+    }
+
+    // MARK: - Google Sheet
+
+    private func presentGoogleSheetConfig() {
+        let alert = UIAlertController(title: String(localized: "Google Sheet Configuration"), message: nil, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: String(localized: "Sign In with Google"), style: .default) { [weak self] _ in
+            self?.presentGoogleSheetGoogleSignIn()
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Use deployment link"), style: .default) { [weak self] _ in
+            self?.presentGoogleSheetLinkInput()
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Paste access token"), style: .default) { [weak self] _ in
+            self?.presentGoogleSheetTokenInput()
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func presentGoogleSheetGoogleSignIn() {
+        let alert = UIAlertController(
+            title: String(localized: "Google Sheet Configuration"),
+            message: String(localized: "This Client ID is shared with Firebase and Google Script."),
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = String(localized: "Google Client ID")
+            field.text = self.config.googleClientID ?? self.config.googleSheet?.googleClientID
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Sign In with Google"), style: .default) { [weak self] _ in
+            guard let self, let clientID = alert.textFields?.first?.text, !clientID.isEmpty else { return }
+            self.runGoogleSignIn(clientID: clientID, scopes: GoogleDeviceFlow.sheetScopes) { [weak self] token in
+                guard let self else { return }
+                self.rememberGoogleClientID(clientID)
+                var sheet = self.config.googleSheet ?? GoogleSheetServiceConfig()
+                sheet.accessToken = token
+                sheet.googleClientID = clientID
+                self.config.googleSheet = sheet
+                try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                self.updateRows()
+                self.presentGoogleSheetSpreadsheetInput(accessToken: token, clientID: clientID)
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func presentGoogleSheetSpreadsheetInput(accessToken: String, clientID: String) {
+        let alert = UIAlertController(
+            title: String(localized: "Google Sheet Configuration"),
+            message: String(localized: "Paste the spreadsheet ID or its link."),
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = String(localized: "Spreadsheet ID or link")
+            field.text = self.config.googleSheet?.spreadsheetID
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Save"), style: .default) { [weak self] _ in
+            guard let self, let text = alert.textFields?.first?.text, !text.isEmpty else { return }
+            var sheet = self.config.googleSheet ?? GoogleSheetServiceConfig()
+            sheet.spreadsheetID = GoogleSheetID.parse(text)
+            sheet.accessToken = accessToken
+            sheet.googleClientID = clientID
+            self.config.googleSheet = sheet
+            try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+            self.updateRows()
+            SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
+        })
+        present(alert, animated: true)
+    }
+
+    /// Apps Script deployments can read and write a sheet without the Sheets
+    /// API, so no Google account needs to be created for this path either.
+    private func presentGoogleSheetLinkInput() {
+        let alert = UIAlertController(
+            title: String(localized: "Google Sheet Configuration"),
+            message: String(localized: "Paste the web app link from Deploy ▸ New deployment."),
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = "https://script.google.com/…/exec"
+            field.text = self.config.googleSheet?.webAppURL
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Save"), style: .default) { [weak self] _ in
+            guard let self, let link = alert.textFields?.first?.text, !link.isEmpty else { return }
+            var sheet = self.config.googleSheet ?? GoogleSheetServiceConfig()
+            sheet.webAppURL = link
+            self.config.googleSheet = sheet
+            try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+            self.updateRows()
+            SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
+        })
+        present(alert, animated: true)
+    }
+
+    private func presentGoogleSheetTokenInput() {
+        let alert = UIAlertController(
+            title: String(localized: "Google Sheet Configuration"),
+            message: String(localized: "Paste a Google OAuth access token with Sheets scope and the spreadsheet ID."),
+            preferredStyle: .alert,
+        )
+        alert.addTextField { field in
+            field.placeholder = String(localized: "Access token")
+            field.text = self.config.googleSheet?.accessToken
+        }
+        alert.addTextField { field in
+            field.placeholder = String(localized: "Spreadsheet ID or link")
+            field.text = self.config.googleSheet?.spreadsheetID
+        }
+        alert.addAction(UIAlertAction(title: String(localized: "Open token page"), style: .default) { [weak self] _ in
+            self?.openGoogleTokenPage(scopes: GoogleDeviceFlow.sheetScopes)
+        })
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Validate"), style: .default) { [weak self] _ in
+            guard let self else { return }
+            let token = alert.textFields?[0].text ?? ""
+            let idText = alert.textFields?[1].text ?? ""
+            guard !token.isEmpty, !idText.isEmpty else { return }
+            self.validateGoogleSheetToken(token, spreadsheetID: GoogleSheetID.parse(idText))
+        })
+        present(alert, animated: true)
+    }
+
+    private func validateGoogleSheetToken(_ token: String, spreadsheetID: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await GoogleSheetServiceClient(accessToken: token).validate(spreadsheetID: spreadsheetID)
+                await MainActor.run {
+                    var sheet = self.config.googleSheet ?? GoogleSheetServiceConfig()
+                    sheet.accessToken = token
+                    sheet.spreadsheetID = spreadsheetID
+                    self.config.googleSheet = sheet
+                    try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
+                    self.updateRows()
+                    SPIndicator.present(title: String(localized: "Saved"), preset: .done, haptic: .success)
+                }
+            } catch {
+                await MainActor.run {
+                    SPIndicator.present(title: String(localized: "Invalid token"), message: error.localizedDescription, preset: .error, haptic: .error)
                 }
             }
         }
@@ -517,8 +721,8 @@ final class ServicesSettingsController: TableController {
             field.placeholder = "Chat ID (optional)"
             field.text = self.config.telegram?.chatID
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Save"), style: .default) { [weak self] _ in
             guard let self else { return }
             let botToken = alert.textFields?[0].text
             let chatID = alert.textFields?[1].text
@@ -542,7 +746,7 @@ final class ServicesSettingsController: TableController {
                     )
                     try? ProjectServiceConfigStore.save(self.config, projectName: self.projectName)
                     self.updateRows()
-                    SPIndicator.present(title: "Saved", message: botInfo.username ?? "Bot validated", preset: .done, haptic: .success)
+                    SPIndicator.present(title: String(localized: "Saved"), message: botInfo.username ?? "Bot validated", preset: .done, haptic: .success)
                 }
             } catch {
                 await MainActor.run {
@@ -554,11 +758,37 @@ final class ServicesSettingsController: TableController {
 
     // MARK: - Google Sign-In Helper
 
-    private func runGoogleSignIn(clientID: String, service: String, completion: @escaping (String) -> Void) {
-        let controller = GoogleLoginController(clientID: clientID)
+    private func runGoogleSignIn(clientID: String, scopes: [String], completion: @escaping (String) -> Void) {
+        let controller = GoogleLoginController(clientID: clientID, scopes: scopes)
         controller.onSignedIn = { token in
             completion(token)
         }
         navigationController?.pushViewController(controller, animated: true)
+    }
+
+    /// One Client ID works for Firebase, Apps Script and Sheets. Reuse it in
+    /// every service that has not picked a different one yet.
+    private func rememberGoogleClientID(_ clientID: String) {
+        config.googleClientID = clientID
+        if config.firebase != nil, config.firebase?.googleClientID == nil {
+            config.firebase?.googleClientID = clientID
+        }
+        if config.googleScript != nil, config.googleScript?.googleClientID == nil {
+            config.googleScript?.googleClientID = clientID
+        }
+        if config.googleSheet != nil, config.googleSheet?.googleClientID == nil {
+            config.googleSheet?.googleClientID = clientID
+        }
+        try? ProjectServiceConfigStore.save(config, projectName: projectName)
+        updateRows()
+    }
+
+    /// Google OAuth Playground issues a token without creating an app: sign in,
+    /// pick only the scopes below, then paste the token back into Apelin.
+    private func openGoogleTokenPage(scopes: [String]) {
+        let joined = scopes.joined(separator: " ")
+        let encoded = joined.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? joined
+        guard let url = URL(string: "https://developers.google.com/oauthplayground/?scope=\(encoded)") else { return }
+        UIApplication.shared.open(url)
     }
 }

@@ -19,6 +19,9 @@ struct GoogleDeviceFlow: Sendable {
         "https://www.googleapis.com/auth/cloud-platform",
     ]
 
+    /// Sheets API scope for the new Google Sheet service.
+    static let sheetScopes = ["https://www.googleapis.com/auth/spreadsheets"]
+
     struct Code: Equatable, Sendable {
         let userCode: String
         let verificationURL: URL

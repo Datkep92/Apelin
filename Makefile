@@ -459,6 +459,11 @@ harness:
 		-o "$$harness_dir/github-device-flow" && \
 	"$$harness_dir/github-device-flow" && \
 	xcrun --sdk macosx swiftc -swift-version 5 \
+		"$(ROOT_DIR)/Apelin/Interface/Settings/Services/GoogleSheetID.swift" \
+		"$(ROOT_DIR)/Tests/GoogleSheetID/main.swift" \
+		-o "$$harness_dir/google-sheet-id" && \
+	"$$harness_dir/google-sheet-id" && \
+	xcrun --sdk macosx swiftc -swift-version 5 \
 		"$(ROOT_DIR)/Apelin/Interface/Chats/Composer/ComposerDropPolicy.swift" \
 		"$(ROOT_DIR)/Tests/ComposerDrop/main.swift" \
 		-o "$$harness_dir/composer-drop" && \
