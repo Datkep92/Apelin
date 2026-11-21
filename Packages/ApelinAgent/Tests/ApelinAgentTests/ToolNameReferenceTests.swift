@@ -60,6 +60,19 @@ struct ToolNameReferenceTests {
     }
 
     @Test
+    func `the web guidance names the tools that exist`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        for prompt in try Self.prompts(home) {
+            #expect(prompt.contains("apelin_web_search"), "the search tool exists and the model must be told so")
+            #expect(prompt.contains("apelin_web_fetch"), "reading a known page is still the next step")
+            #expect(prompt.contains("apelin_browser"), "a signed-in page is reachable in the browser")
+            #expect(!prompt.contains("There is no web search"), "the old guidance made the agent refuse a tool it has")
+            #expect(prompt.contains("file_read's offset/limit"), "a large file is read as a window")
+        }
+    }
+
+    @Test
     func `every tool's description and parameters name only today's tools`() {
         for tool in AgentToolName.allCases {
             let text = tool.summary + "\n" + ToolReason.adding(to: tool.parameters).canonicalJSON
