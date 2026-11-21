@@ -21,7 +21,7 @@ struct ToolNameReferenceTests {
         return Array(Set(tokens).intersection(compoundLegacyNames)) + words.sorted()
     }
 
-    private static func prompts(_ home: TemporaryHome) throws -> [String] {
+    private static func systemPrompts(_ home: TemporaryHome) throws -> [String] {
         let id = UUID().uuidString
         let temporary = try ProjectIdentity(id: "temporary:" + id, name: ProjectName(id))
         let server = try MCPServerConfiguration(name: "docs", url: #require(URL(string: "https://example.com/mcp")))
@@ -42,12 +42,18 @@ struct ToolNameReferenceTests {
                 environment: environment,
             ))
         }
-        // and the block before each message, in every mode
-        for mode in [ApprovalMode.relaxed, .confirm, .full] {
-            prompts.append(SystemState.make(SystemState.facts(.device, mode: mode)))
-        }
         // The note that old names may be met is the one place they are named.
         return prompts.map { $0.replacingOccurrences(of: SystemPrompt.renamedToolsNote, with: "") }
+    }
+
+    /// The block before each message, in every mode, carries no tool
+    /// guidance; a test of what the system prompt says must look only at it.
+    private static func prompts(_ home: TemporaryHome) throws -> [String] {
+        var all = try systemPrompts(home)
+        for mode in [ApprovalMode.relaxed, .confirm, .full] {
+            all.append(SystemState.make(SystemState.facts(.device, mode: mode)))
+        }
+        return all
     }
 
     @Test
@@ -63,12 +69,26 @@ struct ToolNameReferenceTests {
     func `the web guidance names the tools that exist`() throws {
         let home = try TemporaryHome()
         defer { home.remove() }
-        for prompt in try Self.prompts(home) {
+        for prompt in try Self.systemPrompts(home) {
             #expect(prompt.contains("apelin_web_search"), "the search tool exists and the model must be told so")
             #expect(prompt.contains("apelin_web_fetch"), "reading a known page is still the next step")
             #expect(prompt.contains("apelin_browser"), "a signed-in page is reachable in the browser")
             #expect(!prompt.contains("There is no web search"), "the old guidance made the agent refuse a tool it has")
             #expect(prompt.contains("file_read's offset/limit"), "a large file is read as a window")
+        }
+    }
+
+    @Test
+    func `the prompt asks for fast checked and deeper work`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        for prompt in try Self.systemPrompts(home) {
+            #expect(prompt.contains("Work from what the conversation already holds"), "a call already answered needs no second call")
+            #expect(prompt.contains("Batch independent reads"), "independent calls belong in one response")
+            #expect(prompt.contains("Verify before you answer"), "a narrow check comes before the final reply")
+            #expect(prompt.contains("apelin_run_javascript"), "pure computation has a tool that needs no signing")
+            #expect(prompt.contains("apelin_sdk_read_header"), "framework questions are answered from the SDK")
+            #expect(prompt.contains("apelin_crash_symbolicate"), "a crash is symbolicated before code changes")
         }
     }
 
