@@ -396,7 +396,7 @@ check:
 	@"$(ACCESSIBILITY_CHECK)" "$(ROOT_DIR)/Apelin"
 	@# Device-side edits can truncate a Swift file or leave a raw string open;
 	@# catch that here, with a token scan when the grammar library is absent.
-	@"$(SWIFT_SYNTAX_CHECK)" "$(ROOT_DIR)"
+	@"$(SWIFT_SYNTAX_CHECK)" --path "$(ROOT_DIR)"
 	@# Discipline: keys Xcode cannot see stay `extractionState: manual`, pruned
 	@# by hand with prune-xcstrings.py (Xcode closed, every source root
 	@# passed). `stale` is what Xcode writes during a build and never survives.
