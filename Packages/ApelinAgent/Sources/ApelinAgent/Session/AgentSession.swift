@@ -706,7 +706,7 @@ public actor AgentSession {
         guard runTask == nil, compaction == nil else {
             throw ApelinError(.conflict, "Wait for the current reply to finish, then edit and run a message again.")
         }
-        let records = try log.records(afterSeq: 0)
+        let records = try await log.records(afterSeq: 0)
         // A message sent while a run was going has an early `queued` event
         // and a later `userMessage` with the same id. Take the earlier one:
         // both are rows in the conversation, and both must go when the
@@ -714,7 +714,7 @@ public actor AgentSession {
         guard let target = records.first(where: { record in
             switch record.event {
             case let .userMessage(id, _, _, _): return id == messageID
-            case let .userMessageQueued(id, _, _, _): return id == messageID
+            case let .userMessageQueued(id, _, _): return id == messageID
             default: return false
             }
         }) else {
@@ -723,7 +723,7 @@ public actor AgentSession {
         let targetText: String
         switch target.event {
         case let .userMessage(_, text, _, _): targetText = text
-        case let .userMessageQueued(_, text, _, _): targetText = text
+        case let .userMessageQueued(_, text, _): targetText = text
         default:
             throw ApelinError(.notFound, "That message is no longer in this conversation.")
         }
@@ -741,11 +741,11 @@ public actor AgentSession {
             guard record.seq <= target.seq else { return count }
             var messageID: UUID?
             if case let .userMessage(id, _, _, _) = record.event { messageID = id }
-            if case let .userMessageQueued(id, _, _, _) = record.event { messageID = id }
+            if case let .userMessageQueued(id, _, _) = record.event { messageID = id }
             guard let messageID, countedIDs.insert(messageID).inserted else { return count }
             return count + 1
         }
-        var kept = try log.readTranscript()
+        var kept = try await log.readTranscript()
         var keepCount = 0
         var seen = 0
         for (index, message) in kept.enumerated() {
@@ -766,13 +766,13 @@ public actor AgentSession {
         let restored = try await runner.restoreProjectFiles(since: target.date)
         kept.removeSubrange(keepCount...)
         agent.state.messages = kept
-        try log.writeTranscript(kept)
+        try await log.writeTranscript(kept)
         for record in records where record.seq > target.seq {
             if case let .userMessage(id, _, _, _) = record.event { submitted.remove(id) }
-            if case let .userMessageQueued(id, _, _, _) = record.event { submitted.remove(id) }
+            if case let .userMessageQueued(id, _, _) = record.event { submitted.remove(id) }
         }
-        log.clearTurn()
-        try log.truncate(afterSeq: target.seq)
+        await log.clearTurn()
+        try await log.truncate(afterSeq: target.seq)
         return AgentRewindResponse(restoredFiles: restored, lastSeq: target.seq)
     }
 

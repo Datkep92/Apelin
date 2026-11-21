@@ -149,7 +149,7 @@ struct RewindTests {
 
         let records = try await session.log.records(afterSeq: 0)
         let queued = try #require(records.first {
-            if case let .userMessageQueued(id, _, _, _) = $0.event { return id == second }
+            if case let .userMessageQueued(id, _, _) = $0.event { return id == second }
             return false
         })
         let response = try await session.rewind(to: second)
