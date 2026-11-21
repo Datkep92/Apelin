@@ -92,6 +92,23 @@ struct ToolNameReferenceTests {
         }
     }
 
+    /// A skill is read by its hyphenated name (`apelin-capture-tool`); an
+    /// underscore name in the prompt reads as a tool the session does not
+    /// have. Catch that here, not when the model calls a missing tool.
+    @Test
+    func `every apelin_ name in the prompt is a tool that exists`() throws {
+        let home = try TemporaryHome()
+        defer { home.remove() }
+        let tools = Set(AgentToolName.allCases.map(\.rawValue))
+        for prompt in try Self.systemPrompts(home) {
+            let names = Set(prompt.split { !($0.isLetter || $0.isNumber || $0 == "_") }
+                .map(String.init)
+                .filter { $0.hasPrefix("apelin_") })
+            let unknown = names.subtracting(tools)
+            #expect(unknown.isEmpty, "apparently a tool, but no such tool: \(unknown.sorted())")
+        }
+    }
+
     @Test
     func `every tool's description and parameters name only today's tools`() {
         for tool in AgentToolName.allCases {
