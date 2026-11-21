@@ -357,6 +357,15 @@ actor ToolRunner {
         }
     }
 
+    /// Puts the project back to the copies kept before `since`, for the
+    /// rewind of a whole turn. The copies stay outside the repository.
+    func restoreProjectFiles(since: Date) throws -> Int {
+        let files = ProjectFileTools(root: root, backups: FileBackups(
+            directory: FileBackups.directory(for: project.name),
+        ))
+        return try files.restoreChanges(since: since)
+    }
+
     // MARK: - Execution
 
     private func execute(

@@ -35,6 +35,8 @@ enum AgentHandler: DomainHandler {
                 AgentRunCode.stop(session: abort.sessionID)
             }
             return reply
+        case .agentRewind:
+            return await forward(request, AgentRewindRequest.self, host: host) { $0.sessionID }
         case .agentCompact:
             return await forward(request, AgentCompactRequest.self, host: host) { $0.sessionID }
         case .agentPlan:

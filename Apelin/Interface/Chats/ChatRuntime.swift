@@ -598,6 +598,39 @@ final class ChatRuntime {
             && opening[id] == nil && compactions[id] == nil
     }
 
+    /// Goes back to a user message: the agent puts the files that turn
+    /// changed back, drops its later history, and the app drops the same
+    /// events. The message's text then goes to the composer for editing;
+    /// nothing is sent until the reader sends it, and a new message id is
+    /// used, so a row already on screen is never answered twice.
+    @discardableResult
+    func rewind(_ id: UUID, to messageID: UUID) async throws -> Int {
+        loadEventsSyncIfNeeded(id)
+        guard canCompact(id) else {
+            throw ApelinError(.conflict, "Wait for the current reply to finish, then edit and run a message again.")
+        }
+        _ = try await open(id)
+        let response = try await ApelinService.app.agentRewind(sessionID: records[id]?.sessionID ?? "", messageID: messageID)
+        readers[id]?.cancel()
+        readers[id] = nil
+        guard var record = records[id] else { return response.restoredFiles }
+        // The session cut its log at the message's first event. That is the
+        // authority, so it also covers a queued message, which has a second
+        // event with the same id, and a conversation whose rows were rebuilt
+        // from the saved transcript. Every cached event past the cut is gone.
+        record.events.removeAll { $0.seq > response.lastSeq }
+        record.sending = nil
+        record.retryState = nil
+        record.replay = nil
+        record.task = nil
+        records[id] = record
+        transcripts.remove(id)
+        changed(id)
+        // The old event stream was ended when the session's log was cut.
+        try? await open(id)
+        return response.restoredFiles
+    }
+
     /// Compacts the conversation, and returns how it went once the session
     /// says so. Cancelled, it stops the compaction.
     func compact(_ id: UUID) async throws -> AgentCompactionResult {

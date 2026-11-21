@@ -696,6 +696,86 @@ public actor AgentSession {
         await agent.steer(withSystemState(text, delta: false).text)
     }
 
+    /// Goes back to one of the reader's messages: the files that turn changed
+    /// are put back from the copies it kept, the later events and transcript
+    /// entries are dropped, and the model's live context is cut to the same
+    /// place. Only between runs. The app then sends the edited text as a new
+    /// message; no message id is reused, so a row already delivered to the
+    /// app is never mistaken for another.
+    public func rewind(to messageID: UUID) async throws -> AgentRewindResponse {
+        guard runTask == nil, compaction == nil else {
+            throw ApelinError(.conflict, "Wait for the current reply to finish, then edit and run a message again.")
+        }
+        let records = try log.records(afterSeq: 0)
+        // A message sent while a run was going has an early `queued` event
+        // and a later `userMessage` with the same id. Take the earlier one:
+        // both are rows in the conversation, and both must go when the
+        // message is put back in the composer.
+        guard let target = records.first(where: { record in
+            switch record.event {
+            case let .userMessage(id, _, _, _): return id == messageID
+            case let .userMessageQueued(id, _, _, _): return id == messageID
+            default: return false
+            }
+        }) else {
+            throw ApelinError(.notFound, "That message is no longer in this conversation.")
+        }
+        let targetText: String
+        switch target.event {
+        case let .userMessage(_, text, _, _): targetText = text
+        case let .userMessageQueued(_, text, _, _): targetText = text
+        default:
+            throw ApelinError(.notFound, "That message is no longer in this conversation.")
+        }
+        // Check the history can be cut before touching the files: a refusal
+        // then leaves both the conversation and the project as they were.
+        // The event keeps only the reader's words; the transcript's copy has
+        // them. Matching the text exactly would miss it. The two lists are
+        // in the same order: count the messages the log has up to this one,
+        // then keep that many in the transcript, checking the words are
+        // there before cutting anything. A message sent during a run has an
+        // early `queued` event and a later `userMessage` under the same id;
+        // it is one row, so count each id once.
+        var countedIDs = Set<UUID>()
+        let ordinal = records.reduce(0) { count, record in
+            guard record.seq <= target.seq else { return count }
+            var messageID: UUID?
+            if case let .userMessage(id, _, _, _) = record.event { messageID = id }
+            if case let .userMessageQueued(id, _, _, _) = record.event { messageID = id }
+            guard let messageID, countedIDs.insert(messageID).inserted else { return count }
+            return count + 1
+        }
+        var kept = try log.readTranscript()
+        var keepCount = 0
+        var seen = 0
+        for (index, message) in kept.enumerated() {
+            guard case let .user(user) = message else { continue }
+            seen += 1
+            guard seen == ordinal else { continue }
+            let text = user.content.compactMap { block -> String? in
+                if case let .text(content) = block { return content.text }
+                return nil
+            }.joined(separator: "\n")
+            guard text.contains(targetText) else { continue }
+            keepCount = index + 1
+            break
+        }
+        guard keepCount > 0 else {
+            throw ApelinError(.notFound, "That message is not in the saved conversation.")
+        }
+        let restored = try await runner.restoreProjectFiles(since: target.date)
+        kept.removeSubrange(keepCount...)
+        agent.state.messages = kept
+        try log.writeTranscript(kept)
+        for record in records where record.seq > target.seq {
+            if case let .userMessage(id, _, _, _) = record.event { submitted.remove(id) }
+            if case let .userMessageQueued(id, _, _, _) = record.event { submitted.remove(id) }
+        }
+        log.clearTurn()
+        try log.truncate(afterSeq: target.seq)
+        return AgentRewindResponse(restoredFiles: restored, lastSeq: target.seq)
+    }
+
     /// Compacts the conversation now, as kwwk does on its own when the
     /// context fills: the earlier messages become a summary — the
     /// provider's own where it has one — and the recent ones stay. Only

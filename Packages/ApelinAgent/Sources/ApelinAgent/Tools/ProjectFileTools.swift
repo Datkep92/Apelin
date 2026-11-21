@@ -129,6 +129,27 @@ struct ProjectFileTools: Sendable {
             + " sha256 \(Self.digest(data))\(kept)"
     }
 
+    /// Puts back the files the turn after `since` changed, using the oldest
+    /// copy each change kept — the bytes the file had before that turn. One
+    /// file may change many times; only its first copy is used. Files created
+    /// in the turn have no copy and are left alone.
+    func restoreChanges(since: Date) throws -> Int {
+        guard let backups else { return 0 }
+        let paths = try backups.readManifest()
+        let changed = try backups.all().filter { $0.savedAt >= since.addingTimeInterval(-1) }
+        var done: Set<String> = []
+        var restored = 0
+        for copy in changed.reversed() {
+            guard let path = paths[copy.name], !done.contains(path) else { continue }
+            let target = try root.resolveForWrite(path)
+            guard target.exists else { continue }
+            try target.commit(try backups.load(copy), exclusive: false)
+            done.insert(path)
+            restored += 1
+        }
+        return restored
+    }
+
     /// The copies a path has, newest first: what `file_revert` would reach.
     func listBackups(_ arguments: JSONValue) throws -> String {
         let path = try arguments.requireString("path")

@@ -137,6 +137,10 @@ final class ServiceTableTests: XCTestCase {
             return Row(reply: ack) { try await $0.agentSteer(sessionID: "s", text: "stop") }
         case .agentAbort:
             return Row(reply: ack) { try await $0.agentAbort(sessionID: "s") }
+        case .agentRewind:
+            return Row(reply: AgentRewindResponse(restoredFiles: 0, lastSeq: 2)) {
+                _ = try await $0.agentRewind(sessionID: "s", messageID: UUID())
+            }
         case .agentCompact:
             return Row(reply: ack) { try await $0.agentCompact(sessionID: "s") }
         case .agentPlan:

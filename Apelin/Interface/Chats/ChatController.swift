@@ -339,7 +339,7 @@ final class ChatController: UIViewController {
                     row.attachmentHeightLimit = self?.attachmentHeightLimit ?? 0
                     row.displayScale = self?.displayScale ?? 0
                     row.show(message, isStreaming: self?.chat?.isWorking == true)
-                    row.onLongPress = { [weak self] message in self?.confirmAndDelete(message) }
+                    row.onLongPress = { [weak self] message in self?.messageActions(message) }
                     row.onAttachmentLayoutChanged = { [weak self] in
                         guard let self, chat?.id == chatID else { return }
                         messageList.reconfigureRow(with: message.id)
@@ -1063,6 +1063,47 @@ extension ChatController {
         let earlier = unsent[id] ?? (0, 0)
         unsent[id] = (earlier.messages + returned.messages, earlier.attachmentsLeftOut + returned.attachmentsLeftOut)
         sayUnsent()
+    }
+
+    /// A message's own actions: its words can be put back in the box and run
+    /// again from there, with the files that turn changed put back too, or it
+    /// can be copied and deleted as before.
+    private func messageActions(_ message: ChatMessage) {
+        guard message.role == .user else {
+            confirmAndDelete(message)
+            return
+        }
+        let sheet = UIAlertController(title: String(localized: "Message Actions"), message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAction(title: String(localized: "Edit and Run Again")) { [weak self] _ in
+            self?.editAndRun(message)
+        })
+        sheet.addAction(UIAction(title: String(localized: "Copy and Delete"), style: .destructive) { [weak self] _ in
+            self?.confirmAndDelete(message)
+        })
+        sheet.addAction(UIAction(title: String(localized: "Cancel"), style: .cancel))
+        present(sheet, animated: true)
+    }
+
+    private func editAndRun(_ message: ChatMessage) {
+        guard let chat else { return }
+        Task { @MainActor in
+            do {
+                let restored = try await runtime.rewind(chat.id, to: message.id)
+                var draft = ComposerDraft()
+                draft.text = message.text
+                runtime.saveDraft(draft, for: chat.id)
+                runtime.onDraftRestored?(chat.id)
+                if restored > 0 {
+                    presentNotice(
+                        title: "Back to This Message",
+                        message: "Edit the message, then send it again. The files that turn changed were put back.",
+                        dismissTitle: "Done",
+                    )
+                }
+            } catch {
+                presentNotice(title: "Unable to Run Again", message: error.readableMessage)
+            }
+        }
     }
 
     /// A user message's copy and its removal: the destructive confirmation

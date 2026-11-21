@@ -377,6 +377,32 @@ public struct AgentAbortRequest: OperationRequest {
     }
 }
 
+public struct AgentRewindRequest: OperationRequest {
+    public typealias Response = AgentRewindResponse
+    public static let operation = AppOperation.agentRewind
+    public var sessionID: String
+    /// The user message the conversation goes back to. It and everything
+    /// before it stays; its answer and every later message go.
+    public var messageID: UUID
+
+    public init(sessionID: String, messageID: UUID) {
+        self.sessionID = sessionID
+        self.messageID = messageID
+    }
+}
+
+/// What a rewind put back: the files it restored from the copies the turn
+/// kept, and the last event number still in the session's log.
+public struct AgentRewindResponse: Codable, Sendable, Hashable {
+    public var restoredFiles: Int
+    public var lastSeq: UInt64
+
+    public init(restoredFiles: Int, lastSeq: UInt64) {
+        self.restoredFiles = restoredFiles
+        self.lastSeq = lastSeq
+    }
+}
+
 /// Compacts the conversation now, as the session does on its own when its
 /// context fills: the earlier messages become a summary the model reads,
 /// natively where the provider can, and the recent ones stay as they are.
@@ -519,6 +545,10 @@ public extension ApelinService {
 
     func agentAbort(sessionID: String) async throws {
         _ = try await send(AgentAbortRequest(sessionID: sessionID))
+    }
+
+    func agentRewind(sessionID: String, messageID: UUID) async throws -> AgentRewindResponse {
+        try await send(AgentRewindRequest(sessionID: sessionID, messageID: messageID))
     }
 
     func agentCompact(sessionID: String) async throws {

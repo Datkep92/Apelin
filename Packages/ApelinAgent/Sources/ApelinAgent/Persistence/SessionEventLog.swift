@@ -266,6 +266,37 @@ public actor SessionEventLog {
         return read.records.filter { $0.seq > afterSeq }
     }
 
+    /// Drops every record after `afterSeq`, so a conversation can go back to
+    /// a message and be answered again. The event numbers already written
+    /// keep their places. Anything listening is ended: the app reattaches
+    /// from the new end once the rewind answers.
+    public func truncate(afterSeq: UInt64) throws {
+        guard handle != nil else { throw SessionStoreError.io("the session's event log is closed") }
+        try flush()
+        let data = try Data(contentsOf: events)
+        var cut = 0
+        while cut < data.count {
+            let rest = data[cut...]
+            guard let newline = rest.firstIndex(of: 0x0A),
+                  let record = try? Self.decoder.decode(SessionEventRecord.self, from: Data(rest[..<newline])),
+                  record.seq <= afterSeq
+            else { break }
+            cut = newline + 1
+        }
+        try writeAtomically(Data(data[..<cut]), name: "events.jsonl")
+        for subscriber in subscribers.values {
+            subscriber.replay?.cancel()
+            subscriber.continuation.finish()
+        }
+        subscribers.removeAll()
+        try handle?.close()
+        let handle = try FileHandle(forWritingTo: events)
+        _ = try handle.seekToEnd()
+        self.handle = handle
+        length = UInt64(cut)
+        nextSeq = afterSeq + 1
+    }
+
     /// Writes the pending delta, ends every subscriber's stream and closes
     /// the file.
     public func close() {

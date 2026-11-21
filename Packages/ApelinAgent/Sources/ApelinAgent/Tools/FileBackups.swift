@@ -54,8 +54,30 @@ struct FileBackups: Sendable {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let name = "\(Self.milliseconds(date))-\(Self.hash(Data(path.utf8)))-\(digest)-\(Self.label(path))"
         try data.write(to: directory.appendingPathComponent(name), options: .atomic)
+        var paths = try readManifest()
+        paths[name] = path
+        try writeManifest(paths)
         try prune()
         return name
+    }
+
+    /// The path each copy came from. A copy's own name carries only the
+    /// path's hash, which cannot be read back, so a rollback of a whole turn
+    /// needs this small index beside the copies.
+    static let manifestName = "paths.json"
+
+    func readManifest() throws -> [String: String] {
+        let url = directory.appendingPathComponent(Self.manifestName)
+        guard let data = try? Data(contentsOf: url),
+              let paths = try? JSONDecoder().decode([String: String].self, from: data)
+        else { return [:] }
+        return paths
+    }
+
+    private func writeManifest(_ paths: [String: String]) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try JSONEncoder().encode(paths)
+        try data.write(to: directory.appendingPathComponent(Self.manifestName), options: .atomic)
     }
 
     /// Every copy of `path`, newest first.
@@ -112,6 +134,10 @@ struct FileBackups: Sendable {
         for copy in kept[Self.limit...] {
             try? FileManager.default.removeItem(at: directory.appendingPathComponent(copy.name))
         }
+        var paths = try readManifest()
+        let names = Set(kept[..<Self.limit].map(\.name))
+        paths = paths.filter { names.contains($0.key) }
+        try? writeManifest(paths)
     }
 
     // MARK: - Names

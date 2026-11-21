@@ -135,6 +135,10 @@ public enum AgentWorker {
                 try await (state.session(abort.sessionID)).abort()
                 return Acknowledged()
             }
+        case .agentRewind:
+            await WorkerMain.serve(AgentRewindRequest.self, request) { rewind in
+                try await state.session(rewind.sessionID).rewind(to: rewind.messageID)
+            }
         case .agentCompact:
             await WorkerMain.serve(AgentCompactRequest.self, request) { compact in
                 try await state.session(compact.sessionID).compact()

@@ -14,6 +14,7 @@ final class ConsoleScriptsTests: XCTestCase {
     /// unless a script truly cannot reach one.
     private static let notScripted: [AppOperation: String] = [
         .agentAPIConfiguration: "Only the editing form may read saved API keys; the console refuses it before sending.",
+        .agentRewind: "Rewinding is a chat message's action; a console script has no message on screen to go back to.",
         .gitCredentialSet: "A git credential comes only from Sign In with GitHub in Settings ▸ Git; the console refuses it before sending.",
         .feedbackStar: "A star is given on the reader's GitHub account only by their tap in the app; the console refuses it before sending.",
         .gatewayStatus: "Gateway state is read by the app's Settings screen, not by a console script.",
