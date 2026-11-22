@@ -82,7 +82,12 @@ actor TaskRegistry {
             if closed || moved {
                 persist(record.id)
             }
-            unfinished.append(record)
+            // A crash can leave a record still running while its log already
+            // ends with a final state. `replayLog` moves the record forward;
+            // only what is still running after that goes to a resumer.
+            if !record.state.isTerminal {
+                unfinished.append(record)
+            }
         }
         dropSupersededAgentTasks()
         return unfinished.sorted { $0.createdAt < $1.createdAt }
