@@ -3,8 +3,8 @@ import Foundation
 
 /// The words a conversation holds that the reader is looking for, when the
 /// words are not in its name: the sidebar's search shows the conversations
-/// whose title has them and, beside those, the ones that said them
-/// (`SidebarController.matches`).
+/// of every project whose title has them and, beside those, the ones that
+/// said them (`SidebarController.matches`).
 ///
 /// A conversation's words are its events, which the sidebar does not keep in
 /// memory (`ChatRuntime.loadEventsIfNeeded` reads them when one is opened):

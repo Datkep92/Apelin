@@ -38,6 +38,12 @@ final class RootInterfaceController: UIViewController {
         page.onDelete = { [weak self, weak page] id in
             self?.sidebar.delete(id, from: .moreMenu, presenter: page)
         }
+        page.onSearchContent = { [weak self] in
+            guard let self else { return }
+            let results = ChatContentSearchController(runtime: self.chatRuntime)
+            results.onPick = { [weak self] summary in self?.sidebar.select(summary) }
+            self.navigator.pushViewController(results, animated: true)
+        }
         return page
     }()
 

@@ -22,6 +22,9 @@ final class ChatController: UIViewController {
     /// Delete Conversation… in the `…` menu: the sidebar asks and deletes,
     /// as its own Delete does.
     var onDelete: ((UUID) -> Void)?
+    /// The bar's magnifier: look for words inside every conversation of every
+    /// project, not just the one on screen (`ChatContentSearchController`).
+    var onSearchContent: (() -> Void)?
     private let titleView = ChatTitleView()
     /// A compact gateway indicator: a tinted dot, or a spinner while updating.
     private var gatewayDot: UIImageView?
@@ -142,7 +145,18 @@ final class ChatController: UIViewController {
             )
         }])
         more.accessibilityLabel = String(localized: "More")
-        navigationItem.rightBarButtonItem = more
+        let search = UIBarButtonItem(
+            image: UIImage(systemName: "magnifyingglass"),
+            style: .plain,
+            target: self,
+            action: #selector(searchChatContents)
+        )
+        search.accessibilityLabel = String(localized: "Search chats")
+        navigationItem.rightBarButtonItems = [more, search]
+    }
+
+    @objc private func searchChatContents() {
+        onSearchContent?()
     }
 
     @available(*, unavailable)
