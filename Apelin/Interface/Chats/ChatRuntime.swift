@@ -127,12 +127,10 @@ final class ChatRuntime {
                     // Events must be loaded before reclaimUnsent: takeEchoed
                     // reads them to decide which unsent messages the host took.
                     let id = record.summary.id
-                    let url = DataFolder.app.root.appendingPathComponent("Chats/\(id.uuidString).events.json")
-                    if let data = try? Data(contentsOf: url),
-                       let events = try? JSONDecoder().decode([TaskEvent].self, from: data) {
+                    if let events = store.loadEventsSync(for: id) {
                         record.events = events
                         record.eventsLoaded = true
-                    } else if !FileManager.default.fileExists(atPath: url.path) {
+                    } else if !store.hasEventsFileSync(for: id) {
                         record.eventsLoaded = true
                     }
                 }
@@ -239,7 +237,7 @@ final class ChatRuntime {
     }
 
     private func eventsFileExists(for id: UUID) -> Bool {
-        FileManager.default.fileExists(atPath: DataFolder.app.root.appendingPathComponent("Chats/\(id.uuidString).events.json").path)
+        store.hasEventsFileSync(for: id)
     }
 
     func loadEventsIfNeeded(_ id: UUID) async {
@@ -265,17 +263,15 @@ final class ChatRuntime {
 
     func loadEventsSyncIfNeeded(_ id: UUID) {
         guard let record = records[id], !record.eventsLoaded else { return }
-        let url = DataFolder.app.root.appendingPathComponent("Chats/\(id.uuidString).events.json")
-        if FileManager.default.fileExists(atPath: url.path) {
-            if let data = try? Data(contentsOf: url),
-               let events = try? JSONDecoder().decode([TaskEvent].self, from: data) {
-                records[id]?.events = events
-                records[id]?.eventsLoaded = true
-            }
-            // If decode fails, eventsLoaded stays false
-        } else {
+        if let events = store.loadEventsSync(for: id) {
+            records[id]?.events = events
+            records[id]?.eventsLoaded = true
+        } else if !store.hasEventsFileSync(for: id) {
+            // No transcript on disk: an empty conversation, already read.
             records[id]?.eventsLoaded = true
         }
+        // If the file exists but cannot be decoded, eventsLoaded stays false;
+        // the async path reports the error rather than saving an empty log.
     }
 
     func hasEventsOnDisk(_ id: UUID) -> Bool {

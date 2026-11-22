@@ -19,6 +19,9 @@ actor TaskRegistry {
         var createdAt: Date
         var updatedAt: Date
         var lastSeq: EventSeq
+        /// The newest title event's text, kept here so listing stored sessions
+        /// does not have to read their whole logs. Older records have none.
+        var title: String?
         /// The worker serving it, by role and instance key.
         var owner: WorkerRole?
         var ownerKey: String?
@@ -34,6 +37,9 @@ actor TaskRegistry {
     private let directory: URL
     private var records: [TaskID: Record] = [:]
     private var events: [TaskID: [TaskEvent]] = [:]
+    /// A finished task's log is read only if an attach or a title lookup needs
+    /// it; its record already holds the last sequence and the state.
+    private var loadedEvents: Set<TaskID> = []
     private var waiters: [TaskID: [UUID: CheckedContinuation<Void, Never>]] = [:]
 
     init(directory: URL) {
@@ -59,57 +65,72 @@ actor TaskRegistry {
             else {
                 continue
             }
-            var (replay, trailing) = readEvents(record.id)
-            // The record is not written again for an ordinary event
-            // (`append`), so its time is the last event's that read, and
-            // only forward.
-            if let last = replay.last, last.time > record.updatedAt {
-                record.updatedAt = last.time
+            // A task that already finished has its state and last sequence in
+            // the record, written when the final `state` event was appended.
+            // Reading hundreds of megabytes of old logs at launch was the
+            // startup cost; leave them on disk until an attach asks for one.
+            guard !record.state.isTerminal else {
+                // Left out of `loadedEvents` on purpose: an attach reads the
+                // log on demand and corrects the record from its last line.
+                records[record.id] = record
+                continue
             }
-            // A record already final whose final `state` line no longer
-            // reads would replay with no end: an attach reports it finished
-            // with no `state` to take the result from. The lines past the
-            // last that read keep their numbers as `unreadable` events, and
-            // a closing `state` with the record's state is written after
-            // them, so the log is whole again, and the record follows it.
-            let closed = record.state.isTerminal && !replay.contains(where: Self.isFinalState)
-            if closed {
-                replay += closingEvents(record, after: replay, skipped: trailing)
-            }
-            // The event log is the truth: a record written before the events
-            // after it takes the last one's number, and one written ahead of
-            // a lost line is pulled back to the last event that survived.
-            record.lastSeq = replay.last?.seq ?? .start
-            // So is its state: `append` writes the line before the record,
-            // and a host that died between the two left a record still
-            // running behind a final `state`. Resuming that task would start
-            // a finished build over and delete its artifact. The record keeps
-            // no result or message of its own; those stay in the event.
-            // Only forward: a record already final stays so, since a final
-            // `state` line that no longer decodes leaves an earlier
-            // `running` as the last one read, and resuming over it would
-            // delete the finished build all the same.
-            var moved = false
-            if !record.state.isTerminal,
-               let last = replay.last(where: { $0.kind == TaskEvent.stateKind }),
-               let name = last.payload?["state"]?.stringValue,
-               let state = TaskState(rawValue: name),
-               state != record.state
-            {
-                record.state = state
-                moved = true
-            }
+            let (loaded, moved, closed) = replayLog(record.id, into: &record)
             records[record.id] = record
-            events[record.id] = replay
+            events[record.id] = loaded
+            loadedEvents.insert(record.id)
             if closed || moved {
                 persist(record.id)
             }
-            if !record.state.isTerminal {
-                unfinished.append(record)
-            }
+            unfinished.append(record)
         }
         dropSupersededAgentTasks()
         return unfinished.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// Reads one task's log and lets it correct the record: the event written
+    /// before a crash wins over a record left behind, and a final `state` that
+    /// no longer decodes gets a closing one so an attach still ends. Used at
+    /// launch for unfinished tasks, and on demand for a finished one.
+    private func replayLog(_ id: TaskID, into record: inout Record) -> (events: [TaskEvent], moved: Bool, closed: Bool) {
+        var (replay, trailing) = readEvents(id)
+        // Ordinary events do not rewrite the record, so its time is the last
+        // event's that read, and only forward.
+        if let last = replay.last, last.time > record.updatedAt {
+            record.updatedAt = last.time
+        }
+        let closed = record.state.isTerminal && !replay.contains(where: Self.isFinalState)
+        if closed {
+            replay += closingEvents(record, after: replay, skipped: trailing)
+        }
+        // The log is the truth: a record written before later events takes the
+        // last one's number, and one written ahead of a lost line is pulled
+        // back to the last event that survived.
+        record.lastSeq = replay.last?.seq ?? .start
+        var moved = false
+        if !record.state.isTerminal,
+           let last = replay.last(where: { $0.kind == TaskEvent.stateKind }),
+           let name = last.payload?["state"]?.stringValue,
+           let state = TaskState(rawValue: name),
+           state != record.state
+        {
+            record.state = state
+            moved = true
+        }
+        return (replay, moved, closed)
+    }
+
+    /// A finished task's log stays on disk until something asks for its events.
+    private func ensureEventsLoaded(_ id: TaskID) {
+        guard !loadedEvents.contains(id), var record = records[id] else { return }
+        let was = (record.state, record.lastSeq, record.updatedAt)
+        let (replay, moved, closed) = replayLog(id, into: &record)
+        records[id] = record
+        events[id] = replay
+        loadedEvents.insert(id)
+        if closed || moved || was.0 != record.state || was.1 != record.lastSeq || was.2 != record.updatedAt {
+            persist(id)
+        }
     }
 
     /// Agent tasks a turn is going on in. Kept beside the records, not in
@@ -149,12 +170,14 @@ actor TaskRegistry {
             createdAt: now,
             updatedAt: now,
             lastSeq: .start,
+            title: nil,
             owner: owner,
             ownerKey: ownerKey,
             cancelRequested: false,
             resume: nil,
         )
         events[id] = []
+        loadedEvents.insert(id)
         persist(id)
         if kind == .agent, let ownerKey {
             dropSupersededAgentTasks(of: ownerKey)
@@ -169,11 +192,11 @@ actor TaskRegistry {
     /// Appends an event and numbers it. A `state` event with a `state` field
     /// moves the task; once terminal, nothing more is appended.
     ///
-    /// The record is written again only when the event moves the task. Its
-    /// number and time are the event's, which `load` reads back from the
-    /// log; rewriting it for every event held the registry, which every
-    /// request goes through, for as long as a reopened conversation took to
-    /// relay its history, tens of thousands of events.
+    /// The record is written again only when the event moves the task or
+    /// names it (`title`). Its number and time are the event's, which `load`
+    /// reads back from the log; rewriting it for every event held the
+    /// registry, which every request goes through, for as long as a reopened
+    /// conversation took to relay its history, tens of thousands of events.
     @discardableResult
     func append(_ id: TaskID, kind: String, payload: JSONValue?) -> TaskEvent? {
         guard var record = records[id], !record.state.isTerminal else { return nil }
@@ -181,6 +204,11 @@ actor TaskRegistry {
         record.lastSeq = event.seq
         record.updatedAt = event.time
         var moved = false
+        var titled = false
+        if kind == "title", let text = payload?["text"]?.stringValue, text != record.title {
+            record.title = text
+            titled = true
+        }
         if kind == TaskEvent.stateKind,
            let name = payload?["state"]?.stringValue,
            let state = TaskState(rawValue: name),
@@ -199,8 +227,9 @@ actor TaskRegistry {
             turns.remove(id)
         }
         events[id, default: []].append(event)
+        loadedEvents.insert(id)
         appendEventToDisk(id, event)
-        if moved {
+        if moved || titled {
             persist(id)
         }
         wake(id)
@@ -252,12 +281,14 @@ actor TaskRegistry {
     /// The newest event of `kind` whose payload has `field` equal to `value`,
     /// searched over the whole log rather than one attach batch.
     func lastEvent(_ id: TaskID, kind: String, field: String, equals value: String) -> TaskEvent? {
-        events[id]?.last { $0.kind == kind && $0.payload?[field]?.stringValue == value }
+        ensureEventsLoaded(id)
+        return events[id]?.last { $0.kind == kind && $0.payload?[field]?.stringValue == value }
     }
 
     /// The newest event of `kind`, searched over the whole log.
     func lastEvent(_ id: TaskID, kind: String) -> TaskEvent? {
-        events[id]?.last { $0.kind == kind }
+        ensureEventsLoaded(id)
+        return events[id]?.last { $0.kind == kind }
     }
 
     /// Every task of `kind`, finished or not, in no order.
@@ -374,6 +405,7 @@ actor TaskRegistry {
     }
 
     private func pending(_ id: TaskID, _ afterSeq: EventSeq) -> [TaskEvent] {
+        ensureEventsLoaded(id)
         let all = events[id] ?? []
         // Events are numbered 1…n with no gaps, so index = seq - 1.
         let start = Int(min(UInt64(all.count), afterSeq.rawValue))

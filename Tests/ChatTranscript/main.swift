@@ -289,6 +289,7 @@ precondition(retriedRecords.count == 1, "A failed save must allow retrying the s
 print("ok: chat deletion before/after saving, queued-save suppression and failed-save retry")
 
 try await checkChatStoreDecode()
+try await checkChatStoreAppend()
 
 func activityTitle(_ seconds: Int?, _ tools: Int) -> String {
     ChatMessage(role: .thinking(seconds: seconds, tools: tools), text: "").activityTitle

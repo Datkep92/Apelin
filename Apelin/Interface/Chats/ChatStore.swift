@@ -15,6 +15,12 @@ struct ChatRecord: Codable, Sendable {
     /// absent in older files (defaults to false, and `hasEventsOnDisk` checks
     /// the events file).
     var eventsLoaded: Bool = false
+    /// How many events the append-only transcript holds, and a short fingerprint
+    /// of its last one. Both stay in the small summary file so an ordinary save
+    /// can add the new events instead of rewriting the whole transcript. Older
+    /// files have neither and are converted once, on their next save.
+    var eventsOnDisk: Int?
+    var eventsTail: String?
     /// Messages sent and not yet echoed by the host, oldest first: shown at
     /// once, and kept on disk until their `prompt` or `queued` event comes
     /// back, so a kill mid-send loses none. Absent from older files.
@@ -35,7 +41,8 @@ struct ChatRecord: Codable, Sendable {
 
 extension ChatRecord {
     private enum CodingKeys: String, CodingKey {
-        case summary, draft, sessionID, task, events, eventsLoaded, sending, replay, modelSelection, retryState
+        case summary, draft, sessionID, task, events, eventsLoaded, eventsOnDisk, eventsTail, sending,
+             replay, modelSelection, retryState
     }
 
     init(from decoder: Decoder) throws {
@@ -53,6 +60,8 @@ extension ChatRecord {
         // a record whose events do not read is left on disk untouched.
         events = try container.decodeIfPresent([TaskEvent].self, forKey: .events) ?? []
         eventsLoaded = try container.decodeIfPresent(Bool.self, forKey: .eventsLoaded) ?? false
+        eventsOnDisk = try container.decodeIfPresent(Int.self, forKey: .eventsOnDisk)
+        eventsTail = try container.decodeIfPresent(String.self, forKey: .eventsTail)
         sending = Self.read([ComposerDraft].self, from: container, forKey: .sending)
         replay = Self.read(SessionReplay.self, from: container, forKey: .replay)
         modelSelection = Self.read(ComposerModelSelection.self, from: container, forKey: .modelSelection)
@@ -375,18 +384,24 @@ actor ChatStore {
             do {
                 var record = try JSONDecoder().decode(ChatRecord.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
                 let id = record.summary.id
-                let eventsURL = directory.appendingPathComponent(id.uuidString + ".events.json")
-                // Migration from the old single-file format: move events out.
+                let oldURL = Self.oldEventsURL(directory, id)
+                let jsonlURL = Self.eventsURL(directory, id)
+                // Migration from the old single-file format: move events out
+                // into the append-only form, once, without reading any other
+                // conversation's transcript at launch.
                 if !record.events.isEmpty {
-                    if !FileManager.default.fileExists(atPath: eventsURL.path) {
-                        let data = try JSONEncoder().encode(record.events)
-                        try data.write(to: eventsURL, options: .atomic)
+                    if !FileManager.default.fileExists(atPath: jsonlURL.path) {
+                        try Self.writeJSONL(record.events, to: jsonlURL, append: false)
+                        record.eventsOnDisk = record.events.count
+                        record.eventsTail = record.events.last.flatMap(Self.fingerprint)
                     }
+                    try? FileManager.default.removeItem(at: oldURL)
                     record.events = []
                     record.eventsLoaded = false
                     let summaryData = try JSONEncoder().encode(record)
                     try summaryData.write(to: url, options: .atomic)
-                } else if FileManager.default.fileExists(atPath: eventsURL.path) {
+                } else if FileManager.default.fileExists(atPath: jsonlURL.path)
+                            || FileManager.default.fileExists(atPath: oldURL.path) {
                     record.eventsLoaded = false
                 } else {
                     record.eventsLoaded = true
@@ -411,19 +426,54 @@ actor ChatStore {
         guard revision > (revisions[id] ?? -1) else { return }
         let directory = folder.root.appendingPathComponent("Chats")
         try folder.makeLevels(to: directory)
+        let oldURL = Self.oldEventsURL(directory, id)
+        let jsonlURL = Self.eventsURL(directory, id)
         var summaryRecord = record
         summaryRecord.events = []
-        let summaryData = try JSONEncoder().encode(summaryRecord)
-        try summaryData.write(to: directory.appendingPathComponent(id.uuidString + ".json"), options: .atomic)
-        let eventsURL = directory.appendingPathComponent(id.uuidString + ".events.json")
+
+        // A loaded transcript is append-only: only the events after the ones
+        // already on disk are written. A rewind, a missing tail hash or a torn
+        // last line falls back to one full rewrite; an ordinary streaming save
+        // of a 17 MB conversation writes a few kilobytes instead.
         if record.eventsLoaded {
             if record.events.isEmpty {
-                try? FileManager.default.removeItem(at: eventsURL)
+                try? FileManager.default.removeItem(at: jsonlURL)
+                try? FileManager.default.removeItem(at: oldURL)
+                summaryRecord.eventsOnDisk = 0
+                summaryRecord.eventsTail = nil
             } else {
-                let eventsData = try JSONEncoder().encode(record.events)
-                try eventsData.write(to: eventsURL, options: .atomic)
+                var onDisk = record.eventsOnDisk
+                var tail = record.eventsTail
+                if onDisk == nil {
+                    if FileManager.default.fileExists(atPath: jsonlURL.path) {
+                        onDisk = Self.countJSONL(jsonlURL)
+                    } else if let data = try? Data(contentsOf: oldURL),
+                              let oldEvents = try? JSONDecoder().decode([TaskEvent].self, from: data) {
+                        try Self.writeJSONL(oldEvents, to: jsonlURL, append: false)
+                        onDisk = oldEvents.count
+                        tail = oldEvents.last.flatMap(Self.fingerprint)
+                    } else {
+                        onDisk = 0
+                    }
+                }
+                let saved = onDisk ?? 0
+                let sameTail = saved > 0 && saved <= record.events.count
+                    && tail == Self.fingerprint(record.events[saved - 1])
+                if sameTail && Self.jsonlIsWhole(jsonlURL) {
+                    let suffix = Array(record.events[saved...])
+                    if !suffix.isEmpty {
+                        try Self.writeJSONL(suffix, to: jsonlURL, append: true)
+                    }
+                } else {
+                    try Self.writeJSONL(record.events, to: jsonlURL, append: false)
+                }
+                try? FileManager.default.removeItem(at: oldURL)
+                summaryRecord.eventsOnDisk = record.events.count
+                summaryRecord.eventsTail = record.events.last.flatMap(Self.fingerprint)
             }
         }
+        let summaryData = try JSONEncoder().encode(summaryRecord)
+        try summaryData.write(to: directory.appendingPathComponent(id.uuidString + ".json"), options: .atomic)
         revisions[id] = revision
     }
 
@@ -435,26 +485,128 @@ actor ChatStore {
         } catch let error as CocoaError where error.code == .fileNoSuchFile {
             // Deleting before the first queued save is also a successful delete.
         }
-        try? FileManager.default.removeItem(
-            at: folder.root.appendingPathComponent("Chats/" + id.uuidString + ".events.json"),
-        )
+        let directory = folder.root.appendingPathComponent("Chats")
+        try? FileManager.default.removeItem(at: Self.oldEventsURL(directory, id))
+        try? FileManager.default.removeItem(at: Self.eventsURL(directory, id))
         revisions[id] = Int.max
     }
 
     func loadEvents(for id: UUID) throws -> [TaskEvent] {
-        let url = folder.root.appendingPathComponent("Chats/" + id.uuidString + ".events.json")
-        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
-        let data = try Data(contentsOf: url)
+        let directory = folder.root.appendingPathComponent("Chats")
+        let jsonlURL = Self.eventsURL(directory, id)
+        let oldURL = Self.oldEventsURL(directory, id)
+        if FileManager.default.fileExists(atPath: jsonlURL.path) {
+            return try Self.readJSONL(jsonlURL)
+        }
+        guard FileManager.default.fileExists(atPath: oldURL.path) else { return [] }
+        let data = try Data(contentsOf: oldURL)
         return try JSONDecoder().decode([TaskEvent].self, from: data)
     }
 
+    /// The synchronous path the runtime uses while opening a chat on the main
+    /// actor. It reads one conversation's transcript, never all of them.
+    nonisolated func loadEventsSync(for id: UUID) -> [TaskEvent]? {
+        let directory = folder.root.appendingPathComponent("Chats")
+        let jsonlURL = Self.eventsURL(directory, id)
+        if FileManager.default.fileExists(atPath: jsonlURL.path) {
+            return try? Self.readJSONL(jsonlURL)
+        }
+        let oldURL = Self.oldEventsURL(directory, id)
+        guard FileManager.default.fileExists(atPath: oldURL.path),
+              let data = try? Data(contentsOf: oldURL)
+        else { return nil }
+        return try? JSONDecoder().decode([TaskEvent].self, from: data)
+    }
+
     func hasEventsFile(for id: UUID) -> Bool {
-        let url = folder.root.appendingPathComponent("Chats/" + id.uuidString + ".events.json")
-        return FileManager.default.fileExists(atPath: url.path)
+        Self.hasEventsFile(folder.root.appendingPathComponent("Chats"), id)
+    }
+
+    nonisolated func hasEventsFileSync(for id: UUID) -> Bool {
+        Self.hasEventsFile(folder.root.appendingPathComponent("Chats"), id)
     }
 
     func removeEvents(for id: UUID) throws {
-        try? FileManager.default.removeItem(at: folder.root.appendingPathComponent("Chats/" + id.uuidString + ".events.json"))
+        let directory = folder.root.appendingPathComponent("Chats")
+        try? FileManager.default.removeItem(at: Self.oldEventsURL(directory, id))
+        try? FileManager.default.removeItem(at: Self.eventsURL(directory, id))
+    }
+
+    private static func eventsURL(_ directory: URL, _ id: UUID) -> URL {
+        directory.appendingPathComponent(id.uuidString + ".events.jsonl")
+    }
+
+    private static func oldEventsURL(_ directory: URL, _ id: UUID) -> URL {
+        directory.appendingPathComponent(id.uuidString + ".events.json")
+    }
+
+    private static func hasEventsFile(_ directory: URL, _ id: UUID) -> Bool {
+        FileManager.default.fileExists(atPath: eventsURL(directory, id).path)
+            || FileManager.default.fileExists(atPath: oldEventsURL(directory, id).path)
+    }
+
+    /// One JSON object per line, in order. A last line without its newline was
+    /// cut short by a crash and is left out; the next save rewrites the file.
+    private static func readJSONL(_ url: URL) throws -> [TaskEvent] {
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        let bytes = [UInt8](data)
+        let decoder = JSONDecoder()
+        var result: [TaskEvent] = []
+        var start = 0
+        while start < bytes.count {
+            guard let newline = bytes[start...].firstIndex(of: 0x0A) else { break }
+            if let event = try? decoder.decode(TaskEvent.self, from: Data(bytes[start..<newline])) {
+                result.append(event)
+            }
+            start = newline + 1
+        }
+        return result
+    }
+
+    private static func writeJSONL(_ events: [TaskEvent], to url: URL, append: Bool) throws {
+        let encoder = JSONEncoder()
+        var data = Data()
+        for event in events {
+            data.append(try encoder.encode(event))
+            data.append(0x0A)
+        }
+        if append && FileManager.default.fileExists(atPath: url.path) {
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+        } else {
+            try data.write(to: url, options: .atomic)
+        }
+    }
+
+    private static func countJSONL(_ url: URL) -> Int? {
+        guard let data = try? Data(contentsOf: url), data.last == 0x0A else { return nil }
+        return data.reduce(0) { $0 + ($1 == 0x0A ? 1 : 0) }
+    }
+
+    private static func jsonlIsWhole(_ url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        guard size > 0, (try? handle.seek(toOffset: size - 1)) != nil else { return false }
+        let tail: Data?
+        do { tail = try handle.read(upToCount: 1) } catch { return false }
+        guard let byte = tail?.first else { return false }
+        return byte == 0x0A
+    }
+
+    /// A short, stable mark of one event: its sequence alone would miss an
+    /// edited message, its whole payload is too much to keep in the summary.
+    private static func fingerprint(_ event: TaskEvent) -> String? {
+        guard let data = try? JSONEncoder().encode(event) else { return nil }
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in data {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        let hex = String(hash, radix: 16)
+        return String(repeating: "0", count: 16 - hex.count) + hex
     }
 }
 // Appended during CI fix to ensure ComposerModelSelection is in a registered source file.

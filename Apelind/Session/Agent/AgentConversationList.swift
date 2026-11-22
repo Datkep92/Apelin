@@ -123,7 +123,13 @@ enum AgentConversationList {
         var listed: [AgentSessionSummary] = []
         for (session, record) in recent where listed.count < maximumStoredSessions {
             guard let id = projectID(of: session, sessions: sessions), let project = projects[id] else { continue }
-            let title = await registry.lastEvent(record.id, kind: "title")?.payload?["text"]?.stringValue
+            // New records carry the title from the `title` event, so listing
+            // 200 stored sessions need not read 200 finished logs. Records
+            // written before that field existed still get it from the log.
+            let title: String?
+            if let saved = record.title { title = saved } else {
+                title = await registry.lastEvent(record.id, kind: "title")?.payload?["text"]?.stringValue
+            }
             listed.append(AgentSessionSummary(
                 sessionID: session,
                 task: TaskHandle(taskID: record.id, kind: record.kind),
