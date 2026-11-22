@@ -1074,13 +1074,13 @@ extension ChatController {
             return
         }
         let sheet = UIAlertController(title: String(localized: "Message Actions"), message: nil, preferredStyle: .actionSheet)
-        sheet.addAction(UIAction(title: String(localized: "Edit and Run Again")) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: String(localized: "Edit and Run Again"), style: .default) { [weak self] _ in
             self?.editAndRun(message)
         })
-        sheet.addAction(UIAction(title: String(localized: "Copy and Delete"), style: .destructive) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: String(localized: "Copy and Delete"), style: .destructive) { [weak self] _ in
             self?.confirmAndDelete(message)
         })
-        sheet.addAction(UIAction(title: String(localized: "Cancel"), style: .cancel))
+        sheet.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
         present(sheet, animated: true)
     }
 

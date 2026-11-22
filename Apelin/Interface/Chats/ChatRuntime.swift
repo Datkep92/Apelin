@@ -618,7 +618,7 @@ final class ChatRuntime {
         // authority, so it also covers a queued message, which has a second
         // event with the same id, and a conversation whose rows were rebuilt
         // from the saved transcript. Every cached event past the cut is gone.
-        record.events.removeAll { $0.seq > response.lastSeq }
+        record.events.removeAll { $0.seq > EventSeq(response.lastSeq) }
         record.sending = nil
         record.retryState = nil
         record.replay = nil
