@@ -21,6 +21,11 @@ struct ChatRecord: Codable, Sendable {
     /// files have neither and are converted once, on their next save.
     var eventsOnDisk: Int?
     var eventsTail: String?
+    /// Byte length of the transcript when the two fields above were written.
+    /// Checked against the file on every save: a summary that lags behind the
+    /// file would make the next append start too early and write the same
+    /// stretch of events a second time. Absent from older summaries.
+    var eventsBytes: Int?
     /// Messages sent and not yet echoed by the host, oldest first: shown at
     /// once, and kept on disk until their `prompt` or `queued` event comes
     /// back, so a kill mid-send loses none. Absent from older files.
@@ -41,8 +46,8 @@ struct ChatRecord: Codable, Sendable {
 
 extension ChatRecord {
     private enum CodingKeys: String, CodingKey {
-        case summary, draft, sessionID, task, events, eventsLoaded, eventsOnDisk, eventsTail, sending,
-             replay, modelSelection, retryState
+        case summary, draft, sessionID, task, events, eventsLoaded, eventsOnDisk, eventsTail, eventsBytes,
+             sending, replay, modelSelection, retryState
     }
 
     init(from decoder: Decoder) throws {
@@ -62,6 +67,7 @@ extension ChatRecord {
         eventsLoaded = try container.decodeIfPresent(Bool.self, forKey: .eventsLoaded) ?? false
         eventsOnDisk = try container.decodeIfPresent(Int.self, forKey: .eventsOnDisk)
         eventsTail = try container.decodeIfPresent(String.self, forKey: .eventsTail)
+        eventsBytes = try container.decodeIfPresent(Int.self, forKey: .eventsBytes)
         sending = Self.read([ComposerDraft].self, from: container, forKey: .sending)
         replay = Self.read(SessionReplay.self, from: container, forKey: .replay)
         modelSelection = Self.read(ComposerModelSelection.self, from: container, forKey: .modelSelection)
@@ -394,6 +400,7 @@ actor ChatStore {
                         try Self.writeJSONL(record.events, to: jsonlURL, append: false)
                         record.eventsOnDisk = record.events.count
                         record.eventsTail = record.events.last.flatMap(Self.fingerprint)
+                        record.eventsBytes = Self.fileSize(jsonlURL)
                     }
                     try? FileManager.default.removeItem(at: oldURL)
                     record.events = []
@@ -441,19 +448,42 @@ actor ChatStore {
                 try? FileManager.default.removeItem(at: oldURL)
                 summaryRecord.eventsOnDisk = 0
                 summaryRecord.eventsTail = nil
+                summaryRecord.eventsBytes = 0
             } else {
+                // The summary is a cache of the transcript, not the truth. A
+                // save that appended events but failed before writing the
+                // summary leaves its count and tail behind; appending from
+                // that old count is what wrote a stretch of a conversation
+                // twice. Checking the file's real byte length keeps an
+                // ordinary save cheap and repairs a stale summary from this
+                // one transcript before anything is appended.
+                let jsonlExists = FileManager.default.fileExists(atPath: jsonlURL.path)
+                let actualBytes = jsonlExists ? Self.fileSize(jsonlURL) : nil
                 var onDisk = record.eventsOnDisk
                 var tail = record.eventsTail
-                if onDisk == nil {
-                    if FileManager.default.fileExists(atPath: jsonlURL.path) {
-                        onDisk = Self.countJSONL(jsonlURL)
+                var bytes = record.eventsBytes
+                // A caller that carries no disk metadata at all is asking for
+                // a fresh transcript (a rewind), so it replaces the file. A
+                // caller with metadata that no longer matches the file is the
+                // interrupted-save case: the extra events on disk are history
+                // a shorter record must not erase.
+                let supplied = record.eventsOnDisk != nil && tail != nil && bytes != nil
+                let trusted = supplied && jsonlExists && actualBytes != nil && actualBytes == bytes
+                if !trusted {
+                    if jsonlExists, let actualBytes, let diskEvents = try? Self.readJSONL(jsonlURL) {
+                        onDisk = diskEvents.count
+                        tail = diskEvents.last.flatMap(Self.fingerprint)
+                        bytes = actualBytes
                     } else if let data = try? Data(contentsOf: oldURL),
                               let oldEvents = try? JSONDecoder().decode([TaskEvent].self, from: data) {
                         try Self.writeJSONL(oldEvents, to: jsonlURL, append: false)
                         onDisk = oldEvents.count
                         tail = oldEvents.last.flatMap(Self.fingerprint)
+                        bytes = Self.fileSize(jsonlURL)
                     } else {
                         onDisk = 0
+                        tail = nil
+                        bytes = 0
                     }
                 }
                 let saved = onDisk ?? 0
@@ -464,12 +494,34 @@ actor ChatStore {
                     if !suffix.isEmpty {
                         try Self.writeJSONL(suffix, to: jsonlURL, append: true)
                     }
-                } else {
+                } else if !supplied || trusted || saved <= record.events.count {
+                    // No metadata is a rewind and a trusted summary longer than
+                    // this record is one too: the shorter record is the
+                    // intention, so the whole transcript is replaced. When
+                    // metadata was supplied but did not match the file, the
+                    // events on disk are history a shorter record must not
+                    // erase.
                     try Self.writeJSONL(record.events, to: jsonlURL, append: false)
+                } else {
+                    // The file holds events this record does not. Rewriting it
+                    // from a shorter record would lose history: keep the file
+                    // and let a later load bring the record up to date.
+                    chatStoreLog.warning("""
+                        chat \(id.uuidString, privacy: .public) kept its transcript: \
+                        \(saved, privacy: .public) on disk, \
+                        \(record.events.count, privacy: .public) in memory
+                        """)
                 }
                 try? FileManager.default.removeItem(at: oldURL)
-                summaryRecord.eventsOnDisk = record.events.count
-                summaryRecord.eventsTail = record.events.last.flatMap(Self.fingerprint)
+                if saved > record.events.count {
+                    summaryRecord.eventsOnDisk = saved
+                    summaryRecord.eventsTail = tail
+                    summaryRecord.eventsBytes = bytes
+                } else {
+                    summaryRecord.eventsOnDisk = record.events.count
+                    summaryRecord.eventsTail = record.events.last.flatMap(Self.fingerprint)
+                    summaryRecord.eventsBytes = Self.fileSize(jsonlURL) ?? bytes
+                }
             }
         }
         let summaryData = try JSONEncoder().encode(summaryRecord)
@@ -580,9 +632,13 @@ actor ChatStore {
         }
     }
 
-    private static func countJSONL(_ url: URL) -> Int? {
-        guard let data = try? Data(contentsOf: url), data.last == 0x0A else { return nil }
-        return data.reduce(0) { $0 + ($1 == 0x0A ? 1 : 0) }
+    /// The file's real length, read from its metadata: a save decides from this
+    /// whether the small summary still describes the transcript on disk.
+    private static func fileSize(_ url: URL) -> Int? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attributes[.size] as? NSNumber
+        else { return nil }
+        return size.intValue
     }
 
     private static func jsonlIsWhole(_ url: URL) -> Bool {
