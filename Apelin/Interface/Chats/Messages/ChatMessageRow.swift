@@ -374,17 +374,6 @@ extension ChatMessageRow: TextLabelViewDelegate {
         editMenuForSelection selection: NSRange,
         suggestedActions: [UIMenuElement],
     ) -> UIMenu? {
-        let menu = ChatSelectionMenu.menu(for: label, selection: selection, suggestedActions: suggestedActions)
-        guard let message = shownMessage, message.role == .user else { return menu }
-        // The selectable label sits over the bubble and takes the long press.
-        // Put the message's actions in that menu too, or a reader only ever
-        // sees the copy menu when they press on the words themselves.
-        let edit = UIAction(
-            title: String(localized: "Message Actions"),
-            image: UIImage(systemName: "square.and.pencil"),
-        ) { [weak self] _ in
-            self?.onLongPress?(message)
-        }
-        return UIMenu(children: (menu?.children ?? suggestedActions) + [edit])
+        ChatSelectionMenu.menu(for: label, selection: selection, suggestedActions: suggestedActions)
     }
 }
