@@ -3875,11 +3875,15 @@ Quy tắc ngắn của fork:
   `CA_NHAN_HOA.md`** (Ngày | Loại | Tóm tắt | Hash commit | Yêu cầu giữ lại),
   ghi commit cùng lúc. Không ghi dòng nào thì chưa được coi là cá nhân hoá
   chính thức, có thể bị merge sau đẩy mất.
-- **Ba luồng khi tìm logic để sửa hay fix (Sếp đặt 2026-11-24):** một luồng sửa
-  (đây là luồng duy nhất được ghi), một luồng rà logic và một luồng rà cú
-  pháp/kiểm chạy song song, gom xong mới sửa một batch rồi kiểm lại. Không cho
-  hai luồng ghi cùng một file; không build trước khi cả ba luồng xong. Chi tiết
-  ở skill `multi-agent-explore`.
+- **Ba luồng khi tìm logic để sửa hay fix (Sếp đặt 2026-11-24):** một luồng chính
+  gom việc, một luồng rà logic và một luồng rà cú pháp/kiểm chạy song song. Hai
+  luồng rà chỉ đọc và trả về một bảng gom sửa chung: tệp, dòng, việc cần sửa và
+  lệnh kiểm tương ứng. Có đủ bảng rồi mới ghi: chia theo tệp, **mỗi tệp đúng một
+  luồng ghi**, dùng mã phiên bản cũ của tệp khi sửa để không ghi đè nhau. Nếu một
+  sửa chạm hai tệp (đổi tên hàm, thêm import, sửa test đi kèm) thì gom về một
+  luồng. Không ghi trước khi hai luồng rà xong; sau khi tất cả ghi xong chạy lại
+  toàn bộ cổng kiểm **một lượt**, không chạy riêng từng luồng. Không build trước khi cả ba
+  luồng xong. Chi tiết ở skill `multi-agent-explore`.
 - **Cổng kiểm song song:** `python3 Scripts/check-parallel.py` (hoặc
   `make check-parallel`; CI dùng `TRANSLATIONS=1`) chạy các check độc lập cùng
   lúc và in hết lỗi trong một báo cáo. `make check` vẫn là cổng chuẩn cuối.
