@@ -183,7 +183,7 @@ endif
 
 shell_word = '$(subst ','\'',$(1))'
 
-.PHONY: checklist sdk-tier all help print-version print-build-number print-deb-path set-version check format harness build _package deb deb-roothide deb-rootless deb-all deb-extensions deb-agent-tools template-archive install vphone install-app vphone-app device-status device-install device-test device-run clean
+.PHONY: checklist sdk-tier all help print-version print-build-number print-deb-path set-version check check-parallel format harness build _package deb deb-roothide deb-rootless deb-all deb-extensions deb-agent-tools template-archive install vphone install-app vphone-app device-status device-install device-test device-run clean
 
 all: deb
 
@@ -191,6 +191,7 @@ help:
 	@echo "Apelin:"
 	@echo "  harness       Host tests on the Mac: RoothideRoot, ExecutableWatch, every package under Packages/, apelind and the workers typechecked"
 	@echo "  check         Validate the project and packaging inputs (the checklist first)"
+	@echo "  check-parallel Run independent checks concurrently; TRANSLATIONS=1 on CI/macOS"
 	@echo "  build         Build the unsigned Apelin.app and apelind for iPhoneOS (iOS $(IOS_SDK_TIER) SDK or later)"
 	@echo "  deb           Build, ad-hoc sign and package the .deb (FLAVOR=$(FLAVOR))"
 	@echo "  deb-roothide  Package for roothide (unprefixed, iphoneos-arm64e)"
@@ -411,6 +412,14 @@ check:
 	@# a check file the script leaves out is never compiled, and `make harness`
 	@# then fails on a call to a function nothing defines.
 	@"$(SESSION_HOST_SOURCES_CHECK)"
+
+# An additive early gate: independent checks run side by side and every
+# failure is reported in one pass. `make check` above stays authoritative;
+# CI's static-checks job runs this while the host tests and build jobs run.
+check-parallel:
+	@python3 "$(ROOT_DIR)/Scripts/check-parallel.py" --root "$(ROOT_DIR)" \
+		$(if $(filter 1,$(TRANSLATIONS)),--translations --host-checks,) \
+		$(if $(CHECK_JOBS),--jobs "$(CHECK_JOBS)",)
 
 # The Mac half of "where things get tested": what can run without a device.
 # RoothideRoot against libroothide's own name rule, ExecutableWatch against a

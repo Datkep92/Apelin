@@ -1,8 +1,8 @@
-# Pushes and pull requests: test on the host, and in parallel
-# build and package the IDE and every extension (the four development
-# extensions, the agent tool extensions and the GPL assembler's
-# corresponding-source archive), keeping them for thirty days. Nothing is
-# published from here: a tag publishes, through `release.yml`, the
+# Pushes and pull requests: three jobs run in parallel — static checks with
+# one report of every failure, host tests, and packaging the IDE and every
+# extension (the four development extensions, the agent tool extensions and
+# the GPL assembler's corresponding-source archive), keeping them for thirty
+# days. Nothing is published from here: a tag publishes, through `release.yml`, the
 # packages of its commit's run, once that run has passed.
 name: CI
 
@@ -28,7 +28,7 @@ env:
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
   HOMEBREW_NO_ANALYTICS: "1"
 
-# Both jobs run on the Xcode 27 image, the one with the iOS 27.1 SDK the
+# All three jobs run on the Xcode 27 image, the one with the iOS 27.1 SDK the
 # packages are linked against (`IOS_SDK_TIER` in the Makefile: the tier an
 # iPhone Duo runs edge to edge, with vertical bars). Its default Xcode may be
 # newer than 27.1, so 27.1 is named rather than the newest found.
@@ -54,6 +54,28 @@ jobs:
 
       - name: Run host tests
         run: make harness SWIFTPM_SCRATCH="$RUNNER_TEMP/apelin-spm"
+
+  static-checks:
+    name: Parallel static checks
+    runs-on: xcode-27
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode 27.1
+        run: |
+          sudo xcode-select -s /Applications/Xcode_27.1.app/Contents/Developer
+          xcodebuild -version
+          echo "iPhoneOS SDK $(xcrun --sdk iphoneos --show-sdk-version)"
+
+      # Independent gates share no writes. One report names every failing
+      # gate, so a first red check does not hide the others behind it.
+      - name: Run parallel static checks
+        run: make check-parallel TRANSLATIONS=1 CHECK_JOBS=4
 
   build:
     name: Build and verify Debian packages

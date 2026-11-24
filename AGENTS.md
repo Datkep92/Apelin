@@ -3875,6 +3875,14 @@ Quy tắc ngắn của fork:
   `CA_NHAN_HOA.md`** (Ngày | Loại | Tóm tắt | Hash commit | Yêu cầu giữ lại),
   ghi commit cùng lúc. Không ghi dòng nào thì chưa được coi là cá nhân hoá
   chính thức, có thể bị merge sau đẩy mất.
+- **Ba luồng khi tìm logic để sửa hay fix (Sếp đặt 2026-11-24):** một luồng sửa
+  (đây là luồng duy nhất được ghi), một luồng rà logic và một luồng rà cú
+  pháp/kiểm chạy song song, gom xong mới sửa một batch rồi kiểm lại. Không cho
+  hai luồng ghi cùng một file; không build trước khi cả ba luồng xong. Chi tiết
+  ở skill `multi-agent-explore`.
+- **Cổng kiểm song song:** `python3 Scripts/check-parallel.py` (hoặc
+  `make check-parallel`; CI dùng `TRANSLATIONS=1`) chạy các check độc lập cùng
+  lúc và in hết lỗi trong một báo cáo. `make check` vẫn là cổng chuẩn cuối.
 - **Build bằng CI GitHub**, không build trên máy này (không có `xcodebuild`):
   push vào `main` → `ci.yml` (~20–27 phút, artifact `apelin-<full sha>`);
   phát hành bằng tag `v...` của riêng fork → `release.yml`.
