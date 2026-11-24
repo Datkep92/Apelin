@@ -147,6 +147,12 @@ public actor AgentSession {
         try await Self.closeAbandonedApprovals(log)
 
         let resolved = try await ProviderResolver.resolve(configuration.provider, credentials: credentials)
+        // Image generation signs in with this conversation's saved provider.
+        // The address and the key stay here; only the prompt reaches the tool.
+        let imageGeneration = ImageGeneration(credential: Self.imageCredential(
+            provider: configuration.provider,
+            resolved: resolved,
+        ))
         let gate = ApprovalGate { event in _ = try? await log.append(event) }
         let memory = MemoryStore(root: configuration.dataRoot.url)
         // The plan and the events that carry it: `plan.json` is what a
@@ -169,6 +175,7 @@ public actor AgentSession {
             readOnlyRoots: ReadOnlyRoots(installRoot: configuration.installRoot, dataRoot: configuration.dataRoot),
             record: { _ = try await log.append($0) },
             plan: plan,
+            imageGeneration: imageGeneration,
         )
         let (mcpManager, mcpTools) = await MCPBridge.connect(configuration.mcpServers)
         let toolExtensions = ToolExtensionOffer.read(
@@ -237,6 +244,41 @@ public actor AgentSession {
         unsubscribe = subscription
     }
 
+    /// The saved sign-in the image tool sends with its request. Built here,
+    /// from the same credentials the chat model uses, so neither the model
+    /// nor the approval card can choose or see the address, key or token.
+    private static func imageCredential(
+        provider: ProviderConfiguration,
+        resolved: ResolvedProvider,
+    ) -> ImageGeneration.Credential? {
+        guard let stored = resolved.credentials else { return nil }
+        let configured: String? = switch stored.extras["baseUrl"] {
+        case let .string(value)?: value
+        default: nil
+        }
+        let base: String? = configured ?? resolved.model.baseURL
+        guard let base, let endpoint = ImageGeneration.Credential.endpoint(baseURL: base) else { return nil }
+        let storeID = provider.storeID ?? ""
+        let field: String
+        let value: String
+        if storeID == CredentialProviderID.anthropicAPIKey || storeID == CredentialProviderID.anthropicOAuth {
+            field = "x-api-key"
+            value = stored.access
+        } else if storeID == "google-api-key" {
+            field = "x-goog-api-key"
+            value = stored.access
+        } else {
+            field = "Authorization"
+            value = "Bearer \(stored.access)"
+        }
+        return ImageGeneration.Credential(
+            endpoint: endpoint,
+            headerName: field,
+            headerValue: value,
+            defaultModel: provider.modelID,
+        )
+    }
+
     /// Model changes take effect between runs, never halfway through a tool turn.
     /// A signed-out provider is refused here, as when the session opened.
     public func configure(
@@ -259,6 +301,7 @@ public actor AgentSession {
         agent.state.thinkingLevel = thinking
         agent.state.serviceTier = serviceTier
         agent.authResolver = resolved.authResolver
+        await runner.setImageCredential(Self.imageCredential(provider: provider, resolved: resolved))
         resolvedFrom = (provider, resolved.credentials)
     }
 

@@ -37,6 +37,13 @@ actor ToolRunner {
     let httpRequest: HTTPRequest
     let webSearch: WebSearch
     let javaScript: JavaScript
+    let imageGeneration: ImageGeneration
+
+    /// A model change between runs also changes which saved sign-in the image
+    /// tool sends with its request; it must not keep the previous one's key.
+    func setImageCredential(_ credential: ImageGeneration.Credential?) {
+        imageGeneration.credential = credential
+    }
     /// The agent tool extensions' sessions, opened as their tools are called.
     let toolExtensions: ToolExtensionSessions
     private var notices = UserNotices()
@@ -62,6 +69,7 @@ actor ToolRunner {
         httpRequest: HTTPRequest = .shared,
         webSearch: WebSearch = .shared,
         javaScript: JavaScript = .shared,
+        imageGeneration: ImageGeneration = ImageGeneration(credential: nil),
     ) {
         self.sessionID = sessionID
         self.project = project
@@ -79,6 +87,7 @@ actor ToolRunner {
         self.httpRequest = httpRequest
         self.webSearch = webSearch
         self.javaScript = javaScript
+        self.imageGeneration = imageGeneration
         toolExtensions = ToolExtensionSessions(backend: backend)
     }
 
@@ -459,6 +468,20 @@ actor ToolRunner {
         case .runJavaScript:
             let javaScript = javaScript
             return try await text(Self.untilCancelled(cancellation) { try await javaScript.run(arguments) })
+
+        case .generateImage:
+            // The key and the endpoint come from the session, never from the
+            // arguments the model wrote or the approval card the user saw.
+            let imageGeneration = imageGeneration
+            let result = try await Self.untilCancelled(cancellation) { try await imageGeneration.generate(arguments) }
+            var content: [ToolResultBlock] = [.text(TextContent(text: result.summary))]
+            for image in result.images {
+                content.append(.image(ImageContent(data: image.data.base64EncodedString(), mimeType: image.mimeType)))
+                if let revised = image.revisedPrompt, !revised.isEmpty {
+                    content.append(.text(TextContent(text: "Revised prompt: \(revised)")))
+                }
+            }
+            return AgentToolResult(content: content)
 
         case .fileWrite: return try text(files.writeFile(arguments))
 

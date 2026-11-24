@@ -70,6 +70,10 @@ public enum AgentToolName: String, Sendable, Hashable, Codable, CaseIterable {
     case webFetch = "apelin_web_fetch"
     case httpRequest = "apelin_http_request"
     case webSearch = "apelin_web_search"
+    /// Generates one or more images through the provider the session is
+    /// already signed in to. Credentials come from the runner, never from
+    /// the model's arguments or the approval card.
+    case generateImage = "apelin_generate_image"
     case feedbackSend = "apelin_feedback_send"
     case feedbackRead = "apelin_feedback_read"
     case feedbackEdit = "apelin_feedback_edit"

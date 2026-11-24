@@ -106,6 +106,10 @@ extension ToolRunner {
             guard let code, !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ToolArgumentError("missing string argument 'code'")
             }
+        case .generateImage:
+            // Refuse an empty prompt and an impossible count before anyone is
+            // asked: the card names this exact call, not a secret.
+            _ = try ImageGeneration.Request.from(arguments)
         case .gitPush:
             // The branch the card names is the one pushed: an omitted one is
             // read now and sent explicitly.

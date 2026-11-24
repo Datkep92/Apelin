@@ -543,7 +543,8 @@ public struct ApprovalPolicy: Sendable, Hashable {
              .packageList, .packageConfirmLoaded, .logRead, .crashList, .crashRead, .crashSymbolicate,
              .screenCapture, .screenReadTree, .memoryList, .skillList, .skillRead, .projectCheckDistribution,
              .templateList, .projectList, .gitStatus, .gitDiff, .gitReadSettings,
-             .conversationList, .conversationRead, .toolchainList, .sdkList, .webFetch, .httpRequest, .webSearch, .runJavaScript, .feedbackRead:
+             .conversationList, .conversationRead, .toolchainList, .sdkList, .webFetch, .httpRequest, .webSearch, .runJavaScript, .feedbackRead,
+             .generateImage:
             if presets.readTools.contains(tool) {
                 return .allow(.preset(tool.rawValue))
             }
