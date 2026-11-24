@@ -323,7 +323,28 @@ public actor AccountDesk {
         guard let credentials = try await store.credentials(for: try Self.storeID(provider, profileID)) else {
             throw ApelinError(.notFound, "Sign in to the provider first.")
         }
-        return try await AgentModelListResponse(models: ProviderModels.fetch(provider, credentials: credentials))
+        do {
+            return AgentModelListResponse(models: try await ProviderModels.fetch(provider, credentials: credentials))
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch is ModelDiscoveryUnavailable {
+            // The provider has a saved configuration but no readable model
+            // list. Offer only the ID the reader typed, and let the app keep
+            // manual entry instead of reporting a fatal error. A bad Base
+            // URL, an outage or a rate limit still gets its own error.
+            return Self.modelListFallback(for: credentials)
+        } catch {
+            throw error
+        }
+    }
+
+    /// Discovery failed; the configuration is still there. Only an ID the
+    /// reader actually typed can be offered, and the app keeps manual entry.
+    static func modelListFallback(for credentials: OAuthCredentials) -> AgentModelListResponse {
+        AgentModelListResponse(
+            models: ProviderModels.configuredModelIDs(credentials),
+            discoveryFailed: true
+        )
     }
 
     public func activateModels(

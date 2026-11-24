@@ -1,6 +1,7 @@
 import ApelinAgent
 @testable import ApelinAgentWorker
 import ApelinProtocol
+import Foundation
 import KWWKAI
 import Testing
 
@@ -60,6 +61,29 @@ struct ProviderModelsTests {
             "baseUrl": .string("https://example.invalid/v1"), "defaultModel": .string("custom-model"),
         ])
         #expect(ProviderModels.list(.openAICompatible, credentials: credentials) == ["custom-model"])
+    }
+
+    @Test
+    func `a provider without model discovery keeps the typed ID and still accepts manual entry`() throws {
+        let credentials = OAuthCredentials(access: "k", refresh: "", expires: .max, extras: [
+            "baseUrl": .string("https://llm.example.invalid/v1"), "defaultModel": .string("my-model"),
+        ])
+        #expect(ProviderModels.configuredModelIDs(credentials) == ["my-model"])
+        #expect(AccountDesk.modelListFallback(for: credentials).discoveryFailed)
+        #expect(AccountDesk.modelListFallback(for: credentials).models == ["my-model"])
+        let withoutModel = OAuthCredentials(access: "k", refresh: "", expires: .max)
+        #expect(ProviderModels.configuredModelIDs(withoutModel).isEmpty)
+        #expect(AccountDesk.modelListFallback(for: withoutModel).models.isEmpty)
+        let fallback = try JSONDecoder().decode(
+            AgentModelListResponse.self,
+            from: JSONEncoder().encode(AccountDesk.modelListFallback(for: credentials))
+        )
+        #expect(fallback.discoveryFailed && fallback.models == ["my-model"])
+        let olderReply = try JSONDecoder().decode(
+            AgentModelListResponse.self,
+            from: Data(#"{"models":["older-model"]}"#.utf8)
+        )
+        #expect(!olderReply.discoveryFailed && olderReply.models == ["older-model"])
     }
 
     @Test

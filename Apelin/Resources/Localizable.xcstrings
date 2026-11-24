@@ -79425,6 +79425,89 @@
         }
       }
     },
+    "This provider did not return a model list. Tap + to add a model ID yourself; your configuration is saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u0644\u0645 \u064a\u0631\u062c\u0639 \u0647\u0630\u0627 \u0627\u0644\u0645\u0632\u0648\u062f \u0642\u0627\u0626\u0645\u0629 \u0646\u0645\u0627\u0630\u062c. \u0627\u0636\u063a\u0637 + \u0644\u0625\u0636\u0627\u0641\u0629 \u0645\u0639\u0631\u0651\u0641 \u0646\u0645\u0648\u0630\u062c \u0628\u0646\u0641\u0633\u0643； \u062a\u0645 \u062d\u0641\u0638 \u0625\u0639\u062f\u0627\u062f\u0627\u062a\u0643."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Anbieter hat keine Modellliste zur\u00fcckgegeben. Tippe auf +, um eine Modell-ID selbst hinzuzuf\u00fcgen; deine Konfiguration ist gespeichert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This provider did not return a model list. Tap + to add a model ID yourself; your configuration is saved."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este proveedor no devolvi\u00f3 una lista de modelos. Toca + para a\u00f1adir un ID de modelo t\u00fa mismo; tu configuraci\u00f3n est\u00e1 guardada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce fournisseur n'a pas renvoy\u00e9 de liste de mod\u00e8les. Touchez + pour ajouter vous-m\u00eame un identifiant de mod\u00e8le ; votre configuration est enregistr\u00e9e."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo provider non ha restituito un elenco di modelli. Tocca + per aggiungere tu stesso un ID modello; la configurazione \u00e8 salvata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u3053\u306e\u30d7\u30ed\u30d0\u30a4\u30c0\u30fc\u306f\u30e2\u30c7\u30eb\u4e00\u89a7\u3092\u8fd4\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002+ \u3092\u30bf\u30c3\u30d7\u3057\u3066\u30e2\u30c7\u30eb ID \u3092\u81ea\u5206\u3067\u8ffd\u52a0\u3057\u3066\u304f\u3060\u3055\u3044\u3002\u8a2d\u5b9a\u306f\u4fdd\u5b58\u3055\u308c\u3066\u3044\u307e\u3059\u3002"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\uc774 \uacf5\uae09\uc790\uac00 \ubaa8\ub378 \ubaa9\ub85d\uc744 \ubc18\ud658\ud558\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. +\ub97c \ub204\ub97c\ub7ec \ubaa8\ub378 ID\ub97c \uc9c1\uc811 \ucd94\uac00\ud558\uc138\uc694. \uc124\uc815\uc740 \uc800\uc7a5\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este provedor n\u00e3o retornou uma lista de modelos. Toque em + para adicionar um ID de modelo manualmente; sua configura\u00e7\u00e3o foi salva."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u042d\u0442\u043e\u0442 \u043f\u0440\u043e\u0432\u0430\u0439\u0434\u0435\u0440 \u043d\u0435 \u0432\u0435\u0440\u043d\u0443\u043b \u0441\u043f\u0438\u0441\u043e\u043a \u043c\u043e\u0434\u0435\u043b\u0435\u0439. \u041d\u0430\u0436\u043c\u0438\u0442\u0435 +, \u0447\u0442\u043e\u0431\u044b \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c ID \u043c\u043e\u0434\u0435\u043b\u0438 \u0432\u0440\u0443\u0447\u043d\u0443\u044e; \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u044b."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nh\u00e0 cung c\u1ea5p n\u00e0y kh\u00f4ng tr\u1ea3 v\u1ec1 danh s\u00e1ch model. Nh\u1ea5n + \u0111\u1ec3 t\u1ef1 th\u00eam m\u00e3 model; c\u1ea5u h\u00ecnh c\u1ee7a b\u1ea1n \u0111\u00e3 \u0111\u01b0\u1ee3c l\u01b0u."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6b64\u4f9b\u5e94\u5546\u672a\u8fd4\u56de\u6a21\u578b\u5217\u8868\u3002\u70b9\u6309 + \u81ea\u884c\u6dfb\u52a0\u6a21\u578b ID\uff1b\u914d\u7f6e\u5df2\u4fdd\u5b58\u3002"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6b64\u4f9b\u8005\u672a\u56de\u50b3\u6a21\u578b\u6e05\u55ae\u3002\u9ede\u6309 + \u81ea\u884c\u52a0\u5165\u6a21\u578b ID\uff1b\u8a2d\u5b9a\u5df2\u5132\u5b58\u3002"
+          }
+        }
+      }
+    },
     "This provider is not available. You can add another provider in Settings.": {
       "extractionState": "manual",
       "localizations": {

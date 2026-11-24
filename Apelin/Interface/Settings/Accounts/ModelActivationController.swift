@@ -11,6 +11,7 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
     private var custom: Set<String>
     private var hidden: Set<String>
     private var loader: Task<Void, Never>?
+    private var discoveryFailed = false
     private var saving = false
     private var verification: TaskHandle?
     private let search = UISearchController(searchResultsController: nil)
@@ -112,7 +113,12 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         dataSource.headerTitle = { [weak self] _ in
             self.map { $0.account.name ?? $0.account.account ?? $0.account.provider.displayName }
         }
-        dataSource.footerTitle = { _ in String(localized: "Choose the models to show in the chat model picker. You can change this later in Model Providers.") }
+        dataSource.footerTitle = { [weak self] _ in
+            guard let self, self.discoveryFailed else {
+                return String(localized: "Choose the models to show in the chat model picker. You can change this later in Model Providers.")
+            }
+            return String(localized: "This provider did not return a model list. Tap + to add a model ID yourself; your configuration is saved.")
+        }
         dataSource.allowsEditing = usesAPIKey
         dataSource.update([(0, shown.map { ModelRow(id: $0, selected: selected.contains($0)) })], reconfigure: true)
         let choices = selected.sorted()
@@ -159,13 +165,14 @@ final class ModelActivationController: TableController, UISearchResultsUpdating 
         loader = Task { [weak self] in
             guard let self else { return }
             do {
-                let fetched = try await ProviderProgress.run(title: "Fetching Models", from: self) {
+                let response = try await ProviderProgress.run(title: "Fetching Models", from: self) {
                     try await ApelinService.app.agentModelList(
                         provider: self.account.provider,
                         profileID: self.account.profileID,
-                    ).models
+                    )
                 }
-                models = Array(Set(fetched).union(custom).union(selected).subtracting(hidden)).sorted()
+                discoveryFailed = response.discoveryFailed
+                models = Array(Set(response.models).union(custom).union(selected).subtracting(hidden)).sorted()
                 updateSearchResults(for: search)
             } catch {
                 presentNotice(title: "Unable to Fetch Models", message: error.readableMessage)

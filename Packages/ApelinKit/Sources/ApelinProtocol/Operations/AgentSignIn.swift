@@ -320,8 +320,23 @@ public struct AgentModelListRequest: OperationRequest {
 
 public struct AgentModelListResponse: Codable, Sendable {
     public var models: [String]
-    public init(models: [String]) {
+    /// The provider's endpoint did not supply a model list. The models above,
+    /// if any, are IDs the reader typed; keep manual entry available.
+    public var discoveryFailed: Bool
+
+    public init(models: [String], discoveryFailed: Bool = false) {
         self.models = models
+        self.discoveryFailed = discoveryFailed
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case models, discoveryFailed
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        models = try values.decode([String].self, forKey: .models)
+        discoveryFailed = try values.decodeIfPresent(Bool.self, forKey: .discoveryFailed) ?? false
     }
 }
 

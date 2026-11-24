@@ -3,6 +3,13 @@ import ApelinProtocol
 import Foundation
 import KWWKAI
 
+/// The provider has a usable configuration, but its model-list endpoint is
+/// not one Apelin can read. Distinct from a transport failure or a bad Base
+/// URL: the configuration stays, and only the list needs manual help.
+enum ModelDiscoveryUnavailable: Error {
+    case unsupported(message: String)
+}
+
 /// The endpoint's model family is distinct from its wire format. DeepSeek's
 /// Anthropic endpoint accepts Claude aliases but still runs DeepSeek models.
 enum ProviderModels {
@@ -25,10 +32,19 @@ enum ProviderModels {
         provider == .deepSeek || isDeepSeek(credentials) ? "deepseek" : providerDescriptor(forStoreId: provider.storeID)?.catalogKey
     }
 
+    /// An ID the reader typed at sign-in, when the form was saved without
+    /// verifying a model. It is the only one we can offer if discovery fails.
+    static func configuredModelIDs(_ credentials: OAuthCredentials) -> [String] {
+        guard case let .string(model)? = credentials.extras[AgentSignInField.defaultModel.rawValue], !model.isEmpty else {
+            return []
+        }
+        return [model]
+    }
+
     static func list(_ provider: AgentProvider, credentials: OAuthCredentials) -> [String] {
         let catalog = catalogKey(provider, credentials: credentials)
         var models = catalog.map { ModelsCatalog.models(for: $0).map(\.id) } ?? []
-        if case let .string(model)? = credentials.extras[AgentSignInField.defaultModel.rawValue], !model.isEmpty {
+        for model in configuredModelIDs(credentials) {
             models.removeAll { $0 == model }
             models.insert(model, at: 0)
         }
@@ -79,20 +95,25 @@ enum ProviderModels {
             // The status names the failure: a relay that answers 404 is told
             // apart from one that is slow, and from a path Apelin got wrong.
             guard (200 ..< 300).contains(response.statusCode) else {
-                throw ApelinError(
-                    .unavailable,
-                    "The endpoint answered \(response.statusCode) for \(request.url?.absoluteString ?? "the model list"). Check the Base URL, then try again.",
-                )
+                // A status naming a missing, hidden or unreadable list means
+                // discovery is unsupported; an outage or a rate limit is not
+                // that, and still gets its own error.
+                let message = "The endpoint answered \(response.statusCode) for \(request.url?.absoluteString ?? "the model list"). Check the Base URL, then try again."
+                if [400, 401, 403, 404, 405, 501].contains(response.statusCode) {
+                    throw ModelDiscoveryUnavailable.unsupported(message: message)
+                }
+                throw ApelinError(.unavailable, message)
             }
             guard data.count <= 4 * 1024 * 1024,
                   let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let models = (root["data"] ?? root["models"]) as? [[String: Any]]
-            else { throw ApelinError(.unavailable, "The provider did not return a model list.") }
+            else { throw ModelDiscoveryUnavailable.unsupported(message: "The provider did not return a model list.") }
             let ids = models.compactMap { ($0["id"] ?? $0["name"]) as? String }
                 .map { $0.hasPrefix("models/") ? String($0.dropFirst(7)) : $0 }
                 .filter { !$0.isEmpty && $0.count <= 256 }
             return Array(Set(ids)).sorted()
         } catch is CancellationError { throw CancellationError() }
+        catch let error as ModelDiscoveryUnavailable { throw error }
         catch let error as ApelinError { throw error }
         catch {
             throw ApelinError(.unavailable, "Unable to fetch models: \(error.localizedDescription) Retry, or sign in with the model ID instead.")
