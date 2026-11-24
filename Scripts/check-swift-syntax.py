@@ -31,6 +31,10 @@ LIMITS = {
 }
 MAX_DEPTH = 32
 
+# Only these characters can change the scan state. Jumping between them avoids
+# a Python-level iteration for every byte of ordinary Swift source.
+TOKEN_CHARS = re.compile(r'[\n/"#(){}\[\]]')
+
 
 class SyntaxProbeError(Exception):
     pass
@@ -113,48 +117,42 @@ def token_scan(source):
     Used only when tree-sitter is not installed. It catches truncated files and
     unbalanced braces, brackets and parentheses, but cannot catch every Swift
     grammar error; the result says which mode produced it.
+
+    Positions are computed only when an error is found: tracking line and column
+    through every character costs far more than scanning the delimiters, and a
+    full-tree scan of this repository reads over a hundred thousand lines.
     """
-    i = 0
+
     n = len(source)
+
+    def position(index):
+        line = source.count("\n", 0, index) + 1
+        last_newline = source.rfind("\n", 0, index)
+        return line, index - last_newline
+
     stack = []
     pairs = {")": "(", "]": "[", "}": "{"}
-    line = 1
-    column = 1
-
-    def advance(text):
-        nonlocal line, column
-        for char in text:
-            if char == "\n":
-                line += 1
-                column = 1
-            else:
-                column += 1
-
-    while i < n:
+    i = 0
+    while True:
+        match = TOKEN_CHARS.search(source, i)
+        if match is None:
+            break
+        i = match.start()
         char = source[i]
         if char == "\n":
             i += 1
-            advance("\n")
             continue
         if char == "/" and i + 1 < n and source[i + 1] == "/":
             end = source.find("\n", i)
-            if end < 0:
-                end = n
-            advance(source[i:end])
-            i = end
+            i = n if end < 0 else end
             continue
         if char == "/" and i + 1 < n and source[i + 1] == "*":
             end = source.find("*/", i + 2)
             if end < 0:
-                return (line, column, "unterminated block comment")
-            advance(source[i : end + 2])
+                return (*position(i), "unterminated block comment")
             i = end + 2
             continue
         if char == "#" or source.startswith('"""', i):
-            # Swift raw / multiline strings. The closing delimiter mirrors the
-            # opener: #"""..."""#, """#...#""", #"..."# or """...""". Searching
-            # for a short delimiter such as "# inside raw JSON closes it far
-            # too early, so match the whole opener instead.
             leading = 0
             while i + leading < n and source[i + leading] == "#":
                 leading += 1
@@ -169,7 +167,7 @@ def token_scan(source):
                         and source[quote_at + quote_len + trailing] == "#"
                     ):
                         trailing += 1
-                start_line, start_column = line, column
+                start = position(i)
                 closing = (
                     ("#" * trailing + '"""' + "#" * leading)
                     if multiline
@@ -177,48 +175,38 @@ def token_scan(source):
                 )
                 end = source.find(closing, quote_at + quote_len)
                 if end < 0:
-                    return (start_line, start_column, "unterminated raw string")
-                advance(source[i : end + len(closing)])
+                    return (*start, "unterminated raw string")
                 i = end + len(closing)
                 continue
             if leading:
-                # A bare # (#if, #keyPath, #selector) is an ordinary token.
-                advance(source[i : i + leading])
                 i += leading
                 continue
         if char == '"':
-            start_line, start_column = line, column
+            start = position(i)
             i += 1
-            advance('"')
             closed = False
             while i < n:
                 if source[i] == "\\":
-                    if i + 1 >= n:
-                        break
-                    advance(source[i : i + 2])
                     i += 2
                     continue
                 if source[i] == '"':
                     i += 1
-                    advance('"')
                     closed = True
                     break
-                advance(source[i])
                 i += 1
             if not closed:
-                return (start_line, start_column, "unterminated string")
+                return (*start, "unterminated string")
             continue
         if char in "([{":
-            stack.append((char, line, column))
+            stack.append((char, i))
         elif char in ")]}":
             if not stack or stack[-1][0] != pairs[char]:
-                return (line, column, "unexpected '{}'".format(char))
+                return (*position(i), "unexpected '{}'".format(char))
             stack.pop()
         i += 1
-        advance(char)
     if stack:
-        opener, error_line, error_column = stack[-1]
-        return (error_line, error_column, "unclosed '{}'".format(opener))
+        opener, opened_at = stack[-1]
+        return (*position(opened_at), "unclosed '{}'".format(opener))
     return None
 
 
