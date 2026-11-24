@@ -37,7 +37,7 @@ actor ToolRunner {
     let httpRequest: HTTPRequest
     let webSearch: WebSearch
     let javaScript: JavaScript
-    let imageGeneration: ImageGeneration
+    var imageGeneration: ImageGeneration
 
     /// A model change between runs also changes which saved sign-in the image
     /// tool sends with its request; it must not keep the previous one's key.
