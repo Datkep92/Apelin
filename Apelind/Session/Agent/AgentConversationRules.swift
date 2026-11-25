@@ -41,7 +41,7 @@ enum AgentConversationRules {
         guard opener.depth < AgentConversations.maximumDepth else {
             throw ApelinError(
                 .denied,
-                "a conversation another agent opened \(opener.depth) deep cannot open more; do the work here",
+                "a conversation another agent opened is at the host's protective depth ceiling (\(AgentConversations.maximumDepth)); do the work here or reuse one that can open",
             )
         }
         guard let prompt = open.prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

@@ -31,7 +31,10 @@ Written down in `Packages/ApelinKit/Sources/ApelinProtocol/Operations/Agent.swif
   model and effort as sent.
 - At most `maximumOpenChildren` (6) agent-opened sessions run per project
   (`conflict` past it); a chain of openings is at most `maximumDepth` (2)
-  deep, the app's sessions being depth 0.
+  deep, the app's sessions being depth 0. These are protective ceilings of
+  the current app, not a fan-out target: a child decides its flow count from
+  the work and device load, reuses or closes a child at the ceiling, and
+  carries on with parallel reads in its own chat.
 - After an agent's `agentOpen` the host records the parent and depth in
   `AgentSessionTable.Entry`, and appends `conversationOpened`
   (`AgentConversations.openedEventKind`) to the opener's agent task:

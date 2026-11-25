@@ -304,6 +304,8 @@ struct ConversationToolTests {
         for prompt in [project, general] {
             #expect(prompt.contains("apelin://conversation/<session id>") && prompt.contains("apelin://project/<projectID>"))
             #expect(!prompt.contains("there is no Apelin URL scheme"))
+            #expect(prompt.contains("not from a fixed count"))
+            #expect(prompt.contains("protective limits"))
         }
     }
 

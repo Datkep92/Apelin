@@ -16,10 +16,9 @@
 > 3. `CA_NHAN_HOA.md` ▸ §10 — memory hygiene; §6.1 only to trace one change's
 >    history; §8/§8.1 for the process log.
 > 4. **The user's own working rules** — the skill `sep-working-rules` (read it with
->    `apelin_skill_read`; its file `Operating-Specification.md` holds his 19 sections
->    verbatim). Those rules apply in **every project**, not only this one, and they
->    are a standing instruction from him. Nothing else copies them: the file
->    `Documents/Personal/Operating-Specification.md` and this file only point here.
+>    `apelin_skill_read`). Those rules apply in **every project**, not only this one, and they
+>    are a standing instruction from him. The old `Operating-Specification.md`
+>    file is gone; nothing else copies the rules here.
 >
 > At every milestone: the §9 table, a row in §6.1 when code changed, the
 > `handoff` memory, then §8's log. A finished thing is one you **saw work**, not
@@ -42,8 +41,8 @@
 ## Luật làm việc của Sếp
 
 **Luật bắt buộc, áp dụng mọi dự án — đọc skill `sep-working-rules` trước khi bắt
-đầu việc.** Nơi đó có đủ 10 luật, luật lưu trữ/dọn ghi nhớ, và bản **nguyên văn 19
-mục** Sếp tự viết (`Operating-Specification.md` trong cùng folder skill). Không chép
+đầu việc.** Nơi đó có đủ 10 luật, luật lưu trữ/dọn ghi nhớ và luật đa luồng tự
+co giãn; bản nguyên văn 19 mục cũ đã không còn, đừng trỏ tới nó. Không chép
 lại ở đây: muốn thêm/đổi luật thì sửa trong skill, chỗ này chỉ trỏ.
 
 Nhận ra nhanh: **L1** làm thật, không chỉ nói · **L2** chạy lệnh kiểm được thì chạy,
@@ -3875,15 +3874,7 @@ Quy tắc ngắn của fork:
   `CA_NHAN_HOA.md`** (Ngày | Loại | Tóm tắt | Hash commit | Yêu cầu giữ lại),
   ghi commit cùng lúc. Không ghi dòng nào thì chưa được coi là cá nhân hoá
   chính thức, có thể bị merge sau đẩy mất.
-- **Ba luồng khi tìm logic để sửa hay fix (Sếp đặt 2026-11-24):** một luồng chính
-  gom việc, một luồng rà logic và một luồng rà cú pháp/kiểm chạy song song. Hai
-  luồng rà chỉ đọc và trả về một bảng gom sửa chung: tệp, dòng, việc cần sửa và
-  lệnh kiểm tương ứng. Có đủ bảng rồi mới ghi: chia theo tệp, **mỗi tệp đúng một
-  luồng ghi**, dùng mã phiên bản cũ của tệp khi sửa để không ghi đè nhau. Nếu một
-  sửa chạm hai tệp (đổi tên hàm, thêm import, sửa test đi kèm) thì gom về một
-  luồng. Không ghi trước khi hai luồng rà xong; sau khi tất cả ghi xong chạy lại
-  toàn bộ cổng kiểm **một lượt**, không chạy riêng từng luồng. Không build trước khi cả ba
-  luồng xong. Chi tiết ở skill `multi-agent-explore`.
+- **Luồng tự co giãn khi tìm logic/sửa lỗi (Sếp chốt 2026-11-25):** số luồng là hệ quả của việc và tải máy, không phải chỉ tiêu cố định. Việc nhỏ (một tệp, một dòng, suy luận tuần tự) làm thẳng một batch; việc lớn hơn thì mở các luồng đọc độc lập (logic, cú pháp/kiểm), gom **một bảng** gồm tệp, dòng, việc cần sửa và lệnh kiểm. Trước khi mở mới: dùng lại con rảnh, đóng con đã xong. Chạm trần triển khai của app (6 con/project, sâu 2) thì báo một dòng rồi đọc song song trong phiên hiện tại; không hỏi Sếp về số luồng. Có bảng rồi mới ghi: chia theo tệp, **mỗi tệp đúng một luồng ghi**, dùng mã phiên bản cũ; sửa chạm hai tệp gom về một luồng. Không ghi trước khi các luồng đọc xong; sau khi tất cả ghi xong chạy kiểm **một lượt** trên cây ổn định, không chạy riêng từng luồng, không build trước khi xong. Chi tiết ở skill `multi-agent-explore` và `sep-working-rules` mục 0b.
 - **Cổng kiểm song song:** `python3 Scripts/check-parallel.py` (hoặc
   `make check-parallel`; CI dùng `TRANSLATIONS=1`) chạy các check độc lập cùng
   lúc và in hết lỗi trong một báo cáo. `make check` vẫn là cổng chuẩn cuối.

@@ -538,6 +538,8 @@ giao diện tìm kiếm, 6 nguồn web, Terminal/Chạy test/Files/Git, danh sá
 > handoff. Mục nào đã đóng thì rút thành một dòng ở bảng 6.1 rồi bỏ khỏi đây;
 > mục nào cũ hơn một tuần mà không ai đụng thì rút gọn như vậy.
 
+**2026-11-25 — việc mới nhất: agent tự co giãn luồng, bỏ nghi thức ba luồng cố định.** Sếp trao quyền sửa lại dự án/ghi nhớ/skill để agent chạy end-to-end nhanh và đúng, tự co giãn theo khối lượng việc, độ phức tạp và tải máy, hạn chế hỏi. Gốc rễ: skill và lời nhắc hệ thống vẫn dặn «mặc định 2–3, tối đa 6» và «ba luồng cho mọi sửa lỗi», trong khi luồng con bị trần 6/2 của app nên hay vướng rồi phải hỏi. Đã đổi: luật trong skill `sep-working-rules` mục 0b và skill `multi-agent-explore` giờ co giãn số luồng theo việc; trần 6/2 chỉ là bảo vệ, chạm trần thì dọn chỗ rồi đọc song song trong phiên hiện tại, không hỏi; A/B/C là mẫu cho việc lớn, không phải nghi thức. Bỏ trỏ tới `Operating-Specification.md` đã mất. Đồng bộ lời nhắc hệ thống, comment giao thức, thông báo lỗi trần, `AGENTS.md` và ghi nhớ. **Kiểm được:** `python3 Scripts/check-parallel.py --root . --jobs 4` → 10 đạt / 0 lỗi / 4 bỏ qua đúng lý do (cú pháp Swift 8,5–9,3s, `git diff --check` sạch). Chế độ CI `--translations --host-checks` cũng 10 cổng đạt; 4 cổng còn lại lỗi do máy thiếu `/private/tmp`, `/bin/sh` và `plutil`, không phải do đổi này — CI sẽ kiểm. `swift test` gói agent không chạy được trên máy vì bản kê khai Swift 6.1, trong khi máy chỉ có 5.9.2. **Chưa kiểm chứng:** chưa build, chưa push/CI, chưa phát hành/cài, chưa đo lợi ích tốc độ trên lượt agent thật. Kế tiếp: commit local, báo Sếp; không push/build khi chưa có lệnh.
+
 **2026-11-24 — việc mới nhất: tối ưu khâu sửa mã — cổng Swift nhanh hơn và ghi song song theo tệp; code `eb25796`, đã push/CI xanh/phát hành/cài 0.4.96/build 281.** Sếp hỏi cơ chế kiểm song song đã tối ưu việc sửa code chưa, rồi muốn cho nhiều luồng cùng sửa theo từng tệp vì vẫn có luồng rà chéo. Gốc rễ: cổng cú pháp Swift tốn 19,4s cho 1049 tệp, và quy tắc ba luồng cấm ghi song. Đã sửa cổng (đối chiếu 1055 trường hợp không khác biệt, 19,4s → 6,3s, dưới runner 9,9s) và đổi quy tắc: hai luồng rà vẫn đọc và trả bảng gom, rồi mỗi tệp một luồng ghi kèm mã phiên bản cũ, sửa chạm hai tệp gom về một luồng, xong mới kiểm một lượt. Chi tiết ở bảng 6.1 dòng 114, mục 8, `AGENTS.md` và skill `multi-agent-explore`. **Kiểm được:** 10 cổng đạt / 0 lỗi / 4 bỏ qua, cú pháp Python và `git diff --check` sạch. **Chưa kiểm chứng:** chưa đo lợi ích ghi song song trên lượt sửa thật, chưa gọi endpoint ảnh thật hay thấy ảnh trên màn hình. **Kiểm được thêm:** CI `45327418543` xanh cả ba job, Release `v0.4.96` publish, gói rootless đã cài, app chạy 0.4.96/build 281; luật đa luồng đã đưa vào skill `sep-working-rules` mục 0b áp dụng mọi dự án. Kế tiếp: khi Sếp cho đụng màn hình thì thử sinh ảnh, rồi đóng handoff.
 
 **2026-11-24 — việc mới nhất trước đó: cơ chế kiểm ba luồng đã xong code, đã push, CI xanh.** Sếp chọn làm cả hai: dùng ngay cách làm ba luồng và đổi cơ chế kiểm cho nhanh hơn. Runner `c873a2c` chạy 13 cổng song song, gom lỗi thành một báo cáo; `make check` giữ nguyên; CI có thêm job `static-checks` chạy cùng lúc với Host tests và build. Nguyên tắc «chỉ song song hóa đọc/kiểm, một đầu mối gộp trước khi sửa» nằm ở skill `multi-agent-explore` và `AGENTS.md`. Chi tiết ở bảng 6.1 dòng 113 và mục 8. **Kiểm được:** chạy thật trên máy 10 đạt / 0 lỗi / 4 bỏ qua đúng lý do, cú pháp sạch, `git diff --check` sạch. **Chưa kiểm chứng:** chưa đo lợi ích tốc độ trên lượt sửa thật. **Kiểm được thêm:** job `static-checks` đạt trên CI `45327418543` (cả ba cổng macOS đạt trên runner). Kế tiếp: giữ job này khi merge upstream; không bỏ `make check`.
@@ -715,7 +717,7 @@ luật nằm ở skill `sep-working-rules`, không nằm trong kho — xoá dòn
 | Nội dung | Chỗ lưu |
 |---|---|
 | Luật áp cho **mọi** dự án (cách nói, cách làm việc) — hiện là 10 luật của Sếp | **skill `sep-working-rules`**; ghi nhớ chỉ giữ **một** dòng móc `scope=global` trỏ tới skill |
-| Bản **nguyên văn** dài của Sếp | file `.md` trong folder skill (`skills/sep-working-rules/Operating-Specification.md`), **ngoài git** nếu là văn bản của Sếp — không tốn kho |
+| Luật hiện hành, gồm bản nguyên văn cũ đã gộp | skill `sep-working-rules` (`SKILL.md`); file phụ `Operating-Specification.md` cũ đã mất, không trỏ tới nữa |
 | Quy tắc **riêng dự án này** | `AGENTS.md`, mục *Fork personalisation* — không tốn kho |
 | Việc đang dở tới đâu, kế tiếp là gì | **một** ghi nhớ `kind=handoff` bản ngắn; chi tiết ở §9 |
 | Kế hoạch dài hơn hạn mức ghi nhớ | file `.md` trong repo (`Documents/Plan/…`), ghi nhớ chỉ trỏ đường dẫn |
@@ -741,4 +743,10 @@ luật nằm ở skill `sep-working-rules`, không nằm trong kho — xoá dòn
   Kết quả: **4 149 byte / 10 bản (13 %)**. Từ nay luật chung **chỉ** ở skill,
   `AGENTS.md` và `Documents/Personal/Operating-Specification.md` chỉ trỏ, kho không
   chép lại. Chi tiết ở dòng 57, bảng 6.1.
+
+- **2026-11-25:** kiểm lại thấy file phụ `Operating-Specification.md` trong folder
+  skill đã không còn; luật gộp lại một chỗ trong `SKILL.md`. `AGENTS.md`, mục này
+  và `Documents/Personal/Operating-Specification.md` chỉ còn trỏ tới skill; đừng
+  đọc tệp phụ nữa. Đồng thời bỏ nghi thức ba luồng cố định: co giãn theo việc,
+  trần 6/2 của app chỉ là bảo vệ.
 

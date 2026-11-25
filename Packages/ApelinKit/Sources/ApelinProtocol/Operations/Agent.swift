@@ -85,10 +85,13 @@ public struct AgentSessionSummary: Codable, Sendable, Equatable {
 /// reaching another project takes the user's approval: an open or a prompt
 /// one the app gave for exactly it, a list or an attach one the app gave
 /// this session for that project. `agentApprove`, `agentSteer` and
-/// `agentCompact` stay the app's. At most `maximumOpenChildren` sessions an
-/// agent opened run in a project at once, and a chain of openings is at
-/// most `maximumDepth` deep.
+/// the host's ceilings are protective limits, not a fan-out target: at most
+/// `maximumOpenChildren` sessions an agent opened run in a project at once,
+/// and a chain of openings is at most `maximumDepth` deep. An agent decides
+/// how much to open from the work and device load; at a ceiling it reuses or
+/// finishes a child, or works in its own chat.
 public enum AgentConversations {
+    /// Host-enforced ceiling, not a required number of children.
     public static let maximumOpenChildren = 6
     /// A conversation the app opened is depth 0; one it opens is 1.
     public static let maximumDepth = 2

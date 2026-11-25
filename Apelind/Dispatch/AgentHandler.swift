@@ -305,7 +305,7 @@ enum AgentHandler: DomainHandler {
             guard await AgentSessionTable.shared.reserveChild(project: project.id, registry: host.registry) else {
                 return request.fail(ApelinError(
                     .conflict,
-                    "\(AgentConversations.maximumOpenChildren) conversations agents opened are already running in this project; stop one first",
+                    "\(AgentConversations.maximumOpenChildren) conversations agents opened are already running in this project; that is the host's protective ceiling — reuse or stop one, or carry on here",
                 ))
             }
         }

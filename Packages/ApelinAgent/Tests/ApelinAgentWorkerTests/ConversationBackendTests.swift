@@ -196,13 +196,14 @@ struct ConversationBackendTests {
     @Test
     func `a refusal comes back in words, with what to do`() async throws {
         let fixture = try Fixture()
-        fixture.host.on(.agentOpen) { _ in throw ApelinError(.conflict, "6 conversations agents opened are already running in this project; stop one first") }
+        fixture.host.on(.agentOpen) { _ in throw ApelinError(.conflict, "6 conversations agents opened are already running in this project; that is the host's protective ceiling — reuse or stop one, or carry on here") }
         do {
             _ = try await fixture.backend.conversationCreate(ConversationCreateToolRequest(context: fixture.context(), prompt: "x"))
             Issue.record("the host refused")
         } catch let failure as ConversationToolFailure {
             #expect(failure.message.hasPrefix("apelin_conversation_create failed: 6 conversations"))
-            #expect(failure.message.contains("apelin_conversation_stop"))
+            #expect(failure.message.contains("protective ceiling"))
+            #expect(failure.message.contains("carry on here"))
         }
         fixture.host.on(.agentList, reply: AgentListResponse(sessions: []))
         await #expect(throws: ConversationToolFailure.self) {
