@@ -155,7 +155,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     private enum Section: Hashable {
         /// The configurations themselves, while nothing is typed.
         case configurations
-        /// The models of the NCC serving the current model (third tab).
+        /// The models of the NCC serving the current model (first tab).
         case current
         /// The models of one configuration the typed query matched.
         case matches(Int)
@@ -172,13 +172,13 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
     private var sections: [(Section, [PickerRow])] = []
     private let search = UISearchController(searchResultsController: nil)
     private let onPickModel: ((ComposerModelSelection) -> Void)?
-    private var currentTab = 0 // 0 = NCC Groups, 1 = All Models, 2 = Current NCC
+    private var currentTab = 1 // 0 = Current NCC, 1 = NCC Groups, 2 = All Models
     private var tabSegment: UISegmentedControl!
 
     /// The group of configurations serving the model the composer uses now:
     /// the one holding the account whose provider and profile match the
     /// selection, or the first group when nothing is picked yet. Its models
-    /// are what the third tab lists.
+    /// are what the first tab lists.
     private var currentGroup: ModelPickerGrouping.Group? {
         if let selected,
            let index = accounts.firstIndex(where: {
@@ -220,7 +220,7 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         navigationItem.searchController = search
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
-        tabSegment = UISegmentedControl(items: ["NCC", "All Models", "Current NCC"])
+        tabSegment = UISegmentedControl(items: ["Current NCC", "NCC", "All Models"])
         tabSegment.selectedSegmentIndex = currentTab
         tabSegment.addTarget(self, action: #selector(tabChanged), for: .valueChanged)
         navigationItem.titleView = tabSegment
@@ -321,15 +321,15 @@ final class ChatModelPickerController: TableController, UISearchResultsUpdating 
         return [rows.isEmpty ? (.noResults, [.empty]) : (.current, rows)]
     }
 
-    /// The rows shown now: NCC groups (Tab 1), all models (Tab 2), or the
-    /// current NCC's models (Tab 3).
+    /// The rows shown now: the current NCC's models (Tab 1), NCC groups
+    /// (Tab 2), or all models (Tab 3).
     private func regroup() {
-        if currentTab == 2 {
+        if currentTab == 0 {
             sections = buildCurrentList()
             dataSource.update(sections)
             return
         }
-        if currentTab == 1 {
+        if currentTab == 2 {
             sections = buildFlatList()
             dataSource.update(sections)
             return

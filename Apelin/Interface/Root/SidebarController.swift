@@ -288,14 +288,14 @@ final class SidebarController: UIViewController {
 
     // MARK: - Navigation bar
 
-    // Header: Settings, the current project title, New Chat, and Model Health Check.
-    // Projects are accessible from the navigation bar's title tap.
+    // Header, left to right: Settings, the current project title, New Chat.
+    // The title is the project name; the project list stays in the footer.
     navigationItem.style = .editor
-    navigationItem.leftBarButtonItems = [settingsBarButton, newChatButton]
+    navigationItem.leftBarButtonItems = [settingsBarButton]
     navigationItem.hidesBackButton = true
     navigationItem.preferredSearchBarPlacement = .stacked
     navigationItem.hidesSearchBarWhenScrolling = true
-    navigationItem.rightBarButtonItems = []
+    navigationItem.rightBarButtonItems = [newChatButton]
     showProject()
         refresh()
         NotificationCenter.default.addObserver(
